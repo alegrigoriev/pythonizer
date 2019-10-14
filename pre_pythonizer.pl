@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#:: pre_pythonizer version 01
+#:: pre_pythonizer version 0.1
 #:: Stage 1 of fuzzy tranlation of Perl to Python
 #:: Nikolai Bezroukov, 2019.
 #:: Licensed under Perl Artistic license
@@ -7,6 +7,7 @@
 #:: The key idea if fuzzy reformating is use only last and first symbols of the line for  determining the nesting level.
 #:: in most cases this is sucessful approach and in a few case when it is not it is easovy corrected using pragma %set_nest_level
 #:: That's why we use the term "fuzzy".
+#::
 #:: To be sucessful, this approach requres a certain (very resonable) layout of the script.
 #:: But there some notable exceptions. For example, for script compless to eliminate whitespece this approach  is not sucessful
 #:: You need to run them via perltidy first.
@@ -25,7 +26,7 @@
 #::    1st -- name of  file
 #::
 #::    NOTE: With option -p the progrem can be used as a stage fo the pipe. FOr example#::
-#::       cat my_script.sh | pre_pythonizer -p > my_script_formatted.sh
+#::       cat my_script.sh | pre_pythonizer | pythonizer > my_script.py
 #--- Development History
 #
 # Ver      Date        Who        Modification
@@ -42,7 +43,7 @@
    use feature 'state';
    use Getopt::Std;
 
-   $VERSION='0.71';
+   $VERSION='0.1'; # alpha vestion
    $debug=1; # 0 production mode 1 - development/testing mode. 2-9 debugging modes
    #$debug=1;  # enable saving each source version without compile errors to GIT
    #$debug=2; # starting from debug=2 the results are not written to disk
@@ -72,19 +73,13 @@
    $readability_plus=0;
    %keyword=('if'=>1,'while'=>1,'unless'=>1, 'until'=>1,'for'=>1,'foreach'=>1,'given'=>1,'when'=>1,'default'=>1);
 
-   if( $debug>0 ){
-      logme('D',2,2); # Max verbosity
-   } else {
-      logme('D',1,2); # E and S to console, everything to the log.
-   }
+   logme('D',1,2); # E and S to console, everything to the log.
    banner($LOG_DIR,$SCRIPT_NAME,'Simple Perl prettyprinter',30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
-   get_params();
-   ($debug > 0) && commit_source("$HOME/Archive",$git_repo);
-
-   if( $debug==0 ){
-      print STDERR "$SCRIPT_NAME (version $VERSION) is working in production mode\n";
-   } else {
-      print STDERR "ATTENTION!!! $SCRIPT_NAME (version $VERSION) is working in debugging mode debug=$debug\n";
+   get_params(); # At this point debug  flag can be reset
+    if( $debug>0 ){
+      logme('D',2,2); # Max verbosity
+      print STDERR "ATTENTION!!! $SCRIPT_NAME is working in debugging mode $debug with autocommit of source to $HOME/Archive\n";
+      autocommit("$HOME/Archive",$use_git_repo); # commit source archive directory (which can be controlled by GIT)
    }
    print STDERR 80 x "=","\n\n";
 
@@ -109,6 +104,7 @@
       if( $lineno == $breakpoint ){
          $DB::single = 1
       }
+      $line=~tr/\t/ /; # eliminate \t
       if( substr($line,-1,1) eq "\r" ){
          chop($line);
       }
@@ -228,9 +224,15 @@
       } elsif( $first_sym eq '}' ){
          $cur_nest=$new_nest-=1;
          process_line('}',0); # shift "{" left, aligning with the keyword
+         if( substr($line,0,1) eq '}' ){
+            $line=substr($line,1);
+         }
+         while( substr($line,0,1) eq ' ' ){
+            $line=substr($line,1);
+         }
          # Case of }else{
          unless( $last_sym eq '{') {
-             process_line(substr($line,1),0);
+             process_line($line,0);
              next;
          }
       }
@@ -443,7 +445,7 @@ sub get_params
 # Create backup and commit script to GIT repository if there were changes from previous version.
 #
 #package sp;
-sub commit_source
+sub autocommit
 {
 # parameters
 my $archive_dir=$_[0]; # typically home or $HOME/bin
@@ -495,15 +497,15 @@ sub helpme
 sub abend
 {
 my $message;
-my $lineno=$_[0];
-      if( scalar(@_)==1 ){
+my ($package, $filename, $lineno) = caller;
+      if( scalar(@_)==0 ){
          $message=$MessagePrefix.$lineno."T  ABEND at $lineno. No message was provided. Exiting.";
       }else{
-         $message=$MessagePrefix.$lineno."T $_[1]. Exiting ";
+         $message=$MessagePrefix.$lineno."T $_[0]. Exiting ";
       }
-#  Syslog might not be availble
+#  Syslog might not be available
       out($message);
-      #banner('ABEND');
+      #[EMAIL] banner('ABEND');
       die('Internal error');
 
 } # abend
