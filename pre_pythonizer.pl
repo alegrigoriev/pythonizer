@@ -4,7 +4,9 @@
 #:: Nikolai Bezroukov, 2019.
 #:: Licensed under Perl Artistic license
 #::
-#:: The key idea if fuzzy reformating is use only last and first symbols of the line for  determining the nesting level.
+#:: This phazeproduced FormattedSource PERL code and XREF table.
+#:: Both are fuzzy, in a sense  that they are constuctred using  heuristic methods.
+#:: In case of fuzzy reformatting prefix and suffix of the line are analysed to determine the nesting level.
 #:: in most cases this is sucessful approach and in a few case when it is not it is easovy corrected using pragma %set_nest_level
 #:: That's why we use the term "fuzzy".
 #::
@@ -45,18 +47,20 @@
 
    $VERSION='0.1'; # alpha vestion
    $debug=1; # 0 production mode 1 - development/testing mode. 2-9 debugging modes
+
    #$debug=1;  # enable saving each source version without compile errors to GIT
    #$debug=2; # starting from debug=2 the results are not written to disk
    #$debug=3; # starting from Debug=3 only the first chunk processed
-   $STOP_STRING=''; # In debug mode gives you an ability to switch trace on any error message.
+   $STOP_STRING=''; # In debug mode gives you an ability to switch trace on any type of error message for example S (via hook in logme).
+   $use_git_repo='';
 
-# INTERESTING, VERY NEAT IDEA: you can switch on tracing from particular line of source ( -1 to disable)
+# You can switch on tracing from particular line of source ( -1 to disable)
    $breakpoint=-1;
    $SCRIPT_NAME=substr($0,rindex($0,'/')+1);
    if( ($dotpos=index($SCRIPT_NAME,'.'))>-1 ) {
       $SCRIPT_NAME=substr($SCRIPT_NAME,0,$dotpos);
    }
-   $git_repo='';
+
    $OS=$^O; # $^O is built-in Perl variable that contains OS name
    if($OS eq 'cygwin' ){
       $HOME="/cygdrive/f/_Scripts";  # $HOME/Archive is used for backups
@@ -67,21 +71,18 @@
 
 
    $tab=3;
-   $write_formatted=0; # flag that dremines if we need to write the result into the file supplied.
-   $write_pipe=0;
    $nest_corrections=0;
-   $readability_plus=0;
    %keyword=('if'=>1,'while'=>1,'unless'=>1, 'until'=>1,'for'=>1,'foreach'=>1,'given'=>1,'when'=>1,'default'=>1);
 
    logme('D',1,2); # E and S to console, everything to the log.
-   banner($LOG_DIR,$SCRIPT_NAME,'Simple Perl prettyprinter',30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
+   banner($LOG_DIR,$SCRIPT_NAME,'Phase 1 of pythonizer',30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
    get_params(); # At this point debug  flag can be reset
     if( $debug>0 ){
       logme('D',2,2); # Max verbosity
       print STDERR "ATTENTION!!! $SCRIPT_NAME is working in debugging mode $debug with autocommit of source to $HOME/Archive\n";
       autocommit("$HOME/Archive",$use_git_repo); # commit source archive directory (which can be controlled by GIT)
    }
-   print STDERR 80 x "=","\n\n";
+   print STDERR  "=" x 80,"\n\n";
 
 #
 # Main loop initialization variables
@@ -89,18 +90,20 @@
    $new_nest=$cur_nest=0;
    #$top=0; $stack[$top]='';
    $lineno=0;
-   $fline=0; # line number in formatted code
+   $fline=0; # line number in FormattedSource code
    $here_delim="\n"; # impossible combination
    $noformat=0;
+   $SubsNo++;
    $InfoTags='';
+   @SourceText=<STDIN>;
 #
 # MAIN LOOP
 #
-   while($line=<STDIN> ){
+   for( $lineno=0; $lineno<@SourceText; $lineno++  ){
+      $line=$SourceText[$lineno];
       $offset=0;
       chomp($line);
       $intact_line=$line;
-      $lineno++;
       if( $lineno == $breakpoint ){
          $DB::single = 1
       }
@@ -171,6 +174,8 @@
       }
       if( $line =~ /^sub\s+(\w+)/ ){
          # $offset=-1;
+         $SubList[$1]=$lineno;
+         $SubsNo++;
          if( $cur_nest != 0 ) {
             logme('E',"Non zero nesting encounted for subroutine definition $1");
             if ($cur_nest>0) {
@@ -253,13 +258,7 @@
 #
 # Epilog
 #
-
-   if( $cur_nest !=0 || $nest_corrections > 0 ){
-      ( $write_formatted >0 || $write_pipe > 0  ) && logme('S',"Writing of formatted code is blocked due to errors detected");
-      logme('T',"Script might have errors; diagnistics follows."); # this terminates script.
-   }elsif( $write_formatted >0 || $write_pipe > 0  ){
-      write_formatted_code();
-   }
+   write_formatted_code(); # write to the database.
    exit 0;
 
 #
@@ -280,52 +279,92 @@ my $offset=$_[1];
          $spaces= ' ' x (($cur_nest+$offset+1)*$tab);
       }
       print STDERR "$prefix | $spaces$line\n";
-      if( $write_formatted > 0 ){
-         $formatted[$fline++]="$spaces$line\n";
-      }
+      $FormattedSource[$fline++]="$spaces$line\n";
       $cur_nest=$new_nest;
       if( $noformat==0 ){ $InfoTags='' }
 }
-sub  write_formatted_code
+sub write_formatted_code
 {
-      if( -f $fname ){
-         chomp($timestamp=`date +"%y%m%d_%H%M"`);
-         $fname_backup=$fname.'.'.$timestamp;
-         `cp -p $fname $fname_backup`;
-         if( $? > 0  ){
-            abend("Unable to create a backup");
+my $output_file="$LOG_DIR/$fname.formatted.pl";
+my ($line,$i,$k,$var, %dict, %type, @xref_table);
+
+   open (SYSFORM,'>',$output_file ) || abend(__LINE__,"Cannot open file $output_file for writing");
+   print SYSFORM @FormattedSource;
+   close SYSFORM;
+   `perl -cw  $output_file`;
+   if(  $? > 0 ){
+      logme('E',"Checking reformatted source code via perl -cw produced some errors (RC=$?). Please correct them before proceeding");
+   }
+   $output_file="$LOG_DIR/fname.xref";
+   open (SYSFORM,'>',$output_file ) || abend(__LINE__,"Cannot open file $output_file for writing");
+
+   for( $i=0; $i<@SourceText; $i++ ){
+      $line=$SourceText[$i];
+      next if (substr($line,0,1) eq '#' || $line=~/(\s+)\#/ );
+      chomp($line);
+      while( ($k=index($line,'$'))>-1 ){
+         $line=substr($line,$k+1);
+         next unless( $line=~/^(\w+)/ );
+         next if( $1 eq '_' || $1 =~[1-9] );
+         $k+=length($1)+1;
+         $var='$'.$1;
+         if($line=~/^\w+\s*[<>=+-]\s*[+-]?\d+/ ){
+            unless(exists($type{$var})) {$type{$var}='int';}
+         }elsif( $line=~/^\w+\s*=\s*\$\#\w+/ ){
+            unless( exists($type{$var}) ) {$type{$var}='int';}
+         }elsif( $line=~/^\w+\s*[+-=<>!]?=\s*(index|length|scalar)/ ){
+            unless( exists($type{$var}) ) {$type{$var}='int';}
+          }elsif( $line=~/^\w+\s*[+-=<>!]?=\s*[+-]?\d+/ ){
+            unless( exists($type{$var}) ) {$type{$var}='int';}
+         }elsif( $line=~/^\w+\s*\[.+?\]?\s*(\$\w+)/ && exists($type{$1}) && $type{$1} eq 'int' ) {
+            unless( exists($type{$var}) ) {$type{$var}='int';};
+         }elsif( $line=~/^\w+\s*\[.+?\]?\s*[+-=<>!]=\s*\d+/ ){
+            #Array
+            unless( exists($type{$var}) ) {$type{$var}='int';}
+         }elsif( $line=~/^\w+\s*\{.+?\}\s*[+-=<>!]?=\s*\d+/ ){
+            #Hash
+            unless( exists($type{$var}) ) {$type{$var}='int';}
          }
-      }
-      if( $write_formatted ){
-         open (SYSFORM,'>',"$fname.neat") || abend(__LINE__,"Cannot open file $fname.neat for writing");
-         print SYSFORM @formatted;
-         close SYSFORM;
-         `perl -cw $fname.neat`;
-         if(  $? > 0 ){
-            logme('E',"Checking reformatted code via perl -cw produced some errors (RC=$?). The original file left intact. Reformatted file is $fname.neat");
-         } else {
-            close STDIN;
-            `mv $fname.neat $fname`;
+
+         if( exists($dict{$var}) ){
+            $dict{$var}.=', '.$i;
+         }else{
+           $dict{$var}.=$i;
          }
-      }elsif( $write_pipe ){
-         print @formatted;
-      }
+     }
+   }
+   print STDERR "\n\nCROSS REFERENCE TABLE\n\n";
+   $i=0;
+   foreach $var (keys(%dict)) {
+      $prefix=( exists($type{$var}) ) ? $type{$var} : 'str';
+      $xref_table[$i]="$prefix $var $dict{$var}\n";
+      $i++;
+   }
+   @xref_table=sort(@xref_table);
+
+   open (SYSFORM,'>',$output_file ) || abend(__LINE__,"Cannot open file $output_file for writing");
+   for( $i=0; $i<@xref_table; $i++ ){
+      print STDERR "$xref_table[$i]\n";
+      print SYSFORM "$xref_table[$i]\n";
+   }
+   close SYSFORM;
 }
+
 #
 # Check delimiters balance without lexical parcing of the string
 #
 sub check_delimiter_balance
 {
 my $i;
-my $scan_text=$_[0];
+my $scan_SourceText=$_[0];
       $sq_br=0;
       $round_br=0;
       $curve_br=0;
       $single_quote=0;
       $double_quote=0;
       return if( length($_[0])==1 || $line=~/.\s*#/); # no balance in one symbol line.
-      for( $i=0; $i<length($scan_text); $i++ ){
-         $s=substr($scan_text,$i,1);
+      for( $i=0; $i<length($scan_SourceText); $i++ ){
+         $s=substr($scan_SourceText,$i,1);
          if( $s eq '{' ){ $curve_br++;} elsif( $s eq '}' ){ $curve_br--; }
          if( $s eq '(' ){ $round_br++;} elsif( $s eq ')' ){ $round_br--; }
          if( $s eq '[' ){ $sq_br++;} elsif( $s eq ']' ){ $sq_br--; }
@@ -384,12 +423,12 @@ sub get_params
          helpme();
       }
       if(  exists $options{'p'}  ){
-         $write_formatted=0;
+         $write_FormattedSource=0;
          $write_pipe=1;
       }
 
       if(  exists $options{'f'}  ){
-         $write_formatted=1;
+         $write_FormattedSource=1;
       }
       if(  exists $options{'r'}  ){
          $readability_plus=1;
@@ -422,7 +461,7 @@ sub get_params
 
       if( scalar(@ARGV)==0 ){
          open (STDIN, ">-");
-         $write_formatted=0;
+         $write_FormattedSource=0;
          return;
       }
 
@@ -594,8 +633,10 @@ state $MessagePrefix='';
          }
          $verbosity1=$_[1];
          $verbosity2=$_[2];
-         $msg_cutlevel1=length("WEST")-$verbosity1-1; # verbosity 3 is max and means 4-3-1 =0 is index correcponfing to  ('W')
+
+         $msg_cutlevel1=length("WEST")-$verbosity1-1; # verbosity 3 is max and means 4-3-1 =0  -- the index corresponding to code 'W'
          $msg_cutlevel2=length("WEST")-$verbosity2-1; # same for log only (like in MSGLEVEL mainframes ;-)
+
          return;
       }
       unless ( $error_code ){
@@ -604,7 +645,7 @@ state $MessagePrefix='';
          return;
       }
 #
-# detect callere.
+# detect caller lineno.
 #
       my ($package, $filename, $lineno) = caller;
 #
