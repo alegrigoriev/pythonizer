@@ -14,28 +14,42 @@ package Perlscan;
 #
 # Ver      Date        Who        Modification
 # ====  ==========  ========  ==============================================================
-# 0.1  2010/10/09  BEZROUN   Initial implementation
-# 0.2  2010/11/13  BEZROUN   Tail comment is now treated as a special case and does not produce a lexem
-# 0.3  2010/11/14  BEZROUN   Parsing of literal completly reorganized.
-# 0.4  2010/11/14  BEZROUN   For now double quoted string are translatied into concatenation of components
-# 0.5  2010/11/15  BEZROUN   Better parsing of Perl literals implemented
-# 0.6  2010/11/19  BEZROUN   Problem of translation of ` ` (and rx() is that it is Python version dependent
-# 0.7  2010/11/20  BEZROUN   Problem of translation of tr/abc/def/ solved
+# 0.10 2019/10/09  BEZROUN   Initial implementation
+# 0.20 2019/11/13  BEZROUN   Tail comment is now treated as a special case and does not produce a lexem
+# 0.30 2019/11/14  BEZROUN   Parsing of literal completly reorganized.
+# 0.40 2019/11/14  BEZROUN   For now double quoted string are translatied into concatenation of components
+# 0.50 2019/11/15  BEZROUN   Better parsing of Perl literals implemented
+# 0.60 2019/11/19  BEZROUN   Problem of translation of ` ` (and rx() is that it is Python version dependent
+# 0.70 2019/11/20  BEZROUN   Problem of translation of tr/abc/def/ solved
+# 0.71 2019/12/20  BEZROUN   Here strings are now processed
+# 0.80 2020/02/03  BEZROUN   #\ means continuation of the statement. Allow processing multiline statements (should be inserted by perl_normalizer)
+# 0.81 2020/02/03  BEZROUN   If the line does not ends with ; { or } we assume that the statement is continued on the next line
+# 0.90 2020/05/16  BEZROUN   Nesting is performed from this module
+# 0.91 2020/06/15  BEZROUN   Tail comments are artifically made properties of the last token in the line
+# 0.92 2020/08/06  BEZROUN   gen_statement moved from pythonizer, ValCom became a local array
+
 use v5.10;
 use warnings;
 use strict 'subs';
 use feature 'state';
-
+#use Pythonizer qw(correct_nest getline prolog epilog output_line);
 require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw(Exporter);
 #@EXPORT = qw(tokenize  @ValClass  @ValPerl  @ValPy $TokenStr);
-@EXPORT = qw(tokenize @ValClass  @ValPerl  @ValPy @ValCom $TokenStr);
+@EXPORT = qw(gen_statement tokenize @ValClass  @ValPerl  @ValPy $TokenStr);
 #our (@ValClass,  @ValPerl,  @ValPy, $TokenStr); # those are from main::
 
-  $VERSION = '0.1';
+  $VERSION = '0.9';
+  #
+  # types of veraiables detected during the first pass; to be implemented later
+  #
+  %is_numberic=();
+#
+# List of Perl special variables
+#
 
    %SPECIAL_VAR=('O'=>'os.name','T'=>'OS_BASETIME', 'V'=>'sys.version[0]', 'X'=>'sys.executable()',
                  ';'=>'PERL_SUBSCRIPT_SEPARATOR','>'=>'UNIX_EUID','<'=>'UNIX_UID','('=>'os.getgid()',')'=>'os.getegid()');
@@ -46,12 +60,13 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'if'=>'if ','else'=>'else: ','elsif'=>'elif ', 'unless'=>'if ', 'until'=>'until ','for'=>'for ','foreach'=>'for ',
                 'last'=>'break ','next'=>'continue ','close'=>'.f.close',
                 'chdir'=>'os.chdir','chmod'=>'.os.chmod','chr'=>'chr','exists'=>'.has_key','exit'=>'.sys.exit',
+                'exists'=> 'in', # if  key in dictionary
                 'map'=>'map','grep'=>'filter','sort'=>'sort','caller'=>'perl_caller_builtin',
                 'split'=>'.split','join'=>'.join','keys'=>'.keys','localtime'=>'.localtime',
                 'mkdir'=>'os.mldir','oct'=>'eval','ord'=>'ord','chomp'=>'.rstrip("\n")','chop'=>'[0:-1]',
-                'length'=>'len', 'scalar'=>'len', 'index'=>'.find','rindex'=>'.rfind', 'say'=>'print','die'=>'raise',
-                'sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','exists'=>'perl_exists','defined'=>'perl_defined',
-                );
+                'length'=>'len', 'package'=>'import', 'scalar'=>'len', 'index'=>'.find','rindex'=>'.rfind', 'say'=>'print','die'=>'raise',
+                'sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','defined'=>'perl_defined',
+                'use'=>'import');
 
        %TokenType=('x'=>'*', 'y'=>'q', 'q'=>'q','qq'=>'q','qr'=>'q','wq'=>'q','wr'=>'q','qx'=>'q','m'=>'q','s'=>'q','tr'=>'q',
                   'if'=>'c',  'while'=>'c', 'unless'=>'c', 'until'=>'c', 'for'=>'c', 'foreach'=>'c', 'given'=>'c',
@@ -63,7 +78,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'chdir'=>'f','chmod'=>'f','chr'=>'f','system'=>'f',
                   'map'=>'f','grep'=>'f','sort'=>'f','mkdir'=>'f','oct'=>'f','ord'=>'f',
                   'sub'=>'k','print'=>'f','say'=>'f','read'=>'f','open'=>'f','close'=>'f','STDERR'=>'k','STDIN'=>'k',
-                  );
+                  'use'=>'c','package'=>'c');
 
 #
 # one to one translation of digramms. most are directly translatatble.
@@ -74,7 +89,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
    %digram_map=('++'=>'+=1','--'=>'-=1','+='=>'+=', '.='=>'+=', '=~'=>'=','<>'=>'readline()','=>'=>': ','->'=>' ',
                 '&&'=>' and ', '||'=>' or ','::'=>'.'); #and/or/not
-my ($source,$cut,$tno);
+my ($source,$cut,$tno)=('',0,0);
 #
 # Tokenize line into one string and three arrays @ValClass  @ValPerl  @ValPy
 #
@@ -83,13 +98,9 @@ sub tokenize
 my ($l,$m);
       $source=$_[0];
       $tno=0;
-      @ValClass=(); # "TOken Type" -- lexical class of the token
-      @ValCom=(); # token subtype
-      @ValPerl=(); # Perl token value
-      @ValPy=(); # Corresponding Python token value, of any
-
-      $::TailComment='';
-      if ($::debug > 3 ) {
+      @ValClass=@ValCom=@ValPerl=@ValPy=(); # "Token Type", token comment, Perl value, Py analog (if exists)
+      $TokenStr='';
+      if ($::debug > 3 && $main::breakpoint >= $. ){
          $DB::single = 1;
       }
       while($source) {
@@ -98,34 +109,95 @@ my ($l,$m);
             substr($source,0,length($1))='';
          }
          $s=substr($source,0,1);
-         $ValClass[$tno]=$s;
-         $ValPerl[$tno]=$ValPy[$tno]=$ValCom[$tno]='';
          if( $s eq '#' ){
-            # tail comment means the end of processing of the line
-            $ValCom[$tno-1]=$source;
-            last;
+            # plain vanilla tail comment
+            if( $tno > 0 ){
+               $tno--;
+               $ValCom[$tno]=$source;
+               $source=Pythonizer::getline();
+               next;
+            }
+            print("Internal error in scanner\n");
+            $DB::single = 1;
+
          }elsif( $s eq ';'){
             #
-            # buffering tail is possible only if banace of round bracket is zero becuse of for statement
+            # buffering tail is possible only if banace of round bracket is zero
+            # because of for($i=0; $i<@x; $i++)
             #
             $balance=0;
             for ($i=0;$i<@ValClass;$i++) {
                if ($ValClass[$i] eq '(') {
                   $balance++;
-               }elsif ($ValClass[$i] eq '(') {
+               }elsif ($ValClass[$i] eq ')') {
                   $balance--;
                }
             }
-            $ValClass[$tno]=$ValPerl[$tno]=$s;
-            $ValPy[$tno]='';
-            $cut=1;
-            if ($balance==0) {
-               if( length($source)>1 && $source !~/^;\s*#/ ){
-                  Pythonizer::getline(substr($source,1));
+            if($balance != 0 ) {
+               # for statement or similar situation
+               $ValClass[$tno]=$ValPerl[$tno]=$s;
+               $ValPy[$tno]=',';
+               $cut=1; # we need to continue
+            }else {
+               # this is regular end of statement
+               if( length($source) == 1 ){
+                   last; # exit loop;
+               }
+               if( $source !~/^;\s*#/ ){
+                  # there is some meaningful tail -- multiple statement on the line
+                  Pythonizer::getline(substr($source,1)); # save tail that we be processed as the next line.
+                  last;
+               }else{
+                  # comment after ; this is end of statement
+                  $ValCom[-1]=substr($source,1); # comment attributed to the last token
+                  $source='';
                   last;
                }
             }
-         }elsif( $s eq '/' && ($tno==0 || index('~(;>',$ValClass[$tno-1])>-1) ){
+        }
+         # This is a meaningful symbol which tranlates into some token.
+         $ValClass[$tno]=$ValPerl[$tno]=$ValPy[$tno]=$s;
+         $ValCom[$tno]='';
+         if( $s eq '}'){
+            # we treat '}' as a separate "dummy" statement -- eauvant to ';' plus change of nest -- Aug 7, 2020
+            if( $tno==0 ){
+                 # we recognize it as the end of the block if '}' is the first symbol
+                if( length($source)>1 ){
+
+                   Pythonizer::getline(substr($source,1)); # save tail
+                   $source=$s; # this was we artifically create line with one symbol on it;
+                }
+                last; # we need to prosess it as a seperate one-symbol line
+            }elsif(length($source)==1) {
+                # NOTE: here $tno>0 and we reached the last symbol of the line
+                # we recognize it as the end of the block
+                #curvy bracket as the last symbol of the line
+                Pythonizer::getline('}'); # make it a separate statement
+                popup(); # kill the last symbol
+                last; # we truncate '}' and will process it as the next line
+            }
+            # this is closing bracket of hash element
+            $ValClass[$tno]=')';
+            $ValPy[$tno]=']';
+            $cut=1;
+
+         }elsif ($s eq '{' ){
+            # we treat '{' as the beginning of the block if it is the first or the last symbol on the line or is preceeded by ')' -- Aug 7, 2020
+             if( $tno==0) {
+                if( length($source)>1 ){
+                   Pythonizer::getline(substr($source,1)); # save tail
+                }
+                last; # artificially truncating the line making it one-symbol line
+             }elsif( length($source)==1 || substr($source,1)=~/^\s*#/ || $ValClass[$tno-1] eq ')'  ){
+                # $tno>0 this is the case when curvy bracket is the last statement on the line ot is preceded by ')'
+                Pythonizer::getline($source); # make is a new line to be proceeed later
+                popup();  # kill the last symbol
+                last;
+             }
+            $ValClass[$tno]='('; # we treat anything inside curvy backets as expression
+            $ValPy[$tno]='[';
+            $cut=1;
+         }elsif( $s eq '/' && ($tno==0 || index('~(',$ValClass[$tno-1])>-1) ){
             # slash means regex in three cases: if(/abc/){0}; $a=~/abc/; /abc/; Crazy staff
               $ValClass[$tno]='q';
               $cut=single_quoted_literal($s,1);
@@ -287,6 +359,7 @@ my ($l,$m);
                 }
             }elsif( index(';<>()',$s2) > -1 ){
                $ValPy[$tno]=$SPECIAL_VAR{$s2};
+               $cut=2;
             }elsif( $s2 =~ /\d/ ) {
                 $source=~/^.(\d+)/;
                 $ValClass[$tno]='s'; #scalar
@@ -353,18 +426,13 @@ my ($l,$m);
             $ValPerl[$tno]=$1;
             $ValPy[$tno]=$1;
             $cut=length($1)+1;
-         }elsif( $s eq '{' ){
-            if($ValClass[$tno-1] eq 's' ){
-               $ValClass[$tno]=$ValPerl[$tno]=$s;
-               $ValPy[$tno]='[';
-               $cut=1;
-            }
-         }elsif( $s eq '}'){
-            $ValClass[$tno]=$ValPerl[$tno]=$s;
-            if (length($source)>1 ) {
-               $ValPy[$tno]=']';
-               $cut=1;
-            }
+
+         }elsif( $s eq '[' ){
+            $ValClass[$tno]='('; # we treat anything inside curvy backets as expression
+            $cut=1;
+         }elsif( $s eq ']' ){
+            $ValClass[$tno]=')'; # we treat anything inside curvy backets as expression
+            $cut=1;
          }elsif( $s=~/\W/ ){
             #This is delimiter
             $digram=substr($source,0,2);
@@ -388,41 +456,29 @@ my ($l,$m);
             }
          }
          substr($source,0,$cut)='';
-         last if( length($source)==0 );
+         if( length($source)==0 ) {
+             # the current line ended by ; of { } was not reached
+             $source=Pythonizer::getline();
+         }
          if( $::debug > 3 ){
             say STDERR "Lexem $tno Current token='$ValClass[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
          }
          $tno++;
-      }
- #
- #Special situations at the end of the string
- #
+      } # while
 
-   if(scalar(@ValClass) > 0 && $ValClass[-1] eq '#') {
-      # Tail comment is saved in a special variable
-      pop @ValClass;
-      pop @ValPerl;
-      pop @ValPy;
-   }
-   if (scalar(@ValClass) > 0 ) {
-      if( $ValClass[-1] eq ';') {
-         # removal of semicolon: not needed in Python for single line  statements
-         pop @ValClass;
-         pop @ValPerl;
-         pop @ValPy;
-      }elsif( $ValClass[-1] eq '{' ){
-         pop @ValClass;
-         pop @ValPerl;
-         pop @ValPy;
-      }
       $TokenStr=join('',@ValClass);
       $num=sprintf('%4u',$.);
-      ($::debug>2) && say STDERR "\nLine $num. Tokenstr: '",$TokenStr, "' ValPy: ",join(' ',@ValPy);
-   }else{
-      # possible line with tail comment
-       $TokenStr='';
-   }
+      ($::debug>2) && say STDERR "\nLine $num. \$TokenStr: =|",$TokenStr, "|= \@ValPy: ",join(' ',@ValPy);
+
 } #tokenize
+
+sub popup
+{
+    pop(@ValClass);
+    pop(@$ValPerl);
+    pop(@ValPy);
+    pop(@ValCom);
+}
 sub single_quoted_literal
 # A backslash represents a backslash unless followed by the delimiter or another backslash,
 # in which case the delimiter or backslash is interpolated.
@@ -449,7 +505,7 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
    $closing_delim=~tr/{[(</}])>/;
    $close_pos=single_quoted_literal($closing_delim,$offset); # first position after quote
    $quote=substr($source,$offset,$close_pos-1-$offset); # extract literal
-   $ValPerl[$tno]="$_[0]$quote$closing_delim";
+   $ValPerl[$tno]=$quote;
    #
    # decompose all scalar variables, if any, Array and hashes are left "as is"
    #
@@ -475,7 +531,8 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
          }else {
             $ind='';
          }
-         if( exists($is_numeric{$1}) ){
+         if( $1=~/\d+/ || exists($is_numberic{$1}) ){
+            # Generally you should use table of types here
             $result.='str('.$1.$ind.')'; # add numberic Variable part of the string
          }else{
             $result.=$1.$ind; # add string Variable part of the string
@@ -534,5 +591,69 @@ my $result=$string;
       }
    } # for
    return $result;
+}
+
+sub gen_statement
+{
+my $i;
+my $line='';
+   if( $::FailedTrans && scalar(@ValPy)>0 ){
+      $line=$ValPy[0];
+      for( $i=1; $i<@ValPy; $i++ ){
+         next unless(defined($ValPy[$i]));
+         next if ($ValPy[$i] eq '');
+         $s=substr($ValPy[$i],0,1);
+         if( $ValPy[$i-1]=~/\w$/) {
+            if( index(q('"/),$s)>-1 || $s=~/\w/ ){
+                # print "something" if /abc/
+                $line.=' '.$ValPy[$i];
+            }else{
+                $line.=$ValPy[$i];
+            }
+         }else {
+            $line.=$ValPy[$i];
+         }
+      }
+      ($line) && Pythonizer::output_line($line,' #FAILTRAN');
+   }elsif( scalar(@::PythonCode)>0 ){
+      $line=$::PythonCode[0];
+      for( my $i=1; $i<@::PythonCode; $i++ ){
+         next unless(defined($::PythonCode[$i]));
+         next if ($::PythonCode[$i] eq '');
+         $s=substr($::PythonCode[$i],0,1); # the first symbol
+         if( substr($line,-1,1)=~/[\w'"]/ &&  $s =~/[\w'"]/ ){
+            # space between identifiers and before quotes
+            $line.=' '.$::PythonCode[$i];
+         }else{
+            #no space befor delimiter
+            $line.=$::PythonCode[$i];
+         }
+
+
+      } # for
+      if( defined[$ValCom[-1]] && length($ValCom[-1]) > 0  ){
+         # that means that you need a new line. bezroun Feb 3, 2020
+         Pythonizer::output_line($line,$ValCom[-1] );
+      }else{
+        Pythonizer::output_line($line);
+      }
+      for ($i=1; $i<$#ValCom; $i++) {
+          if( defined($ValCom[$i]) && length($ValCom[$i])>0 ){
+             # NOTE: This is done because comment can be in a wrong position due to Python during generation and the correct placement  is problemtic
+             Pythonizer::output_line('',$ValCom[$i] );
+          }  # if defined
+      }
+   }elsif($line){
+       Pythonizer::output_line('','#NOTRANS: '.$line);
+   }
+   if( $::FailedTrans && $debug ){
+      out("\nTokens: $TokenStr ValPy: ".join(' '.@::PythonCode));
+   }
+#
+# Prepare for the next line generation
+#
+   Pythonizer::correct_nest(); # equalize CurNest and NextNest;
+   @::PythonCode=();
+   return;
 }
 1;
