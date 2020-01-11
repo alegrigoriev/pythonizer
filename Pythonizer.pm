@@ -1,15 +1,17 @@
 package Pythonizer;
 #
-#:: ABSTRACT:  Supplementary subsroutnes for pythonizer
+#:: ABSTRACT:  Supplementary subroutines for pythonizer
 #:: Includes logging subroutine(logme), autocommit, banner, abend, out and helpme
 #:: Copyright Nikolai Bezroukov, 2019.
 #:: Licensed under Perl Artistic license
 # Ver      Date        Who        Modification
 # =====  ==========  ========  ==============================================================
-# 00.00  2010/10/10  BEZROUN   Initial implementation. Limited by the rule "one statement-one line"
-# 00.10  2010/11/19  BEZROUN   The prototype is able to process the amin test (with  multiple errors) but still
-# 00.11  2010/11/19  BEZROUN   autocommit now allow to save multiple modules in addition to the main program
-# 00.12  2010/12/27  BEZROUN   Notions of ValCom was introduced in preparation to pre_processeor version 0.1
+# 00.00  2019/10/10  BEZROUN   Initial implementation. Limited by the rule "one statement-one line"
+# 00.10  2019/11/19  BEZROUN   The prototype is able to process the minimal test (with  multiple errors) but still
+# 00.11  2019/11/19  BEZROUN   autocommit now allow to save multiple modules in addition to the main program
+# 00.12  2019/12/27  BEZROUN   Notions of ValCom was introduced in preparation of introduction of pre_processor.pl version 0.2
+# 00.20  2020/02/03  BEZROUN   getline was moved from pythonyzer.
+# 00.30  2020/08/05  BEZROUN   preprocess_line was folded into getline.
 
 use v5.10;
    use warnings;
@@ -23,14 +25,13 @@ require Exporter;
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
 #@EXPORT = qw(correct_nest getline output_open get_params prolog epilog output_line $IntactLine $::debug $::breakpoint $::TabSize $::TailComment);
-@EXPORT = qw(correct_nest getline prolog epilog output_line);
+@EXPORT = qw(preprocess_line correct_nest getline prolog epilog output_line);
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line);
    $::TabSize=3;
    $::breakpoint=0;
    $NextNest=$CurNest=0;
    $MAXNESTING=9;
    $VERSION = '1.10';
-
 
 #
 # Decode parameter for the pythonizer. all parameters are exported
@@ -51,7 +52,7 @@ sub prolog
          }
       }
        if(  exists $options{'b'}  ){
-         if( $options{'b'}>=0  && $options{'b'}<1000 ){
+         if( $options{'b'}>=0  && $options{'b'}<900 ){
             $::breakpoint=$options{'b'};
             ($::debug) && logme('W',"Breakpoint  set to $::breakpoint");
          }else{
@@ -88,25 +89,14 @@ sub prolog
       if($debug){
           print STDERR "ATTENTION!!! Working in debugging mode debug=$debug\n";
       }
-      out("=" x 80,"\n\n");
+      out("=" x 90,"\n\n");
       #
-      # Process the first line
+      # Output the first line
       #
-      $line=<>;
-      if( length($line)>2 && $line =~/#\!/ ){
-      }else{
-         getline($line); # push back the first line
-      }
 
-   $old_tailcomment=$::TailComment;
-   $old_original=$IntactLine;
-   $IntactLine='NONE';
-   foreach $line ( ('#!/usr/bin/python2.7 -u','import sys','import re','import os') ) {
-      output_line($line,1);
-   }
-   $IntactLine=$old_original;
-   $::TailComment=$old_tailcomment;
-   return;
+      $IntactLine='';
+      out('#!/usr/bin/python2.7 -u','import sys','import re','import os' );
+      return;
 } # prolog
 
 sub epilog
@@ -126,6 +116,7 @@ sub get_here
 my $here_str;
    while (substr($line,0,length($_[0])) ne $_[0]) {
      $here_str.=$line;
+     $line=getline();
    }
    return '""""'."\n".$here_str."\n".'"""""'."\n";
 }
@@ -141,22 +132,39 @@ state @buffer;
        return
    }
    while(1) {
+      #
+      # firs we perform debufferization
+      #
       if (scalar(@buffer)) {
          $line=shift(@buffer);
       }else{
          $line=<>;
       }
-      return $line unless (defined($line));
-      if (length($line)==0 || $line=~/^\s*#/ ){
-         chomp($line);
-         output_line($line,1);
+      return $line unless (defined($line)); # End of file
+      chomp($line);
+      if (length($line)==0 || $line=~/^\s*$/ ){
+         output_line('');
          next;
+      }elsif( $line =~ /^\s*(#.*$)/ ){
+           # pure comment lines
+           output_line('',$1);
+           next;
       }
       $IntactLine=$line;
+      if( substr($line,-1,1) eq "\r" ){
+         chop($line);
+      }
+      if( $line=~/(^.*\S)\s+$/ ){
+        $line=$1;
+      }
+      if( $line=~/(^\s+)/ ){
+         $line=substr($line,length($1));
+      }
       return  $line;
    }
 
 }
+
 #
 # Output line shifted properly to the current nesting level
 # arg1 - actually PseudoPython gerenated line
@@ -164,6 +172,7 @@ state @buffer;
 sub output_line
 {
 my $line=(scalar(@_)==0 ) ? $IntactLine : $_[0];
+my $tailcomment=(scalar(@_)==2 ) ? $_[1] : '';
 my $indent=' ' x $::TabSize x $CurNest;
 my $flag=( $::FailedTrans && scalar(@_)==1 ) ? 'FAIL' : '    ';
 my ($lineno,$len,$tail);
@@ -173,98 +182,94 @@ my ($lineno,$len,$tail);
    }else{
       $line=$indent.$line;
    }
-   if ($::TailComment) {
-       $line.=' '.$::TailComment;
-   }
    $len=length($line);
    say SYSOUT $line;
    $lineno=sprintf('%4u',$.);
    $line="$lineno | $CurNest | $flag |$line";
-   if (scalar(@_)==1){
+    # gen line with  actual tail comment
+   if( $len==0 ){
+         # this is empty line or comment
+         out($line,$tailcomment);
+   }elsif (scalar(@_)==1){
+      # no tailcomment
       if ($IntactLine=~/^\s+(.*)$/) {
          $IntactLine=$1;
       }
-      if ($::TailComment) {
-         $IntactLine=substr($IntactLine,0,-length($::TailComment));
-      }
-      if( $len > 72 ){
-         if(length($IntactLine)>72){
+      #remove tailcomment from original line
+      if( $len > 90 ){
+         # long line
+         if( length($IntactLine) > 90 ){
             out($line);
-            out((' ' x 89).' #Perl: '.substr($IntactLine,0,72));
-            $tail=" #Cont: ".substr($IntactLine,72);
+            out((' ' x 108),' #PL: ',substr($IntactLine,0,90));
+            out((' ' x 108),' Cont:  ',substr($IntactLine,90));
          }else{
-            out($line.' #Perl: '.substr($IntactLine,0,72));
-            $tail='';
+            out($line,' #PL: ',$IntactLine);
          }
-         ($tail) && out((' ' x 89).$tail);
-      }elsif($line  || $IntactLine ){
-         if ($IntactLine) {
-            $tail=($IntactLine) ? (' ' x (72-$len))." #Perl: $IntactLine" : '';
-            out($line.$tail);
-         }else{
-            out($line);
-         }
+      }else{
+         # short line
+         out($line,(' ' x (90-$len)),' #PL: ',$IntactLine);
       }
    }else{
-      # gen line with  actual tail comment
-      if ($_[1] eq '#\\' ){
+     #line with tail comment
+     $IntactLine=substr($IntactLine,0,-length($tailcomment));
+     if ($tailcomment eq '#\\' ){
          out($line,' \ '); # continuation line
       }else{
-         out($line, $_[1]); # output with tail comment instead of Perl comment
+         out($line, $tailcomment); # output with tail comment instead of Perl comment
       }
-
+      if( length($IntactLine)>90 ){
+         #long line
+         out((' ' x 108),' #PL: ',substr($IntactLine,0,90));
+         out((' ' x 108),' #Cont: ',substr($IntactLine,90));
+      }else{
+         #short line
+         out((' ' x 108),' #PL: ',$IntactLine);
+      }
    }
    $IntactLine='';
 }
-
+#
+# Accepts two arguments
+#  if no arguments given it sets $CurNest=$NextNest;
+#  If only 1 ARG given inrements/decreaments $NextNest;
+#     NOTE: If zero is given sets NextNest to zero.
+#  if two argumants given sets increments/decrements both NexNext and $CurNest
+#     NOTE: Special case -- if 0,0 is passed both set to zero
+# Each argiment checked against the min and max threholds befor processing
 sub correct_nest
 {
 my $delta;
    if (scalar(@_)==0) {
+      # if no arguments given  set NextNest equal to CurNest
       $CurNest=$NextNest;
       return;
-   }elsif(scalar(@_)>=1){
-      $delta=$_[0];
-      if($delta eq 0 && scalar(@_)==1 ){
-         # single parameter was passed and it is zero
-         $NextNest=0;
-      }elsif($delta>0) {
-         if ($NextNest>$MAXNESTING) {
-             logme('E',"Nexting level exceeeded the  treshold: $MAXNESTING");
-         }else{
-             $NextNest++;
-         }
-      }elsif($delta<0) {
-         if ($NextNest>0) {
-            $NextNest--;
-         }else{
-            logme('S',"Attempt to set negative future nesting level");
-         }
-      }
    }
+   $delta=$_[0];
+   if ($delta==0 && scalar(@_)==1 ){
+      $NextNest=0;
+      return;
+   }
+   if( $NextNest+$delta > $MAXNESTING ){
+      logme('E',"Attempt to set next nesting level above the treshold($MAXNESTING) ingnored");
+   }elsif( $NextNest+$delta < 0 ){
+      logme('S',"Attempt to set nesting level below zero ignored");
+   }else{
+     $NextNest+=$delta;
+   }
+
    if(scalar(@_)==2){
-       if ($_[0]==0 && $_[0]==0 ) {
-          # (0,0) has special meaning -- make both  zero.  Used for sub
-          $CurtNest=$NextNest=0;
+       $delta=$_[1];
+       if ($delta==0 && $_[0]==0){
+          $CurNest=$NextNest=0;
           return;
        }
-       #  Correction of Curnest only
-       $delta=$_[1];
-       if( $delta == 0 ) {
-         $CurtNest=0;
-       }elsif($delta>0) {
-         if ($CurNest>$MAXNESTING) {
-             logme('E',"Nexting level exceeded the  treshold: $MAXNESTING");
-         }else{
-           $CurNest++;
-         }
-      }elsif($delta<0) {
-         if ($CurNest>0) {
-            $CurNest--;
-         }else{
-            logme('E',"Attempt to set negative current nesting level");
-         }
-      }
+       if ($delta+$CurNest>$MAXNESTING) {
+          logme('E',"Attempt to set current nesting level above the treshold($MAXNESTING) ignored");
+       }elsif($delta+$CurNest<0){
+          logme('S',"Attempt to set the curent nesting level below zero ignored");
+       }else{
+         $CurNest+=$delta;
+       }
    }
 }
 1;
