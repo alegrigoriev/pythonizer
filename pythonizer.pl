@@ -64,8 +64,8 @@
    use Pythonizer qw(correct_nest getline prolog epilog output_line);
 
    $VERSION='0.201';
-   $breakpoint=48; # line from which to debug code. See Pythonizer
-   $debug=3;  # 0 production mode 1 - development/testing mode. 2-9 debugging modes
+   $breakpoint=9999; # line from which to debug code. See Pythonizer
+   $debug=0;  # 0 production mode 1 - development/testing mode. 2-9 debugging modes
               # 4 -stop at Perlscan.pm
    $SCRIPT_NAME='pythonizer';
    $MYLIB='.';
@@ -85,18 +85,14 @@
       autocommit("$HOME/Archive",$MYLIB,qw(Softpano.pm Perlscan.pm Pythonizer.pm));
    }
 
-
 #
 # Skip initial block of comments
 #
    $line=getline(); # get the first meaningful line,  #! was skipped in prolog
 
-
-
 my $start;
 NOTRANS:
    gen_statement();
-
 #
 #Main loop
 #
@@ -104,7 +100,7 @@ NOTRANS:
       last unless(defined($line));
       if ($debug) {
          say STDERR "\n\n === Line $. Perl source: |",$line,"| === \n";
-         if($breakpoint>0 && $.>=$breakpoint ){
+         if($.>=$breakpoint ){
             unless ( $DB::single ){
                logme('S', "Breakpoint was triggered at line $. in pythonizer.pl");
                $DB::single = 1;
