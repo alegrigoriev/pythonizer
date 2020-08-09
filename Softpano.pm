@@ -9,7 +9,8 @@ package Softpano;
 # 01.00  2019/10/09  BEZROUN   Initial implementation
 # 01.10  2019/10/10  BEZROUN   autocommit now allow to save multiple modules in addtion to the main program
 # 01.20  2019/11/19  BEZROUN   mylib parameter added -- location of modules (ususally during debugging this is '.'== the current workiong directory)
-
+# 01.21  2020/08/04  BEZROUN   autocommin works only if debug >0
+# 01.22  2020/08/05  BEZROUN   out works with multiple arguments
 use v5.10;
    use warnings;
    use strict 'subs';
@@ -35,6 +36,7 @@ my ($script_timestamp,$fqn);
 #
 #  commit each running Version to the repository to central GIT
 #
+  return if ($::debuf==0);
   ( ! -d $archive_dir ) && `mkdir -p $archive_dir`;
   $script_name=substr($0,rindex($0,'/')+1);
   _compare_and_save($archive_dir,$0,$script_name);
