@@ -27,6 +27,7 @@ package Perlscan;
 # 0.90 2020/05/16  BEZROUN   Nesting is performed from this module
 # 0.91 2020/06/15  BEZROUN   Tail comments are artifically made properties of the last token in the line
 # 0.92 2020/08/06  BEZROUN   gen_statement moved from pythonizer, ValCom became a local array
+# 0.93 2020/08/06  BEZROUN   Diamond operator (<> <HANDLE>) is treated now as identifier
 
 use v5.10;
 use warnings;
@@ -57,16 +58,16 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
    %keyword_tr=('eq'=>'==','ne'=>'!=','lt'=>'<','gt'=>'>','le'=>'<=','ge'=>'>=','x'=>' * ',
                 'my'=>'','own'=>'global','local'=>'', 'state'=>'global',
-                'if'=>'if ','else'=>'else: ','elsif'=>'elif ', 'unless'=>'if ', 'until'=>'until ','for'=>'for ','foreach'=>'for ',
+                'if'=>'if ','else'=>'else: ','elsif'=>'elif ', 'unless'=>'if not', 'until'=>'while not','for'=>'for ','foreach'=>'for ',
                 'last'=>'break ','next'=>'continue ','close'=>'.f.close',
                 'chdir'=>'os.chdir','chmod'=>'.os.chmod','chr'=>'chr','exists'=>'.has_key','exit'=>'.sys.exit',
-                'exists'=> 'in', # if  key in dictionary
+                'exit'=>'sys.exit()','exists'=> 'in', # if  key in dictionary
                 'map'=>'map','grep'=>'filter','sort'=>'sort','caller'=>'perl_caller_builtin',
                 'split'=>'.split','join'=>'.join','keys'=>'.keys','localtime'=>'.localtime',
                 'mkdir'=>'os.mldir','oct'=>'eval','ord'=>'ord','chomp'=>'.rstrip("\n")','chop'=>'[0:-1]',
                 'length'=>'len', 'package'=>'import', 'scalar'=>'len', 'index'=>'.find','rindex'=>'.rfind', 'say'=>'print','die'=>'raise',
                 'sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','defined'=>'perl_defined',
-                'use'=>'import');
+                'unlink'=>'os.unlink', 'use'=>'import');
 
        %TokenType=('x'=>'*', 'y'=>'q', 'q'=>'q','qq'=>'q','qr'=>'q','wq'=>'q','wr'=>'q','qx'=>'q','m'=>'q','s'=>'q','tr'=>'q',
                   'if'=>'c',  'while'=>'c', 'unless'=>'c', 'until'=>'c', 'for'=>'c', 'foreach'=>'c', 'given'=>'c',
@@ -84,11 +85,12 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 # one to one translation of digramms. most are directly translatatble.
 #
    %digram_tokens=('++'=>'^','--'=>'^','+='=>'=','-='=>'=', '.='=>'=', '%='=>'=', '=~'=>'~','!~'=>'~',
-                   '=='=>'>','!='=>'>','>='=>'>','<='=>'>','<>'=>'<','=>'=>':','->'=>'.','::'=>'.',
+                   '=='=>'>','!='=>'>','>='=>'>','<='=>'>','=>'=>':','->'=>'.','::'=>'.',
                    '<<' => 'H', '>>'=>'=', '&&'=>'0', '||'=>'1',); #and/or/not
 
    %digram_map=('++'=>'+=1','--'=>'-=1','+='=>'+=', '.='=>'+=', '=~'=>'=','<>'=>'readline()','=>'=>': ','->'=>' ',
-                '&&'=>' and ', '||'=>' or ','::'=>'.'); #and/or/not
+                '&&'=>' and ', '||'=>' or ','::'=>'.',
+               );
 my ($source,$cut,$tno)=('',0,0);
 #
 # Tokenize line into one string and three arrays @ValClass  @ValPerl  @ValPy
@@ -233,7 +235,7 @@ my ($l,$m);
             }
          }elsif( $s eq '`' ){
              $ValClass[$tno]='q';
-             $cut=single_quoted_literal($delim,1);
+             $cut=single_quoted_literal('`',1);
              $ValPy[$tno]=$ValPerl[$tno]=substr($source,1,$cut-2); # literal without quotes is needed.
              $ValPy[$tno]='subprocess.check_output("'.$ValPerl[$tno].'")';
          }elsif( $s eq '<' && substr($source,1,1) eq '<' ){
@@ -445,6 +447,30 @@ my ($l,$m);
                   $ValPy[$tno]=$ValPerl[$tno]; # same as in Perl
                }
                $cut=2;
+            }elsif( $s eq '-' ){
+              $s2=substr($source,1,1);
+              if( ($k=index('fdl',$s2))>-1 && substr($source,2,1)=~/\s/ ){
+                 $ValClass[$tno]='f';
+                 $ValPerl[$tno]=$digram;
+                 $ValPy[$tno]=('os.path.isfile','os.path.isdir','os.path.islink')[$k];
+                 $cut=2;
+              }else{
+                 $cut=1;
+              }
+            }elsif( $s eq '<' ){
+               # diamond operator
+               if ($source=~/<(\w*)>/) {
+                  $ValClass[$tno]='i';
+                  $ValPerl[$tno]="<$1>";
+                  if(length($1)==0) {
+                    $ValPy[$tno]='sys.stdin()';
+                  }else{
+                    $ValPy[$tno]="$1.input()";
+                  }
+                  $cut=length($1)+2;
+               }else{
+                 $cut=1;
+               }
             }else{
                $ValClass[$tno]=$ValPerl[$tno]=$ValPy[$tno]=$s;
                if( $s eq '.' ){
