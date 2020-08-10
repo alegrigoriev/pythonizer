@@ -95,7 +95,7 @@ sub prolog
       #
 
       $IntactLine='';
-      out('#!/usr/bin/python2.7 -u','import sys','import re','import os' );
+
       return;
 } # prolog
 
@@ -175,39 +175,43 @@ my $line=(scalar(@_)==0 ) ? $IntactLine : $_[0];
 my $tailcomment=(scalar(@_)==2 ) ? $_[1] : '';
 my $indent=' ' x $::TabSize x $CurNest;
 my $flag=( $::FailedTrans && scalar(@_)==1 ) ? 'FAIL' : '    ';
-my ($lineno,$len,$tail);
+my $len=length($line);
+my $maxline=90;
+my $prefix=sprintf('%4u',$.)." | $CurNest | $flag |";
+my $com_zone=$maxline+length($prefix);
 
-   if( $line=~/^\s+(.*)$/ ){
-      $line=$indent.$1;
-   }else{
-      $line=$indent.$line;
+   if ($tailcomment){
+       $tailcomment=($tailcomment=~/^\s+(.*)$/ ) ? $indent.$1 : $indent.$tailcomment;
    }
-   $len=length($line);
-   say SYSOUT $line;
-   $lineno=sprintf('%4u',$.);
-   $line="$lineno | $CurNest | $flag |$line";
-    # gen line with  actual tail comment
+   # Special case of empty line or "pure" comment
    if( $len==0 ){
-         # this is empty line or comment
-         out($line,$tailcomment);
-   }elsif (scalar(@_)==1){
+         out($prefix,$tailcomment);
+         say SYSOUT $tailcomment;
+         $IntactLine='';
+         return;
+   }
+   $line=($line=~/^\s+(.*)$/ )? $indent.$1 : $indent.$line;
+   say SYSOUT $line;
+   $line=$prefix.$line;
+   $len=length($line);
+   if (scalar(@_)==1){
       # no tailcomment
       if ($IntactLine=~/^\s+(.*)$/) {
          $IntactLine=$1;
       }
       #remove tailcomment from original line
-      if( $len > 90 ){
+      if( $len > $maxline ){
          # long line
          if( length($IntactLine) > 90 ){
             out($line);
-            out((' ' x 108),' #PL: ',substr($IntactLine,0,90));
-            out((' ' x 108),' Cont:  ',substr($IntactLine,90));
+            out((' ' x $com_zone),' #PL: ',substr($IntactLine,0,90));
+            out((' ' x $com_zone),' Cont:  ',substr($IntactLine,90));
          }else{
             out($line,' #PL: ',$IntactLine);
          }
-      }else{
+     }else{
          # short line
-         out($line,(' ' x (90-$len)),' #PL: ',$IntactLine);
+         out($line,(' ' x ($com_zone-$len)),' #PL: ',$IntactLine);
       }
    }else{
      #line with tail comment
@@ -219,17 +223,17 @@ my ($lineno,$len,$tail);
       }
       if( length($IntactLine)>90 ){
          #long line
-         out((' ' x 108),' #PL: ',substr($IntactLine,0,90));
-         out((' ' x 108),' #Cont: ',substr($IntactLine,90));
+         out((' ' x $com_zone),' #PL: ',substr($IntactLine,0,90));
+         out((' ' x $com_zone),' #Cont: ',substr($IntactLine,90));
       }else{
          #short line
-         out((' ' x 108),' #PL: ',$IntactLine);
+         out((' ' x $com_zone),' #PL: ',$IntactLine);
       }
    }
-   $IntactLine='';
-}
+
+} # output_line
 #
-# Accepts two arguments
+# Correct nest -- ensure proper indenting of the lines. Accepts two arguments
 #  if no arguments given it sets $CurNest=$NextNest;
 #  If only 1 ARG given inrements/decreaments $NextNest;
 #     NOTE: If zero is given sets NextNest to zero.
