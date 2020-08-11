@@ -27,7 +27,8 @@ package Perlscan;
 # 0.90 2020/05/16  BEZROUN   Nesting is performed from this module
 # 0.91 2020/06/15  BEZROUN   Tail comments are artifically made properties of the last token in the line
 # 0.92 2020/08/06  BEZROUN   gen_statement moved from pythonizer, ValCom became a local array
-# 0.93 2020/08/06  BEZROUN   Diamond operator (<> <HANDLE>) is treated now as identifier
+# 0.93 2020/08/08  BEZROUN   Diamond operator (<> <HANDLE>) is treated now as identifier
+# 0.94 2020/08/09  BEZROUN   gen_chunk moves to Perlscan module. Pythoncode array made local
 
 use v5.10;
 use warnings;
@@ -39,11 +40,10 @@ require Exporter;
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw(Exporter);
-#@EXPORT = qw(tokenize  @ValClass  @ValPerl  @ValPy $TokenStr);
-@EXPORT = qw(gen_statement tokenize @ValClass  @ValPerl  @ValPy $TokenStr);
+@EXPORT = qw(gen_statement tokenize gen_chunk @ValClass  @ValPerl  @ValPy $TokenStr);
 #our (@ValClass,  @ValPerl,  @ValPy, $TokenStr); # those are from main::
 
-  $VERSION = '0.9';
+  $VERSION = '0.94';
   #
   # types of veraiables detected during the first pass; to be implemented later
   #
@@ -58,33 +58,32 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
    %keyword_tr=('eq'=>'==','ne'=>'!=','lt'=>'<','gt'=>'>','le'=>'<=','ge'=>'>=','x'=>' * ',
                 'my'=>'','own'=>'global','local'=>'', 'state'=>'global',
-                'if'=>'if ','else'=>'else: ','elsif'=>'elif ', 'unless'=>'if not', 'until'=>'while not','for'=>'for ','foreach'=>'for ',
+                'if'=>'if ','else'=>'else: ','elsif'=>'elif ', 'unless'=>'if not ', 'until'=>'while not ','for'=>'for ','foreach'=>'for ',
                 'last'=>'break ','next'=>'continue ','close'=>'.f.close',
                 'chdir'=>'os.chdir','chmod'=>'.os.chmod','chr'=>'chr','exists'=>'.has_key','exit'=>'.sys.exit',
                 'exit'=>'sys.exit()','exists'=> 'in', # if  key in dictionary
                 'map'=>'map','grep'=>'filter','sort'=>'sort','caller'=>'perl_caller_builtin',
                 'split'=>'.split','join'=>'.join','keys'=>'.keys','localtime'=>'.localtime',
                 'mkdir'=>'os.mldir','oct'=>'eval','ord'=>'ord','chomp'=>'.rstrip("\n")','chop'=>'[0:-1]',
-                'length'=>'len', 'package'=>'import', 'scalar'=>'len', 'index'=>'.find','rindex'=>'.rfind', 'say'=>'print','die'=>'raise',
+                'lc'=>'.lower()','length'=>'len', 'package'=>'import', 'scalar'=>'len', 'index'=>'.find','rindex'=>'.rfind', 'say'=>'print','die'=>'raise',
                 'sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','defined'=>'perl_defined',
-                'unlink'=>'os.unlink', 'use'=>'import');
+                'uc'=>'f', 'ucfirst'=>'f', 'unlink'=>'os.unlink', 'use'=>'import');
 
        %TokenType=('x'=>'*', 'y'=>'q', 'q'=>'q','qq'=>'q','qr'=>'q','wq'=>'q','wr'=>'q','qx'=>'q','m'=>'q','s'=>'q','tr'=>'q',
                   'if'=>'c',  'while'=>'c', 'unless'=>'c', 'until'=>'c', 'for'=>'c', 'foreach'=>'c', 'given'=>'c',
                   'else'=>'C', 'elsif'=>'C','when'=>'C', 'default'=>'C','last'=>'C','next'=>'C','return'=>'C','exit'=>'C',
-                  'length'=>'f','scalar'=>'f','caller'=>'f','die'=>'f',
+                  'lc'=>'f', 'length'=>'f','scalar'=>'f','caller'=>'f','die'=>'f',
                   'my'=>'t','own'=>'t','local'=>'t', 'state'=>'t','local'=>'t',
                   'index'=>'f', 'rindex'=>'f', 'substr'=>'f','sprintf'=>'f', 'chomp'=>'f', 'chop'=>'f','keys'=>'f','values'=>'f',
                   'chomp'=>'f','shift'=>'f','push'=>'f','pop'=>'f', 'split'=>'f','join'=>'f','exists'=>'f','defined'=>'f',
                   'chdir'=>'f','chmod'=>'f','chr'=>'f','system'=>'f',
                   'map'=>'f','grep'=>'f','sort'=>'f','mkdir'=>'f','oct'=>'f','ord'=>'f',
                   'sub'=>'k','print'=>'f','say'=>'f','read'=>'f','open'=>'f','close'=>'f','STDERR'=>'k','STDIN'=>'k',
-                  'use'=>'c','package'=>'c');
-
+                  'uc'=>'.upper()', 'ucfirst'=>'.capitalize()','use'=>'c','package'=>'c');
 #
 # one to one translation of digramms. most are directly translatatble.
 #
-   %digram_tokens=('++'=>'^','--'=>'^','+='=>'=','-='=>'=', '.='=>'=', '%='=>'=', '=~'=>'~','!~'=>'~',
+   %digram_tokens=('++'=>'^', '--'=>'^', '+='=>'=', '-='=>'=', '.='=>'=', '%='=>'=', '=~'=>'~','!~'=>'~',
                    '=='=>'>','!='=>'>','>='=>'>','<='=>'>','=>'=>':','->'=>'.','::'=>'.',
                    '<<' => 'H', '>>'=>'=', '&&'=>'0', '||'=>'1',); #and/or/not
 
@@ -92,6 +91,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 '&&'=>' and ', '||'=>' or ','::'=>'.',
                );
 my ($source,$cut,$tno)=('',0,0);
+@PythonCode=(); # array for generated code chunks
 #
 # Tokenize line into one string and three arrays @ValClass  @ValPerl  @ValPy
 #
@@ -404,6 +404,8 @@ my ($l,$m);
                   }
                }elsif( $1 eq 'ENV' ){
                  $ValPy[$tno]='os.environ';
+               }elsif( $1 eq 'ARGV' ){
+                 $ValPy[$tno]='sys.argv';
                }
 
             }elsif($source=~/^.(\w+(?:\:\:\w+)+)/ ){
@@ -422,6 +424,9 @@ my ($l,$m);
             $ValPerl[$tno]=$1;
             $ValPy[$tno]=$1;
             $cut=length($1)+1;
+            if( $1 eq 'ARGV' ){
+                 $ValPy[$tno]='sys.argv';
+            }
          }elsif( $s eq '%' ){
             $source=~/^.(\w+)/;
             $ValClass[$tno]='h'; #hash
@@ -449,10 +454,10 @@ my ($l,$m);
                $cut=2;
             }elsif( $s eq '-' ){
               $s2=substr($source,1,1);
-              if( ($k=index('fdl',$s2))>-1 && substr($source,2,1)=~/\s/ ){
+              if( ($k=index('fdlze',$s2))>-1 && substr($source,2,1)=~/\s/ ){
                  $ValClass[$tno]='f';
                  $ValPerl[$tno]=$digram;
-                 $ValPy[$tno]=('os.path.isfile','os.path.isdir','os.path.islink')[$k];
+                 $ValPy[$tno]=('os.path.isfile','os.path.isdir','os.path.islink','not os.path.getsize','os.path.exists')[$k];
                  $cut=2;
               }else{
                  $cut=1;
@@ -465,10 +470,11 @@ my ($l,$m);
                   if(length($1)==0) {
                     $ValPy[$tno]='sys.stdin()';
                   }else{
-                    $ValPy[$tno]="$1.input()";
+                    $ValPy[$tno]="$1.read()";
                   }
                   $cut=length($1)+2;
                }else{
+                 $ValClass[$tno]='>';
                  $cut=1;
                }
             }else{
@@ -618,12 +624,19 @@ my $result=$string;
    } # for
    return $result;
 }
-
+#
+# Typically used without arguments as it openates on PythonCode array
+# NOTE: Can have one or more argument and in this case each of the members of the list  will be passed to output_line.
 sub gen_statement
 {
 my $i;
 my $line='';
-   if( $::FailedTrans && scalar(@ValPy)>0 ){
+   if( scalar(@_)>0 ){
+      #direct print of the statement. Added Aug 10, 2020 --NNB
+      for($i=0; $i<@_;$i++) {
+         Pythonizer::output_line($_[$i]);
+      }
+   }elsif( $::FailedTrans && scalar(@ValPy)>0 ){
       $line=$ValPy[0];
       for( $i=1; $i<@ValPy; $i++ ){
          next unless(defined($ValPy[$i]));
@@ -641,21 +654,19 @@ my $line='';
          }
       }
       ($line) && Pythonizer::output_line($line,' #FAILTRAN');
-   }elsif( scalar(@::PythonCode)>0 ){
-      $line=$::PythonCode[0];
-      for( my $i=1; $i<@::PythonCode; $i++ ){
-         next unless(defined($::PythonCode[$i]));
-         next if ($::PythonCode[$i] eq '');
-         $s=substr($::PythonCode[$i],0,1); # the first symbol
+   }elsif( scalar(@PythonCode)>0 ){
+      $line=$PythonCode[0];
+      for( my $i=1; $i<@PythonCode; $i++ ){
+         next unless(defined($PythonCode[$i]));
+         next if ($PythonCode[$i] eq '');
+         $s=substr($PythonCode[$i],0,1); # the first symbol
          if( substr($line,-1,1)=~/[\w'"]/ &&  $s =~/[\w'"]/ ){
             # space between identifiers and before quotes
-            $line.=' '.$::PythonCode[$i];
+            $line.=' '.$PythonCode[$i];
          }else{
             #no space befor delimiter
-            $line.=$::PythonCode[$i];
+            $line.=$PythonCode[$i];
          }
-
-
       } # for
       if( defined[$ValCom[-1]] && length($ValCom[-1]) > 0  ){
          # that means that you need a new line. bezroun Feb 3, 2020
@@ -673,13 +684,33 @@ my $line='';
        Pythonizer::output_line('','#NOTRANS: '.$line);
    }
    if( $::FailedTrans && $debug ){
-      out("\nTokens: $TokenStr ValPy: ".join(' '.@::PythonCode));
+      out("\nTokens: $TokenStr ValPy: ".join(' '.@PythonCode));
    }
 #
 # Prepare for the next line generation
 #
    Pythonizer::correct_nest(); # equalize CurNest and NextNest;
-   @::PythonCode=();
+   @PythonCode=(); # initialize for the new line
    return;
+}
+#
+# Add generated chunk or multile chaunks of Python code checking for overflow
+#
+sub gen_chunk
+{
+my $i;
+#
+# Put generated chunk into array.
+#
+   for($i=0; $i<@_;$i++) {
+      if (scalar(@PythonCode) >256 ){
+         logme('S',"Number of generated chunks for the line exceeded 256");
+         if( $::debug > 0 ){
+            $DB::single = 1;
+         }
+      }
+      push(@PythonCode,$_[$i]);
+   } #for
+   ($::debug>4) && say 'Generated parcial line ',join('',@PythonCode);
 }
 1;
