@@ -1,14 +1,14 @@
 package Perlscan;
-# ABSTRACT:  Lexical analysis module for Perl -- parses one line of Perl program (which should contain a complete statement) into tokens/lexems
-#::          For alpha-testers only. Should be used with Pythoinizer testing suit
-#::
-#:: Copyright Nikolai Bezroukov, 2019.
-#:: Licensed under Perl Artistic license# Requres
-#::
-#:: REQURES
-#        pythonizer.pl
-#        Pythonizer.pm
-#        Softpano.pm
+## ABSTRACT:  Lexical analysis module for Perl -- parses one line of Perl program (which should contain a complete statement) into tokens/lexems
+##          For alpha-testers only. Should be used with Pythoinizer testing suit
+##
+## Copyright Nikolai Bezroukov, 2019.
+## Licensed under Perl Artistic license# Requres
+##
+## REQURES
+##        pythonizer.pl
+##        Pythonizer.pm
+##        Softpano.pm
 
 #--- Development History
 #
@@ -29,6 +29,7 @@ package Perlscan;
 # 0.92 2020/08/06  BEZROUN   gen_statement moved from pythonizer, ValCom became a local array
 # 0.93 2020/08/08  BEZROUN   Diamond operator (<> <HANDLE>) is treated now as identifier
 # 0.94 2020/08/09  BEZROUN   gen_chunk moves to Perlscan module. Pythoncode array made local
+# 0.95 2020/08/10  BEZROUN   Postfix statements accomodated
 
 use v5.10;
 use warnings;
@@ -57,29 +58,47 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 
    %keyword_tr=('eq'=>'==','ne'=>'!=','lt'=>'<','gt'=>'>','le'=>'<=','ge'=>'>=','x'=>' * ',
-                'my'=>'','own'=>'global','local'=>'', 'state'=>'global',
-                'if'=>'if ','else'=>'else: ','elsif'=>'elif ', 'unless'=>'if not ', 'until'=>'while not ','for'=>'for ','foreach'=>'for ',
-                'last'=>'break ','next'=>'continue ','close'=>'.f.close',
-                'chdir'=>'os.chdir','chmod'=>'.os.chmod','chr'=>'chr','exists'=>'.has_key','exit'=>'.sys.exit',
-                'exit'=>'sys.exit()','exists'=> 'in', # if  key in dictionary
-                'map'=>'map','grep'=>'filter','sort'=>'sort','caller'=>'perl_caller_builtin',
-                'split'=>'.split','join'=>'.join','keys'=>'.keys','localtime'=>'.localtime',
-                'mkdir'=>'os.mldir','oct'=>'eval','ord'=>'ord','chomp'=>'.rstrip("\n")','chop'=>'[0:-1]',
-                'lc'=>'.lower()','length'=>'len', 'package'=>'import', 'scalar'=>'len', 'index'=>'.find','rindex'=>'.rfind', 'say'=>'print','die'=>'raise',
+                'caller'=>'unknown','chdir'=>'.os.chdir','chmod'=>'.os.chmod','chomp'=>'.rstrip("\n")','chop'=>'[0:-1]','chr'=>'chr','close'=>'.f.close',
+                'die'=>'raise','defined'=>'unknown',
+                'for'=>'for ','foreach'=>'for ',
+                'else'=>'else: ','elsif'=>'elif ','exit'=>'.sys.exit','exit'=>'sys.exit','exists'=> 'in', # if  key in dictionary 'exists'=>'.has_key'
+                'if'=>'if ','index'=>'.find',
+                'grep'=>'filter',
+                'join'=>'.join',
+                'keys'=>'.keys',
+                'last'=>'break ','local'=>'','lc'=>'.lower()','length'=>'len','localtime'=>'.localtime',
+                'map'=>'map','mkdir'=>'os.mkdir', 'my'=>'',
+                'next'=>'continue ',
+                'own'=>'global', 'oct'=>'eval','ord'=>'ord',
+                'package'=>'import',
+                'split'=>'.split','sort'=>'sort','scalar'=>'len', 'say'=>'print','state'=>'global','substr'=>'',
+                'rindex'=>'.rfind',
                 'sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','defined'=>'perl_defined',
-                'uc'=>'f', 'ucfirst'=>'f', 'unlink'=>'os.unlink', 'use'=>'import');
+                'unless'=>'if not ', 'until'=>'while not ','unlink'=>'os.unlink', 'use'=>'import', 'uc'=>'.upper()', 'ucfirst'=>'.capitalize()',
+               ' STDERR'=>'sys.stderr','STDIN'=>'sys.stdin',  '__LINE__' =>'sys._getframe().f_lineno',
+               );
 
-       %TokenType=('x'=>'*', 'y'=>'q', 'q'=>'q','qq'=>'q','qr'=>'q','wq'=>'q','wr'=>'q','qx'=>'q','m'=>'q','s'=>'q','tr'=>'q',
-                  'if'=>'c',  'while'=>'c', 'unless'=>'c', 'until'=>'c', 'for'=>'c', 'foreach'=>'c', 'given'=>'c',
-                  'else'=>'C', 'elsif'=>'C','when'=>'C', 'default'=>'C','last'=>'C','next'=>'C','return'=>'C','exit'=>'C',
-                  'lc'=>'f', 'length'=>'f','scalar'=>'f','caller'=>'f','die'=>'f',
-                  'my'=>'t','own'=>'t','local'=>'t', 'state'=>'t','local'=>'t',
-                  'index'=>'f', 'rindex'=>'f', 'substr'=>'f','sprintf'=>'f', 'chomp'=>'f', 'chop'=>'f','keys'=>'f','values'=>'f',
-                  'chomp'=>'f','shift'=>'f','push'=>'f','pop'=>'f', 'split'=>'f','join'=>'f','exists'=>'f','defined'=>'f',
-                  'chdir'=>'f','chmod'=>'f','chr'=>'f','system'=>'f',
-                  'map'=>'f','grep'=>'f','sort'=>'f','mkdir'=>'f','oct'=>'f','ord'=>'f',
-                  'sub'=>'k','print'=>'f','say'=>'f','read'=>'f','open'=>'f','close'=>'f','STDERR'=>'k','STDIN'=>'k',
-                  'uc'=>'.upper()', 'ucfirst'=>'.capitalize()','use'=>'c','package'=>'c');
+       %TokenType=('eq'=>'>','ne'=>'>','lt'=>'>','gt'=>'>','le'=>'>','ge'=>'>','x'=>'*',
+                  'y'=>'q', 'q'=>'q','qq'=>'q','qr'=>'q','wq'=>'q','wr'=>'q','qx'=>'q','m'=>'q','s'=>'q','tr'=>'q',
+                  'caller'=>'f','chdir'=>'f','chomp'=>'f', 'chop'=>'f', 'chmod'=>'f','chr'=>'f','close'=>'f',
+                  'default'=>'C','defined'=>'f','die'=>'f',
+                  'else'=>'C', 'elsif'=>'C', 'exists'=>'f', 'exit'=>'C', 'export'=>'f',
+                  'if'=>'c',  'index'=>'f',
+                  'for'=>'c', 'foreach'=>'c',
+                  'given'=>'c','grep'=>'f',
+                  'join'=>'f',
+                  'last'=>'C','lc'=>'f', 'length'=>'f','local'=>'t','localtime'=>'f',
+                  'my'=>'t','map'=>'f','mkdir'=>'f',
+                  'next'=>'C',
+                  'own'=>'t', 'oct'=>'f','ord'=>'f','open'=>'f',
+                  'push'=>'f','pop'=>'f','print'=>'f','package'=>'c',
+                  'rindex'=>'f','read'=>'f', 'return'=>'C',
+                  'say'=>'f','shift'=>'f', 'split'=>'f','sort'=>'f','system'=>'f', 'sub'=>'k','scalar'=>'f','substr'=>'f','sprintf'=>'f','state'=>'t',
+                  'values'=>'f',
+                  'when'=>'C', 'while'=>'c',
+                  'unless'=>'c', 'until'=>'c','uc'=>'f', 'ucfirst'=>'f','use'=>'c',
+                  );
+
 #
 # one to one translation of digramms. most are directly translatatble.
 #
@@ -269,85 +288,96 @@ my ($l,$m);
             $w=$1;
             $ValPerl[$tno]=$w;
             $cut=length($w);
-            $class=(exists($TokenType{$w})) ? $TokenType{$w}:'i';
+            $ValClass[$tno]='i';
+            $ValPy[$tno]=$w;
             if (exists($keyword_tr{$w})){
-                $ValPy[$tno]=$keyword_tr{$w};
-            }else{
-                $ValPy[$tno]=$w;
+                  $ValPy[$tno]=$keyword_tr{$w};
             }
-            $ValClass[$tno]=$class;
-            if( $class eq 't' ) {
-               $ValPy[$tno]='';
-            }elsif( $class eq 'q' ){
-               # q can be tranlated into """", but qw actually is an expression
-               $delim=substr($source,length($w),1);
-               if($w eq 'q') {
-                  $cut=single_quoted_literal($delim,2);
-                  $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
-                  $w=escape_backslash($ValPerl[$tno]);
-                  $ValPy[$tno]=escape_quotes($w);
-               }elsif($w eq 'qq'){
-                  # decompose doublke quote populate $ValPy[$tno] as a side effect
-                  $cut=double_quoted_literal($delim,length($w)+1); # side affect populates $ValPy[$tno] and $ValPerl[$tno]
-
-               }elsif($w eq 'qx') {
-                  #executable
-                  if( $delim eq "'") {
-                     $cut=single_quoted_literal($delim,length($w)+1);
-                     $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w));
-                     $ValPy[$tno]='system("'.$ValPy[$tno].'")';
-                  }else{
-                     $cut=double_quoted_literal($delim,length($w)+1);
-                  }
-                }elsif($w eq 'm' | $w eq 'qr') {
-                  #executable
-                   $cut=single_quoted_literal($delim,length($w)+1);
-                   $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
-                   $ValPy[$tno]='.re.match(r"'.$ValPerl[$tno].'")';
-                }elsif($w eq 'tr' || $w eq 'y' || $w eq  's' ){
-                  # tr function has two parts; also can be named y
-                  $cut=single_quoted_literal($delim,length($w)+1);
-                  $arg1=substr($source,length($w)+1,$cut-length($w)-2);
-                  if( substr($source,$cut,1) eq $delim && index('{([<',$delim) == -1 ){
-                     $arg2='';
-                     $cut++;
-                  }else{
-                     if( index('{([<',$delim) > -1 ){
-                        $delim=substr($source,$cut,1);
-                        $cut2=single_quoted_literal($delim,$cut+1);
-                        $arg2=substr($source,$cut+1,$cut2-$cut-2);
-                     }else{
-                        $cut2=single_quoted_literal($delim,$cut);
-                        $arg2=substr($source,$cut,$cut2-$cut-1);
-                     }
-                     $cut=$cut2;
-                   }
-                   if( $w eq 'tr' ){
-                       $ValClass[$tno]='f';
-                       $ValPerl[$tno]='tr';
-                       $ValPy[$tno]="maketrans('$arg1','$arg2')"; # needs to be translated into  two statements
-                   }else{
-                       $ValClass[$tno]='f';
-                       $ValPerl[$tno]='m';
-                       $ValPy[$tno]=".re.sub(r'$arg1',r'$arg2')";
-                   }
-
-               }elsif($w eq 'qw') {
-                   $cut=single_quoted_literal($delim,length($w)+1);
-                   $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
-                   if ($ValPerl[0] eq 'use') {
-                      $ValPy[$tno]=$ValPerl[$tno];
-                   }else{
-                      $ValPy[$tno]='"'.$ValPerl[$tno].'".split(r"\s+")';
-                   }
+            if (exists($TokenType{$w}) ) {
+               $class=$TokenType{$w};
+               $ValClass[$tno]=$class;
+               if ($class eq 'c' && $tno > 0 ) {
+                  # postfix conditional statement, line next if (line eq ''); Aug 10, 2020 --NNB
+                   Pythonizer::getline('{');
+                   Pythonizer::getline(substr($_[0],0,length($_[0])-length($source)));
+                   Pythonizer::getline('}');
+                   @ValClass=@ValCom=@ValPerl=@ValPy=();
+                   $tno=0;
+                   next;
                }
-           }
+               if( $class eq 't' ) {
+                  $ValPy[$tno]='';
+               }elsif( $class eq 'q' ){
+                  # q can be tranlated into """", but qw actually is an expression
+                  $delim=substr($source,length($w),1);
+                  if($w eq 'q') {
+                     $cut=single_quoted_literal($delim,2);
+                     $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
+                     $w=escape_backslash($ValPerl[$tno]);
+                     $ValPy[$tno]=escape_quotes($w);
+                  }elsif($w eq 'qq'){
+                     # decompose doublke quote populate $ValPy[$tno] as a side effect
+                     $cut=double_quoted_literal($delim,length($w)+1); # side affect populates $ValPy[$tno] and $ValPerl[$tno]
+
+                  }elsif($w eq 'qx') {
+                     #executable
+                     if( $delim eq "'") {
+                        $cut=single_quoted_literal($delim,length($w)+1);
+                        $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w));
+                        $ValPy[$tno]='system("'.$ValPy[$tno].'")';
+                     }else{
+                        $cut=double_quoted_literal($delim,length($w)+1);
+                     }
+                   }elsif($w eq 'm' | $w eq 'qr') {
+                     #executable
+                      $cut=single_quoted_literal($delim,length($w)+1);
+                      $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
+                      $ValPy[$tno]='.re.match(r"'.$ValPerl[$tno].'")';
+                   }elsif($w eq 'tr' || $w eq 'y' || $w eq  's' ){
+                     # tr function has two parts; also can be named y
+                     $cut=single_quoted_literal($delim,length($w)+1);
+                     $arg1=substr($source,length($w)+1,$cut-length($w)-2);
+                     if( substr($source,$cut,1) eq $delim && index('{([<',$delim) == -1 ){
+                        $arg2='';
+                        $cut++;
+                     }else{
+                        if( index('{([<',$delim) > -1 ){
+                           $delim=substr($source,$cut,1);
+                           $cut2=single_quoted_literal($delim,$cut+1);
+                           $arg2=substr($source,$cut+1,$cut2-$cut-2);
+                        }else{
+                           $cut2=single_quoted_literal($delim,$cut);
+                           $arg2=substr($source,$cut,$cut2-$cut-1);
+                        }
+                        $cut=$cut2;
+                      }
+                      if( $w eq 'tr' ){
+                          $ValClass[$tno]='f';
+                          $ValPerl[$tno]='tr';
+                          $ValPy[$tno]="maketrans('$arg1','$arg2')"; # needs to be translated into  two statements
+                      }else{
+                          $ValClass[$tno]='f';
+                          $ValPerl[$tno]='m';
+                          $ValPy[$tno]=".re.sub(r'$arg1',r'$arg2')";
+                      }
+
+                  }elsif($w eq 'qw') {
+                      $cut=single_quoted_literal($delim,length($w)+1);
+                      $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
+                      if ($ValPerl[0] eq 'use') {
+                         $ValPy[$tno]=$ValPerl[$tno];
+                      }else{
+                         $ValPy[$tno]='"'.$ValPerl[$tno].'".split(r"\s+")';
+                      }
+                  }
+               }
+            }
          }elsif( $s eq '$' ){
             $s2=substr($source,1,1);
             $ValClass[$tno]='s';
             if( $s2 eq '.' ){
                # file line number
-                $ValPy[$tno]='lineno';
+                $ValPy[$tno]='fileinput.filelineno()';
                 $cut=2;
             }elsif( $s2 eq '^' ){
                 $s3=substr($source,2,1);
@@ -367,7 +397,7 @@ my ($l,$m);
                 $ValClass[$tno]='s'; #scalar
                 $ValPerl[$tno]=$1;
                 if( $s2 eq '0' ) {
-                  $ValPy[$tno]="sys.argv[0]";
+                  $ValPy[$tno]="__file__";
                 }else{
                    $ValPy[$tno]="rematch.group($1)";
                 }
@@ -376,7 +406,7 @@ my ($l,$m);
                $source=~/^..(\w+)/;
                $ValClass[$tno]='s';
                $ValPerl[$tno]=$1;
-               $ValPy[$tno]='len($1)';
+               $ValPy[$tno]='len($1)-1';
                $cut=length($1)+2;
             }elsif( $s2 eq '$'){
                $source=~/^..(\w+)/;
