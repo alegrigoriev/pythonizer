@@ -55,8 +55,9 @@
 # 0.220  2020/08/07  BEZROUN   Diamond operator is processes as a special type of identifier.
 # 0.230  2020/08/09  BEZROUN   gen_chunk moves to Perlscan module. Pythoncode array made local
 # 0.230  2020/08/09  BEZROUN   more functions and statement eimplemnted
-# 0.240  2020/08/10  BEZROUN   postfix conditional implemented
-#
+# 0.240  2020/08/10  BEZROUN   postfix conditional re-implemented differnetly then in expression via scanne buffer
+# 0.250  2020/08/10  BEZROUN   split function is reimplemented and oprimized incase there is plain vanilla
+# 0.241  2020/08/12  BEZROUN   Perl_default_var is renames into default_var
 #!start ===============================================================================================================================
 
    use v5.10;
@@ -100,7 +101,7 @@
    output_line('','#!/usr/bin/python2.7 -u'); # put a proper line
    $line=getline(); # get the first meaningful line,  initial block of comments will be copied to the output
    foreach $line ('import sys','import re','import os','import fileinput'){
-       output_line($line);
+       output_line('',$line); # to block repodocuting the first source line
    }
 #
 #Main loop
@@ -136,9 +137,12 @@ my $start;
       }elsif( $ValClass[0] eq '{' ){
          correct_nest(1); # next line indented
       }elsif( $ValClass[0] eq '(' ){
-         if(index($TokenStr,')0')) {
+         if(index($TokenStr,')0')>-1) {
             #implicit if statement
             $rc=short_cut_if(0);
+         }elsif(index($TokenStr,')=')>-1) {
+            $rc=assignment(0);
+            if( $rc<0 ){ $FailedTrans=1; }
          }
       }elsif( $ValPerl[0] eq 'use' || $ValPerl[0] eq 'goto' ){
          output_line('','#NOTRAN: '.$line);
@@ -243,7 +247,7 @@ my $start;
             if( $rc<0 ){ $FailedTrans=1; }
          }elsif( $ValPerl[0] eq 'chomp' ){
             if( $#ValPerl==0) {
-               gen_chunk(q[perl_default_var=perl_default_var.rstrip("\n")]); # chomp with no argumnets
+               gen_chunk(q[default_var=default_var.rstrip("\n")]); # chomp with no argumnets
             }elsif( $ValClass[1] eq '(' ){
                gen_chunk($ValPy[2].'='.$ValPy[2].$ValPy[0]);
             }elsif( $ValClass[1] eq 's' ){
@@ -260,7 +264,7 @@ my $start;
                   $FailedTrans=1;
                }
             }else{
-               gen_chunk('perl_default_var=perl_default_var[0:-1]');
+               gen_chunk('default_var=default_var[0:-1]');
             }
          }else{
             $rc=function(0);
@@ -425,6 +429,7 @@ my $limit;
    if( ($split=index($TokenStr,'=',$k))>-1 ){
        if( $ValPerl[$k] eq '(' ){
           # list on the left side
+          gen_chunk($ValPy[$k]);
           $k++;
           gen_chunk($ValPy[$k]); # first in the cascading assignement
           $k++;
@@ -435,6 +440,7 @@ my $limit;
              }
              $k++;
           }
+          gen_chunk(')');
           $k++;
        }elsif( $split-$k==1 ){
          #scalar or array or hash but single variable -- regular assignment;
@@ -555,7 +561,7 @@ sub short_cut_if
    if( substr($TokenStr,$k+1,2) =~/[ik]\(/) {
       $k=function($k+1);
    }else{
-      $k=assignment($k+1,$#Valclass);
+      $k=assignment($k+1,$#ValClass);
    }
    gen_statement();
    if( $k<0){
@@ -589,7 +595,7 @@ my ($hashpos,$end_pos);
 
       if( $ValPerl[$start] eq 'if'  || $ValPerl[$start] eq 'unless' ){
          if( $TokenStr eq 'c(i)') {
-             gen_chunk("$ValPy[$start] default_perl_var=$ValPy[$start+2]:"); # gen initial keyword
+             gen_chunk("$ValPy[$start] default_var=$ValPy[$start+2]:"); # gen initial keyword
              return($#ValClass);
          }
          if( $TokenStr=~/(^.*)\(s.*?=/ ){
@@ -606,7 +612,7 @@ my ($hashpos,$end_pos);
          if( $TokenStr eq 'c(s=i)' && substr($ValPerl[4],0,1) eq '<' ) {
             gen_chunk("$ValPy[0] $ValPy[2] in $ValPy[4]:" );
          }elsif( $TokenStr eq 'c(i)' ){
-            gen_chunk("$ValPy[0] default_perl_var in $ValPy[2]:" );
+            gen_chunk("$ValPy[0] default_var in $ValPy[2]:" );
          }else{
             $FailedTrans=1;
             return -255;
@@ -806,6 +812,17 @@ my ($end_pos,$k,$split,$split2);
          #file predicates
          gen_chunk($ValPy[$start].'('.$ValPy[$start+1].')');
          return $start+2;
+      }elsif( $ValPerl[$start] eq 'split' ){
+         # you nees to exteact the second argument first
+         if($ValClass[$start+2] eq "'" ){
+            #this is text not pattern
+            gen_chunk($ValPy[$start+4],'.split(',$ValPy[$start+2],')');
+         }else{
+            gen_chunk($ValPy[$start+4],'.',$ValPy[$start],'(',$ValPy[$start+2],')');
+
+         }
+
+         return $start+5;
       }
       #
       # Generic function
