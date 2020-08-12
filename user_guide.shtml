@@ -3,7 +3,7 @@
 <head>
 <meta http-equiv="Content-Language" content="en-us">
 <meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
-<title>New Page 1</title>
+<title>Pythonizer user guide</title>
 <style>
 body {Background-color: #FFFFFF link: #0000CC vlink: #660066} 
 h1  { font-family: arial; text-align: Center; color: #CC0000 }
@@ -53,23 +53,24 @@ blockquote {font-size: 10pt; font-family: arial; background: #F9F9F9}
 
 <p>This guide corresponds to version 0.2 of pythonizer. </p>
 
-<p>this is alpha version, so do not expect any perfection. It woks but with errors.&nbsp; It still has bugs and not all constructs 
+<p>This is alpha version, so do not expect any perfection. It woks but with errors.&nbsp; It still has bugs and not all constructs 
 are transliterate correctly.</p>
 
 <p>Also detecting of the type of variables is not implemented and that increase the number of errors in Python as conversion to 
 string is not automatic like in Perl.</p>
 
 <p>Here is example of the protocol&nbsp;
-<a href="http://www.softpanorama.org/Scripting/Pythonorama/Python_for_perl_programmers/Pythonizer/protocol_of_translation_of_pre_pythonizer070.shtml">
-Full protocol of translation of pre_pythonizer.pl by version 0.07 of pythonizer</a></p>
+<a href="protocol_of_translation_of_pre_pythonizer020.shtml">Full protocol of translation of pre_pythonizer.pl by version 0.2 of 
+pythonizer</a></p>
 
-<p>In crease chances of correct transliteration is is recommended to run the Perl script via
+<p>To increase chances of correct transliteration it is recommended to run the Perl script via
 <span class="css-truncate css-truncate-target d-block width-fit">
 <a class="js-navigation-open link-gray-dark" title="pre_pythonizer.pl" id="9413911e31717187d3a97255af3e0f95-f911160659ba8e3129cfb73f329fb2fd14950434" href="https://github.com/softpano/pythonizer/blob/master/pre_pythonizer.pl">
 pre_pythonizer.pl</a></span></p>
 
 <p><span class="css-truncate css-truncate-target d-block width-fit">Parts that can't be translated during the first invocation can 
-be commented outs and iteratively the stage can be reached when the Perl script is completely Pythonized. </span></p>
+be commented outs and iteratively the stage can be reached when the Perl script is completely Pythonized and can be corrected 
+manually.&nbsp; </span></p>
 
 <h3><a name="Structure">Structure</a></h3>
 
@@ -84,14 +85,14 @@ be commented outs and iteratively the stage can be reached when the Perl script 
 
 </ul>
 
-<p>The total size of the codebase in version 0.2 is around 2K lines </p>
+<p>The total size of the codebase in version 0.2 is around 2.5K lines </p>
 
-<pre>wc -l Perlscan.pm Pythonizer.pm  pythonizer.pl  Softpano.pm
-  659 Perlscan.pm
-  275 Pythonizer.pm
-  948 pythonizer.pl
-  249 Softpano.pm
- 2131 total
+<pre># wc -l Perlscan.pm Pythonizer.pm  pythonizer.pl  Softpano.pm
+  788 Perlscan.pm
+  281 Pythonizer.pm
+ 1116 pythonizer.pl
+  257 Softpano.pm
+ 2442 total
 </pre>
 
 <h3>Installation</h3>
@@ -117,13 +118,13 @@ manually. </p>
 
 <h3>Options</h3>
 
-<p><tt>-v</tt> - verbosity <tt>-v=0</tt> -minimal vebosity <tt>-v=3</tt> -- max verbosity</p>
+<p><tt>-v</tt> - verbosity <tt>-v 0</tt> -minimal verbosity <tt>-v 3</tt> -- max verbosity</p>
 
-<p><tt>-t</tt>&nbsp; - tab size for generated code; default<tt> -t=4</tt> </p>
+<p><tt>-t</tt>&nbsp; - tab size for generated code; default<tt> -t 4</tt> </p>
 
-<p><tt>-d</tt> -- debug option for developers; default<tt> -d=0</tt> </p>
+<p><tt>-d</tt> -- debug option for developers; default<tt> -d 0</tt> </p>
 
-<p><tt>-b</tt> -- breakpoint option for developers; default <tt>-b=99999</tt></p>
+<p><tt>-b</tt> -- breakpoint option for developers; default <tt>-b 99999</tt></p>
 
 <h2><a name="Recommended_Links">Recommended Links</a></h2>
 <h3><a name="Top_articles">Top articles</a></h3>
@@ -132,8 +133,8 @@ manually. </p>
 <p><a href="http://www.softpanorama.org/Scripting/Pythonorama/Python_for_perl_programmers/index.shtml">Python for Perl programmers</a></p>
 
 <p>
-<a href="http://www.softpanorama.org/Scripting/Pythonorama/Python_for_perl_programmers/Pythonizer/protocol_of_translation_of_pre_pythonizer070.shtml">
-Full protocol of translation of pre_pythonizer.pl by version 0.07 of pythonizer</a></p>
+<a href="protocol_of_translation_of_pre_pythonizer020.shtml">Full protocol of translation of pre_pythonizer.pl by version 0.2 of 
+pythonizer</a></p>
 
 </body>
 
