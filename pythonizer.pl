@@ -1,33 +1,37 @@
 #!/usr/bin/perl
-#:: pythonizer Version 0.2 (Aug 5, 2020)
-#:: Fuzzy prettyprint STDERR for Perl scripts
-#:: Copyright Nikolai Bezroukov, 2019-2020.
-#:: Licensed under Perl Artistic license
-#::
-#:: The key idea is process specially preformatted Perl script in which the following is true
-#::     1. One statament per line
-#::     2  all block related curvy brackets on separate lines
-#::     3. Indentation already corresponds nesting     4.
-#:: To be sucessful, this approach requres a certain (very resonable) layout of the script into which most Perl scripts can be converted via via preprocessing
-#:: As most Perl statement are simple over 80% of them usually allow sucessful translation.  That's why we use the term "fuzzy".
-#:: The result will contain some statement that need to be converted by hand and that in some cases requres change of logic.
-#:: But there some notable exceptions. For example, Perl script that extensivly use references or OO.
-#::
-#:: --- INVOCATION:
-#::
-#::   pythonizer [options] [file_to_process]
-#::
-#::--- OPTIONS:
-#::
-#::    -v -- verbosity (0 -none 3 max vebosity)
-#::    -h -- this help
-#::    -t -- size of tab (emulated with spaces). Default is 3
-#::    -d    level of debugging  default is 0 -- production mode
-#::          1 - development/testing mode. 2-3 more debugging output.
-#:           4 -- Stop at scanner with $DB::single = 1;
-#::--- PARAMETERS:
-#::
-#::    1st -- name of  file
+## pythonizer Version 0.2 (Aug 5, 2020)
+## Fuzzy prettyprint STDERR for Perl scripts
+## Copyright Nikolai Bezroukov, 2019-2020.
+## Licensed under Perl Artistic license
+##
+## The key idea is process specially preformatted Perl script in which the following is true
+##     1. One statament per line
+##     2  all block related curvy brackets on separate lines
+##     3. Indentation already corresponds nesting     4.
+## To be sucessful, this approach requres a certain (very resonable) layout of the script into which most Perl scripts can be converted via via preprocessing
+## As most Perl statement are simple over 80% of them usually allow sucessful translation.  That's why we use the term "fuzzy".
+## The result will contain some statement that need to be converted by hand and that in some cases requres change of logic.
+## But there some notable exceptions. For example, Perl script that extensivly use references or OO.
+##
+## --- INVOCATION:
+##
+##   pythonizer [options] [file_to_process]
+##
+##--- OPTIONS:
+##
+##    -v -- verbosity (0 -none 3 max vebosity)
+##    -h -- this help
+##    -t -- size of tab ingenerated Python code (emulated with spaces). Default is 4
+##    -d    level of debugging  default is 0 -- production mode
+##          0 -- Production mode
+##          1 -- Testing mode. Program is autosaved in Archive (primitive versioning mechanism)
+##          2 -- Stop at the beginning of statement analysys (the statement can be selected via breakpoint option -b )
+##          3 -- More debugging output.
+##          4 -- Stop at lexical scanner with $DB::single = 1;
+##          5 -- output stages of Python line generation
+##--- PARAMETERS:
+##
+##    1st -- name of  file (only one argument accepted)
 
 #--- Development History
 #
@@ -50,8 +54,11 @@
 # 0.210  2020/08/07  BEZROUN   Moved gen_output to Perlscan,  removed ValCom  from the exported list.
 # 0.220  2020/08/07  BEZROUN   Diamond operator is processes as a special type of identifier.
 # 0.230  2020/08/09  BEZROUN   gen_chunk moves to Perlscan module. Pythoncode array made local
-#=========================== START =========================================================
-#=== Start
+# 0.230  2020/08/09  BEZROUN   more functions and statement eimplemnted
+# 0.240  2020/08/10  BEZROUN   postfix conditional implemented
+#
+#!start ===============================================================================================================================
+
    use v5.10;
    use warnings;
    use strict 'subs';
@@ -65,7 +72,7 @@
    use Perlscan qw(gen_statement  tokenize gen_chunk @ValClass  @ValPerl  @ValPy $TokenStr);
    use Pythonizer qw(correct_nest getline prolog epilog output_line);
 
-   $VERSION='0.230';
+   $VERSION='0.240';
    $breakpoint=0; # line from which to debug code. See Pythonizer
    $debug=0;  # 0 production mode 1 - development/testing mode. 2-9 debugging modes
               # 4 -stop at Perlscan.pm
@@ -81,7 +88,7 @@
    logme('D',3,3); # inital settings
    banner($LOG_DIR,$SCRIPT_NAME,"Fuzzy translator of Python to Perl. Version $VERSION",30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
    prolog(); # sets all options, including breakpoint
-   if( $debug>0 ){
+   if( $debug > 0 ){
       logme('D',3,3); # Max Verbosity
       autocommit("$HOME/Archive",$MYLIB,qw(Softpano.pm Perlscan.pm Pythonizer.pm));
    }
@@ -101,7 +108,7 @@
 my $start;
    while(defined($line)){
       last unless(defined($line));
-      if( $debug ){
+      if( $debug>1 ){
          say STDERR "\n\n === Line $. Perl source: |",$line,"| === \n";
          if( $breakpoint>0 && $.>=$breakpoint ){
             unless ( $DB::single ){
@@ -139,13 +146,13 @@ my $start;
          next;
       }elsif( $ValPerl[0] eq 'sub' ){
          correct_nest(0,0);
-         gen_chunk($ValPy[0]);
-         gen_chunk($ValPy[1]);
-         gen_chunk('(perl_arg_array:)');
+         gen_chunk($ValPy[0]); # def
+         gen_chunk($ValPy[1]); # name
+         gen_chunk('(perl_arg_array):'); # list of arguments
       }elsif( $ValPerl[0] eq 'close' ){
-         for( my $i=1; $i<$ValPy; $i++ ){
+         for( my $i=1; $i<@ValPy; $i++ ){
              if( $ValClass[$i] eq 'i' ){
-                gen_chunk($ValPy[$i].'.f.close');
+                gen_chunk($ValPy[$i].'.f.close;');
              }
          }
       }elsif( $ValClass[0] eq 'h' ){
@@ -173,7 +180,13 @@ my $start;
           #scalar assignment or reg matching; Include my/own/state
           # expression is expected on the right side, but in Perl it can follow by condition a=2 if(b==0) => if( b==0  ){  a=2 }
           if( $#ValClass==1) {
-             gen_chunk("default_perl_var=$ValPy[0]");
+             if( $ValClass[0] eq 't' ){
+                #my $k;
+                output_line("$ValPy[1]=None");
+             }else{
+                # $i++;
+                gen_chunk($ValPy[0].$ValPy[1]);
+              }
           }else{
             $rc=assignment(0);
             if( $rc<0 ){ $FailedTrans=1; }
@@ -197,10 +210,19 @@ my $start;
           }elsif( $ValPerl[0] eq 'else' ){
                gen_chunk('else:');
                gen_statement();
-
+         }elsif( $ValPerl[0] eq 'return' ||  $ValPerl[0] eq 'exit' ){
+               if(scalar(@ValClass)==1) {
+                  # single statement without parameters
+                  gen_chunk("$ValPy[0]()");
+               }else{
+                  gen_chunk("$ValPy[0](");
+                  $rc=expression(1);
+                  if( $rc<0 ){ $FailedTrans=1; }
+                  gen_chunk(')');
+               }
           }elsif( $#ValClass > 0 && $ValClass[1] eq 'c' ){
                # tail conditional for next and last
-               $rc=control(1); # generate coditional statment as prefix
+               $rc=control(1); # generate coditional statement as prefix
                if( $rc<0 ){ $FailedTrans=1; }
                gen_statement();
                correct_nest(1,1); # next line indented
@@ -523,15 +545,20 @@ sub short_cut_if
    $limit=matching_br($start+1);
    gen_chunk('if ');
    $k=expression($start+1,$limit,0);
-   if( $k<0){
+   if( $k<0 ){
       $FailedTrans=1;
       return -255;
    }
    gen_chunk(':');
    gen_statement();
    correct_nest(1,1);
-   $k=assignment($limit+2,$#Valclass);
-     if( $k<0){
+   if( substr($TokenStr,$k+1,2) =~/[ik]\(/) {
+      $k=function($k+1);
+   }else{
+      $k=assignment($k+1,$#Valclass);
+   }
+   gen_statement();
+   if( $k<0){
       $FailedTrans=1;
       return -255;
    }
@@ -598,7 +625,7 @@ my ($hashpos,$end_pos);
          }
          gen_chunk($ValPy[$start]);
          gen_chunk($ValPy[$start+2]); # index var
-         gen_chunk('range(');
+         gen_chunk('in range(');
          $start=index($TokenStr,'=',$start); # find initialization. BTW it can be expression
          if( $start == -1 ){$FailedTrans=1; return -255;}
          $start++;
@@ -868,7 +895,8 @@ my($k,$myline, $target,$open_mode,$handle);
    # Open statement generation from collected info -- $handle, $target and $open_mode
    #
    if( $open_mode eq 'r' ||  $open_mode eq 'a' ){
-      output_line("if os.path.isfile($target): $handle=open($target,'$open_mode'); else os.exit()");
+      output_line("if os.path.isfile($target): $handle=open($target,'$open_mode')");
+      output_line("else: os.exit()");
    }else{
       output_line("$handle=open($target,'$open_mode')");
    }
@@ -960,7 +988,7 @@ my ($limit,$mode,$split,$start,$prev_k);
            $RecursionLevel--;
             gen_chunk($ValPy[$cur_pos]);
          }elsif( $mode==1 ){
-            gen_chunk($ValPy[$cur_pos] ); # can be supressed.
+            gen_chunk($ValPy[$cur_pos] ); # can be supressed on recursion level 0
          }
          return $cur_pos+1;
       }elsif( $ValClass[$cur_pos] eq 's' ){
@@ -968,23 +996,23 @@ my ($limit,$mode,$split,$start,$prev_k);
             # As the argument to =~ can be complex. currently we can transtalte only two simple case: a scalar and an element of array/hash
             if( $limit-$cur_pos>1 && ($split=index(substr($TokenStr,0,$limit),'~',$cur_pos))>-1){
                # REGEX processing
-               unless ($ValClass[$split+1] eq 'q'){
-                  # regex should be on the right side
-                  $FailedTrans=1;
-                  return -255;
-               }
-               if( $cur_pos+1==$split){
-                   # Simple scalar variable of the left side
-                   gen_chunk($ValPy[$split-1]); # replicate variable
-                   gen_chunk($ValPy[$split+1]); # add dot part generated by scanner
-               }elsif( substr($TokenStr,$cur_pos,$split-$cur_pos)=~/s[^\[{][sdq'"][\[{]$/ ){
-                     for( my $i=$cur_pos; $i<$split; $i++ ){
-                        gen_chunk($ValPy[$i]);
-                     }
-                     gen_chunk($ValPy[$split+1]); # add dot part generated by scanner
-               }else{
-                  $FailedTrans=1;
-                  return -255;
+               if($ValClass[$split+1] eq 'q'){
+                  if( $cur_pos+1==$split){
+                      # Simple scalar variable of the left side
+                      gen_chunk($ValPy[$split-1]); # replicate variable
+                      gen_chunk($ValPy[$split+1]); # add dot part generated by scanner
+                  }elsif( substr($TokenStr,$cur_pos,$split-$cur_pos)=~/s[^\[{][sdq'"][\[{]$/ ){
+                        for( my $i=$cur_pos; $i<$split; $i++ ){
+                           gen_chunk($ValPy[$i]);
+                        }
+                        gen_chunk($ValPy[$split+1]); # add dot part generated by scanner
+                  }else{
+                     $FailedTrans=1;
+                     return -255;
+                  }
+               }elsif($ValClass[$split+1] eq 'f'){
+                  # translate
+                  gen_chunk($ValPy[$cur_pos].'.'.$ValPy[$split+1])
                }
                $cur_pos=$split+2;# split quotes regeg on the right side
            }else{
