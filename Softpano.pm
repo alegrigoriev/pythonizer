@@ -1,9 +1,9 @@
 package Softpano;
-#:: Simplified implementation of a subset of "defensive programming" toolkit stemming from my experiense as a complier writer.
-#:: ABSTRACT:  Murphy principle states  "Anything that can go wrong will go wrong" but you better be imformed if something happens ;-)
-#:: Includes logging subroutine(logme), autocommit, banner, abend, out and helpme
-#:: Copyright Nikolai Bezroukov, 2019.
-#:: Licensed under Perl Artistic license
+## Simplified implementation of a subset of "defensive programming" toolkit stemming from my experiense as a complier writer.
+## ABSTRACT:  Murphy principle states  "Anything that can go wrong will go wrong" but you better be imformed if something happens ;-)
+## Includes logging subroutine(logme), autocommit, banner, abend, out and helpme
+## Copyright Nikolai Bezroukov, 2019.
+## Licensed under Perl Artistic license
 # Ver      Date        Who        Modification
 # =====  ==========  ========  ==============================================================
 # 01.00  2019/10/09  BEZROUN   Initial implementation
@@ -27,7 +27,7 @@ $VERSION = '1.10';
 # NOTE: autocommit used only in debugging mode
 # In debug mode it created backup and commit script to GIT repository, if there were changes from previous Version.
 #
-#::autocommit - save script if it runs for subsequnt push into GIT or other versioning system
+##autocommit - save script if it runs for subsequnt push into GIT or other versioning system
 sub autocommit
 {
 # parameters
@@ -49,7 +49,7 @@ my ($script_timestamp,$fqn);
   }
 } # autocommit
 
-#::_compare_and_save -- save the script (internal sub called from autocommit)
+##_compare_and_save -- save the script (internal sub called from autocommit)
 sub _compare_and_save
 {
 my ($archive_dir,$fqn,$script_name)=@_;
@@ -72,7 +72,7 @@ my $script_delta=1;
 } #_compare_and_save
 
 #
-#::helpme -- Read script and extract help from comments starting with #::
+##helpme -- Read script and extract help from comments starting with ##
 #
 sub helpme
 {
@@ -87,7 +87,7 @@ sub helpme
 }
 
 #
-#:: abend Terminate program (variant without mailing)
+## abend Terminate program (variant without mailing)
 #
 sub abend
 {
@@ -106,8 +106,8 @@ my ($package, $filename, $lineno) = caller;
 } # abend
 
 #
-#:: banner -- Open log and output the banner; if additional arguments given treat them as subtitles
-#::           Depends of two Variable from the main namespace: VERSION and debug
+## banner -- Open log and output the banner; if additional arguments given treat them as subtitles
+##           Depends of two Variable from the main namespace: VERSION and debug
 sub banner {
 #
 # Sanity check
@@ -154,7 +154,7 @@ my $script_mod_stamp;
 } #banner
 
 #
-#:: logme -- Simple message generator: Record message in log and STDERR
+## logme -- Simple message generator: Record message in log and STDERR
 # PARAMETERS:
 #            lineno, severity, message
 # Arg1 Error code (the first letter is severity, the second letter can be used -- T is timestamp -- put timestamp inthe message)
@@ -229,7 +229,7 @@ state ($msg_cutlevel1, $msg_cutlevel2, @ermessage_db, @ercounter); # remeber the
 } # logme
 
 #
-#:: Output message to both log and STDERR
+## Output message to both log and STDERR
 #
 sub out
 {
@@ -242,7 +242,7 @@ sub out
       }
 }
 #
-#:: Invokes the debugger with the message
+## Invokes the debugger with the message
 #
 sub stepin
 {
