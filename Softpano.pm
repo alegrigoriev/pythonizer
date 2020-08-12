@@ -9,8 +9,9 @@ package Softpano;
 # 01.00  2019/10/09  BEZROUN   Initial implementation
 # 01.10  2019/10/10  BEZROUN   autocommit now allow to save multiple modules in addtion to the main program
 # 01.20  2019/11/19  BEZROUN   mylib parameter added -- location of modules (ususally during debugging this is '.'== the current workiong directory)
-# 01.21  2020/08/04  BEZROUN   autocommin works only if debug >0
-# 01.22  2020/08/05  BEZROUN   out works with multiple arguments
+# 01.21  2020/08/04  BEZROUN   autocommin works only if $::debug > 0
+# 01.22  2020/08/05  BEZROUN   out now works with multiple arguments
+# 01.30  2020/08/10  BEZROUN   ## are no comment prexit for help. Minor chqges and corrections
 use v5.10;
    use warnings;
    use strict 'subs';
@@ -26,17 +27,19 @@ $VERSION = '1.10';
 # NOTE: autocommit used only in debugging mode
 # In debug mode it created backup and commit script to GIT repository, if there were changes from previous Version.
 #
+##autocommit - save script if it runs for subsequnt push into GIT or other versioning system
 sub autocommit
 {
 # parameters
 my $archive_dir=shift; # typically home or $HOME/bin
 my $mylib=shift; # typically home or $HOME/bin
-my @project=@_;
+my @project=@_; # list of files in the project (maintained in the main script)
+# local vars
 my ($script_timestamp,$fqn);
 #
 #  commit each running Version to the repository to central GIT
 #
-  return if ($::debuf==0);
+  return if ($::debug==0);
   ( ! -d $archive_dir ) && `mkdir -p $archive_dir`;
   $script_name=substr($0,rindex($0,'/')+1);
   _compare_and_save($archive_dir,$0,$script_name);
@@ -45,6 +48,8 @@ my ($script_timestamp,$fqn);
      _compare_and_save($archive_dir,$fqn,$script_name);
   }
 } # autocommit
+
+##_compare_and_save -- save the script (internal sub called from autocommit)
 sub _compare_and_save
 {
 my ($archive_dir,$fqn,$script_name)=@_;
@@ -62,18 +67,19 @@ my $script_delta=1;
       }
       if( $script_delta ){
          `cp -p $fqn $archive_dir/$script_name`;
-          # `git commit $0`;
+          # `cd $archive_dir && git commit $script_name`; # actual commit
       }
-}
+} #_compare_and_save
+
 #
-#:: helpme -- Read script and extract help from comments starting with #::
+##helpme -- Read script and extract help from comments starting with ##
 #
 sub helpme
 {
-      open(SYSHELP,"<$0");
+      open(SYSHELP,'<',$0);
       while($line=<SYSHELP> ){
-         if(  substr($line,0,3) eq "#::" ){
-            print STDERR substr($line,3);
+         if(  substr($line,0,2) eq "##" ){
+            print STDERR substr($line,2);
          }
       } # for
       close SYSHELP;
