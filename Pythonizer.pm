@@ -1,9 +1,9 @@
 package Pythonizer;
 #
-#:: ABSTRACT:  Supplementary subroutines for pythonizer
-#:: Includes logging subroutine(logme), autocommit, banner, abend, out and helpme
-#:: Copyright Nikolai Bezroukov, 2019.
-#:: Licensed under Perl Artistic license
+## ABSTRACT:  Supplementary subroutines for pythonizer
+## Includes logging subroutine(logme), autocommit, banner, abend, out and helpme
+## Copyright Nikolai Bezroukov, 2019.
+## Licensed under Perl Artistic license
 # Ver      Date        Who        Modification
 # =====  ==========  ========  ==============================================================
 # 00.00  2019/10/10  BEZROUN   Initial implementation. Limited by the rule "one statement-one line"
@@ -34,7 +34,7 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line);
    $VERSION = '1.10';
 
 #
-# Decode parameter for the pythonizer. all parameters are exported
+#::prolog --  Decode parameter for the pythonizer. all parameters are exported
 #
 sub prolog
 {
@@ -99,17 +99,19 @@ sub prolog
       return;
 } # prolog
 
+#::epilig -- close file and produce generated code, if in debug mode
 sub epilog
 {
    close STDIN;
    close SYSOUT;
-   if( $::debug ){
+   if( $::debug>1 ){
       say STDERR "==GENERATED OUTPUT FOR INPECTION==";
       print STDERR `cat -n $output_file`;
    }
-}
+} # epilog
+
 #
-# Extract here string with delimiter specified as the first argument
+#::get_here --  Extract here string with delimiter specified as the first argument
 #
 sub get_here
 {
@@ -119,13 +121,14 @@ my $here_str;
      $line=getline();
    }
    return '""""'."\n".$here_str."\n".'"""""'."\n";
-}
+} # get_here
+
 #
-# getline has now ability to buffer line, which will be scanned by tokeniser next.
+#::getline -- get input line. It has now ability to buffer line, which will be scanned by tokeniser next.
 #
 sub getline
 {
-state @buffer;
+state @buffer; # buffer to "postponed lines. Used for translation of postfix conditinals among other things.
 
    if( scalar(@_)>0 ){
        push(@buffer,@_); # buffer line for processing in the next call;
@@ -165,9 +168,8 @@ state @buffer;
 
 }
 
-#
-# Output line shifted properly to the current nesting level
-# arg1 - actually PseudoPython gerenated line
+#::output_line -- Output line shifted properly to the current nesting level
+# arg 1 -- actual PseudoPython generated line
 # arg 2 -- tail comment (added Dec 28, 2019)
 sub output_line
 {
@@ -176,14 +178,15 @@ my $tailcomment=(scalar(@_)==2 ) ? $_[1] : '';
 my $indent=' ' x $::TabSize x $CurNest;
 my $flag=( $::FailedTrans && scalar(@_)==1 ) ? 'FAIL' : '    ';
 my $len=length($line);
-my $maxline=90;
+my $maxline=80;
 my $prefix=sprintf('%4u',$.)." | $CurNest | $flag |";
 my $com_zone=$maxline+length($prefix);
+my $orig_tail_len=length($tailcomment);
 
    if ($tailcomment){
        $tailcomment=($tailcomment=~/^\s+(.*)$/ ) ? $indent.$1 : $indent.$tailcomment;
    }
-   # Special case of empty line or "pure" comment
+   # Special case of empty line or "pure" comment that needs to be indented
    if( $len==0 ){
          out($prefix,$tailcomment);
          say SYSOUT $tailcomment;
@@ -202,10 +205,10 @@ my $com_zone=$maxline+length($prefix);
       #remove tailcomment from original line
       if( $len > $maxline ){
          # long line
-         if( length($IntactLine) > 90 ){
+         if( length($IntactLine) > $maxline ){
             out($line);
-            out((' ' x $com_zone),' #PL: ',substr($IntactLine,0,90));
-            out((' ' x $com_zone),' Cont:  ',substr($IntactLine,90));
+            out((' ' x $com_zone),' #PL: ',substr($IntactLine,0,$maxline));
+            out((' ' x $com_zone),' Cont:  ',substr($IntactLine,$maxline));
          }else{
             out($line,' #PL: ',$IntactLine);
          }
@@ -215,7 +218,7 @@ my $com_zone=$maxline+length($prefix);
       }
    }else{
      #line with tail comment
-     $IntactLine=substr($IntactLine,0,-length($tailcomment));
+     $IntactLine=substr($IntactLine,0,-$orig_tail_len);
      if ($tailcomment eq '#\\' ){
          out($line,' \ '); # continuation line
       }else{
@@ -223,8 +226,8 @@ my $com_zone=$maxline+length($prefix);
       }
       if( length($IntactLine)>90 ){
          #long line
-         out((' ' x $com_zone),' #PL: ',substr($IntactLine,0,90));
-         out((' ' x $com_zone),' #Cont: ',substr($IntactLine,90));
+         out((' ' x $com_zone),' #PL: ',substr($IntactLine,0,$maxline));
+         out((' ' x $com_zone),' #Cont: ',substr($IntactLine,$maxline));
       }else{
          #short line
          out((' ' x $com_zone),' #PL: ',$IntactLine);
@@ -232,8 +235,8 @@ my $com_zone=$maxline+length($prefix);
    }
 
 } # output_line
-#
-# Correct nest -- ensure proper indenting of the lines. Accepts two arguments
+
+#::correct_nest -- ensure proper indenting of the lines. Accepts two arguments
 #  if no arguments given it sets $CurNest=$NextNest;
 #  If only 1 ARG given inrements/decreaments $NextNest;
 #     NOTE: If zero is given sets NextNest to zero.
