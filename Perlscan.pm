@@ -30,6 +30,7 @@ package Perlscan;
 # 0.93 2020/08/08  BEZROUN   Diamond operator (<> <HANDLE>) is treated now as identifier
 # 0.94 2020/08/09  BEZROUN   gen_chunk moves to Perlscan module. Pythoncode array made local
 # 0.95 2020/08/10  BEZROUN   Postfix statements accomodated
+# 0.96 2020/08/11  BEZROUN   scanning of regular expressions improved. / qr and 'm' are treated uniformly
 
 use v5.10;
 use warnings;
@@ -71,7 +72,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'next'=>'continue ',
                 'own'=>'global', 'oct'=>'eval','ord'=>'ord',
                 'package'=>'import',
-                'split'=>'.split','sort'=>'sort','scalar'=>'len', 'say'=>'print','state'=>'global','substr'=>'',
+                'split'=>'re.split','sort'=>'sort','scalar'=>'len', 'say'=>'print','state'=>'global','substr'=>'',
                 'rindex'=>'.rfind',
                 'sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','defined'=>'perl_defined',
                 'unless'=>'if not ', 'until'=>'while not ','unlink'=>'os.unlink', 'use'=>'import', 'uc'=>'.upper()', 'ucfirst'=>'.capitalize()',
@@ -141,13 +142,13 @@ my ($l,$m);
             print("Internal error in scanner\n");
             $DB::single = 1;
 
-         }elsif( $s eq ';'){
+         }elsif( $s eq ';' ){
             #
             # buffering tail is possible only if banace of round bracket is zero
             # because of for($i=0; $i<@x; $i++)
             #
             $balance=0;
-            for ($i=0;$i<@ValClass;$i++ ){
+            for ($i=0;$i<@ValClass;$i++ ) {
                if( $ValClass[$i] eq '(' ){
                   $balance++;
                }elsif( $ValClass[$i] eq ')' ){
@@ -179,7 +180,7 @@ my ($l,$m);
          # This is a meaningful symbol which tranlates into some token.
          $ValClass[$tno]=$ValPerl[$tno]=$ValPy[$tno]=$s;
          $ValCom[$tno]='';
-         if( $s eq '}'){
+         if( $s eq '}' ){
             # we treat '}' as a separate "dummy" statement -- eauvant to ';' plus change of nest -- Aug 7, 2020
             if( $tno==0 ){
                  # we recognize it as the end of the block if '}' is the first symbol
@@ -209,7 +210,7 @@ my ($l,$m);
                    Pythonizer::getline(substr($source,1)); # save tail
                 }
                 last; # artificially truncating the line making it one-symbol line
-             }elsif( length($source)==1 || substr($source,1)=~/^\s*#/ || $ValClass[$tno-1] eq ')'  ){
+             }elsif( length($source)==1 || substr($source,1)=~/^\s*#/ || $ValClass[$tno-1] eq ')' ){
                 # $tno>0 this is the case when curvy bracket is the last statement on the line ot is preceded by ')'
                 Pythonizer::getline($source); # make it a new line to be proceeed later
                 popup();  # kill the last symbol
@@ -219,15 +220,11 @@ my ($l,$m);
             $ValPy[$tno]='[';
             $cut=1;
          }elsif( $s eq '/' && ($tno==0 || index('~(',$ValClass[$tno-1])>-1) ){
-            # slash means regex in three cases: if(/abc/){0}; $a=~/abc/; /abc/; Crazy staff
+            # slash means regex in three cases: if(/abc/ ){0}; $a=~/abc/; /abc/; but split(/,/,$tst) Crazy staff
               $ValClass[$tno]='q';
               $cut=single_quoted_literal($s,1);
               $ValPerl[$tno]=substr($source,1,$cut-2);
-              if( index('~>',$ValClass[$tno-1])==-1 ){
-                 $ValPy[$tno]='perl_default_var.re.match(r'.escape_quotes($ValPerl[$tno]).')'; #  double quotes neeed to be escaped just in case
-              }else{
-                 $ValPy[$tno]='.re.match(r'.escape_quotes($ValPerl[$tno]).')'; #  double quotes neeed to be escaped just in case
-              }
+              perl_re();
          }elsif( $s eq "'" ){
             #simple string, but backslashes of  are allowed
             $ValClass[$tno]="'";
@@ -332,7 +329,7 @@ my ($l,$m);
                      #executable
                       $cut=single_quoted_literal($delim,length($w)+1);
                       $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
-                      $ValPy[$tno]='.re.match(r"'.$ValPerl[$tno].'")';
+                      perl_re();
                    }elsif( $w eq 'tr' || $w eq 'y' || $w eq  's' ){
                      # tr function has two parts; also can be named y
                      $cut=single_quoted_literal($delim,length($w)+1);
@@ -383,7 +380,7 @@ my ($l,$m);
                 $s3=substr($source,2,1);
                 $cut=3;
                 if( $s3=~/\w/ ){
-                   if( exists($SPECIAL_VAR{$s3})) {
+                   if( exists($SPECIAL_VAR{$s3} )){
                      $ValPy[$tno]=$SPECIAL_VAR{$s3};
                    }else{
                      $ValPy[$tno]='perl_special_var_'.$s3;
@@ -425,7 +422,7 @@ my ($l,$m);
                         $ValPy[$tno]='perl_arg_array['.$2.']';
                         $cut=length($1);
                      }else{
-                        $ValPy[$tno]='perl_default_var';
+                        $ValPy[$tno]='default_var';
                         $cut=2;
                      }
                   }elsif( $s2 eq 'a' || $s2 eq 'b' ){
@@ -447,7 +444,7 @@ my ($l,$m);
             }
          }elsif( $s eq '@' ){
             $source=~/^.(\w+)/;
-            if ($1 eq '_') {
+            if( $1 eq '_' ){
                $ValPy[$tno]="perl_arg_array";
             }
             $ValClass[$tno]='a'; #array
@@ -533,7 +530,52 @@ my ($l,$m);
       ($::debug>2) && say STDERR "\nLine $num. \$TokenStr: =|",$TokenStr, "|= \@ValPy: ",join(' ',@ValPy);
 
 } #tokenize
-
+#
+# How to translate regular expression depending on context
+# if(/regex/) --
+# if ($line=~/regex/ )
+# ($head,$tail)=split(/s/,$line)
+# used from '/', 'm' and 'qr'
+sub perl_re
+{
+my  ($i,$sym,$prev_sym,@my_regex);
+#
+# Is this regex or a reguar string used in regex for search
+#
+    if( length($ValPerl[$tno])==1 ){
+       $is_regex=0;
+    }else{
+      $is_regex=0;
+      @my_regex=split(//,$ValPerl[$tno]);
+      for( $i=0; $i<@my_regex; $i++ ){
+         $sym=$my_regex[$i];
+         $prev_sym=($i>0)? $my_regex[$i-1] : ' ';
+         if( index('.*+()[]',$sym)>=-1 ){
+            $is_regex=1;
+         }elsif( $prev_sym='\\' && lc($sym)=~/[bsdw]/ ){
+            $is_reg_ex=1;
+            last;
+         }
+      }#for
+    }
+   $ValClass[$tno]="'" unless($is_regex);
+   if( $tno>=1 && $ValClass[$tno-1] eq '~' ){
+      # explisit or implisit 'm'
+      $ValPy[$tno]='.re.match(r'.escape_quotes($ValPerl[$tno]).')'; #  double quotes neeed to be escaped just in case
+   }elsif( $tno>=2 && $ValClass[$tno-1] eq '(' && $ValPerl[$tno-2] eq 'split' ){
+       # in split regex should be  plain vanilla
+       $ValPy[$tno]='r'.escape_quotes($ValPerl[$tno]); #  double quotes neeed to be escaped just in case
+   }else{
+       if( index(join('',@ValClass),'c')>-1 ){
+           $ValPy[$tno]='re.match(r'.escape_quotes($ValPerl[$tno]).')';
+       }else{
+           $ValPy[$tno]='default_var.re.match(r'.escape_quotes($ValPerl[$tno]).')';
+       }
+   }
+} # perl_re
+#
+# Remove the last item from stack
+#
 sub popup
 {
     pop(@ValClass);
@@ -553,7 +595,7 @@ my ($m,$sym);
       #simple string, but osnmebacklashes are allowed
       for($m=$offset; $m<=length($source); $m++ ){
          $sym=substr($source,$m,1);
-         last if ($sym eq $closing_delim && substr($source,$m-1,1) ne '\\' );
+         last if( $sym eq $closing_delim && substr($source,$m-1,1) ne '\\' );
       }
       return $m+1; # this is first symbol after closing quote
 }
