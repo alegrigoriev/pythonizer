@@ -190,7 +190,6 @@ my $orig_tail_len=length($tailcomment);
    if( $len==0 ){
          out($prefix,$tailcomment);
          say SYSOUT $tailcomment;
-         $IntactLine='';
          return;
    }
    $line=($line=~/^\s+(.*)$/ )? $indent.$1 : $indent.$line;
@@ -222,7 +221,7 @@ my $orig_tail_len=length($tailcomment);
      if ($tailcomment eq '#\\' ){
          out($line,' \ '); # continuation line
       }else{
-         out($line, $tailcomment); # output with tail comment instead of Perl comment
+         out($line,' ',$tailcomment); # output with tail comment instead of Perl comment
       }
       if( length($IntactLine)>90 ){
          #long line
