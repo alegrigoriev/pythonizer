@@ -31,7 +31,8 @@ package Perlscan;
 # 0.94 2020/08/09  BEZROUN   gen_chunk moves to Perlscan module. Pythoncode array made local
 # 0.95 2020/08/10  BEZROUN   Postfix statements accomodated
 # 0.96 2020/08/11  BEZROUN   scanning of regular expressions improved. / qr and 'm' are treated uniformly
-
+# 0.97 2020/08/12  BEZROUN   Pre_default_var is remaned indefault_var
+# 0.97 2020/08/14  BEZROUN   Better decoding of double quotes literals implemented
 use v5.10;
 use warnings;
 use strict 'subs';
@@ -49,7 +50,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
   #
   # types of veraiables detected during the first pass; to be implemented later
   #
-  %is_numberic=();
+  #%is_numeric=();
 #
 # List of Perl special variables
 #
@@ -104,8 +105,9 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 # one to one translation of digramms. most are directly translatatble.
 #
    %digram_tokens=('++'=>'^', '--'=>'^', '+='=>'=', '-='=>'=', '.='=>'=', '%='=>'=', '=~'=>'~','!~'=>'~',
-                   '=='=>'>','!='=>'>','>='=>'>','<='=>'>','=>'=>':','->'=>'.','::'=>'.',
-                   '<<' => 'H', '>>'=>'=', '&&'=>'0', '||'=>'1',); #and/or/not
+                   '=='=>'>','!='=>'>','>='=>'>','<='=>'>','=>'=>':','->'=>'.',
+                   '<<' => 'H', '>>'=>'=', '&&'=>'0', '||'=>'1',
+                   '::'=>'.' ); #and/or/not
 
    %digram_map=('++'=>'+=1','--'=>'-=1','+='=>'+=', '.='=>'+=', '=~'=>'=','<>'=>'readline()','=>'=>': ','->'=>' ',
                 '&&'=>' and ', '||'=>' or ','::'=>'.',
@@ -126,10 +128,7 @@ my ($l,$m);
          $DB::single = 1;
       }
       while($source) {
-         if( $source=~/^(\s+)/) {
-            # truncate white space on the left
-            substr($source,0,length($1))='';
-         }
+         ($source)=split(' ',$source,1);  # truncate white space on the left (Perl treats ' ' like AWK. )
          $s=substr($source,0,1);
          if( $s eq '#'  ){
             # plain vanilla tail comment
@@ -317,7 +316,7 @@ my ($l,$m);
                      $cut=double_quoted_literal($delim,length($w)+1); # side affect populates $ValPy[$tno] and $ValPerl[$tno]
 
                   }elsif($w eq 'qx') {
-                     #executable
+                     #executable, needs interpolation: to be implemented
                      if( $delim eq "'") {
                         $cut=single_quoted_literal($delim,length($w)+1);
                         $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w));
@@ -370,78 +369,7 @@ my ($l,$m);
                }
             }
          }elsif( $s eq '$'  ){
-            $s2=substr($source,1,1);
-            $ValClass[$tno]='s';
-            if( $s2 eq '.'  ){
-               # file line number
-                $ValPy[$tno]='fileinput.filelineno()';
-                $cut=2;
-            }elsif( $s2 eq '^'  ){
-                $s3=substr($source,2,1);
-                $cut=3;
-                if( $s3=~/\w/  ){
-                   if( exists($SPECIAL_VAR{$s3})) {
-                     $ValPy[$tno]=$SPECIAL_VAR{$s3};
-                   }else{
-                     $ValPy[$tno]='perl_special_var_'.$s3;
-                  }
-                }
-            }elsif( index(';<>()',$s2) > -1  ){
-               $ValPy[$tno]=$SPECIAL_VAR{$s2};
-               $cut=2;
-            }elsif( $s2 =~ /\d/ ) {
-                $source=~/^.(\d+)/;
-                $ValClass[$tno]='s'; #scalar
-                $ValPerl[$tno]=$1;
-                if( $s2 eq '0' ) {
-                  $ValPy[$tno]="__file__";
-                }else{
-                   $ValPy[$tno]="rematch.group($1)";
-                }
-                $cut=length($1)+1;
-            }elsif( $s2 eq '#') {
-               $source=~/^..(\w+)/;
-               $ValClass[$tno]='s';
-               $ValPerl[$tno]=$1;
-               $ValPy[$tno]='len($1)-1';
-               $cut=length($1)+2;
-            }elsif( $s2 eq '$' ){
-               $source=~/^..(\w+)/;
-               $ValClass[$tno]='p';
-               $ValPerl[$tno]=$1;
-               $ValPy[$tno]='addr($1)';
-               $cut=length($1)+2;
-            }elsif( $source=~/^.(\w+)/) {
-               $ValClass[$tno]='s'; #scalar
-               $ValPy[$tno]=$ValPerl[$tno]=$1;
-               $cut=length($1)+1;
-               if( length($1) ==1 ) {
-                  $s2=$1;
-                  if( $s2 eq '_') {
-                     if( $source=~/^(._\s*\[\s*(\d+)\s*\])/  ){
-                        $ValPy[$tno]='perl_arg_array['.$2.']';
-                        $cut=length($1);
-                     }else{
-                        $ValPy[$tno]='default_var';
-                        $cut=2;
-                     }
-                  }elsif( $s2 eq 'a' || $s2 eq 'b' ) {
-                     $ValPy[$tno]='perl_sort_'.$s2;
-                     $cut=2;
-                  }
-               }elsif( $1 eq 'ENV'  ){
-                 $ValPy[$tno]='os.environ';
-               }elsif( $1 eq 'ARGV'  ){
-                 $ValPy[$tno]='sys.argv';
-               }
-
-            }elsif($source=~/^.(\w+(?:\:\:\w+)+)/  ){
-               $var=$1;
-               $ValPerl[$tno]=$1;
-               $var =~ tr/:/_/;
-               $ValPy[$tno]="Imported_$var";
-               $cut=length($1)+1;
-            }
+            decode_scalar($source);
          }elsif( $s eq '@'  ){
             $source=~/^.(\w+)/;
             if( $1 eq '_') {
@@ -531,6 +459,93 @@ my ($l,$m);
 
 } #tokenize
 #
+#decode scalar
+#
+sub decode_scalar
+{
+my $source=$_[0];
+my $rc=-1;
+   $s2=substr($source,1,1);
+   $ValClass[$tno]='s';
+   if( $s2 eq '.'  ){
+      # file line number
+       $ValPy[$tno]='fileinput.filelineno()';
+       $cut=2;
+   }elsif( $s2 eq '^'  ){
+       $s3=substr($source,2,1);
+       $cut=3;
+       if( $s3=~/\w/  ){
+          if( exists($SPECIAL_VAR{$s3})) {
+            $ValPy[$tno]=$SPECIAL_VAR{$s3};
+          }else{
+            $ValPy[$tno]='perl_special_var_'.$s3;
+         }
+       }
+   }elsif( index(';<>()',$s2) > -1  ){
+      $ValPy[$tno]=$SPECIAL_VAR{$s2};
+      $cut=2;
+   }elsif( $s2 =~ /\d/ ) {
+       $source=~/^.(\d+)/;
+       $ValClass[$tno]='s'; #scalar
+       $ValPerl[$tno]=$1;
+       if( $s2 eq '0' ) {
+         $ValPy[$tno]="__file__";
+       }else{
+          $ValPy[$tno]="rematch.group($1)";
+       }
+       $cut=length($1)+1;
+   }elsif( $s2 eq '#') {
+      $source=~/^..(\w+)/;
+      $ValClass[$tno]='s';
+      $ValPerl[$tno]=$1;
+      $ValPy[$tno]='len($1)-1';
+      $cut=length($1)+2;
+   }elsif( $s2 eq '$' ){
+      $source=~/^..(\w+)/;
+      $ValClass[$tno]='p';
+      $ValPerl[$tno]=$1;
+      $ValPy[$tno]='addr($1)';
+      $cut=length($1)+2; $rc=-1;
+   }elsif( $source=~/^.(\w+)/ || $source=~/^.(\w*\:\:\w+)/ ) {
+      $ValClass[$tno]='s'; #scalar
+      $cut=length($1)+1; $rc=1;
+      $name=$1;
+      if( ($k=index($name,'::')) > -1 ){
+         substr($name,$k,2)='.';
+      }
+      $ValPy[$tno]=$name;
+      $ValPerl[$tno]=substr($source,0,$cut+1);
+      if( length($name) ==1 ) {
+         $s2=$1;
+         if( $s2 eq '_') {
+            if( $source=~/^(._\s*\[\s*(\d+)\s*\])/  ){
+               $ValPy[$tno]='perl_arg_array['.$2.']';
+               $cut=length($1); $rc=-1;
+            }else{
+               $ValPy[$tno]='default_var';
+               $cut=2; $rc=-1;
+            }
+         }elsif( $s2 eq 'a' || $s2 eq 'b' ) {
+            $ValPy[$tno]='perl_sort_'.$s2;
+            $cut=2; $rc=-1;
+         }
+      }else{
+        # this is a "regular" name with the length greater then one
+        # $cut points to the next symbol after the scanned part of the scapar
+           # check for Perl system variables
+           if( $1 eq 'ENV'  ){
+               $ValPy[$tno]='os.environ';
+               $rc=-1;
+           }elsif( $1 eq 'ARGV'  ){
+               $ValPy[$tno]='sys.argv';
+               $rc=-1;
+           }
+
+      }
+   }
+   return $rc;
+}
+#
 # How to translate regular expression depending on context
 # if(/regex/) --
 # if ($line=~/regex/ )
@@ -539,21 +554,20 @@ my ($l,$m);
 sub perl_re
 {
 my  ($i,$sym,$prev_sym,@my_regex);
+my  $is_regex=0;
 #
 # Is this regex or a reguar string used in regex for search
 #
-    if( length($ValPerl[$tno])==1 ){
-       $is_regex=0;
-    }else{
-      $is_regex=0;
+    if( length($ValPerl[$tno])>1 ){
       @my_regex=split(//,$ValPerl[$tno]);
       for( $i=0; $i<@my_regex; $i++ ){
          $sym=$my_regex[$i];
          $prev_sym=($i>0)? $my_regex[$i-1] : ' ';
          if(index('.*+()[]',$sym)>=-1 ){
             $is_regex=1;
+            last;
          }elsif ($prev_sym='\\' && lc($sym)=~/[bsdw]/ ){
-            $is_reg_ex=1;
+            $is_regex=1;
             last;
          }
       }#for
@@ -599,17 +613,21 @@ my ($m,$sym);
       }
       return $m+1; # this is first symbol after closing quote
 }
-#
+#::double_quoted_literal -- decompile double quted literal
+# parcial implementation; full implementation requires two pass scheme
 # Returns cut
 # As a side efecct populates $ValPerl[$tno] $ValPy[$tno]
+#
 sub double_quoted_literal
 {
 ($closing_delim,$offset)=@_;
 my ($k,$quote,$close_pos,$ind,$result,$prefix);
-   $closing_delim=~tr/{[(</}])>/;
+   if ($closing_delim ne '"') {
+      $closing_delim=~tr/{[(</}])>/;
+   }
    $close_pos=single_quoted_literal($closing_delim,$offset); # first position after quote
    $quote=substr($source,$offset,$close_pos-1-$offset); # extract literal
-   $ValPerl[$tno]=$quote;
+   $ValPerl[$tno]=$quote; # also will serve as original
    #
    # decompose all scalar variables, if any, Array and hashes are left "as is"
    #
@@ -620,34 +638,38 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
       $ValPy[$tno]=escape_quotes($quote);
       return $close_pos;
    }
+   #
+   #decode each part. Double quote literals in Perl are ver difficult to decode
+   # This is a parcial implementation of the most common cases
+   # Full implementation is possible only in two pass scheme
    while( $k > -1  ){
-      if( $k > 0  ){
+      if( $k > 0 && substr($quote,$k-1,1) ne '/' ){
          $result.=escape_quotes(substr($quote,0,$k)).' + '; # add literal part of the string
+      }else{
+         # escaped $
+         $k=index($quote,'$',$k);
+         $k++;
+         next;
       }
-      $quote=substr($quote,$k+1);
-      if( $quote=~/(\w+)([\[\{].+[\]\}])?/  ){
-         #element of the array of hash
-         $ind=$2;
-         $cut=length($1);
-         if( defined($ind)) {
-            $cut+=length($ind);
+      $quote=substr($quote,$k);
+      $rc=decode_scalar($quote);
+      if( $rc > 0 ){
+         #regular variable
+         $result.=substr($quote,0,$cut);
+         $quote=substr($quote,$cut);
+         if( $quote=~/([\[\{].+?[\]\}])/  ){
+            #element of the array of hash. Here we cut corners and do not process expressions as index.
+            $ind=$1;
+            $cut=length($ind);
             $ind =~ tr/$//d;
-         }else {
-            $ind='';
-         }
-         if( $1=~/\d+/ || exists($is_numberic{$1})  ){
-            # Generally you should use table of types here
-            $result.='str('.$1.$ind.')'; # add numberic Variable part of the string
-         }else{
             $result.=$1.$ind; # add string Variable part of the string
          }
-         $quote=substr($quote,$cut);
-         if( length($quote)>0 ) {
-            $result.=' + '; # we will add at least one chunk
-         }
-     }else{
-         say "Error in translation";
-         last;
+      }else{
+         $result.=$ValPy[$tno];
+      }
+      $quote=substr($quote,$cut);
+      if( length($quote)>0 ) {
+          $result.=' + '; # we will add at least one chunk
       }
       $k=index($quote,'$');
    }
@@ -755,7 +777,7 @@ my $line='';
    }elsif($line ){
        Pythonizer::output_line('','#NOTRANS: '.$line);
    }
-   if( $::FailedTrans && $debug  ){
+   if( $::FailedTrans && $::debug  ){
       out("\nTokens: $TokenStr ValPy: ".join(' '.@PythonCode));
    }
 #
