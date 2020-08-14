@@ -57,7 +57,9 @@
 # 0.230  2020/08/09  BEZROUN   more functions and statement eimplemnted
 # 0.240  2020/08/10  BEZROUN   postfix conditional re-implemented differnetly then in expression via scanne buffer
 # 0.250  2020/08/10  BEZROUN   split function is reimplemented and oprimized incase there is plain vanilla
-# 0.241  2020/08/12  BEZROUN   Perl_default_var is renames into default_var
+# 0.251  2020/08/12  BEZROUN   Perl_default_var is renames into default_var
+# 0.260  2020/08/14  BEZROUN   System variables in double quoted literals are compled correctly. Perlscan.pm improved.
+# 0.261  2020/08/14  BEZROUN   for loop translation corrected
 #!start ===============================================================================================================================
 
    use v5.10;
@@ -73,7 +75,7 @@
    use Perlscan qw(gen_statement  tokenize gen_chunk @ValClass  @ValPerl  @ValPy $TokenStr);
    use Pythonizer qw(correct_nest getline prolog epilog output_line);
 
-   $VERSION='0.240';
+   $VERSION='0.261';
    $breakpoint=0; # line from which to debug code. See Pythonizer
    $debug=0;  # 0 production mode 1 - development/testing mode. 2-9 debugging modes
               # 4 -stop at Perlscan.pm
@@ -548,7 +550,7 @@ my $howmany=$assign_end-$from+1;
 sub short_cut_if
 {
    my $start=$_[0];
-   $limit=matching_br($start+1);
+   $limit=matching_br($start);
    gen_chunk('if ');
    $k=expression($start+1,$limit,0);
    if( $k<0 ){
@@ -558,7 +560,8 @@ sub short_cut_if
    gen_chunk(':');
    gen_statement();
    correct_nest(1,1);
-   if( substr($TokenStr,$k+1,2) =~/[ik]\(/) {
+   $k=index($TokenStr,'0');
+   if( $ValClass[$k+1]=~/[ikf]/ && $ValClass[$k+2] eq '(' ){
       $k=function($k+1);
    }else{
       $k=assignment($k+1,$#ValClass);
@@ -660,7 +663,7 @@ my ($hashpos,$end_pos);
                 gen_chunk($ValPy[$start]);
              }
          }else{
-            expression($start,$end); # gen expression
+            expression($start,$end-1); # gen expression
          }
          if( $increment) {
             gen_chunk(",$increment):");
@@ -974,8 +977,8 @@ my ($limit,$mode,$split,$start,$prev_k);
    if( $cur_pos==$limit ){
       # a single token in expression
       gen_chunk($ValPy[$cur_pos]);
-      if( $mode){ gen_chunk(')') };
-     $RecursionLevel--;
+      if( $mode && $ValClass[$cur_pos] ne ')' ){ gen_chunk(')') };
+      $RecursionLevel--;
       return $cur_pos+1;
    }
    $prev_k=-1; # starting position of infinite loop preventor.
@@ -992,7 +995,7 @@ my ($limit,$mode,$split,$start,$prev_k);
       if( $ValClass[$cur_pos] eq '(' ){
          # generate brack if mode=1 or recursion level is above zero
          gen_chunk($ValPy[$cur_pos]);
-         $cur_pos=expression($cur_pos+1); # preserve brackets
+         $cur_pos=expression($cur_pos+1,$limit,0); # preserve brackets
          ($cur_pos<0) && return -255;
       }elsif( $ValClass[$cur_pos] eq '<' ){
          gen_chunk('readline()');
