@@ -90,12 +90,6 @@ sub prolog
           print STDERR "ATTENTION!!! Working in debugging mode debug=$debug\n";
       }
       out("=" x 90,"\n\n");
-      #
-      # Output the first line
-      #
-
-      $IntactLine='';
-
       return;
 } # prolog
 
@@ -157,12 +151,8 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
       if( substr($line,-1,1) eq "\r" ){
          chop($line);
       }
-      if( $line=~/(^.*\S)\s+$/ ){
-        $line=$1;
-      }
-      if( $line=~/(^\s+)/ ){
-         $line=substr($line,length($1));
-      }
+      $line =~ s/\s+$//; # trim tailing blanks
+      $line =~ s/^\s+//; # trim leading blanks
       return  $line;
    }
 
