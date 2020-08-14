@@ -146,7 +146,7 @@ my $start;
             $rc=assignment(0);
             if( $rc<0 ){ $FailedTrans=1; }
          }
-      }elsif( $ValPerl[0] eq 'use' || $ValPerl[0] eq 'goto' ){
+      }elsif( $ValPerl[0] eq 'use' || $ValPerl[0] eq 'goto' || $ValPerl[0] eq 'bless' || $ValPerl[0] eq 'package'  ){
          output_line('','#NOTRAN: '.$line);
          $line=getline();
          next;
@@ -551,7 +551,7 @@ sub short_cut_if
 {
    my $start=$_[0];
    $limit=matching_br($start);
-   gen_chunk('if');
+   gen_chunk('if ');
    $k=expression($start+1,$limit,0);
    if( $k<0 ){
       $FailedTrans=1;
@@ -561,9 +561,11 @@ sub short_cut_if
    gen_statement();
    correct_nest(1,1);
    $k=index($TokenStr,'0');
-   if( $ValClass[$k+1]=~/[ikf]/ && $ValClass[$k+2] eq '(' ){
+   if( $#ValClass==$k+1 ){
+      gen_chunk($ValPy[$k+1]);
+   }elsif( $ValClass[$k+1]=~/[ikf]/ && $ValClass[$k+2] eq '(' ){
       $k=function($k+1);
-   }else{
+   }elsif( index($TokenStr,'=',$k)>-1 ){
       $k=assignment($k+1,$#ValClass);
    }
    gen_statement();
@@ -616,6 +618,9 @@ my ($hashpos,$end_pos);
             gen_chunk("$ValPy[0] $ValPy[2] in $ValPy[4]:" );
          }elsif( $TokenStr eq 'c(i)' ){
             gen_chunk("$ValPy[0] default_var in $ValPy[2]:" );
+         }elsif( $TokenStr eq 'c((cs=)' ){
+            logme('S', "Translation of assignment in while loop requres Python 3.8+");
+            return 255
          }else{
             $FailedTrans=1;
             return -255;
@@ -799,21 +804,32 @@ my ($end_pos,$k,$split,$split2);
          return -255 if( $rc < 0 );
          return($#ValClass); # this is a statement masqurading as function
       } elsif( $ValPerl[$start] eq 'exists' ){
-         $k=$start+2;
+         $incr=($ValPerl[$start+1] eq '(')?2:1;
+         $k=$start+$incr;
          if( $ValClass[$k] eq 's') {
             $dict=$ValPy[$k];
             $k+=2;
-            if( $ValClass[$k+1] eq ')') {
+            if( $ValClass[$k+1] eq ')' ) {
+               #single token between {}
                if( $ValClass[$k] eq 's' || $ValClass[$k] eq '"' || $ValClass[$k] eq "'"){
                   gen_chunk("$ValPy[$k] in $dict");
                   return $k+2;
                }
+               return -255
+            }else{
+               $limit=matching_br($k-1);
+               $k=expression($k-1,$limit,1);
             }
+         }else{
+           return -255
          }
-         return -255
       }elsif(substr($ValPerl[$start],0,1) eq '-') {
          #file predicates
-         gen_chunk($ValPy[$start].'('.$ValPy[$start+1].')');
+         if ($ValPerl[$start] eq '-s') {
+            gen_chunk($ValPy[$start].'('.$ValPy[$start+1].').st_size');
+         }else{
+            gen_chunk($ValPy[$start].'('.$ValPy[$start+1].')');
+         }
          return $start+2;
       }elsif( $ValPerl[$start] eq 'split' ){
          # you nees to exteact the second argument first
