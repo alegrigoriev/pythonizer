@@ -2,8 +2,8 @@ package Perlscan;
 ## ABSTRACT:  Lexical analysis module for Perl -- parses one line of Perl program (which should contain a complete statement) into tokens/lexems
 ##          For alpha-testers only. Should be used with Pythoinizer testing suit
 ##
-## Copyright Nikolai Bezroukov, 2019.
-## Licensed under Perl Artistic license# Requres
+## Copyright Nikolai Bezroukov, 2019-2020.
+## Licensed under Perl Artistic license
 ##
 ## REQURES
 ##        pythonizer.pl
@@ -369,19 +369,20 @@ my ($l,$m);
                }
             }
          }elsif( $s eq '$' ){
-            decode_scalar($source);
+            decode_scalar($source,1);
          }elsif( $s eq '@' ){
             $source=~/^.(\w+)/;
             if( $1 eq '_' ){
                $ValPy[$tno]="perl_arg_array";
-            }
-            $ValClass[$tno]='a'; #array
-            $ValPerl[$tno]=$1;
-            $ValPy[$tno]=$1;
-            $cut=length($1)+1;
-            if( $1 eq 'ARGV' ){
+            }elsif( $1 eq 'ARGV'  ){
                  $ValPy[$tno]='sys.argv';
+            }else{
+               $ValPy[$tno]=$1
             }
+            $cut=length($1)+1;
+            $ValPerl[$tno]=substr($source,$cut);
+            $ValClass[$tno]='a'; #array
+
          }elsif( $s eq '%' ){
             $source=~/^.(\w+)/;
             $ValClass[$tno]='h'; #hash
@@ -407,12 +408,17 @@ my ($l,$m);
                   $ValPy[$tno]=$ValPerl[$tno]; # same as in Perl
                }
                $cut=2;
+            }elsif( $s eq '=' ){
+               if( index(join('',@ValClass),'c')>-1 && $::PyV==3 ){
+                  $ValPy[$tno]=':=';
+               }
+               $cut=1;
             }elsif( $s eq '-' ){
               $s2=substr($source,1,1);
-              if( ($k=index('fdlze',$s2))>-1 && substr($source,2,1)=~/\s/ ){
+              if( ($k=index('fdlzes',$s2))>-1 && substr($source,2,1)=~/\s/ ){
                  $ValClass[$tno]='f';
                  $ValPerl[$tno]=$digram;
-                 $ValPy[$tno]=('os.path.isfile','os.path.isdir','os.path.islink','not os.path.getsize','os.path.exists')[$k];
+                 $ValPy[$tno]=('os.path.isfile','os.path.isdir','os.path.islink','not os.path.getsize','os.path.exists','os.stat')[$k];
                  $cut=2;
               }else{
                  $cut=1;
@@ -464,9 +470,10 @@ my ($l,$m);
 sub decode_scalar
 {
 my $source=$_[0];
+my $update=$_[1]; # if update is zero then only ValPy is updated
 my $rc=-1;
    $s2=substr($source,1,1);
-   $ValClass[$tno]='s';
+   if ( $update ) { $ValClass[$tno]='s';}
    if( $s2 eq '.' ){
       # file line number
        $ValPy[$tno]='fileinput.filelineno()';
@@ -486,8 +493,10 @@ my $rc=-1;
       $cut=2;
    }elsif( $s2 =~ /\d/ ){
        $source=~/^.(\d+)/;
-       $ValClass[$tno]='s'; #scalar
-       $ValPerl[$tno]=$1;
+       if( $update ){
+          $ValClass[$tno]='s'; #scalar
+          $ValPerl[$tno]=$1;
+       }
        if( $s2 eq '0' ){
          $ValPy[$tno]="__file__";
        }else{
@@ -496,25 +505,23 @@ my $rc=-1;
        $cut=length($1)+1;
    }elsif( $s2 eq '#' ){
       $source=~/^..(\w+)/;
-      $ValClass[$tno]='s';
-      $ValPerl[$tno]=$1;
+      if( $update ){
+         $ValClass[$tno]='s';
+         $ValPerl[$tno]=$1;
+      }
       $ValPy[$tno]='len($1)-1';
       $cut=length($1)+2;
-   }elsif( $s2 eq '$' ){
-      $source=~/^..(\w+)/;
-      $ValClass[$tno]='p';
-      $ValPerl[$tno]=$1;
-      $ValPy[$tno]='addr($1)';
-      $cut=length($1)+2; $rc=-1;
    }elsif( $source=~/^.(\w+)/ || $source=~/^.(\w*\:\:\w+)/ ){
-      $ValClass[$tno]='s'; #scalar
       $cut=length($1)+1; $rc=1;
       $name=$1;
+      if( $update ){
+           $ValClass[$tno]='s'; #scalar
+           $ValPerl[$tno]=substr($source,0,$cut+1);
+      }
       if( ($k=index($name,'::')) > -1 ){
          substr($name,$k,2)='.';
       }
       $ValPy[$tno]=$name;
-      $ValPerl[$tno]=substr($source,0,$cut+1);
       if( length($name) ==1 ){
          $s2=$1;
          if( $s2 eq '_' ){
@@ -540,7 +547,6 @@ my $rc=-1;
                $ValPy[$tno]='sys.argv';
                $rc=-1;
            }
-
       }
    }
    return $rc;
@@ -627,6 +633,9 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
    }
    $close_pos=single_quoted_literal($closing_delim,$offset); # first position after quote
    $quote=substr($source,$offset,$close_pos-1-$offset); # extract literal
+   if (length($quote) == 1 ){
+      return $close_pos;
+   }
    $ValPerl[$tno]=$quote; # also will serve as original
    #
    # decompose all scalar variables, if any, Array and hashes are left "as is"
@@ -652,7 +661,7 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
          next;
       }
       $quote=substr($quote,$k);
-      $rc=decode_scalar($quote);
+      $rc=decode_scalar($quote,0);
       if( $rc > 0 ){
          #regular variable
          $result.=substr($quote,0,$cut);
@@ -663,11 +672,13 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
             $cut=length($ind);
             $ind =~ tr/$//d;
             $result.=$1.$ind; # add string Variable part of the string
+            $quote=substr($quote,$cut);
          }
       }else{
          $result.=$ValPy[$tno];
+         $quote=substr($quote,$cut);
       }
-      $quote=substr($quote,$cut);
+
       if( length($quote)>0 ){
           $result.=' + '; # we will add at least one chunk
       }
@@ -778,7 +789,7 @@ my $line='';
        Pythonizer::output_line('','#NOTRANS: '.$line);
    }
    if( $::FailedTrans && $::debug ){
-      out("\nTokens: $TokenStr ValPy: ".join(' '.@PythonCode));
+      Softpano::out("\nTokens: $TokenStr ValPy: ".join(' '.@PythonCode));
    }
 #
 # Prepare for the next line generation
