@@ -1,17 +1,18 @@
 package Softpano;
-## Simplified implementation of a subset of "defensive programming" toolkit stemming from my experiense as a complier writer.
-## ABSTRACT:  Murphy principle states  "Anything that can go wrong will go wrong" but you better be imformed if something happens ;-)
+## Simplified implementation of a subset of "defensive programming" toolkit stemming from my experience as a compiler writer.
+## ABSTRACT:  Murphy principle states  "Anything that can go wrong will go wrong" but you better be informed if something happens ;-)
 ## Includes logging subroutine(logme), autocommit, banner, abend, out and helpme
-## Copyright Nikolai Bezroukov, 2019.
+## Copyright Nikolai Bezroukov, 2019-2020.
 ## Licensed under Perl Artistic license
 # Ver      Date        Who        Modification
 # =====  ==========  ========  ==============================================================
 # 01.00  2019/10/09  BEZROUN   Initial implementation
-# 01.10  2019/10/10  BEZROUN   autocommit now allow to save multiple modules in addtion to the main program
-# 01.20  2019/11/19  BEZROUN   mylib parameter added -- location of modules (ususally during debugging this is '.'== the current workiong directory)
-# 01.21  2020/08/04  BEZROUN   autocommin works only if $::debug > 0
+# 01.10  2019/10/10  BEZROUN   autocommit now allow to save multiple modules in addition to the main program
+# 01.20  2019/11/19  BEZROUN   mylib parameter added -- location of modules (usually during debugging this is '.'== the current working directory)
+# 01.21  2020/08/04  BEZROUN   autocommit will works only if $::debug > 0
 # 01.22  2020/08/05  BEZROUN   out now works with multiple arguments
-# 01.30  2020/08/10  BEZROUN   ## are no comment prexit for help. Minor chqges and corrections
+# 01.30  2020/08/10  BEZROUN   tag "##" is not used as the comment prefix for help. Minor chages and corrections
+# 01.40  2020/08/17  BEZROUN   getops is now implemented in Softpano.pm to allow the repetition of option letter to set the value of options ( -ddd)
 use v5.10;
    use warnings;
    use strict 'subs';
@@ -253,5 +254,53 @@ sub stepin
    }
    return unless($::debug);
    $DB::single = 1;
+}
+sub getopts
+{
+my ($argumentative,$hash)=@_;
+my (@args,$first,$rest);
+   @args = split( //, $argumentative );
+   while(@ARGV && ($_ = $ARGV[0]) =~ /^-(.)(.*)/s) {
+      ($first,$rest) = ($1,$2);
+      if (/^--$/) {	# early exit if --
+         shift @ARGV;
+         last;
+      }
+      my $pos = index($argumentative,$first);
+      if ($pos >= 0) {
+         if (defined($args[$pos+1]) and ($args[$pos+1] eq ':')) {
+            # option with parameters
+            if( $rest eq ''){
+               # get the value
+              shift(@ARGV);
+              if ( @ARGV && $ARGV[0] =~/^-/ ) {
+                  warn("Option -$first requires argument\n");
+                  $$hash{$first} = '';
+               }else{
+                  unless (@ARGV) {
+                     warn("End of line reached for option -$first which requires argument\n");
+                     $$hash{$first}='';
+                     last;
+                  }
+                  $$hash{$first}=shift(@ARGV);
+               }
+            } else {
+               if( ($first x length($rest)) eq $rest ){
+                  $$hash{$first} = length($rest)+1;
+               }else{
+                  $$hash{$first}=$rest;
+               }
+               shift(@ARGV);
+            }
+         }else {
+            $$hash{$first} = 1; # set the option
+            if ($rest eq '') {
+               shift(@ARGV);
+            } else {
+               $ARGV[0] = "-$rest"; # there can be other options without arguments after the first
+            }
+         }
+      }
+   }
 }
 1;
