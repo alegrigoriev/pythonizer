@@ -2,7 +2,7 @@ package Pythonizer;
 #
 ## ABSTRACT:  Supplementary subroutines for pythonizer
 ## Includes logging subroutine(logme), autocommit, banner, abend, out and helpme
-## Copyright Nikolai Bezroukov, 2019.
+## Copyright Nikolai Bezroukov, 2019-2020.
 ## Licensed under Perl Artistic license
 # Ver      Date        Who        Modification
 # =====  ==========  ========  ==============================================================
@@ -12,12 +12,12 @@ package Pythonizer;
 # 00.12  2019/12/27  BEZROUN   Notions of ValCom was introduced in preparation of introduction of pre_processor.pl version 0.2
 # 00.20  2020/02/03  BEZROUN   getline was moved from pythonyzer.
 # 00.30  2020/08/05  BEZROUN   preprocess_line was folded into getline.
+# 00.40  2020/08/17  BEZROUN   getops is now implemented in Softpano.pm to allow the repretion of option letter to set the value of options ( -ddd)
 
 use v5.10;
 use warnings;
 use strict 'subs';
 use feature 'state';
-use Getopt::Std;
 use Softpano qw(autocommit helpme abend banner logme out);
 require Exporter;
 
@@ -37,30 +37,46 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line);
 #
 sub prolog
 {
-      getopts("fhrb:t:v:d:",\%options);
+      Softpano::getopts("hp:b:t:v:d:",\%options);
       if(  exists $options{'h'} ){
          helpme();
       }
       if(  exists $options{'d'}  ){
          if( $options{'d'} =~/^\d$/ ){
             $::debug=$options{'d'};
-         }elsif( $options{'d'} eq '' ){
-            $::debug=1;
+         }elsif( $options{'d'} =~/^d+$/ ){
+            $::debug=length($options{d});
          }else{
-            die("Wrong value of option -d: $options('d')\n");
+            logme('S',"Wrong value of option -d. If can be iether set of d letters like -ddd or an integer like -d 3 . You supplied the value  $options{'d'}\n");
+            exit 255;
+         }
+         ($::debug) && logme('W',"Debug flag is set to $::debug ::PyV");
+      }
+      if(  exists $options{'p'}  ){
+         if( $options{'p'}==2  || $options{'p'}==3 ){
+            $::PyV=$options{'p'};
+            ($::debug) && logme('W',"Python version set to $::PyV");
+         }elsif( $options{'p'} =~/^p+$/ ){
+             $::PyV=length($options{d});
+         }else{
+            logme('S',"Wrong value of option -p. Only values 2 and 3 are valid. You provided the value : $options('b')\n");
+            exit 255;
          }
       }
        if(  exists $options{'b'}  ){
          if( $options{'b'}>=0  && $options{'b'}<900 ){
             $::breakpoint=$options{'b'};
-            ($::debug) && logme('W',"Breakpoint  set to $::breakpoint");
+            ($::debug) && logme('W',"Breakpoint  set to line  $::breakpoint");
          }else{
-            die("Wrong value of option -b (line for debugger breakpoint): $options('b')\n");
+            logme('S',"Wrong value of option -b (line for debugger breakpoint): $options('b')\n");
+            exit 255;
          }
       }
       if(  exists $options{'v'} ){
          if( $options{'v'} =~/\d/ && $options{'v'}<3  ){
             $::verbosity=$options{'v'};
+         }elsif( $options{'v'} =~/^v+$/ ){
+            $::verbosity=length($options{'v'});
          }else{
             logme('D',3,3); # add warnings
          }
@@ -68,8 +84,11 @@ sub prolog
       if(  exists $options{'t'}  ){
          if( $options{'t'}>1  && $options{'2'}<10 ){
             $::TabSize=$options{'2'};
+         }elsif( $options{'t'} =~/^t+$/ ){
+            $::TabSize=length($options{'t'});
          }else{
-            die("Range for options -t (tab size) is 1-10. You specified: $options('t')\n");
+            logme('S',"Range for options -t (tab size) is 1-10. You specified: $options('t')\n");
+            exit 255;
          }
       }
 
