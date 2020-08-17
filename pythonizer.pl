@@ -1,24 +1,20 @@
 #!/usr/bin/perl
-## pythonizer Version 0.2 (Aug 5, 2020)
+## pythonizer Version 0.3 (Aug 17, 2020)
 ## Fuzzy prettyprint STDERR for Perl scripts
 ## Copyright Nikolai Bezroukov, 2019-2020.
 ## Licensed under Perl Artistic license
 ##
-## The key idea is process specially preformatted Perl script in which the following is true
-##     1. One statament per line
-##     2  all block related curvy brackets on separate lines
-##     3. Indentation already corresponds nesting     4.
-## To be sucessful, this approach requres a certain (very resonable) layout of the script into which most Perl scripts can be converted via via preprocessing
-## As most Perl statement are simple over 80% of them usually allow sucessful translation.  That's why we use the term "fuzzy".
-## The result will contain some statement that need to be converted by hand and that in some cases requres change of logic.
-## But there some notable exceptions. For example, Perl script that extensivly use references or OO.
+## As most Perl statement are simple over 80% of them usually allow sucessful translation.  That's why we use the term "fuzzy" translation.
+## The result will contain some statement that need to be converted by hand or corrected. In some cases that requres change of logic.
+## Best works for Perl 4 subset of Perl 5 which typically is used in sysadmin scripts.
+## Perl scripts that extensivly use references or OO requre more extensive manual effort
 ##
 ## --- INVOCATION:
 ##
 ##   pythonizer [options] [file_to_process]
 ##
 ##--- OPTIONS:
-##
+##    -p -- version of Python for generation, Default 3, if set to 2 generation is into Python 2.7
 ##    -v -- verbosity (0 -none 3 max vebosity)
 ##    -h -- this help
 ##    -t -- size of tab ingenerated Python code (emulated with spaces). Default is 4
@@ -38,15 +34,15 @@
 # Ver      Date        Who        Modification
 # =====  ==========  ========  ==============================================================
 # 0.010  2019/10/09  BEZROUN   Initial implementation
-# 0.020  2019/10/10  BEZROUN   Revised structure of globalk arrays, Now we have  foud TokenStr, ValClass ValPerl, ValPy
-# 0.030  2019/10/11  BEZROUN   Resursion is used to expressions, but in certain cases when I need a lookahead, bracket counting is used instead
+# 0.020  2019/10/10  BEZROUN   Revised structure of global arrays, Now we have four parallel arrays: TokenStr, ValClass ValPerl, ValPy
+# 0.030  2019/10/11  BEZROUN   Recursion is used to expressions, but in certain cases when I need a look-ahead, bracket counting is used instead
 # 0.040  2019/10/12  BEZROUN   Better listing for debugging implemented
-# 0.050  2019/11/06  BEZROUN   Forgot almost everything after a month; revised code just to refleash memoty. Tokenizer slightly improved
-# 0.050  2019/11/07  BEZROUN   Assignment within logical expression is not allowed in Python. It is now tranlated correctly
-# 0.060  2019/11/08  BEZROUN   post assignmen conditions like "next if( substr($line,0,1) eq '') " are processed correctly
-# 0.070  2019/11/11  BEZROUN   x=(v>0) ? y :z is now translated into ugly Python ternary ooperator which exists since Python 2.5
+# 0.050  2019/11/06  BEZROUN   Forgot almost everything after a month; revised code just to refreash memory. Tokenizer slightly improved
+# 0.050  2019/11/07  BEZROUN   Assignment within logical expression is not allowed in Python. It is now translated correctly
+# 0.060  2019/11/08  BEZROUN   post assignment conditions like "next if( substr($line,0,1) eq '') " are processed correctly
+# 0.070  2019/11/11  BEZROUN   x=(v>0) ? y :z is now translated into ugly Python ternary operator which exists since Python 2.5
 # 0.071  2019/11/11  BEZROUN   program now correctly translated 80% codelines of pre_pythonizer.pl
-# 0.080  2019/12/27  BEZROUN   Array ValCom is introduced for the preparetion of version 0.2 of pre-processor pre_pythonizer.pl
+# 0.080  2019/12/27  BEZROUN   Array ValCom is introduced for the preparation of version 0.2 of pre-processor pre_pythonizer.pl
 # 0.090  2020/02/03  BEZROUN   #\ means continuation of the statement.
 # 0.091  2020/02/03  BEZROUN   Moved sub preprocess_line to Pythonizer
 # 0.100  2020/03/16  BEZROUN   Reworked scanner
@@ -54,12 +50,14 @@
 # 0.210  2020/08/07  BEZROUN   Moved gen_output to Perlscan,  removed ValCom  from the exported list.
 # 0.220  2020/08/07  BEZROUN   Diamond operator is processes as a special type of identifier.
 # 0.230  2020/08/09  BEZROUN   gen_chunk moves to Perlscan module. Pythoncode array made local
-# 0.230  2020/08/09  BEZROUN   more functions and statement eimplemnted
-# 0.240  2020/08/10  BEZROUN   postfix conditional re-implemented differnetly then in expression via scanne buffer
-# 0.250  2020/08/10  BEZROUN   split function is reimplemented and oprimized incase there is plain vanilla
+# 0.230  2020/08/09  BEZROUN   more functions and statement implemented
+# 0.240  2020/08/10  BEZROUN   postfix conditional re-implemented differently then in expression via scanner buffer
+# 0.250  2020/08/10  BEZROUN   split function is reimplemented and optimized in case there is plain vanilla
 # 0.251  2020/08/12  BEZROUN   Perl_default_var is renames into default_var
-# 0.260  2020/08/14  BEZROUN   System variables in double quoted literals are compled correctly. Perlscan.pm improved.
+# 0.260  2020/08/14  BEZROUN   System variables in double quoted literals are now complied correctly. Perlscan.pm improved.
 # 0.261  2020/08/14  BEZROUN   for loop translation corrected
+# 0.270  2020/08/14  BEZROUN   getops is now implemented in Softpano.pm to allow the repetition of option letter to set the value of options ( -ddd)
+# 0.300  2020/08/17  BEZROUN   Python 3.8 is default for generaion. Option -p introduced. Default is  3; 2 changes it to 2.7
 #!start ===============================================================================================================================
 
    use v5.10;
@@ -68,7 +66,7 @@
    use feature 'state';
 
 #
-# Modules used ( from the current directory to make debugging more convinient; will change later)
+# Modules used ( from the current directory to make debugging more convenient; will change later)
 #
    use lib '.';
    use Softpano qw(autocommit helpme abend banner logme out);
@@ -76,9 +74,14 @@
    use Pythonizer qw(correct_nest getline prolog epilog output_line);
 
    $VERSION='0.261';
+#
+# options
+#
+   $PyV=3; # version of Python for generation
    $breakpoint=9999; # line from which to debug code. See Pythonizer
    $debug=0;  # 0 production mode 1 - development/testing mode. 2-9 debugging modes
               # 4 -stop at Perlscan.pm
+
    $SCRIPT_NAME='pythonizer';
    $MYLIB='.';
    $OS=$^O; # $^O is built-in Perl Variable that contains OS name
@@ -100,8 +103,16 @@
 # Skip initial block of comments
 #
    $line=<>; # we need to discard the first line with /usr/binperl as interpreter
-   output_line('','#!/usr/bin/python2.7 -u'); # put a proper line
-   $line=getline(); # get the first meaningful line,  initial block of comments will be copied to the output
+   if ($PyV==3) {
+      output_line('','#!/usr/bin/python3 -u'); # put a proper line
+   }else{
+      output_line('','#!/usr/bin/python2.7 -u'); # put a proper line
+   }
+   if (substr($line,0,2) eq '#!'){
+       $line=getline(); # get the first meaningful line,  initial block of comments will be copied to the output
+   }else{
+      ($line)=split(' ',$line,1); # Perl idiom for removing leading blanks
+   }
    foreach $line ('import sys','import re','import os','import fileinput'){
        output_line('',$line); # to block repodocuting the first source line
    }
@@ -173,15 +184,11 @@ my $start;
            gen_chunk(join(' ',@ValPy));
          }
       }elsif( $ValPerl[0] =~ /say|print/ ){
-         gen_chunk($ValPy[0]);
-         $start=1;
-         if( $ValClass[$start] eq 'i' ){
-            #printing to file handle
-            gen_chunk(' >>'.$ValPy[1]); # this is Python 2.7 for 3.x   print('hello world', file=file_object)
-            $start++;
-         }
-         $rc=expression($start,$#ValClass,0);
-         if( $rc<0 ){ $FailedTrans=1; }
+          if( $PyV==3 ){
+             $rc=print3(); # in Python3 this is a function
+          }else{
+             $rc=print2();
+          }
       }elsif( $ValClass[0] =~ /[shat]/ ){
           #scalar assignment or reg matching; Include my/own/state
           # expression is expected on the right side, but in Perl it can follow by condition a=2 if(b==0) => if( b==0  ){  a=2 }
@@ -340,8 +347,55 @@ my $start;
    say STDERR join("\n",@NoTrans);
    epilog();
    exit 0;
-
-
+#
+#
+#
+sub print2
+{
+   gen_chunk($ValPy[0]);
+   $start=1;
+   if( $ValClass[$start] eq 'i' ){
+      #printing to file handle
+       gen_chunk(' >>'.$ValPy[1]); # this is Python 2.7 for 3.x   print('hello world', file=file_object)
+       $start++;
+   }
+   $rc=expression($start,$#ValClass,0);
+   if( $ValPerl[0] eq 'print' ){
+      if( $Perlscan::PythonCode[-1] =~ qr[\\n"$'] ){
+          substr($Perlscan::PythonCode[-1],-3,2)=''; # convert print into say
+      }else{
+          gen_chunk(','); # perl print does not generate newline automatically
+      }
+   }
+   if( $rc<0 ){ $FailedTrans=1; }
+} # print2
+#
+# Printing for Python 3
+#
+sub print3
+{
+# end="") instead of trainli comma
+   gen_chunk($ValPy[0],'(');
+   $start=1;
+   if( $ValClass[$start] eq 'i' ){
+      #printing to file handle
+       gen_chunk(' >>'.$ValPy[1]); # this is Python 2.7 for 3.x   print('hello world', file=file_object)
+       $start++;
+   }
+   $rc=expression($start,$#ValClass,0);
+    if ($ValPerl[0] eq 'print'){
+      if( $Perlscan::PythonCode[-1]=~qr[\\n"$'] ){
+         substr($Perlscan::PythonCode[-1],-3,2)='';
+         gen_chunk(')');
+      }else{
+         gen_chunk('end="")');
+      }
+   }else{
+      #say
+      gen_chunk(')');
+   }
+   if( $rc<0 ){ $FailedTrans=1; }
+} # print3
 #
 # Nov 11, 2019 Now assignment assepts not only the index of the first token, but also index of the last.
 #
@@ -592,10 +646,10 @@ my $limit;
    }
 my ($hashpos,$end_pos);
       if( $ValPerl[$start+1] eq '(' ){
-            $ValPy[$start+1]='';
-            $limit=matching_br($start+1);
+            $ValPy[$start+1]=''; #eliminate opening bracket for conditional -- Python does not have any
+            $limit=matching_br($start+1); # effectily the end of statement.
             ($limit<0) && return -255;
-            $ValPy[$limit]='';
+            $ValPy[$limit]=''; #eliminate closing bracket for conditional -- Python does not have any
       }
 
       if( $ValPerl[$start] eq 'if'  || $ValPerl[$start] eq 'unless' ){
@@ -603,7 +657,7 @@ my ($hashpos,$end_pos);
              gen_chunk("$ValPy[$start] default_var=$ValPy[$start+2]:"); # gen initial keyword
              return($#ValClass);
          }
-         if( $TokenStr=~/(^.*)\(s.*?=/ ){
+         if( $PyV==2 && $TokenStr=~/(^.*)\(s.*?=/ ){
             # assignment inside control statement is prohibited in Python (in 3.8 walrus operator fixes that )
             pre_assign(length($1));
             $limit=matching_br($start+1); # TokenStr changed because assigment was factored out
@@ -618,13 +672,17 @@ my ($hashpos,$end_pos);
             gen_chunk("$ValPy[0] $ValPy[2] in $ValPy[4]:" );
          }elsif( $TokenStr eq 'c(i)' ){
             gen_chunk("$ValPy[0] default_var in $ValPy[2]:" );
-         }elsif( $TokenStr eq 'c((cs=)' ){
-            logme('S', "Translation of assignment in while loop requres Python 3.8+");
-            return 255
+         }elsif( $TokenStr =~ /c\(.*?\(.+?=.+$/ ){
+            if( $PyV==2 ){
+               logme('S', "Translation of assignment in while loop requres Python 3.8+");
+               return 255;
+            }else{
+               $rc=expression($start,$limit-1,0); # gen expression
+            }
          }else{
-            $FailedTrans=1;
-            return -255;
+              $rc=expression($start,$limit-1,0); # gen expression
          }
+         gen_chunk(':');
          return($#ValClass);
       }elsif( $ValPerl[$start] eq 'for' && $ValPerl[$start+1] eq '(' ){
          # regular for loop but can be foreach loop too
@@ -648,9 +706,8 @@ my ($hashpos,$end_pos);
          if( $end-$start==1 ){
              gen_chunk($ValPy[$start++]);
          }else{
-            expression($start,$end-1,0); # gen expression
+            $rc=expression($start,$end-1,0); # gen expression
          }
-
          gen_chunk(',');
          #
          # Analize loop exit condition
