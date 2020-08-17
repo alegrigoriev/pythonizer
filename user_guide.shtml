@@ -148,17 +148,25 @@ manually.&nbsp; </span></p>
 
 <h3><a name="Options">Options</a></h3>
 
-<p>Currently only 4 options are supported: </p>
+<p>Currently only 3 user options are supported (<tt>pythonizer -h</tt> provides a&nbsp; list of options):&nbsp; </p>
+<ul>
 
-<p><tt>-v</tt> - verbosity <tt>-v 0</tt> -minimal verbosity <tt>-v 3</tt> -- max verbosity</p>
+   <li><tt>-p</tt> - The version of Python used for generation. Default is 3.8 (can be set explicitly by specifying <tt>-p 3</tt>) 
+   You can set 2.7 by using&nbsp; <tt>-p 2</li>
 
-<p><tt>-t</tt>&nbsp; - tab size for generated code; default<tt> -t 4</tt> </p>
+   <li><tt></tt>-v</tt> - verbosity <tt>-v 0</tt> -minimal verbosity <tt>-v 3</tt> -- max verbosity</li>
 
-<p><tt>-d</tt> -- debug option for developers; default<tt> -d 0</tt> </p>
+   <li><tt>-t</tt>&nbsp; - tab size for generated code; default<tt> -t 4</tt> </li>
+</ul>
 
-<p><tt>-b</tt> -- breakpoint option for developers; default <tt>-b 99999</tt></p>
+<p><b>Options for developers</b></p>
 
-<p><tt>pythonizer -h</tt> provides a&nbsp; list of options</p>
+<ul>
+
+   <li><tt>-d</tt> -- debug option <em>for developers</em>; default<tt> -d 0</tt> </li>
+
+   <li><tt>-b</tt> -- breakpoint option<em> for developers</em>; default <tt>-b 99999</tt></li>
+</ul>
 
 <h3><a name="Structure">Structure</a></h3>
 
@@ -174,14 +182,15 @@ reside in the same directory as the main program. Main program currently used th
 
 </ul>
 
-<p>The total size of the codebase in version 0.2 is around 2.5K lines </p>
+<p>The total size of the codebase in version 0.2 is around 3.5K lines ( approximately 0.5K lines increase since version 0.2 ): </p>
 
-<pre># wc -l Perlscan.pm Pythonizer.pm  pythonizer.pl  Softpano.pm
-  788 Perlscan.pm
-  281 Pythonizer.pm
- 1116 pythonizer.pl
-  257 Softpano.pm
- 2442 total</pre>
+<pre> wc -l Perlscan.pm Pythonizer.pm  pythonizer.pl  Softpano.pm perl_normalizer1.pl
+   821 Perlscan.pm
+   290 Pythonizer.pm
+  1192 pythonizer.pl
+   306 Softpano.pm
+   750 perl_normalizer1.pl
+  3359 total</pre>
 
 <h3><a name="Installation">Installation</a></h3>
 
@@ -193,7 +202,7 @@ and three modules mentioned about should be put into a separate directory.</p>
 <p>Currently main program and all modules should reside in a single directory from which you will run the program.&nbsp; </p>
 
 <p>ATTENTION: During 
-invocation of <tt>pythonizer</tt> version 0.2 this directory should be current. </p>
+invocation of <tt>pythonizer</tt>&nbsp; this directory should be current. </p>
 
 <h3><a name="Invocation">Invocation</a></h3>
 
