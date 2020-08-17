@@ -39,6 +39,26 @@ blockquote {font-size: 10pt; font-family: arial; background: #F9F9F9}
 
 <h3>Version 0.2 (Aug 5, 2020)</h3>
 
+<table border="1" width="100%" bgcolor="#FFFFCC">
+   <tr>
+      <td width="14%" align="center" bordercolorlight="#000000" bordercolordark="#FFFFFF"><a href="#News">News</a></td>
+      <td width="14%" align="center" bordercolorlight="#000000" bordercolordark="#FFFFFF">&nbsp;<a href="../index.shtml">Python for 
+      Perl programmers</a></td>
+      <td width="14%" align="center" bordercolorlight="#000000" bordercolordark="#FFFFFF">
+
+      <p align="center"><b><a href="../../../../Bookshelf/Computers/python.shtml">Best Python books for system administrators</a></b></p>
+      </td>
+      <td width="14%" align="center" bordercolorlight="#000000" bordercolordark="#FFFFFF"><a href="#Recommended_Links">Recommended Links</a></td>
+      <td width="14%" align="center" bordercolorlight="#000000" bordercolordark="#FFFFFF"><b>
+      <a href="../Pl2py_reference/pl2py_functions_map.shtml">Perl 
+      to Python functions map</a></b></td>
+      <td width="15%" align="center" bordercolorlight="#000000" bordercolordark="#FFFFFF"><b>
+      <a href="../Py_shell_commands_execution/index.shtml">Execution of commands and shell scripts using subprocess module</a></b></td>
+      <td width="15%" align="center" bordercolorlight="#000000" bordercolordark="#FFFFFF"><b>
+      <a href="index.shtml">Two-pass &quot;fuzzy&quot; compiler from Perl to Python</a></b></td>
+   </tr>
+</table>
+
 <ul>
 
 	<li><b><a href="#Introduction">Introduction</a></b></li>
@@ -57,7 +77,19 @@ blockquote {font-size: 10pt; font-family: arial; background: #F9F9F9}
 
 <h3><a name="Introduction">Introduction</a></h3>
 
-<p>This guide corresponds to version 0.2 of pythonizer. Running&nbsp; <tt>pythonizer -h</tt> provides a&nbsp; list of options. </p>
+<p>This guide corresponds to version 0.3 of pythonizer. Running&nbsp; <tt>pythonizer -h</tt> provides a&nbsp; list of options. </p>
+
+<blockquote>
+
+   <p>Changes since version 0.2: </p>
+   <ul>
+
+      <li>default version of Python used is now version 3.8; </li>
+
+      <li>option -p 
+allows to set version 2 id you still need generation for Python 2.7 (more constructs will be untranslatable). </li>
+   </ul>
+</blockquote>
 
 <p>This is alpha version, so do not expect any perfection. It woks but with errors.&nbsp; It still has bugs and not all constructs 
 are transliterate correctly.</p>
@@ -78,7 +110,7 @@ pre_pythonizer.pl</a></span></p>
 be commented outs and iteratively the stage can be reached when the Perl script is completely Pythonized and can be corrected 
 manually.&nbsp; </span></p>
 
-<p><span class="css-truncate css-truncate-target d-block width-fit">Some features: </span></p>
+<p><b><span class="css-truncate css-truncate-target d-block width-fit">Some features:</span></b></p>
 
 <ul class="simple">
 
@@ -153,7 +185,7 @@ reside in the same directory as the main program. Main program currently used th
 
 <h3><a name="Installation">Installation</a></h3>
 
-<p>You need to download or replicate the directory iether via git&nbsp; r via manual download. In the later case the main program 
+<p>You need to download or replicate the directory iether via git&nbsp; or via manual download. In the later case the main program 
 and three modules mentioned about should be put into a separate directory.</p>
 
 <p>The directory into which the main program and modules are downloaded&nbsp; needs to be made current before the run. </p>
@@ -176,6 +208,22 @@ which pythonizer resides should be current</em> otherwise modules will not be lo
 
 <p>It also produces protocol of translation as it goes which allows you to detect places that need to be commented out translated 
 manually. </p>
+<hr>
+<!--#include virtual="/adv_news_pane.htm" -->
+<hr>
+<h2><a name="News">Old News</a> ;-) </h2>
+<h4>[Aug 17, 2020] Version 0.3 was uploaded. </h4>
+<blockquote>
+
+   <p>Changes since version 0.2: </p>
+   <ul>
+
+      <li>default version of Python used is now version 3.8; </li>
+
+      <li>option -p 
+allows to set version 2 id you still need generation for Python 2.7 (more constructs will be untranslatable). </li>
+   </ul>
+</blockquote>
 
 <h2><a name="Recommended_Links">Recommended Links</a></h2>
 <h3><a name="Top_articles">Top articles</a></h3>
@@ -187,6 +235,11 @@ manually. </p>
 
    <li><a href="protocol_of_translation_of_pre_pythonizer020.shtml">Full protocol of translation of pre_pythonizer.pl by version 0.2 of 
 pythonizer</a></li>
+
+   <li><a href="http://pleac.sourceforge.net/">PLEAC - Programming Language Examples Alike Cookbook</a></li>
+
+   <li><a href="https://wiki.python.org/moin/PyPerlish">PyPerlish - Python Wiki</a> (it looks like the library itself is no longer 
+   available, only docs survived</li>
 </ul>
 
 </body>
