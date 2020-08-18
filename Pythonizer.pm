@@ -41,11 +41,10 @@ sub prolog
       if(  exists $options{'h'} ){
          helpme();
       }
+
       if(  exists $options{'d'}  ){
          if( $options{'d'} =~/^\d$/ ){
             $::debug=$options{'d'};
-         }elsif( $options{'d'} =~/^d+$/ ){
-            $::debug=length($options{d});
          }else{
             logme('S',"Wrong value of option -d. If can be iether set of d letters like -ddd or an integer like -d 3 . You supplied the value  $options{'d'}\n");
             exit 255;
@@ -56,13 +55,12 @@ sub prolog
          if( $options{'p'}==2  || $options{'p'}==3 ){
             $::PyV=$options{'p'};
             ($::debug) && logme('W',"Python version set to $::PyV");
-         }elsif( $options{'p'} =~/^p+$/ ){
-             $::PyV=length($options{d});
          }else{
             logme('S',"Wrong value of option -p. Only values 2 and 3 are valid. You provided the value : $options('b')\n");
             exit 255;
          }
       }
+
        if(  exists $options{'b'}  ){
          if( $options{'b'}>=0  && $options{'b'}<900 ){
             $::breakpoint=$options{'b'};
@@ -72,20 +70,18 @@ sub prolog
             exit 255;
          }
       }
+
       if(  exists $options{'v'} ){
-         if( $options{'v'} =~/\d/ && $options{'v'}<3  ){
+         if( $options{'v'} =~/\d/ && $options{'v'}<3 && $options{'v'}>0 ){
             $::verbosity=$options{'v'};
-         }elsif( $options{'v'} =~/^v+$/ ){
-            $::verbosity=length($options{'v'});
          }else{
             logme('D',3,3); # add warnings
          }
       }
+
       if(  exists $options{'t'}  ){
-         if( $options{'t'}>1  && $options{'2'}<10 ){
-            $::TabSize=$options{'2'};
-         }elsif( $options{'t'} =~/^t+$/ ){
-            $::TabSize=length($options{'t'});
+         if( $options{'t'}>1  && $options{'t'}<10 ){
+            $::TabSize=$options{'t'};
          }else{
             logme('S',"Range for options -t (tab size) is 1-10. You specified: $options('t')\n");
             exit 255;
