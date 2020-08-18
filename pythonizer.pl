@@ -364,7 +364,7 @@ sub print2
    }
    $rc=expression($start,$#ValClass,0);
    if( $ValPerl[0] eq 'print' ){
-      if( $Perlscan::PythonCode[-1] =~ qr[\\n"$'] ){
+      if( $Perlscan::PythonCode[-1] =~ qr[\\n["']$] ){
           substr($Perlscan::PythonCode[-1],-3,2)=''; # convert print into say
       }else{
           gen_chunk(','); # perl print does not generate newline automatically
@@ -388,7 +388,7 @@ my ($start,$k);
    $k=$start+1 if( $ValClass[$start] eq 'i' );
    $rc=expression($start+1,$#ValClass,0);
    if( $rc<0 ){ $FailedTrans=1; return;}
-   if ($ValPerl[0] eq 'print' &&  $Perlscan::PythonCode[-1]=~qr[\\n"$'] ){
+   if ($ValPerl[0] eq 'print' &&  $Perlscan::PythonCode[-1]=~qr[\\n["']$] ){
       substr($Perlscan::PythonCode[-1],-3,2)='';
       $ValPerl[0]='say';
    }
