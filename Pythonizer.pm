@@ -38,7 +38,7 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line);
 #
 sub prolog
 {
-      Softpano::getopts("fhrb:t:v:d:",\%options);
+      Softpano::getopts("hp:b:t:v:d:",\%options);
       if(  exists $options{'h'} ){
          helpme();
       }
@@ -53,7 +53,7 @@ sub prolog
          ($::debug) && logme('W',"Debug flag is set to $::debug ::PyV");
       }
       if(  exists $options{'p'}  ){
-         if( $options{'p'}==2  && $options{'p'}==3 ){
+         if( $options{'p'}==2  || $options{'p'}==3 ){
             $::PyV=$options{'p'};
             ($::debug) && logme('W',"Python version set to $::PyV");
          }else{
