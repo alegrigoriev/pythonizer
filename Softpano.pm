@@ -254,48 +254,50 @@ sub stepin
 }
 sub getopts
 {
-my ($argumentative,$hash)=@_;
-my (@args,$first,$rest);
-   @args = split( //, $argumentative );
-   while(@ARGV && ($_ = $ARGV[0]) =~ /^-(.)(.*)/s) {
+my ($options_def,$hash)=@_;
+my ($first,$rest,$pos);
+   while(@ARGV && $ARGV[0] =~ /^-(.)(.*)$/s ){
       ($first,$rest) = ($1,$2);
       if (/^--$/) {	# early exit if --
          shift @ARGV;
          last;
       }
-      my $pos = index($argumentative,$first);
-      if ($pos >= 0) {
-         if (defined($args[$pos+1]) and ($args[$pos+1] eq ':')) {
-            # option with parameters
-            if( $rest eq ''){
-               # get the value
-              shift(@ARGV);
-              if ( @ARGV && $ARGV[0] =~/^-/ ) {
-                  warn("Option -$first requires argument\n");
-                  $$hash{$first} = '';
-               }else{
-                  unless (@ARGV) {
-                     warn("End of line reached for option -$first which requires argument\n");
-                     $$hash{$first}='';
-                     last;
-                  }
-                  $$hash{$first}=shift(@ARGV);
+      $pos = index($options_def,$first);
+      if( $pos==-1) {
+         warn("Undefined option -$first skipped without processing\n");
+         shift(@ARGV);
+         next;
+      }
+      if( $pos<length($options_def)-1 && substr($options_def,$pos+1,1) eq ':' ){
+         # option with parameters
+         if( $rest eq ''){
+            # get the value
+           shift(@ARGV);
+           if ( @ARGV && $ARGV[0] =~/^-/ ) {
+               warn("Option -$first requires argument\n");
+               $$hash{$first} = '';
+            }else{
+               unless (@ARGV) {
+                  warn("End of line reached for option -$first which requires argument\n");
+                  $$hash{$first}='';
+                  last;
                }
-            } else {
-               if( ($first x length($rest)) eq $rest ){
-                  $$hash{$first} = length($rest)+1;
-               }else{
-                  $$hash{$first}=$rest;
-               }
-               shift(@ARGV);
+               $$hash{$first}=shift(@ARGV); # value
             }
-         }else {
-            $$hash{$first} = 1; # set the option
-            if ($rest eq '') {
-               shift(@ARGV);
-            } else {
-               $ARGV[0] = "-$rest"; # there can be other options without arguments after the first
+         } else {
+            if( ($first x length($rest)) eq $rest ){
+               $$hash{$first} = length($rest)+1;
+            }else{
+               $$hash{$first}=$rest;
             }
+            shift(@ARGV);
+         }
+      }else {
+         $$hash{$first} = 1; # set the option
+         if ($rest eq '') {
+            shift(@ARGV);
+         } else {
+            $ARGV[0] = "-$rest"; # there can be other options without arguments after the first
          }
       }
    }
