@@ -58,6 +58,7 @@
 # 0.261  2020/08/14  BEZROUN   for loop translation corrected
 # 0.270  2020/08/14  BEZROUN   getops is now implemented in Softpano.pm to allow the repetition of option letter to set the value of options ( -ddd)
 # 0.300  2020/08/17  BEZROUN   Python 3.8 is default for generaion. Option -p introduced. Default is  3; 2 changes it to 2.7
+# 0.310  2020/08/18  BEZROUN   f-strings are implemented for Python 3 mode
 #!start ===============================================================================================================================
 
    use v5.10;
@@ -73,7 +74,7 @@
    use Perlscan qw(gen_statement  tokenize gen_chunk @ValClass  @ValPerl  @ValPy $TokenStr);
    use Pythonizer qw(correct_nest getline prolog epilog output_line);
 
-   $VERSION='0.261';
+   $VERSION='0.31';
 #
 # options
 #
@@ -334,7 +335,7 @@ my $start;
          $FailedTrans=1;
       }
       if( $FailedTrans ){
-         push(@NoTrans,$line);
+         push(@NoTrans,"[$.]: $line");
       }
       gen_statement();
       $line=getline(); # get new line
@@ -343,8 +344,10 @@ my $start;
 #
 # Epilog -- close  output file and  if you are in debugging mode display the content  on the screen
 #
-   say STDERR "The following lines were probably translated incorrectly:";
-   say STDERR join("\n",@NoTrans);
+   if (scalar(@NoTrans)>0) {
+      say STDERR "The following lines were probably translated incorrectly:";
+      say STDERR join("\n",@NoTrans);
+   }
    epilog();
    exit 0;
 #
@@ -374,27 +377,33 @@ sub print2
 #
 sub print3
 {
+my ($start,$k);
 # end="") instead of trainli comma
    gen_chunk($ValPy[0],'(');
-   $start=1;
+   $start=$k=1;
+   if ($TokenStr=~/^fi$/) {
+      gen_chunk('file='.$ValPy[1].')');
+      return $start+2;
+   }
+   $k=$start+1 if( $ValClass[$start] eq 'i' );
+   $rc=expression($start+1,$#ValClass,0);
+   if( $rc<0 ){ $FailedTrans=1; return;}
+   if ($ValPerl[0] eq 'print' &&  $Perlscan::PythonCode[-1]=~qr[\\n["']$] ){
+      substr($Perlscan::PythonCode[-1],-3,2)='';
+      $ValPerl[0]='say';
+   }
    if( $ValClass[$start] eq 'i' ){
       #printing to file handle
-       gen_chunk(' >>'.$ValPy[1]); # this is Python 2.7 for 3.x   print('hello world', file=file_object)
+       gen_chunk(',file=',$ValPy[1]); # this is Python 2.7 for 3.x   print('hello world', file=file_object)
        $start++;
    }
-   $rc=expression($start,$#ValClass,0);
-    if ($ValPerl[0] eq 'print'){
-      if( $Perlscan::PythonCode[-1]=~qr[\\n"$'] ){
-         substr($Perlscan::PythonCode[-1],-3,2)='';
-         gen_chunk(')');
-      }else{
-         gen_chunk('end="")');
-      }
+   if ($ValPerl[0] eq 'print'){
+      gen_chunk(',end="")');
    }else{
       #say
       gen_chunk(')');
    }
-   if( $rc<0 ){ $FailedTrans=1; }
+   return $rc;
 } # print3
 #
 # Nov 11, 2019 Now assignment assepts not only the index of the first token, but also index of the last.
@@ -560,13 +569,13 @@ my $balance=0;
         $balance++;
      }elsif( $s eq ')' ){
         $balance--;
-        if( $balance==0  ){
+        if( $balance<=0  ){
            $ValPy[$k]=''; # erase bracket just in  case
            return $k;
         }
      }
-  } # for$
-  return length($TokenStr)-1;
+  } # for
+  return $#TokenStr;
 } # matching_br
 
 #
@@ -821,7 +830,7 @@ my ($end_pos,$k,$split,$split2);
          return $end_pos+1; # $end_pos signifies the end of function
       } #substr
 
-      if( $ValPerl[$start] eq 'index' || $ValPerl[$start] eq 'rindex'){
+      if( $ValPerl[$start] eq 'index' || $ValPerl[$start] eq 'rindex' ){
          # string.find(text, substr, start)
          $end_pos=matching_br($start+1);
          ($end_pos<0) && return -255;
@@ -855,7 +864,15 @@ my ($end_pos,$k,$split,$split2);
             gen_chunk(')');
          }
          return $end_pos+1; # $end_pos signifies the end of function
-
+      }elsif( $ValPerl[$start] eq 'join' ){
+         # $args=join(' ',@ARGS) => args=ARGS.join(' ');
+         if (substr($TokenStr,$start)=~/^f\(.,.+\)/ ){
+            $rc=expression($start+4);
+            gen_chunk($ValPy[$start]."($ValPy[$start+2])"); # gen .join
+         }else{
+            return -255 if( $rc < 0 );
+         }
+         return $rc+1;
       }elsif( $ValPerl[$start] eq 'open' ){
          $rc=open_fun($start);
          return -255 if( $rc < 0 );
@@ -908,7 +925,7 @@ my ($end_pos,$k,$split,$split2);
            $FailedTrans=1;
            return -255
       }  # if
-      $end_pos=matching_br($start+3,1);
+      $end_pos=matching_br($start+1,0);
       if( $end_pos<0 ){
          $FailedTrans=1;
          return -255;
@@ -923,10 +940,19 @@ my ($end_pos,$k,$split,$split2);
          gen_chunk($ValPy[$start]);
       }else{
          gen_chunk($ValPy[$start]);
-         $rc=expression($start+1,$end_pos,1);
-         if( $rc<0 ){
-            $FailedTrans=1;
-            return -255;
+         $rc=$end_pos-$start-2;
+         if ($rc==0) {
+            # zero arguments -- special case
+            gen_chunk('()');
+         }elsif($rc==1){
+            # single argument
+            gen_chunk('('.$ValPy[$start+2].')')
+         }else{
+            $rc=expression($start+1,$end_pos,1);
+            if( $rc<0 ){
+               $FailedTrans=1;
+               return -255;
+            }
          }
       }
       return $end_pos+1;
@@ -1035,8 +1061,20 @@ my $cur_pos=$_[0];
    }
 my ($limit,$mode,$split,$start,$prev_k);
 
-   $limit=(scalar(@_)>1) ? $_[1] : $#ValClass; # 0 - remove  round  brackets 1 -preserve round brackets
+   if( scalar(@_)==1 ){
+       $limit=$#ValClass;
+   }elsif( $_[1]<0 ){
+       $limit=matching_br($cur_pos);
+   }else{
+       $limit=$_[1];
+   }
+
+   # 0 - remove  round  brackets 1 -preserve round brackets
    $mode=(scalar(@_)>2) ? $_[2] : 0;  # 0 - remove  round  brackets 1 -preserve round brackets
+   if( $mode==0 ){
+     # $ValPy[$limit]='' if( $ValClass[$limit] eq ')' );
+     # $ValPy[$cur_pos]='' if( $ValClass[$cur_pos] eq ')' );
+   }
 
 #my $last_token=(scalar(@_) == 2)? $_[2] : undef;
 
@@ -1094,14 +1132,18 @@ my ($limit,$mode,$split,$start,$prev_k);
                       # Simple scalar variable of the left side
                       gen_chunk($ValPy[$split-1]); # replicate variable
                       gen_chunk($ValPy[$split+1]); # add dot part generated by scanner
-                  }elsif( substr($TokenStr,$cur_pos,$split-$cur_pos)=~/s[^\[{][sdq'"][\[{]$/ ){
-                        for( my $i=$cur_pos; $i<$split; $i++ ){
-                           gen_chunk($ValPy[$i]);
-                        }
-                        gen_chunk($ValPy[$split+1]); # add dot part generated by scanner
+                  #elsif( substr($TokenStr,$cur_pos,$split-$cur_pos)=~/s[^\[{][sdq'"][\[{]$/p {
+                   #    for( my $i=$cur_pos; $i<$split; $i++ ){
+                    #      gen_chunk($ValPy[$i]);
+                   #    }
+                   #    gen_chunk($ValPy[$split+1]); # add dot part generated by scanner
                   }else{
-                     $FailedTrans=1;
-                     return -255;
+                     $rc=expression($cur_pos,$split-1,0);
+                     if ($rc<0) {
+                        $FailedTrans=1;
+                        return -255;
+                     }
+                     gen_chunk($ValPy[$split+1]);
                   }
                }elsif($ValClass[$split+1] eq 'f'){
                   # translate
