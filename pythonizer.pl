@@ -678,9 +678,9 @@ my ($hashpos,$end_pos);
           return($#ValClass);
       }elsif( $ValPerl[$start] eq 'while' || $ValPerl[$start] eq 'until' ){
          if( $TokenStr eq 'c(s=i)' && substr($ValPerl[4],0,1) eq '<' ) {
-            gen_chunk("$ValPy[0] $ValPy[2] in $ValPy[4]:" );
+            gen_chunk("$ValPy[0] $ValPy[2] in $ValPy[4]" );
          }elsif( $TokenStr eq 'c(i)' ){
-            gen_chunk("$ValPy[0] default_var in $ValPy[2]:" );
+            gen_chunk("$ValPy[0] default_var in $ValPy[2]" );
          }elsif( $TokenStr =~ /c\(.*?\(.+?=.+$/ ){
             if( $PyV==2 ){
                logme('S', "Translation of assignment in while loop requres Python 3.8+");
