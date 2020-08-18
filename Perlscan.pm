@@ -16,7 +16,7 @@ package Perlscan;
 # ====  ==========  ========  ==============================================================
 # 0.10 2019/10/09  BEZROUN   Initial implementation
 # 0.20 2019/11/13  BEZROUN   Tail comment is now treated as a special case and does not produce a lexem
-# 0.30 2019/11/14  BEZROUN   Parsing of literal completly reorganized.
+# 0.30 2019/11/14  BEZROUN   Parsing of literals completly reorganized.
 # 0.40 2019/11/14  BEZROUN   For now double quoted string are translatied into concatenation of components
 # 0.50 2019/11/15  BEZROUN   Better parsing of Perl literals implemented
 # 0.60 2019/11/19  BEZROUN   Problem of translation of ` ` (and rx() is that it is Python version dependent
@@ -32,7 +32,8 @@ package Perlscan;
 # 0.95 2020/08/10  BEZROUN   Postfix statements accomodated
 # 0.96 2020/08/11  BEZROUN   scanning of regular expressions improved. / qr and 'm' are treated uniformly
 # 0.97 2020/08/12  BEZROUN   Pre_default_var is remaned indefault_var
-# 0.97 2020/08/14  BEZROUN   Better decoding of double quotes literals implemented
+# 0.97 2020/08/14  BEZROUN   Decoding of system variables in double quoted literals implemented
+# 0.98 2020/08/18  BEZROUN   f-strings are generated for double quoted literals for Python 3.8
 use v5.10;
 use warnings;
 use strict 'subs';
@@ -310,7 +311,7 @@ my ($l,$m);
                      $cut=single_quoted_literal($delim,2);
                      $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
                      $w=escape_backslash($ValPerl[$tno]);
-                     $ValPy[$tno]=escape_quotes($w);
+                     $ValPy[$tno]=escape_quotes($w,2);
                   }elsif($w eq 'qq' ){
                      # decompose doublke quote populate $ValPy[$tno] as a side effect
                      $cut=double_quoted_literal($delim,length($w)+1); # side affect populates $ValPy[$tno] and $ValPerl[$tno]
@@ -369,7 +370,16 @@ my ($l,$m);
                }
             }
          }elsif( $s eq '$'  ){
-            decode_scalar($source,1);
+            if( substr($source,0,length('$DB::single')) eq '$DB::single' ){
+               # special case: $DB::single = 1;
+               $ValPy[$tno]='pdb.set_trace';
+               $ValClass[$tno]='f';
+               $cut=index($source,';');
+               substr($source,0,$cut)='perl_trace()'; # remove non-tranlatable part.
+               $cut=length('perl_trace');
+            }else{
+               decode_scalar($source,1);
+            }
          }elsif( $s eq '@'  ){
             $source=~/^.(\w+)/;
             if( $1 eq '_') {
@@ -473,7 +483,9 @@ my $source=$_[0];
 my $update=$_[1]; # if update is zero then only ValPy is updated
 my $rc=-1;
    $s2=substr($source,1,1);
-   if ( $update ) { $ValClass[$tno]='s';}
+   if ( $update ) {
+      $ValClass[$tno]='s'; # we do not need to set it if we are analysing double wuoted literal
+   }
    if( $s2 eq '.'  ){
       # file line number
        $ValPy[$tno]='fileinput.filelineno()';
@@ -494,7 +506,6 @@ my $rc=-1;
    }elsif( $s2 =~ /\d/ ) {
        $source=~/^.(\d+)/;
        if ($update) {
-          $ValClass[$tno]='s'; #scalar
           $ValPerl[$tno]=$1;
        }
        if( $s2 eq '0' ) {
@@ -506,46 +517,53 @@ my $rc=-1;
    }elsif( $s2 eq '#') {
       $source=~/^..(\w+)/;
       if( $update ){
-         $ValClass[$tno]='s';
          $ValPerl[$tno]=$1;
       }
       $ValPy[$tno]='len($1)-1';
       $cut=length($1)+2;
-   }elsif( $source=~/^.(\w+)/ || $source=~/^.(\w*\:\:\w+)/ ) {
-      $cut=length($1)+1; $rc=1;
+   }elsif( $source=~/^.(\w*\:\:\w+)/ || $source=~/^.(\w+)/ ){
+      $cut=length($1)+1;
       $name=$1;
+      $ValPy[$tno]=$name;
       if( $update ){
-           $ValClass[$tno]='s'; #scalar
            $ValPerl[$tno]=substr($source,0,$cut+1);
       }
       if( ($k=index($name,'::')) > -1 ){
-         substr($name,$k,2)='.';
-      }
-      $ValPy[$tno]=$name;
-      if( length($name) ==1 ) {
+         if( $k==0 || substr($name,$k) eq 'main' ){
+            substr($name,0,2)='__main__.';
+            $ValPy[$tno]=$name;
+            $rc=1 #regular var
+         }else{
+            substr($name,$k,2)='.';
+            $ValPy[$tno]=$name;
+            $rc=1 #regular var
+         }
+      }elsif( length($name) ==1 ) {
          $s2=$1;
          if( $s2 eq '_') {
             if( $source=~/^(._\s*\[\s*(\d+)\s*\])/  ){
                $ValPy[$tno]='perl_arg_array['.$2.']';
-               $cut=length($1); $rc=-1;
+               $cut=length($1);
             }else{
                $ValPy[$tno]='default_var';
-               $cut=2; $rc=-1;
+               $cut=2;
             }
          }elsif( $s2 eq 'a' || $s2 eq 'b' ) {
             $ValPy[$tno]='perl_sort_'.$s2;
-            $cut=2; $rc=-1;
+            $cut=2;
+         }else{
+            $rc=1 #regular var
          }
       }else{
         # this is a "regular" name with the length greater then one
         # $cut points to the next symbol after the scanned part of the scapar
            # check for Perl system variables
            if( $1 eq 'ENV'  ){
-               $ValPy[$tno]='os.environ';
-               $rc=-1;
+              $ValPy[$tno]='os.environ';
            }elsif( $1 eq 'ARGV'  ){
-               $ValPy[$tno]='sys.argv';
-               $rc=-1;
+              $ValPy[$tno]='sys.argv';
+           }else{
+             $rc=1; # regular variable
            }
       }
    }
@@ -581,15 +599,15 @@ my  $is_regex=0;
    $ValClass[$tno]="'" unless($is_regex);
    if( $tno>=1 && $ValClass[$tno-1] eq '~'  ){
       # explisit or implisit 'm'
-      $ValPy[$tno]='.re.match(r'.escape_quotes($ValPerl[$tno]).')'; #  double quotes neeed to be escaped just in case
+      $ValPy[$tno]='.re.match(r'.escape_quotes($ValPerl[$tno],2).')'; #  double quotes neeed to be escaped just in case
    }elsif($tno>=2 && $ValClass[$tno-1] eq '(' && $ValPerl[$tno-2] eq 'split' ){
-       # in split regex should be  plain vanilla
-       $ValPy[$tno]='r'.escape_quotes($ValPerl[$tno]); #  double quotes neeed to be escaped just in case
+       # in split regex should be  plain vanilla -- no re.match is needed.
+       $ValPy[$tno]='r'.escape_quotes($ValPerl[$tno],2); #  double quotes neeed to be escaped just in case
    }else{
        if( index(join('',@ValClass),'c')>-1 ){
-           $ValPy[$tno]='re.match(r'.escape_quotes($ValPerl[$tno]).')';
+           $ValPy[$tno]='re.match(r'.escape_quotes($ValPerl[$tno],2).')';
        }else{
-           $ValPy[$tno]='default_var.re.match(r'.escape_quotes($ValPerl[$tno]).')';
+           $ValPy[$tno]='default_var.re.match(r'.escape_quotes($ValPerl[$tno],2).')';
        }
    }
 } # perl_re
@@ -618,7 +636,8 @@ my ($m,$sym);
          last if( $sym eq $closing_delim && substr($source,$m-1,1) ne '\\' );
       }
       return $m+1; # this is first symbol after closing quote
-}
+}#sub single_quoted_literal
+
 #::double_quoted_literal -- decompile double quted literal
 # parcial implementation; full implementation requires two pass scheme
 # Returns cut
@@ -634,6 +653,7 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
    $close_pos=single_quoted_literal($closing_delim,$offset); # first position after quote
    $quote=substr($source,$offset,$close_pos-1-$offset); # extract literal
    if (length($quote) == 1) {
+      $ValPy[$tno]=escape_quotes($quote,2);
       return $close_pos;
    }
    $ValPerl[$tno]=$quote; # also will serve as original
@@ -642,75 +662,81 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
    #
    $k=index($quote,'$');
    if( $k==-1) {
-      # double quotes are used for a simple literal that does not reaure interpolation
+      # case when double quotes are used for a simple literal that does not reaure interpolation
       # Python equvalence between single and doble quotes alows some flexibility
-      $ValPy[$tno]=escape_quotes($quote);
+      $ValPy[$tno]=escape_quotes($quote,2); # always generate with quotes --same for Python 2 and 3
       return $close_pos;
    }
    #
    #decode each part. Double quote literals in Perl are ver difficult to decode
    # This is a parcial implementation of the most common cases
    # Full implementation is possible only in two pass scheme
+   $result=( $::PyV==3 ) ? 'f"' : ''; #For python 3 we need special opening quote
    while( $k > -1  ){
-      if( $k > 0 && substr($quote,$k-1,1) ne '/' ){
-         $result.=escape_quotes(substr($quote,0,$k)).' + '; # add literal part of the string
-      }else{
-         # escaped $
-         $k=index($quote,'$',$k);
-         $k++;
-         next;
-      }
-      $quote=substr($quote,$k);
-      $rc=decode_scalar($quote,0);
-      if( $rc > 0 ){
-         #regular variable
-         $result.=substr($quote,0,$cut);
-         $quote=substr($quote,$cut);
-         if( $quote=~/([\[\{].+?[\]\}])/  ){
-            #element of the array of hash. Here we cut corners and do not process expressions as index.
-            $ind=$1;
-            $cut=length($ind);
-            $ind =~ tr/$//d;
-            $result.=$1.$ind; # add string Variable part of the string
-            $quote=substr($quote,$cut);
+      if( $k > 0) {
+         if( substr($quote,$k-1,1) eq '\\' ){
+            # escaped $
+            $k=index($quote,'$',$k+1);
+            next;
+         }else{
+            # we have the first literal string  before varible
+            $result.=escape_quotes(substr($quote,0,$k),$::PyV); # with or without quotes depending on version.
+            $result.=' + ' if $::PyV==2; # add literal part of the string
          }
-      }else{
-         $result.=$ValPy[$tno];
+      }
+      $result.='{' if( $::PyV==3 );  # we always need '{' for f-strings
+      $quote=substr($quote,$k);
+      $rc=decode_scalar($quote,0); #get's us scalar or system var
+      #regular variable
+      $result.=$ValPy[$tno]; # copy string determined by decode_scalar. It might changed if Perl contained :: like in $::PyV
+      $quote=substr($quote,$cut); # cure the nesserary number of symbol determined by decode_scalar.
+      if( $quote=~/^\s*([\[\{].+?[\]\}])/  ){
+         #HACK element of the array of hash. Here we cut corners and do not process expressions as index.
+         $ind=$1;
+         $cut=length($ind);
+         $ind =~ tr/$//d;
+         $result.=$ind; # add string Variable part of the string
          $quote=substr($quote,$cut);
       }
 
-      if( length($quote)>0 ) {
-          $result.=' + '; # we will add at least one chunk
+      if( $::PyV==3 ){
+         $result.='}'; # end of variable
+      }elsif( length($quote)>0 ) {
+          $result.=' + '; # for Python2  we add + only if there is at least one more chunk
       }
-      $k=index($quote,'$');
+      $k=index($quote,'$'); #next scalar
    }
    if( length($quote)>0  ){
-       $result.=escape_quotes($quote);
+       #the last part
+       $result.=escape_quotes($quote,$::PyV);
    }
+   $result.=( $::PyV==3 ) ? '"' : '';
    $ValPy[$tno]=$result;
    return $close_pos;
 }
 sub escape_quotes
 {
 my $string=$_[0];
-my $delim='"';
-   if( scalar(@_)>1) {
-      $delim=$_[1];
-   }
+my $ver=$_[1];
+my $quote=
 my $result;
-   if( index($string,'"')==-1 ) {
-      $result.=q(").$string.qq("); # closing quote in the last chank if it exist.
-   }elsif(index($string,"'")==-1 ) {
-      $result.=qq(').$string.qq('); # closing quote in the last chank if it exist.
+
+   if ($ver==2) {
+      return qq(').$string.qq(') if(index($string,"'")==-1 ); # no need to escape any quotes.
+      return q(").$string.qq(") if( index($string,'"')==-1 ); # no need to scape any quotes.
    }else{
-     $result=$string;
-     for( my $i=length($string); $i>=0; $i--  ){
-        if( substr($string,$i,1) eq $delim ) {
-           substr($result,$i,0)='\\';
-        }
-     } # for
-     $result=$delim.$result.$delim;
+      return $string if( index($string,'"')==-1 ); # no need to scape any quotes.
    }
+#
+# We need to escape quotes
+#
+   $result=$string;
+   $i=length($string);
+   while( $i>0 && ($i=rindex($string,$i))>-1 ){
+      substr($result,$i,0)='\\' if( substr($string,$i,1) eq '"' );
+      $i--;
+   } # for
+   return '"'.$result.'"' if ($ver==2);
    return $result;
 }
 sub escape_backslash
