@@ -4,10 +4,10 @@
 #:: Nikolai Bezroukov, 2019.
 #:: Licensed under Perl Artistic license
 #::
-#:: This phazeproduced FormattedSource PERL code and XREF table.
-#:: Both are fuzzy, in a sense  that they are constuctred using  heuristic methods.
-#:: In case of fuzzy reformatting prefix and suffix of the line are analysed to determine the nesting level.
-#:: in most cases this is sucessful approach and in a few case when it is not it is easovy corrected using pragma %set_nest_level
+#:: This phase produced Formatted Source PERL code and XREF table.
+#:: Both are fuzzy, in a sense  that they are constructed using  heuristic methods.
+#:: In case of fuzzy reformatting prefix and suffix of the line are analyzed to determine the nesting level.
+#:: in most cases this is successful approach and in a few case when it is not it is easovy corrected using pragma %set_nest_level
 #:: That's why we use the term "fuzzy".
 #::
 #:: To be successful, this approach requires a certain (very reasonable) layout of the script.
