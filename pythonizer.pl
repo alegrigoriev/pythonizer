@@ -93,7 +93,7 @@
    }
    $LOG_DIR='/tmp/'.ucfirst($SCRIPT_NAME);
    logme('D',3,3); # inital settings
-   banner($LOG_DIR,$SCRIPT_NAME,'Fuzzy translator of Python to Perl $VERSION',30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
+   banner($LOG_DIR,$SCRIPT_NAME,"Fuzzy translator of Python to Perl. Version $VERSION",30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
    prolog(); # sets all options, including breakpoint
    if( $debug > 0 ){
       logme('D',3,3); # Max Verbosity
@@ -1056,6 +1056,8 @@ sub expression
 my $cur_pos=$_[0];
    if( $cur_pos<0 || $FailedTrans ){
        return -255
+   }elsif( $cur_pos>$#ValClass ){
+      $cur_pos=$#ValClass;
    }
 my ($limit,$mode,$split,$start,$prev_k);
 
@@ -1066,11 +1068,12 @@ my ($limit,$mode,$split,$start,$prev_k);
    }else{
        $limit=$_[1];
    }
+
    # 0 - remove  round  brackets 1 -preserve round brackets
    $mode=(scalar(@_)>2) ? $_[2] : 0;  # 0 - remove  round  brackets 1 -preserve round brackets
    if( $mode==0 ){
-      $ValPy[$limit]='' if( $ValClass[$limit] eq ')' );
-      $ValPy[$cur_pos]='' if( $ValClass[$cur_pos] eq ')' );
+     # $ValPy[$limit]='' if( $ValClass[$limit] eq ')' );
+     # $ValPy[$cur_pos]='' if( $ValClass[$cur_pos] eq ')' );
    }
 
 #my $last_token=(scalar(@_) == 2)? $_[2] : undef;
