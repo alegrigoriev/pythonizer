@@ -257,22 +257,21 @@ sub stepin
 }
 sub getopts
 {
-my ($argumentative,$hash)=@_;
-my (@args,$first,$rest,$pos);
-   @args = split( //, $argumentative );
-   while(@ARGV && ($_ = $ARGV[0]) =~ /^-(.)(.*)$/s ){
+my ($options_def,$hash)=@_;
+my ($first,$rest,$pos);
+   while(@ARGV && $ARGV[0] =~ /^-(.)(.*)$/s ){
       ($first,$rest) = ($1,$2);
       if (/^--$/) {	# early exit if --
          shift @ARGV;
          last;
       }
-      $pos = index($argumentative,$first);
-      if( $pos==0) {
+      $pos = index($options_def,$first);
+      if( $pos==-1) {
          warn("Undefined option -$first skipped without processing\n");
          shift(@ARGV);
          next;
       }
-      if (defined($args[$pos+1]) and ($args[$pos+1] eq ':')) {
+      if( $pos<length($options_def)-1 && substr($options_def,$pos+1,1) eq ':' ){
          # option with parameters
          if( $rest eq ''){
             # get the value
