@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #:: pre_pythonizer version 0.1
-#:: Stage 1 of fuzzy tranlation of Perl to Python
+#:: Stage 1 of fuzzy translation of Perl to Python
 #:: Nikolai Bezroukov, 2019.
 #:: Licensed under Perl Artistic license
 #::
@@ -8,8 +8,8 @@
 #:: in most cases this is sucessful approach and in a few case when it is not it is easovy corrected using pragma %set_nest_level
 #:: That's why we use the term "fuzzy".
 #::
-#:: To be sucessful, this approach requres a certain (very resonable) layout of the script.
-#:: But there some notable exceptions. For example, for script compless to eliminate whitespece this approach  is not sucessful
+#:: To be successful, this approach requires a certain (very reasonable) layout of the script.
+#:: But there some notable exceptions. For example, for script compressed to eliminate whitespece this approach  is not sucessful
 #:: You need to run them via perltidy first.
 #::
 #:: --- INVOCATION:
