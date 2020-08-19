@@ -255,36 +255,40 @@ sub stepin
 sub getopts
 {
 my ($options_def,$hash)=@_;
-my ($first,$rest,$pos);
-   while(@ARGV && $ARGV[0] =~ /^-(.)(.*)$/s ){
-      ($first,$rest) = ($1,$2);
-      if (/^--$/) {	# early exit if --
-         shift @ARGV;
-         last;
+my ($first,$rest,$pos,$cur_opt);
+   while(@ARGV){
+      $cur_opt=$ARGV[0];
+      last if( substr($cur_opt,0,1) ne '-' );
+      if ($cur_opt eq '--'){
+          shift @ARGV;
+          last;
       }
+      $first=substr($cur_opt,1,1);
       $pos = index($options_def,$first);
       if( $pos==-1) {
          warn("Undefined option -$first skipped without processing\n");
          shift(@ARGV);
          next;
       }
+      $rest=substr($cur_opt,2);
       if( $pos<length($options_def)-1 && substr($options_def,$pos+1,1) eq ':' ){
          # option with parameters
          if( $rest eq ''){
-            # get the value
-           shift(@ARGV);
-           if ( @ARGV && $ARGV[0] =~/^-/ ) {
+           shift(@ARGV); # get the value of option
+           unless( @ARGV ){
+              warn("End of line reached for option -$first which requires argument\n");
+              $$hash{$first}='';
+              last;
+           }
+           if ( $ARGV[0] =~/^-/ ) {
                warn("Option -$first requires argument\n");
                $$hash{$first} = '';
-            }else{
-               unless (@ARGV) {
-                  warn("End of line reached for option -$first which requires argument\n");
-                  $$hash{$first}='';
-                  last;
-               }
-               $$hash{$first}=shift(@ARGV); # value
-            }
+           }else{
+               $$hash{$first}=$ARGV[0];
+               shift(@ARGV); # get next chunk
+           }
          } else {
+            #value is concatenated with option like -ddd
             if( ($first x length($rest)) eq $rest ){
                $$hash{$first} = length($rest)+1;
             }else{
