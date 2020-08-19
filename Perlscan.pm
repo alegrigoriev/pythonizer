@@ -57,7 +57,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 #
 
    %SPECIAL_VAR=('O'=>'os.name','T'=>'OS_BASETIME', 'V'=>'sys.version[0]', 'X'=>'sys.executable()',
-                 ';'=>'PERL_SUBSCRIPT_SEPARATOR','>'=>'UNIX_EUID','<'=>'UNIX_UID','('=>'os.getgid()',')'=>'os.getegid()');
+                 ';'=>'PERL_SUBSCRIPT_SEPARATOR','>'=>'UNIX_EUID','<'=>'UNIX_UID','('=>'os.getgid()',')'=>'os.getegid()',
+                 '?'=>'subprocess_rc',);
 
 
    %keyword_tr=('eq'=>'==','ne'=>'!=','lt'=>'<','gt'=>'>','le'=>'<=','ge'=>'>=','x'=>' * ',
@@ -75,8 +76,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'own'=>'global', 'oct'=>'eval','ord'=>'ord',
                 'package'=>'import',
                 'split'=>'re.split','sort'=>'sort','scalar'=>'len', 'say'=>'print','state'=>'global','substr'=>'',
+                   'sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','defined'=>'perl_defined',
                 'rindex'=>'.rfind',
-                'sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','defined'=>'perl_defined',
                 'unless'=>'if not ', 'until'=>'while not ','unlink'=>'os.unlink', 'use'=>'import', 'uc'=>'.upper()', 'ucfirst'=>'.capitalize()',
                ' STDERR'=>'sys.stderr','STDIN'=>'sys.stdin',  '__LINE__' =>'sys._getframe().f_lineno',
                );
@@ -90,13 +91,14 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'for'=>'c', 'foreach'=>'c',
                   'given'=>'c','grep'=>'f',
                   'join'=>'f',
+                  'keys'=>'f',
                   'last'=>'C','lc'=>'f', 'length'=>'f','local'=>'t','localtime'=>'f',
                   'my'=>'t','map'=>'f','mkdir'=>'f',
                   'next'=>'C',
                   'own'=>'t', 'oct'=>'f','ord'=>'f','open'=>'f',
                   'push'=>'f','pop'=>'f','print'=>'f','package'=>'c',
                   'rindex'=>'f','read'=>'f', 'return'=>'C',
-                  'say'=>'f','shift'=>'f', 'split'=>'f','sort'=>'f','system'=>'f', 'sub'=>'k','scalar'=>'f','substr'=>'f','sprintf'=>'f','state'=>'t',
+                  'say'=>'f','scalar'=>'f','shift'=>'f', 'split'=>'f', 'sprintf'=>'f', 'sort'=>'f','system'=>'f', 'state'=>'t', 'sub'=>'k','substr'=>'f',
                   'values'=>'f',
                   'when'=>'C', 'while'=>'c',
                   'unless'=>'c', 'until'=>'c','uc'=>'f', 'ucfirst'=>'f','use'=>'c',
@@ -107,10 +109,10 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 #
    %digram_tokens=('++'=>'^', '--'=>'^', '+='=>'=', '-='=>'=', '.='=>'=', '%='=>'=', '=~'=>'~','!~'=>'~',
                    '=='=>'>','!='=>'>','>='=>'>','<='=>'>','=>'=>':','->'=>'.',
-                   '<<' => 'H', '>>'=>'=', '&&'=>'0', '||'=>'1',
-                   '::'=>'.' ); #and/or/not
+                   '<<' => 'H', '>>'=>'=', '&&'=>'0', '||'=>'0',
+                   '*='=>'=', '/='=>'/', '**'=>'*', '::'=>'.' ); #and/or/not
 
-   %digram_map=('++'=>'+=1','--'=>'-=1','+='=>'+=', '.='=>'+=', '=~'=>'=','<>'=>'readline()','=>'=>': ','->'=>' ',
+   %digram_map=('++'=>'+=1','--'=>'-=1','+='=>'+=', '*='=>'*=', '/='=>'/=', '.='=>'+=', '=~'=>'=','<>'=>'readline()','=>'=>': ','->'=>'.',
                 '&&'=>' and ', '||'=>' or ','::'=>'.',
                );
 my ($source,$cut,$tno)=('',0,0);
@@ -254,12 +256,6 @@ my ($l,$m);
              $cut=single_quoted_literal('`',1);
              $ValPy[$tno]=$ValPerl[$tno]=substr($source,1,$cut-2); # literal without quotes is needed.
              $ValPy[$tno]='subprocess.check_output("'.$ValPerl[$tno].'")';
-         }elsif( $s eq '<' && substr($source,1,1) eq '<' ){
-             #my $message = <<'END_MESSAGE';
-             $ValClass[$tno]='H';
-             $ValPerl[$tno]='<<';
-             $ValPy[$tno]='';
-             $cut=2;
          }elsif( $s=~/\d/ ){
             # processing of digits should preceed \w ad \w includes digits
             if( $source=~/(\d+(?:[.e]\d+)?)/ ){
@@ -394,12 +390,14 @@ my ($l,$m);
             $ValClass[$tno]='a'; #array
 
          }elsif( $s eq '%' ){
-            $source=~/^.(\w+)/;
-            $ValClass[$tno]='h'; #hash
-            $ValPerl[$tno]=$1;
-            $ValPy[$tno]=$1;
-            $cut=length($1)+1;
-
+            if( $source=~/^.(\w+)/ ){
+               $ValClass[$tno]='h'; #hash
+               $ValPerl[$tno]=$1;
+               $ValPy[$tno]=$1;
+               $cut=length($1)+1;
+            }else{
+              $cut=1;
+            }
          }elsif( $s eq '[' ){
             $ValClass[$tno]='('; # we treat anything inside curvy backets as expression
             $cut=1;
@@ -431,21 +429,32 @@ my ($l,$m);
                  $ValPy[$tno]=('os.path.isfile','os.path.isdir','os.path.islink','not os.path.getsize','os.path.exists','os.stat')[$k];
                  $cut=2;
               }else{
-                 $cut=1;
+                 $cut=1; # regular minus operator
               }
             }elsif( $s eq '<' ){
                # diamond operator
                if( $source=~/<(\w*)>/ ){
                   $ValClass[$tno]='i';
-                  $ValPerl[$tno]="<$1>";
-                  if( length($1)==0 ){
-                    $ValPy[$tno]='sys.stdin()';
-                  }else{
-                    $ValPy[$tno]="$1.read()";
-                  }
                   $cut=length($1)+2;
+                  $ValPerl[$tno]="<$1>";
+                  #
+                  # Let's try to determine the context
+                  #
+                  if( $tno==2 && $ValClass[0] eq 'a' && $ValClass[1] eq '=' ){
+                     if( length($1)==0 || $1 eq 'STDIN' ){
+                        $ValPy[$tno]='sys.stdin.readlines()';
+                     }else{
+                        $ValPy[$tno]="$1.readlines()";
+                     }
+                  }else{
+                      if( length($1)==0 || $1 eq 'STDIN' ){
+                         $ValPy[$tno]='sys.stdin().readline()';
+                      }else{
+                         $ValPy[$tno]="$1.readline()";
+                      }
+                  }
                }else{
-                 $ValClass[$tno]='>';
+                 $ValClass[$tno]='>'; # regular < operator
                  $cut=1;
                }
             }else{
@@ -458,15 +467,7 @@ my ($l,$m);
                $cut=1;
             }
          }
-         substr($source,0,$cut)='';
-         if( length($source)==0 ){
-             # the current line ended by ; of { } was not reached
-             $source=Pythonizer::getline();
-         }
-         if( $::debug > 3 ){
-            say STDERR "Lexem $tno Current token='$ValClass[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
-         }
-         $tno++;
+         finish(); # subroutine that prepeares the next cycle
       } # while
 
       $TokenStr=join('',@ValClass);
@@ -474,6 +475,21 @@ my ($l,$m);
       ($::debug>2) && say STDERR "\nLine $num. \$TokenStr: =|",$TokenStr, "|= \@ValPy: ",join(' ',@ValPy);
 
 } #tokenize
+#
+# subroutine that prepeares the next cycle
+#
+sub finish
+{
+   substr($source,0,$cut)='';
+   if( length($source)==0 ){
+       # the current line ended by ; of { } was not reached
+       $source=Pythonizer::getline();
+   }
+   if( $::debug > 3 ){
+      say STDERR "Lexem $tno Current token='$ValClass[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
+   }
+   $tno++;
+}
 #
 #decode scalar
 #
