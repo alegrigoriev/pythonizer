@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-## pythonizer Version 0.3 (Aug 17, 2020)
+## pythonizer Version 0.31 (Aug 18, 2020)
 ## Fuzzy prettyprint STDERR for Perl scripts
 ## Copyright Nikolai Bezroukov, 2019-2020.
 ## Licensed under Perl Artistic license
@@ -121,7 +121,7 @@
 #Main loop
 #
 my $start;
-   while(defined($line)){
+   while( defined($line) ){
       last unless(defined($line));
       if( $debug>1 ){
          say STDERR "\n\n === Line $. Perl source: |",$line,"| === \n";
@@ -173,27 +173,17 @@ my $start;
                 gen_chunk($ValPy[$i].'.f.close;');
              }
          }
-      }elsif( $ValClass[0] eq 'h' ){
-         if( substr($TokenStr,0,3) eq 'h=(' ){
-            # hash initialization needs to be converted to dictionary initialization
-            gen_chunk($ValPy[0].'={');
-            for( my $i=3; $i<$#ValPy; $i++ ){
-               gen_chunk( $ValPy[$i] );
-            }
-            gen_chunk('}');
-         }else{
-           gen_chunk(join(' ',@ValPy));
-         }
       }elsif( $ValPerl[0] =~ /say|print/ ){
           if( $PyV==3 ){
              $rc=print3(); # in Python3 this is a function
           }else{
              $rc=print2();
           }
-      }elsif( $ValClass[0] =~ /[shat]/ ){
-          #scalar assignment or reg matching; Include my/own/state
-          # expression is expected on the right side, but in Perl it can follow by condition a=2 if(b==0) => if( b==0  ){  a=2 }
-          if( $#ValClass==1) {
+       }elsif( $ValClass[0] eq 's' ){
+          $rc=assignment(0);
+          if( $rc<0 ){ $FailedTrans=1; }
+       }elsif( $ValClass[0] eq 't' ){
+          if( scalar(@ValClass)==2 ){
              if( $ValClass[0] eq 't' ){
                 #my $k;
                 output_line("$ValPy[1]=None");
@@ -201,10 +191,48 @@ my $start;
                 # $i++;
                 gen_chunk($ValPy[0].$ValPy[1]);
               }
-          }else{
-            $rc=assignment(0);
-            if( $rc<0 ){ $FailedTrans=1; }
+              finish();
+              next;
           }
+          $rc=assignment(0);
+          if( $rc<0 ){ $FailedTrans=1; }
+       }elsif( $ValClass[0] eq 'h' ){
+          #scalar assignment or reg matching; Include my/own/state
+          # expression is expected on the right side, but in Perl it can follow by condition a=2 if(b==0) => if( b==0  ){  a=2 }
+          if( $ValClass[1] eq '=' ){
+             if( $ValPerl[2] eq '(' ){
+                  # Special case hash initialization needs to be converted to dictionary initialization
+                  gen_chunk($ValPy[0].'={');
+                  for( my $i=3; $i<$#ValPy; $i++ ){
+                     gen_chunk( $ValPy[$i] );
+                  }
+                  gen_chunk('}');
+                  finish();
+                  next;
+             }elsif( scalar(@ValClass)==2 && $ValPerl[2] eq 'h' ){
+                  gen_chunk("$ValPy[0]=$ValPy[2].copy");
+                  finish();
+                  next;
+              }
+          }
+          $rc=assignment(0);
+          if( $rc<0 ){ $FailedTrans=1; }
+      }elsif($ValClass[0] eq 'a'){
+          if( $ValClass[1] eq '=' ){
+             if( $ValClass[2] eq 'a' ){
+                # Special case array to array copy
+                gen_chunk("$ValPy[0]=$ValPy[2].copy");
+                finish();
+                next;
+             }elsif( $ValPerl[2] =~ /<\w*>/ ){
+               # Special case of array initialization via slurping
+               gen_chunk("$ValPy[0]=$ValPy[2].copy");
+               finish();
+               next;
+             }
+          }
+          $rc=assignment(0);
+          if( $rc<0 ){ $FailedTrans=1; }
       }elsif( $ValClass[0] eq 'c' ){
            #normal control statement: if/while/for, etc -- next line is always nested.
            # in foreach loop "(" is absent )
@@ -282,8 +310,7 @@ my $start;
          }
       }elsif( $ValClass[0] eq 'q' ){
          # /abc/;
-         gen_statement();
-         $rc=expression(1);
+         gen_chunk(qq[subprocess_rc,default_var = subprocess.getstatusoutput("$ValPerl[0]")]);
       }elsif( $ValClass[0] eq 'd' ){
          if( length($TokenStr)==1 ){
              logme('W','line starts with digit');
@@ -334,13 +361,21 @@ my $start;
       }else{
          $FailedTrans=1;
       }
-      if( $FailedTrans ){
-         push(@NoTrans,"[$.]: $line");
-      }
-      gen_statement();
-      $line=getline(); # get new line
-      correct_nest();
-   } # while
+      finish();
+    } # while
+#
+# Imitation of continue statement as Perl implementation is buggy.
+#
+sub finish
+{
+    if( $FailedTrans ){
+       push(@NoTrans,"[$.]: $line");
+    }
+    gen_statement();
+    $line=getline(); # get new line
+    correct_nest();
+} # finish
+
 #
 # Epilog -- close  output file and  if you are in debugging mode display the content  on the screen
 #
@@ -484,7 +519,7 @@ my $limit;
    #
    # C-style ++ and --
    #
-   if( $ValClass[$k+1] eq '^' ){
+   if( $k<=$#ValClass && $ValClass[$k+1] eq '^' ){
        gen_chunk($ValPy[$k].$ValPy[$k+1]);
        return $#ValPerl+1;
    }
@@ -743,24 +778,21 @@ my ($hashpos,$end_pos);
          }
          return($#ValClass);
       }elsif( $ValPerl[$start] eq 'for' || $ValPerl[$start] eq 'foreach' ){
+         gen_chunk("$ValPy[$start] $ValPy[$start+1] in ");
          if( $TokenStr eq 'cs(a)') {
             # loop over an array
-            gen_chunk("$ValPy[$start] $ValPy[$start+1] in $ValPy[$start+3]:" );
-            return $#ValClass;
+             gen_chunk($ValPy[$start+3]);
          }elsif( ($hashpos=index($TokenStr,'f(h)')) > -1 ){
-            # for loop over a hash
-            $end_pos=matching_br($start+1);
+            # foreach loop over a hash
             if( $ValPerl[$hashpos] eq 'keys' || $ValPerl[$hashpos] eq 'values'  ){
-               # foreach loop
-               gen_chunk($ValPy[$start]);
-               gen_chunk("$ValPy[$start+1] in $ValPy[$hashpos+2].$ValPerl[$hashpos]():"); # index var
-               return $end_pos+1;
+                gen_chunk("$ValPy[$hashpos+2]$ValPy[$hashpos]()"); # translate keys function into postfix notation
             }else{
                $FailedTrans=1;
                return -255;
             }
-            return($#ValClass);
          }
+         gen_chunk(':');
+         return $#ValClass;
       }else{
          $FailedTrans=1;
          return -255;
