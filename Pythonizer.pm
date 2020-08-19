@@ -13,6 +13,7 @@ package Pythonizer;
 # 00.20  2020/02/03  BEZROUN   getline was moved from pythonyzer.
 # 00.30  2020/08/05  BEZROUN   preprocess_line was folded into getline.
 # 00.40  2020/08/17  BEZROUN   getops is now implemented in Softpano.pm to allow the repretion of option letter to set the value of options ( -ddd)
+# 00.41  2020/08/18  BEZROUN   Option -p added
 
 use v5.10;
    use warnings;
@@ -44,6 +45,7 @@ sub prolog
       }
 
       if(  exists $options{'d'}  ){
+         $options{'d'}=1 if $options{'d'} eq '';
          if( $options{'d'} =~/^\d$/ ){
             $::debug=$options{'d'};
          }else{
@@ -63,6 +65,7 @@ sub prolog
       }
 
        if(  exists $options{'b'}  ){
+         $options{'b'}=1 if $options{'b'} eq '';
          if( $options{'b'}>=0  && $options{'b'}<900 ){
             $::breakpoint=$options{'b'};
             ($::debug) && logme('W',"Breakpoint  set to line  $::breakpoint");
@@ -73,18 +76,21 @@ sub prolog
       }
 
       if(  exists $options{'v'} ){
+         $options{'v'}=1 if $options{'v'} eq '';
          if( $options{'v'} =~/\d/ && $options{'v'}<3 && $options{'v'}>0 ){
             $::verbosity=$options{'v'};
          }else{
-            logme('D',3,3); # add warnings
+             logme('S',"Wrong value of option -v. Should be an interger from 1 to 3. The value given was: $options('v')\n");
+             exit 255;
          }
       }
 
       if(  exists $options{'t'}  ){
+         $options{'t'}=1 if $options{'t'} eq '';
          if( $options{'t'}>1  && $options{'t'}<10 ){
             $::TabSize=$options{'t'};
          }else{
-            logme('S',"Range for options -t (tab size) is 1-10. You specified: $options('t')\n");
+            logme('S',"Range for options -t (tab size) is 2-10. You specified: $options('t')\n");
             exit 255;
          }
       }
@@ -113,7 +119,7 @@ sub epilog
 {
    close STDIN;
    close SYSOUT;
-   if( $::debug>1 ){
+   if( $::debug>2 ){
       say STDERR "==GENERATED OUTPUT FOR INPECTION==";
       print STDERR `cat -n $output_file`;
    }
