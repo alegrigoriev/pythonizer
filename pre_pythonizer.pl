@@ -34,7 +34,8 @@
 # Ver      Date        Who        Modification
 # ====  ==========  ========  ==============================================================
 # 0.10  2019/10/14  BEZROUN   Initial implementation
-# 0.11  2019/11/20  BEZROUN   Minor changes in legendhelp screen
+# 0.11  2019/11/20  BEZROUN   Minor changes in legend and help screen
+# 0.20  2020/08/20  BEZROUN   The source reorganized into "subroutines-first" fashion
 
 #=========================== START =========================================================
 
@@ -68,38 +69,71 @@
       $HOME=$ENV{'HOME'}; # $HOME/Archive is used for backups
    }
    $LOG_DIR="/tmp/$SCRIPT_NAME";
+   @FormattedMain=("sub main\n","{\n");
+   @FormattedSource=@FormattedSub=@FormattedData=();
+   $mainlineno=scalar( @FormattedMain); # we need to reserve one line for sub main
+   $sourcelineno=$sublineno=$datalineno=0;
 
-
-   $tab=3;
+   $tab=4;
    $nest_corrections=0;
    %keyword=('if'=>1,'while'=>1,'unless'=>1, 'until'=>1,'for'=>1,'foreach'=>1,'given'=>1,'when'=>1,'default'=>1);
 
    logme('D',1,2); # E and S to console, everything to the log.
-   banner($LOG_DIR,$SCRIPT_NAME,'Phase 1 of pythonizer',30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
+   banner($LOG_DIR,$SCRIPT_NAME,'PREPYTHONIZER: Phase 1 of pythonizer',30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
    get_params(); # At this point debug  flag can be reset
     if( $debug>0 ){
       logme('D',2,2); # Max verbosity
       print STDERR "ATTENTION!!! $SCRIPT_NAME is working in debugging mode $debug with autocommit of source to $HOME/Archive\n";
       autocommit("$HOME/Archive",$use_git_repo); # commit source archive directory (which can be controlled by GIT)
    }
-   print STDERR  "=" x 80,"\n\n";
+   say "Log is written to $LOG_DIR, The original file will be saved as $fname.original unless this file already exists ";
+   say STDERR  "=" x 80,"\n";
 
 #
 # Main loop initialization variables
 #
    $new_nest=$cur_nest=0;
    #$top=0; $stack[$top]='';
-   $lineno=0;
-   $fline=0; # line number in FormattedSource code
+   $lineno=$noformat=$SubsNo=0;
    $here_delim="\n"; # impossible combination
-   $noformat=0;
-   $SubsNo++;
    $InfoTags='';
    @SourceText=<STDIN>;
+
+#
+# Slurp the initial comment block and use statements
+#
+   $ChannelNo=$lineno=0;
+   while(1){
+      if( $lineno == $breakpoint ){
+         $DB::single = 1
+      }
+      chomp($line=$SourceText[$lineno]);
+      if( $line=~/^\s*$/ ){
+         process_line("\n",-1000);
+         $lineno++;
+         next;
+      }
+      $intact_line=$line;
+      if( substr($intact_line,0,1) eq '#' ){
+          process_line($line,-1000);
+          $lineno++;
+          next;
+      }
+      $line=normalize_line($line);
+      chomp($line);
+      ($line)=split(' ',$line,1);
+      if($line=~/^use\s+/){
+         process_line($line,-1000);
+      }else{
+         last;
+      }
+      $lineno++;
+   } #while
 #
 # MAIN LOOP
 #
-   for( $lineno=0; $lineno<@SourceText; $lineno++  ){
+   $ChannelNo=1;
+   for( $lineno; $lineno<@SourceText; $lineno++  ){
       $line=$SourceText[$lineno];
       $offset=0;
       chomp($line);
@@ -107,14 +141,7 @@
       if( $lineno == $breakpoint ){
          $DB::single = 1
       }
-      $line=~tr/\t/ /; # eliminate \t
-      if( substr($line,-1,1) eq "\r" ){
-         chop($line);
-      }
-      # trip traling blanks, if any
-      if( $line=~/(^.*\S)\s+$/ ){
-         $line=$1;
-      }
+      $line=normalize_line($line);
 
       #
       # Check for HERE line
@@ -173,9 +200,26 @@
          next;
       }
       if( $line =~ /^sub\s+(\w+)/ ){
-         # $offset=-1;
-         $SubList[$1]=$lineno;
+         $SubList{$1}=$lineno;
          $SubsNo++;
+         $ChannelNo=2;
+         $CommentBlock=0;
+         for( $backno=$#FormattedMain;$backno>0;$backno-- ){
+            $comment=$FormattedMain[$backno];
+            if ($comment =~ /^\s*#/ || $comment =~ /^\s*$/){
+               $CommentBlock++;
+            }else{
+               last;
+            }
+         }
+         $backno++;
+         for ($backno; $backno<@FormattedMain; $backno++){
+            $comment=$FormattedMain[$backno];
+            process_line($comment,-1000); #copy comment block
+         }
+         for ($backno=0; $backno<$CommentBlock; $backno++){
+            pop(@FormattedMain); # then got to it by mmistake
+         }
          if( $cur_nest != 0 ) {
             logme('E',"Non zero nesting encounted for subroutine definition $1");
             if ($cur_nest>0) {
@@ -183,11 +227,11 @@
             }else{
                $InfoTags='{ ?';
             }
-            $cur_nest=$new_nest=0;
             $nest_corrections++;
          }
-      }
-      if( $line eq '__END__' || $line eq '__DATA__' ) {
+         $cur_nest=$new_nest=0;
+      }elsif( $line eq '__END__' || $line eq '__DATA__' ) {
+         $ChannelNo=3;
          logme('E',"Non zero nesting encounted for $line");
          if ($cur_nest>0) {
             $InfoTags='} ?';
@@ -228,7 +272,7 @@
          next;
       } elsif( $first_sym eq '}' ){
          $cur_nest=$new_nest-=1;
-         process_line('}',0); # shift "{" left, aligning with the keyword
+          process_line('}',0); # shift "{" left, aligning with the keyword
          if( substr($line,0,1) eq '}' ){
             $line=substr($line,1);
          }
@@ -239,6 +283,9 @@
          unless( $last_sym eq '{') {
              process_line($line,0);
              next;
+         }
+         if( $cur_nest==0 ){
+            $ChannelNo=1; # write to main
          }
       }
       # Step 2: check the last symbol for "{" Note: comments are prohibited on such lines
@@ -253,7 +300,6 @@
       # $new_nest-- is not nessary as as it is also the first symbol and nesting was already corrected
       #}
       process_line($line,$offset);
-
    } # while
 #
 # Epilog
@@ -264,6 +310,19 @@
 #
 # Subroutines
 #
+sub normalize_line
+{
+my $line=$_[0];
+   $line=~tr/\t/ /; # eliminate \t
+      if( substr($line,-1,1) eq "\r" ){
+         chop($line);
+      }
+      # trip trailing blanks, if any
+      if( $line=~/(^.*\S)\s+$/ ){
+         $line=$1;
+      }
+   return($line);
+}
 sub process_line
 {
 my $line=$_[0];
@@ -276,18 +335,38 @@ my $offset=$_[1];
       if( ($cur_nest+$offset)<0 || $cur_nest<0 ){
          $spaces='';
       }else{
-         $spaces= ' ' x (($cur_nest+$offset+1)*$tab);
+         $offset=( $ChannelNo==1 )? 1 : 0;
+         $spaces= ' ' x (($cur_nest+$offset)*$tab);
       }
-      print STDERR "$prefix | $spaces$line\n";
-      $FormattedSource[$fline++]="$spaces$line\n";
+      $line="$spaces$line\n";
+      print STDERR "$prefix | $line";
+      if( $ChannelNo==0) {
+         $FormattedSource[$sourcelineno++]=$line;
+      }elsif($ChannelNo==1){
+         $FormattedMain[$mainlineno++]=$line;
+      }elsif($ChannelNo==2){
+         $FormattedSub[$sublineno++]=$line;
+      }elsif($ChannelNo==3){
+         $FormattedData[$datalineno++]=$line;
+      }else{
+         logme('S',"Internal error. Channel is outside rance or 0-2. The value is $ChannelNo. Exiting... ");
+         exit 255;
+      }
       $cur_nest=$new_nest;
       if( $noformat==0 ){ $InfoTags='' }
 }
 sub write_formatted_code
 {
-my $output_file="$LOG_DIR/$fname.formatted.pl";
+my $output_file=$fname;
 my ($line,$i,$k,$var, %dict, %type, @xref_table);
-
+   push(@FormattedMain,'}');
+   if( -e $fname ){
+      `cp $fname  $fname.original`;
+   }
+   push(@FormattedSource,@FormattedSub);
+   push(@FormattedSource,@FormattedMain);
+   push(@FormattedSource,"\nmain();\n"); # generate call to main
+   push(@FormattedSource,@FormattedData);
    open (SYSFORM,'>',$output_file ) || abend(__LINE__,"Cannot open file $output_file for writing");
    print SYSFORM @FormattedSource;
    close SYSFORM;
@@ -331,9 +410,10 @@ my ($line,$i,$k,$var, %dict, %type, @xref_table);
          }else{
            $dict{$var}.=$i;
          }
+
      }
    }
-   print STDERR "\n\nCROSS REFERENCE TABLE\n\n";
+   write_line("\n\nCROSS REFERENCE TABLE\n");
    $i=0;
    foreach $var (keys(%dict)) {
       $prefix=( exists($type{$var}) ) ? $type{$var} : 'str';
@@ -344,12 +424,20 @@ my ($line,$i,$k,$var, %dict, %type, @xref_table);
 
    open (SYSFORM,'>',$output_file ) || abend(__LINE__,"Cannot open file $output_file for writing");
    for( $i=0; $i<@xref_table; $i++ ){
-      print STDERR "$xref_table[$i]\n";
-      print SYSFORM "$xref_table[$i]\n";
+      write_line($xref_table[$i]);
+   }
+   write_line("\nSUBROUTINES\n");
+   foreach $sub (keys(%SubList)){
+     write_line("$sub: $SubList{$sub}");
    }
    close SYSFORM;
 }
-
+sub write_line
+{
+my $myline=$_[0];
+  say STDERR $myline;
+  say SYSFORM $myline;
+}
 #
 # Check delimiters balance without lexical parcing of the string
 #
@@ -422,17 +510,12 @@ sub get_params
       if(  exists $options{'h'} ){
          helpme();
       }
-      if(  exists $options{'p'}  ){
-         $write_FormattedSource=0;
-         $write_pipe=1;
-      }
+
 
       if(  exists $options{'f'}  ){
          $write_FormattedSource=1;
       }
-      if(  exists $options{'r'}  ){
-         $readability_plus=1;
-      }
+
       if(  exists $options{'t'}  ){
          if( $options{'t'}>0  && $options{'t'}<10 ){
             $tab=$options{'t'};
