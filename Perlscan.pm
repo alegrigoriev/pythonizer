@@ -109,10 +109,10 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 #
    %digram_tokens=('++'=>'^', '--'=>'^', '+='=>'=', '-='=>'=', '.='=>'=', '%='=>'=', '=~'=>'~','!~'=>'~',
                    '=='=>'>','!='=>'>','>='=>'>','<='=>'>','=>'=>':','->'=>'.',
-                   '<<' => 'H', '>>'=>'=', '&&'=>'0', '||'=>'1',
-                   '::'=>'.' ); #and/or/not
+                   '<<' => 'H', '>>'=>'=', '&&'=>'0', '||'=>'0',
+                   '*='=>'=', '/='=>'/', '**'=>'*', '::'=>'.' ); #and/or/not
 
-   %digram_map=('++'=>'+=1','--'=>'-=1','+='=>'+=', '.='=>'+=', '=~'=>'=','<>'=>'readline()','=>'=>': ','->'=>' ',
+   %digram_map=('++'=>'+=1','--'=>'-=1','+='=>'+=', '*='=>'*=', '/='=>'/=', '.='=>'+=', '=~'=>'=','<>'=>'readline()','=>'=>': ','->'=>'.',
                 '&&'=>' and ', '||'=>' or ','::'=>'.',
                );
 my ($source,$cut,$tno)=('',0,0);
@@ -390,12 +390,14 @@ my ($l,$m);
             $ValClass[$tno]='a'; #array
 
          }elsif( $s eq '%'  ){
-            $source=~/^.(\w+)/;
-            $ValClass[$tno]='h'; #hash
-            $ValPerl[$tno]=$1;
-            $ValPy[$tno]=$1;
-            $cut=length($1)+1;
-
+            if ($source=~/^.([a-zA-Z]+)/) {
+               $ValClass[$tno]='h'; #hash
+               $ValPerl[$tno]=$1;
+               $ValPy[$tno]=$1;
+               $cut=length($1)+1;
+            }else{
+              $cut=1;
+            }
          }elsif( $s eq '['  ){
             $ValClass[$tno]='('; # we treat anything inside curvy backets as expression
             $cut=1;
@@ -728,6 +730,9 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
    $ValPy[$tno]=$result;
    return $close_pos;
 }
+#
+# Aug 20, 2020 -- we wilol use the hack -- if there are quotes in the string we will anclose it introple quotes.
+#
 sub escape_quotes
 {
 my $string=$_[0];
@@ -744,13 +749,13 @@ my $result;
 #
 # We need to escape quotes
 #
+   return qq(""").$string.qq(""") if ($ver==2);
    $result=$string;
    $i=length($string);
    while( $i>0 && ($i=rindex($string,$i))>-1 ){
       substr($result,$i,0)='\\' if( substr($string,$i,1) eq '"' );
       $i--;
    } # for
-   return '"'.$result.'"' if ($ver==2);
    return $result;
 }
 sub escape_backslash
