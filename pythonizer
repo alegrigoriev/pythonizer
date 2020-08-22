@@ -1003,8 +1003,8 @@ my($k,$myline, $target,$open_mode,$handle);
       return -255;
    }
    $k+=2 if( $ValPerl[$k+1] eq ',');
-   if( $ValClass[$k] eq "'" && $ValClass[$k+1] eq ',' ){
-      # this is the second argument
+   if( index($ValClass[$k],q('"))>-1 && $ValClass[$k+1] eq ',' ){
+      # this is the second argument like in open(FILE,'>',$path);
       $open_mode=$ValPerl[$k];
       $k+=2;
       if( $ValClass[$k] eq "'" || $ValClass[$k] eq '"' || $ValClass[$k] eq 's' ){
@@ -1012,13 +1012,10 @@ my($k,$myline, $target,$open_mode,$handle);
       }
    }elsif( $ValClass[$k] eq "'" || $ValClass[$k] eq '"'  ){
       # ValPerl does not preserve quotes
-      if( $ValPerl[$k]=~/^([<>])+/ ){
-         $open_mode=$1;
+      if( $ValPy[$k]=~/^(f*['"])([<>])+/ ){
+         $open_mode=$2;
+         substr($ValPy[$k],length($1),1)='';
          $target=$ValPy[$k];
-         substr($target,1,length($1))='';
-         if( substr($target,0,5) eq '"" + '){
-            $target=substr($target,5);
-         }
       }else{
          # implicit filemode
          $open_mode='>';
