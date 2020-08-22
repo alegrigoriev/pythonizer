@@ -58,7 +58,7 @@
 # 0.261  2020/08/14  BEZROUN   for loop translation corrected
 # 0.270  2020/08/14  BEZROUN   getops is now implemented in Softpano.pm to allow the repetition of option letter to set the value of options ( -ddd)
 # 0.300  2020/08/17  BEZROUN   Python 3.8 is default for generaion. Option -p introduced. Default is  3; 2 changes it to 2.7
-# 0.310  2020/08/18  BEZROUN   f-strings are implemented for Python 3 mode
+# 0.310  2020/08/18  BEZROUN   f-strings are implemented for Python 3 mode instead of decompiling string into chunks
 #!start ===============================================================================================================================
 
    use v5.10;
@@ -151,7 +151,8 @@ my $start;
       }elsif( $ValClass[0] eq '{' ){
          correct_nest(1); # next line indented
       }elsif( $ValClass[0] eq '(' ){
-         if(index($TokenStr,')0')>-1) {
+         $close_br_pos=matching_br(0);
+         if ($ValClass[$close_br_pos+1] eq '0' ){
             #implicit if statement
             $rc=short_cut_if(0);
          }elsif(index($TokenStr,')=')>-1) {
@@ -658,13 +659,13 @@ sub short_cut_if
    gen_chunk(':');
    gen_statement();
    correct_nest(1,1);
-   $k=index($TokenStr,'0');
-   if( $#ValClass==$k+1 ){
-      gen_chunk($ValPy[$k+1]);
-   }elsif( $ValClass[$k+1]=~/[ikf]/ && $ValClass[$k+2] eq '(' ){
-      $k=function($k+1);
+   $k=$limit+2;
+   if( $#ValClass==$k ){
+      gen_chunk($ValPy[$k]);
+   }elsif( $ValClass[$k]=~/[ikf]/ && $ValClass[$k+1] eq '(' ){
+      $k=function($k);
    }elsif( index($TokenStr,'=',$k)>-1 ){
-      $k=assignment($k+1,$#ValClass);
+      $k=assignment($k,$#ValClass);
    }
    gen_statement();
    if( $k<0){
