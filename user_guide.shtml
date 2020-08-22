@@ -37,7 +37,7 @@ blockquote {font-size: 10pt; font-family: arial; background: #F9F9F9}
 
 <h1>Pythonizer user guide </h1>
 
-<h3>Version 0.2 (Aug 5, 2020)</h3>
+<h3>Version 0.4 (Aug 22, 2020)</h3>
 
 <table border="1" width="100%" bgcolor="#FFFFCC">
    <tr>
@@ -63,6 +63,8 @@ blockquote {font-size: 10pt; font-family: arial; background: #F9F9F9}
 
 	<li><b><a href="#Introduction">Introduction</a></b></li>
 
+    <li><b><a href="#The_current_version">The current version</a></b></li>
+
     <li><b><a href="#Options">Options</a></b></li>
 
     <li><b><a href="#Structure">Structure</a></b></li>
@@ -77,11 +79,49 @@ blockquote {font-size: 10pt; font-family: arial; background: #F9F9F9}
 
 <h3><a name="Introduction">Introduction</a></h3>
 
-<p>This guide corresponds to version 0.3 of pythonizer. Running&nbsp; <tt>pythonizer -h</tt> provides a&nbsp; list of options. </p>
+<p>Some organizations are now involved in converting their Perl codebase into Python. But a more common task is to maintain existing 
+Perl scripts. Often this task is assigned to programmers who know Python but not Perl (that include most university graduates).&nbsp; 
+In this case, a program that &quot;explains&quot; Perl constructs in Python term would be extremely useful and, sometimes, a lifesaver. Of 
+course, Perl 5 is here to stay (please note what happened with people who were predicting the demise of Fortran ;-), and in most 
+cases, old scripts will stay too.</p>
+
+<p>The other role is to give is a quick start for system administrators who want to learn Python (for example, need to support 
+researchers who work in it) but know only Perl. </p>
+
+<p>The idea here is that it is possible to create such a tool with relatively modest efforts. A tool, written with some knowledge of 
+compiler technologies, that falls into the category of &quot;small language compliers&quot; with the total effort around one man-year or less. Assuming ten lines per day of debugged code for the task of complexity comparable with the writing of compilers, the estimated 
+size should be around 3-5K lines of code (~1K line phase 1 and 2-3K line phase 2).</p>
+
+<p>Processing consists of two passes, which currently are not integrated in any away</p>
+
+<pre>pre-pythonizer [options] &lt;file&gt;
+pythonizer [options] &lt;file&gt;</pre>
+
+<p>The first pass is optional and it just increase probability of more correct translation of the code. It reformat the code so that 
+curvy brackets were mostly on separate lines (this was useful for pythonizer up to version 0.2; later versions&nbsp; do not depend 
+on this transformation.) </p>
+
+<p>Another useful function that it currently performs is refactoring of&nbsp; Perl script, pushing subroutines to the top and 
+creating <tt>main</tt> sub out of code not included&nbsp; into any subroutine. This operation, of course, can be performed manually, 
+but this is a necessary step of preparation of Perl script to the translation.&nbsp; </p>
+
+<h3><a name="The_current_version">The current version</a></h3>
+
+<p>This guide corresponds to version 0.4 of pythonizer. Running&nbsp; <tt>pythonizer -h</tt> provides a&nbsp; list of options. </p>
 
 <blockquote>
 
-   <p>Changes since version 0.2: </p>
+   <p><b>Changes&nbsp; since version 0.3</b></p>
+   <ul>
+
+      <li>Scanner is improved</li>
+
+      <li>f-strings are now generated for double quoted literals</li>
+
+      <li>Many errors fixed. </li>
+   </ul>
+
+   <p><b>Changes since version 0.2: </b> </p>
    <ul>
 
       <li>default version of Python used is now version 3.8; </li>
@@ -168,9 +208,12 @@ manually.&nbsp; </span></p>
    <li><tt>-b</tt> -- breakpoint option<em> for developers</em>; default <tt>-b 99999</tt></li>
 </ul>
 
+<p>The same options work for the <tt>pre-pythonizer</tt>, but usually defaults are OK.&nbsp; There is no options to control 
+refactoring of the script. </p>
+
 <h3><a name="Structure">Structure</a></h3>
 
-<p>Pythonizer consists of the main program called, as you can guess, <tt>pythonizer.pl</tt> and three modules (which currently need to 
+<p>Pythonizer consists of the main program called, as you can guess, <tt>pythonizer</tt> and three modules (which currently need to 
 reside in the same directory as the main program. Main program currently used three modules: </p>
 <ul>
 
@@ -182,15 +225,15 @@ reside in the same directory as the main program. Main program currently used th
 
 </ul>
 
-<p>The total size of the codebase in version 0.2 is around 3.5K lines ( approximately 0.5K lines increase since version 0.2 ): </p>
+<p>The total size of the codebase in version 0.4 is around 3.5K lines: </p>
 
-<pre> wc -l Perlscan.pm Pythonizer.pm  pythonizer.pl  Softpano.pm perl_normalizer1.pl
-   821 Perlscan.pm
-   290 Pythonizer.pm
-  1192 pythonizer.pl
-   306 Softpano.pm
-   750 perl_normalizer1.pl
-  3359 total</pre>
+<pre>wc -l Perlscan.pm Pythonizer.pm  pythonizer  Softpano.pm pre_pythonizer.pl
+   866 Perlscan.pm
+   292 Pythonizer.pm
+  1268 pythonizer
+   312 Softpano.pm
+   833 pre_pythonizer.pl
+  3571 total</pre>
 
 <h3><a name="Installation">Installation</a></h3>
 
@@ -221,10 +264,25 @@ manually. </p>
 <!--#include virtual="/adv_news_pane.htm" -->
 <hr>
 <h2><a name="News">Old News</a> ;-) </h2>
+
+   <h4><b>[Aug 22, 2020] Version 0.4 uploaded</b></h4>
+<blockquote>
+
+   <p><b>Changes&nbsp; since version 0.3</b></p>
+   <ul>
+
+      <li>Scanner is improved</li>
+
+      <li>f-strings are now generated for double quoted literals</li>
+
+      <li>Many errors fixed. </li>
+   </ul>
+</blockquote>
+
 <h4>[Aug 17, 2020] Version 0.3 was uploaded. </h4>
 <blockquote>
 
-   <p>Changes since version 0.2: </p>
+   <p><b>Changes since version 0.2: </b> </p>
    <ul>
 
       <li>default version of Python used is now version 3.8; </li>
