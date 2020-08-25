@@ -56,9 +56,12 @@
 # 0.251  2020/08/12  BEZROUN   Perl_default_var is renames into default_var
 # 0.260  2020/08/14  BEZROUN   System variables in double quoted literals are now complied correctly. Perlscan.pm improved.
 # 0.261  2020/08/14  BEZROUN   for loop translation corrected
-# 0.270  2020/08/14  BEZROUN   getops is now implemented in Softpano.pm to allow the repetition of option letter to set the value of options ( -ddd)
+# 0.270  2020/08/15  BEZROUN   getops is now implemented in Softpano.pm to allow the repetition of option letter to set the value of options ( -ddd)
 # 0.300  2020/08/17  BEZROUN   Python 3.8 is default for generaion. Option -p introduced. Default is  3; 2 changes it to 2.7
 # 0.310  2020/08/18  BEZROUN   f-strings are implemented for Python 3 mode instead of decompiling string into chunks
+# 0.320  2020/08/20  BEZROUN   open statement and  (condition) && ... statement translation corrected
+# 0.400  2020/08/22  BEZROUN   _DATA_ and POD statements are now processed.
+# 0.410  2020/08/24  BEZROUN   pre_pythonizer now refactors Perl script pushing subroutines to the top and creating main sub.
 #!start ===============================================================================================================================
 
    use v5.10;
@@ -74,7 +77,7 @@
    use Perlscan qw(gen_statement  tokenize gen_chunk @ValClass  @ValPerl  @ValPy $TokenStr);
    use Pythonizer qw(correct_nest getline prolog epilog output_line);
 
-   $VERSION='0.31';
+   $VERSION='0.40';
 #
 # options
 #
@@ -461,7 +464,7 @@ my $limit;
    }else{
       $limit=$#ValClass;
    }
- my ($k,$split,$post_processing,$comma_pos,$from,$to);
+ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
  #
  # Assignment with post condition need to be transformed into regular control structure in Python
  #
@@ -499,31 +502,10 @@ my $limit;
 #
 #  Check the type of assingment. If can be =, Conditional C-style or increament/decrement
 #
-   if( ($from=index($TokenStr,'=(',$k))>-1 &&  ($split=index($TokenStr,')?',$k))>-1 ){
-      # this is C-style conditional assigment   x=(v>0):y:z;
-      # Python: variable = something if condition else something_else
-      $to=matching_br($from+1);
-      ($to<0) && return -255;
-      if( $k==$from-1 ){
-         gen_chunk($ValPy[$k]);
-      }else{
-         $k=expression($k,$from-1,0); # generate variable
-         ($k<0) && return -255;
-      }
-      gen_chunk('=');
-      $comma_pos=index($TokenStr,':',$split+3);
-      (($k=expression($split+2,$comma_pos-1,0))<0) && return -255;
-      gen_chunk(' if ');
-      $k=expression($from+1,$to); ($k<0) && return -255; # generate expression
-      gen_chunk(' else ');
-      $k=expression($comma_pos+1,$#ValPerl,0); # up to the very end
-      ($k<0) && return -255;
-      gen_statement(); # output if line
-      return $#ValPerl+1;
-   }
-   #
-   # C-style ++ and --
-   #
+
+#
+# C-style ++ and --
+#
    if( $k<=$#ValClass && $ValClass[$k+1] eq '^' ){
        gen_chunk($ValPy[$k].$ValPy[$k+1]);
        return $#ValPerl+1;
@@ -532,7 +514,10 @@ my $limit;
 # Regular assignment with "="
 #
    if( ($split=index($TokenStr,'=',$k))>-1 ){
-       if( $ValPerl[$k] eq '(' ){
+       if( $split-$k==1 ){
+         # single token on the left side -- regular assignment;
+         gen_chunk($ValPy[$k]); # simple scalar assignment -- varible of left side
+       }elsif( $ValPerl[$k] eq '(' ){
           # list on the left side
           gen_chunk($ValPy[$k]);
           $k++;
@@ -547,24 +532,45 @@ my $limit;
           }
           gen_chunk(')');
           $k++;
-       }elsif( $split-$k==1 ){
-         #scalar or array or hash but single variable -- regular assignment;
-         gen_chunk($ValPy[$k]); # simple scalar assignment -- varible of left side
       }else{
          # possibly  array with complex subscripts or complex hash key expression
          $k=expression($k,$split-1,0); # on the left side it can be array index or something more complex
          ($k<0) && return -255;
       }
       gen_chunk($ValPy[$split]); # generate appropriate operation hidden under topn '=' (  +=, -=, etc)
+      $k=$split+1;
       if( $limit - $split == 1 ){
          # only one token after '='
-         $k=$split+1;
          gen_chunk($ValPy[$k]); # that includes diamond operator <> and <HANDLE> Aug 10,2020
          #$is_numeric{$ValPerl[$k]}='d'; # capture the type of variable.
-      }elsif( $limit>$split ){
+      }else{
           # we have some kind of expression on  the right side
-          $k=expression($split+1,$limit,0); # process expression without brackets -- last param is 0
-          ($k<0) && return -255;
+         if( (substr($TokenStr,$split,2) eq '=(')>-1 &&  (index($TokenStr,')?',$split))>-1 ){
+            # this is C-style conditional assigment   x=(v>0):y:z;
+            # Step one analyse the expression in blackets
+            $to=matching_br($k);
+            ($to<0) && return -255;
+            if( $to==$k+2){
+               gen_chunk($ValPy[$k+1]); # expression consist of one token
+            }else{
+               $k=expression($k,$to,0); # generate variable
+               ($k<0) && return -255;
+            }
+            # analyse and gen code for "then" part of the expression
+            gen_chunk(' if ');
+            $split=$to+1;
+            $colon_pos=index($TokenStr,':',$split);
+            (($k=expression($split+1,$colon_pos-1,0))<0) && return -255;
+            # analyse else part of the expression
+            gen_chunk(' else ');
+            $k=expression($colon_pos+1,$#ValPerl,0); # up to the very end
+            ($k<0) && return -255;
+            gen_statement(); # output if line
+            return $#ValPerl+1;
+         }else{
+            $k=expression($split+1,$limit,0); # process expression without brackets -- last param is 0
+            ($k<0) && return -255;
+         }
       }
    }elsif( ($split=index($TokenStr,'~',$k))>-1 ){
       #regular expression $string =~ /cat/ or $string =~m/cat/
@@ -695,7 +701,7 @@ my $limit;
    }else{
       $limit=$#ValClass;
    }
-my ($hashpos,$end_pos);
+my ($hashpos,$end_pos,$k,$increment);
       if( $ValPerl[$start+1] eq '(' ){
             $ValPy[$start+1]=''; #eliminate opening bracket for conditional -- Python does not have any
             $limit=matching_br($start+1); # effectily the end of statement.
@@ -789,10 +795,12 @@ my ($hashpos,$end_pos);
          if( $TokenStr eq 'cs(a)') {
             # loop over an array
              gen_chunk($ValPy[$start+3]);
-         }elsif( ($hashpos=index($TokenStr,'f(h)')) > -1 ){
+         }elsif( $TokenStr=~/\(f\(?h\)/ ){
             # foreach loop over a hash
+            $hashpos=index($TokenStr,'(f')+1;
             if( $ValPerl[$hashpos] eq 'keys' || $ValPerl[$hashpos] eq 'values'  ){
-                gen_chunk("$ValPy[$hashpos+2]$ValPy[$hashpos]()"); # translate keys function into postfix notation
+                $k=index($TokenStr,'h',$hashpos);
+                gen_chunk("$ValPy[$k]$ValPy[$hashpos]()"); # translate keys function into postfix notation
             }else{
                $FailedTrans=1; return -255;
             }
@@ -1027,7 +1035,7 @@ my($k,$myline, $target,$open_mode,$handle);
       }
    }elsif( $ValClass[$k] eq "'" || $ValClass[$k] eq '"'  ){
       # ValPerl does not preserve quotes
-      if( $ValPy[$k]=~/^(f*['"])([<>])+/ ){
+      if( $ValPy[$k]=~/^(f?['"])([<>])+/ ){
          $open_mode=$2;
          substr($ValPy[$k],length($1),1)='';
          $target=$ValPy[$k];
