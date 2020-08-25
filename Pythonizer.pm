@@ -1,7 +1,7 @@
 package Pythonizer;
 #
 ## ABSTRACT:  Supplementary subroutines for pythonizer
-## Includes logging subroutine(logme), autocommit, banner, abend, out and helpme
+## Includes logging subroutine: logme,  abend, out, getopts  and helpme
 ## Copyright Nikolai Bezroukov, 2019-2020.
 ## Licensed under Perl Artistic license
 # Ver      Date        Who        Modification
@@ -13,13 +13,15 @@ package Pythonizer;
 # 00.20  2020/02/03  BEZROUN   getline was moved from pythonyzer.
 # 00.30  2020/08/05  BEZROUN   preprocess_line was folded into getline.
 # 00.40  2020/08/17  BEZROUN   getops is now implemented in Softpano.pm to allow the repretion of option letter to set the value of options ( -ddd)
-# 00.41  2020/08/18  BEZROUN   Option -p added
+# 00.50  2020/08/24  BEZROUN   Option -p added
+# 00.60  2020/08/25  BEZROUN   __DATA__ and __END__ processing added
+# 00.61  2020/08/25  BEZROUN   POD processing  added
 
 use v5.10;
    use warnings;
    use strict 'subs';
    use feature 'state';
-   use Softpano qw(autocommit helpme abend banner logme out);
+   use Softpano qw(helpme abend logme out getopts);
 
 require Exporter;
 
@@ -39,7 +41,7 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line);
 #
 sub prolog
 {
-      Softpano::getopts("hp:b:t:v:d:",\%options);
+      getopts("hp:b:t:v:d:",\%options);
       if(  exists $options{'h'} ){
          helpme();
       }
@@ -100,9 +102,10 @@ sub prolog
          unless( -f $fname) {
             abend("Input file $fname does not exist");
          }
-         $output_file=substr($ARGV[0],0,rindex($ARGV[0],'.')).'.py';
+         $source_file=substr($ARGV[0],0,rindex($ARGV[0],'.'));
+         $output_file=$source_file.'.py';
          out("Results of transcription are written to the file  $output_file");
-         open (STDIN, "<-",) || die("Can't open $fname for reading");
+         open (STDIN, '<-',) || die("Can't open $fname for reading");
          open(SYSOUT,'>',$output_file) || die("Can't open $output_file for writing");
       }else{
          open(SYSOUT,'>-') || die("Can't open $STDOUT for writing");
@@ -153,7 +156,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
       #
       # firs we perform debufferization
       #
-      if (scalar(@buffer)) {
+      if( scalar(@buffer) ){
          $line=shift(@buffer);
       }else{
          $line=<>;
@@ -161,12 +164,29 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
       return $line unless (defined($line)); # End of file
       chomp($line);
       if (length($line)==0 || $line=~/^\s*$/ ){
-         output_line('');
+         output_line(''); # blank line
          next;
       }elsif( $line =~ /^\s*(#.*$)/ ){
-           # pure comment lines
-           output_line('',$1);
-           next;
+         # pure comment lines
+         output_line('',$1);
+         next;
+      }elsif( $line =~ /^__DATA__/ || $line =~ /__END__/){
+         # data block
+         $DB::single = 1;
+         open(SYSDATA,'>',"$source_file.data") || abend("Can't open file $source_file.data for writing. Check permissions" );
+         while( $line=<> ){
+            print SYSDATA $line;
+         }
+         close SYSDATA;
+         return $line;
+      }elsif( substr($line,0,1) eq '='){
+         # POD block
+         output_line('',q['''']);
+         while($line=<>){
+            last if($line eq '=cut');
+            output_line('',$line);
+         }
+         output_line('',q['''']);
       }
       $IntactLine=$line;
       if( substr($line,-1,1) eq "\r" ){
@@ -176,7 +196,6 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
       $line =~ s/^\s+//; # trim leading blanks
       return  $line;
    }
-
 }
 
 #::output_line -- Output line shifted properly to the current nesting level
