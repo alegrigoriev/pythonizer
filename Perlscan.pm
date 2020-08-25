@@ -19,21 +19,22 @@ package Perlscan;
 # 0.30 2019/11/14  BEZROUN   Parsing of literals completly reorganized.
 # 0.40 2019/11/14  BEZROUN   For now double quoted string are translatied into concatenation of components
 # 0.50 2019/11/15  BEZROUN   Better parsing of Perl literals implemented
-# 0.60 2019/11/19  BEZROUN   Problem of translation of ` ` (and rx() is that it is Python version dependent
-# 0.70 2019/11/20  BEZROUN   Problem of translation of tr/abc/def/ solved
-# 0.71 2019/12/20  BEZROUN   Here strings are now processed
-# 0.80 2020/02/03  BEZROUN   #\ means continuation of the statement. Allow processing multiline statements (should be inserted by perl_normalizer)
-# 0.81 2020/02/03  BEZROUN   If the line does not ends with ; { or } we assume that the statement is continued on the next line
-# 0.90 2020/05/16  BEZROUN   Nesting is performed from this module
-# 0.91 2020/06/15  BEZROUN   Tail comments are artifically made properties of the last token in the line
-# 0.92 2020/08/06  BEZROUN   gen_statement moved from pythonizer, ValCom became a local array
-# 0.93 2020/08/08  BEZROUN   Diamond operator (<> <HANDLE>) is treated now as identifier
-# 0.94 2020/08/09  BEZROUN   gen_chunk moves to Perlscan module. Pythoncode array made local
-# 0.95 2020/08/10  BEZROUN   Postfix statements accomodated
-# 0.96 2020/08/11  BEZROUN   scanning of regular expressions improved. / qr and 'm' are treated uniformly
-# 0.97 2020/08/12  BEZROUN   Pre_default_var is remaned indefault_var
-# 0.97 2020/08/14  BEZROUN   Decoding of system variables in double quoted literals implemented
-# 0.98 2020/08/18  BEZROUN   f-strings are generated for double quoted literals for Python 3.8
+# 0.51 2019/11/19  BEZROUN   Problem of translation of ` ` (and rx() is that it is Python version dependent
+# 0.52 2019/11/20  BEZROUN   Problem of translation of tr/abc/def/ solved
+# 0.53 2019/12/20  BEZROUN   Here strings are now processed
+# 0.60 2020/02/03  BEZROUN   Allow processing multiline statements
+# 0.61 2020/02/03  BEZROUN   If the line does not ends with ; { or } we assume that the statement is continued on the next line
+# 0.62 2020/05/16  BEZROUN   Nesting is performed from this module
+# 0.63 2020/06/15  BEZROUN   Tail comments are artifically made properties of the last token in the line
+# 0.64 2020/08/06  BEZROUN   gen_statement moved from pythonizer, ValCom became a local array
+# 0.65 2020/08/08  BEZROUN   Diamond operator (<> <HANDLE>) is treated now as identifier
+# 0.66 2020/08/09  BEZROUN   gen_chunk moved to Perlscan module. Pythoncode array made local
+# 0.70 2020/08/10  BEZROUN   Postfix statements accomodated
+# 0.71 2020/08/11  BEZROUN   scanning of regular expressions improved. / qr and 'm' are treated uniformly
+# 0.72 2020/08/12  BEZROUN   Pre_default_var is remaned indefault_var
+# 0.73 2020/08/14  BEZROUN   Decoding of system variables in double quoted literals implemented
+# 0.74 2020/08/18  BEZROUN   f-strings are generated for double quoted literals for Python 3.8
+# 0.75 2020/08/25  BEZROUN   vatible for other namespaces are recognized now
 use v5.10;
 use warnings;
 use strict 'subs';
@@ -377,13 +378,17 @@ my ($l,$m);
                decode_scalar($source,1);
             }
          }elsif( $s eq '@'  ){
-            if( $source=~/^.(\w+)/ ){
+            if( substr($source,1)=~/^(\:?\:?\w+(\:\:\w+)*)/ ){
                if( $1 eq '_') {
                   $ValPy[$tno]="perl_arg_array";
                }elsif( $1 eq 'ARGV'  ){
                     $ValPy[$tno]='sys.argv';
                }else{
-                  $ValPy[$tno]=$1
+                  $ValPy[$tno]=$1;
+                  $ValPy[$tno]=~tr/:/./s;
+                  if( substr($ValPy[$tno],0,1) eq '.' ){
+                     $ValPy[$tno]='main'.$ValPy[$tno];
+                  }
                }
                $cut=length($1)+1;
                $ValPerl[$tno]=substr($source,$cut);
@@ -392,11 +397,15 @@ my ($l,$m);
                $cut=1;
             }
          }elsif( $s eq '%'  ){
-            if ($source=~/^.(\w+)/) {
+            if( substr($source,1)=~/^(\:?\:?\w+(\:\:\w+)*)/ ){
+               $cut=length($1)+1;
                $ValClass[$tno]='h'; #hash
                $ValPerl[$tno]=$1;
                $ValPy[$tno]=$1;
-               $cut=length($1)+1;
+               $ValPy[$tno]=~tr/:/./s;
+               if( substr($ValPy[$tno],0,1) eq '.' ){
+                  $ValPy[$tno]='main'.$ValPy[$tno];
+               }
             }else{
               $cut=1;
             }
