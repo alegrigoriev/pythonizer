@@ -22,7 +22,7 @@ require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(autocommit helpme abend banner logme out);
+@EXPORT = qw(autocommit helpme abend banner logme out getopts);
 $VERSION = '1.10';
 #
 # NOTE: autocommit used only in debugging mode
