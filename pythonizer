@@ -62,6 +62,7 @@
 # 0.320  2020/08/20  BEZROUN   open statement and  (condition) && ... statement translation corrected
 # 0.400  2020/08/22  BEZROUN   _DATA_ and POD statements are now processed.
 # 0.410  2020/08/24  BEZROUN   pre_pythonizer now refactors Perl script pushing subroutines to the top and creating main sub.
+# 0.420  2020/08/25  BEZROUN   print can be called as function in constructs like if($debug){ print 'something';}
 #!start ===============================================================================================================================
 
    use v5.10;
@@ -656,11 +657,11 @@ my $howmany=$assign_end-$from+1;
       splice(@ValPy,$assign_start,1);
       $TokenStr=join('',@ValClass);
 }
+# Translation of shortcut i: ($debug) && print 'something'  or open() || die("cam't open");
 sub short_cut_if
 {
 my $start=$_[0];
 my $k;
-   my $start=$_[0];
    $limit=matching_br($start);
    gen_chunk('if ');
    $k=expression($start+1,$limit,0);
@@ -791,16 +792,22 @@ my ($hashpos,$end_pos,$k,$increment);
          }
          return($#ValClass);
       }elsif( $ValPerl[$start] eq 'for' || $ValPerl[$start] eq 'foreach' ){
-         gen_chunk("$ValPy[$start] $ValPy[$start+1] in ");
-         if( $TokenStr eq 'cs(a)') {
+         gen_chunk($ValPy[$start]);
+         if ($ValClass[$start+1] eq 's'){
+            gen_chunk($ValPy[$start+1].' in ');
+         }else{
+            gen_chunk('default_var in ');
+         }
+         $start=index($TokenStr,'(',$start);
+         if( substr($TokenStr,$start) eq '(a)') {
             # loop over an array
-             gen_chunk($ValPy[$start+3]);
-         }elsif( $TokenStr=~/\(f\(?h\)/ ){
+              gen_chunk($ValPy[$start+1]);
+         }elsif( substr($TokenStr,$start)=~/^\(f\(?h\)/ ){
             # foreach loop over a hash
-            $hashpos=index($TokenStr,'(f')+1;
-            if( $ValPerl[$hashpos] eq 'keys' || $ValPerl[$hashpos] eq 'values'  ){
-                $k=index($TokenStr,'h',$hashpos);
-                gen_chunk("$ValPy[$k]$ValPy[$hashpos]()"); # translate keys function into postfix notation
+            $start++; # skip '('
+            if( $ValPerl[$start] eq 'keys' || $ValPerl[$start] eq 'values'  ){
+                $hashpos=index($TokenStr,'h',$start);
+                gen_chunk("$ValPy[$hashpos].$ValPy[$start]()"); # translate keys function into postfix notation
             }else{
                $FailedTrans=1; return -255;
             }
