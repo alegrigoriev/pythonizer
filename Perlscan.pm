@@ -390,7 +390,7 @@ my ($l,$m);
             $ValClass[$tno]='a'; #array
 
          }elsif( $s eq '%'  ){
-            if ($source=~/^.([a-zA-Z]+)/) {
+            if ($source=~/^.(\w+)/) {
                $ValClass[$tno]='h'; #hash
                $ValPerl[$tno]=$1;
                $ValPy[$tno]=$1;
