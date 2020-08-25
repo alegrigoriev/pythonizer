@@ -206,7 +206,7 @@ sub output_line
 my $line=(scalar(@_)==0 ) ? $IntactLine : $_[0];
 my $tailcomment=(scalar(@_)==2 ) ? $_[1] : '';
 my $indent=' ' x $::TabSize x $CurNest;
-my $flag=( $::FailedTrans && scalar(@_)==1 ) ? 'FAIL' : '    ';
+my $flag=( $::FailedTrans ) ? 'FAIL' : '    ';
 my $len=length($line);
 my $maxline=80;
 my $prefix=sprintf('%4u',$.)." | $CurNest | $flag |";
