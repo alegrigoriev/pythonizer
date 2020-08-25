@@ -207,7 +207,7 @@ sub output_line
 my $line=(scalar(@_)==0 ) ? $IntactLine : $_[0];
 my $tailcomment=(scalar(@_)==2 ) ? $_[1] : '';
 my $indent=' ' x $::TabSize x $CurNest;
-my $flag=( $::FailedTrans && scalar(@_)==1 ) ? 'FAIL' : '    ';
+my $flag=( $::TrStatus < 0 ) ? 'FAIL' : '    ';
 my $len=length($line);
 my $maxline=80;
 my $prefix=sprintf('%4u',$.)." | $CurNest | $flag |";
@@ -219,9 +219,14 @@ my $orig_tail_len=length($tailcomment);
    }
    # Special case of empty line or "pure" comment that needs to be indented
    if( $len==0 ){
+      if ($::TrStatus < 0) {
+         out($prefix,join(' ',@::ValPy)." #FAIL $IntactLine");
+         say SYSOUT join(' ',@::ValPy)." #FAIL $IntactLine";
+      }else{
          out($prefix,$tailcomment);
          say SYSOUT $tailcomment;
-         return;
+      }
+      return;
    }
    $line=($line=~/^\s+(.*)$/ )? $indent.$1 : $indent.$line;
    say SYSOUT $line;
