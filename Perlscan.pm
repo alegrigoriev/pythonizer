@@ -377,18 +377,20 @@ my ($l,$m);
                decode_scalar($source,1);
             }
          }elsif( $s eq '@'  ){
-            $source=~/^.(\w+)/;
-            if( $1 eq '_') {
-               $ValPy[$tno]="perl_arg_array";
-            }elsif( $1 eq 'ARGV'  ){
-                 $ValPy[$tno]='sys.argv';
+            if( $source=~/^.(\w+)/ ){
+               if( $1 eq '_') {
+                  $ValPy[$tno]="perl_arg_array";
+               }elsif( $1 eq 'ARGV'  ){
+                    $ValPy[$tno]='sys.argv';
+               }else{
+                  $ValPy[$tno]=$1
+               }
+               $cut=length($1)+1;
+               $ValPerl[$tno]=substr($source,$cut);
+               $ValClass[$tno]='a'; #array
             }else{
-               $ValPy[$tno]=$1
+               $cut=1;
             }
-            $cut=length($1)+1;
-            $ValPerl[$tno]=substr($source,$cut);
-            $ValClass[$tno]='a'; #array
-
          }elsif( $s eq '%'  ){
             if ($source=~/^.(\w+)/) {
                $ValClass[$tno]='h'; #hash
