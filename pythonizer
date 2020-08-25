@@ -399,11 +399,11 @@ $start=$_[0];
    $start++;
    if( $ValClass[$start] eq 'i' ){
       #printing to file handle
-       gen_chunk(' >>'.$ValPy[1]); # this is Python 2.7 for 3.x   print('hello world', file=file_object)
+       gen_chunk(' >>'.$ValPy[$start]); # this is Python 2.7
        $start++;
    }
    $rc=expression($start,$#ValClass,0);
-   if( $ValPerl[0] eq 'print' ){
+   if( $ValPerl[$start] eq 'print' ){
       if( $Perlscan::PythonCode[-1] =~ qr[\\n["']$] ){
           substr($Perlscan::PythonCode[-1],-3,2)=''; # convert print into say
       }else{
@@ -435,7 +435,7 @@ my ($k,$handle);
    }
    if( $handle){
       #printing to file handle
-       gen_chunk(',file=',$handle); # this is Python 2.7 for 3.x   print('hello world', file=file_object)
+       gen_chunk(',file=',$handle); #  Python   3.x:   print('hello world', file=file_object)
    }
    if ($ValPerl[$start] eq 'print'){
       if ($ValPerl[$start] eq 'print' &&  $Perlscan::PythonCode[-1]=~qr[\\n["']$] ){
