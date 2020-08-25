@@ -176,9 +176,9 @@ my $start;
          }
       }elsif( $ValPerl[0] =~ /say|print/ ){
           if( $PyV==3 ){
-             $rc=print3(); # in Python3 this is a function
+             $rc=print3(0); # in Python3 this is a function
           }else{
-             $rc=print2();
+             $rc=print2(0);
           }
        }elsif( $ValClass[0] eq 's' ){
           $rc=assignment(0);
@@ -391,8 +391,9 @@ sub finish
 #
 sub print2
 {
-   gen_chunk($ValPy[0]);
-   $start=1;
+$start=$_[0];
+   gen_chunk($ValPy[$start]);
+   $start++;
    if( $ValClass[$start] eq 'i' ){
       #printing to file handle
        gen_chunk(' >>'.$ValPy[1]); # this is Python 2.7 for 3.x   print('hello world', file=file_object)
@@ -413,33 +414,36 @@ sub print2
 #
 sub print3
 {
-my ($start,$k);
+my $start=$_[0];
+my ($k,$handle);
 # end="") instead of trainli comma
-   gen_chunk($ValPy[0],'(');
-   $start=$k=1;
-   if ($TokenStr=~/^fi$/) {
-      gen_chunk('file='.$ValPy[1].')');
-      return $start+2;
-   }
-   $k=$start+1 if( $ValClass[$start] eq 'i' );
-   $rc=expression($start+1,$#ValClass,0);
-   if( $rc<0 ){ $FailedTrans=1; return;}
-   if ($ValPerl[0] eq 'print' &&  $Perlscan::PythonCode[-1]=~qr[\\n["']$] ){
-      substr($Perlscan::PythonCode[-1],-3,2)='';
-      $ValPerl[0]='say';
-   }
-   if( $ValClass[$start] eq 'i' ){
-      #printing to file handle
-       gen_chunk(',file=',$ValPy[1]); # this is Python 2.7 for 3.x   print('hello world', file=file_object)
-       $start++;
-   }
-   if ($ValPerl[0] eq 'print'){
-      gen_chunk(',end="")');
+   gen_chunk($ValPy[$start],'(');
+   $k=index($TokenStr,'i',$start);
+   if ($k>-1) {
+      $handle=$ValPy[$k];
    }else{
-      #say
-      gen_chunk(')');
+      $handle='';
+      $k=$start;
    }
-   return $rc;
+   $k++; # move past handle
+   if( $#ValClass>=$k ){
+      $rc=expression($k,$#ValClass,0);
+      if( $rc<0 ){ $FailedTrans=1; return;}
+   }
+   if( $handle){
+      #printing to file handle
+       gen_chunk(',file=',$handle); # this is Python 2.7 for 3.x   print('hello world', file=file_object)
+   }
+   if ($ValPerl[$start] eq 'print'){
+      if ($ValPerl[$start] eq 'print' &&  $Perlscan::PythonCode[-1]=~qr[\\n["']$] ){
+         substr($Perlscan::PythonCode[-1],-3,2)=''; # Perl print was actually say
+      }else{
+         gen_chunk(',end=""');
+      }
+   }
+   #say
+   gen_chunk(')');
+   return scalar(@ValClass);
 } # print3
 #
 # Nov 11, 2019 Now assignment assepts not only the index of the first token, but also index of the last.
@@ -648,6 +652,8 @@ my $howmany=$assign_end-$from+1;
 }
 sub short_cut_if
 {
+my $start=$_[0];
+my $k;
    my $start=$_[0];
    $limit=matching_br($start);
    gen_chunk('if ');
@@ -662,20 +668,20 @@ sub short_cut_if
    $k=$limit+2;
    if( $#ValClass==$k ){
       gen_chunk($ValPy[$k]);
-   }elsif( $ValClass[$k]=~/[ikf]/ && $ValClass[$k+1] eq '(' ){
+   }elsif( $ValClass[$k]=~/[ikf]/ ){
       $k=function($k);
    }elsif( index($TokenStr,'=',$k)>-1 ){
       $k=assignment($k,$#ValClass);
+   }else{
+      $FailedTrans=1; return -255;
    }
    gen_statement();
-   if( $k<0){
-      $FailedTrans=1;
-      return -255;
-   }
    correct_nest(-1,-1);
    return $#ValClass;
-
 }
+#
+# Process all control statements
+#
 sub control
 {
 my $start=$_[0];
@@ -788,9 +794,10 @@ my ($hashpos,$end_pos);
             if( $ValPerl[$hashpos] eq 'keys' || $ValPerl[$hashpos] eq 'values'  ){
                 gen_chunk("$ValPy[$hashpos+2]$ValPy[$hashpos]()"); # translate keys function into postfix notation
             }else{
-               $FailedTrans=1;
-               return -255;
+               $FailedTrans=1; return -255;
             }
+         }else{
+            $FailedTrans=1; return -255;
          }
          gen_chunk(':');
          return $#ValClass;
@@ -949,6 +956,14 @@ my ($end_pos,$k,$split,$split2);
          }
 
          return $start+5;
+      }elsif($ValPerl[$start] eq 'print' ) {
+         if( $PyV==3 ){
+             $rc=print3($start); # in Python3 this is a function
+         }else{
+             $rc=print2($start);
+         }
+         if ($rc<0) { return -255; }
+         return scalar($ValClass);
       }
       #
       # Generic function
