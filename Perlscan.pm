@@ -80,7 +80,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                    'sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','defined'=>'perl_defined',
                 'rindex'=>'.rfind',
                 'unless'=>'if not ', 'until'=>'while not ','unlink'=>'os.unlink', 'use'=>'import', 'uc'=>'.upper()', 'ucfirst'=>'.capitalize()',
-               ' STDERR'=>'sys.stderr','STDIN'=>'sys.stdin',  '__LINE__' =>'sys._getframe().f_lineno',
+                'STDERR'=>'sys.stderr','STDIN'=>'sys.stdin',  '__LINE__' =>'sys._getframe().f_lineno',
+                'warn'=>'print',
                );
 
        %TokenType=('eq'=>'>','ne'=>'>','lt'=>'>','gt'=>'>','le'=>'>','ge'=>'>','x'=>'*',
@@ -101,7 +102,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'rindex'=>'f','read'=>'f', 'return'=>'C',
                   'say'=>'f','scalar'=>'f','shift'=>'f', 'split'=>'f', 'sprintf'=>'f', 'sort'=>'f','system'=>'f', 'state'=>'t', 'sub'=>'k','substr'=>'f',
                   'values'=>'f',
-                  'when'=>'C', 'while'=>'c',
+                  'warn'=>'f', 'when'=>'C', 'while'=>'c',
                   'unless'=>'c', 'until'=>'c','uc'=>'f', 'ucfirst'=>'f','use'=>'c',
                   );
 
@@ -174,7 +175,11 @@ my ($l,$m);
                   last;
                }else{
                   # comment after ; this is end of statement
-                  $ValCom[-1]=substr($source,1); # comment attributed to the last token
+                  if ($tno==0) {
+                     Pythonizer::getline(substr($source,1)); # save tail that we be processed as the next line.
+                  }else{
+                    $ValCom[$tno-1]=substr($source,1); # comment attributed to the last token
+                  }
                   $source='';
                   last;
                }
@@ -215,7 +220,7 @@ my ($l,$m);
                 last; # artificially truncating the line making it one-symbol line
              }elsif( length($source)==1 || substr($source,1)=~/^\s*#/ || $ValClass[$tno-1] eq ')'   ){
                 # $tno>0 this is the case when curvy bracket is the last statement on the line ot is preceded by ')'
-                Pythonizer::getline($source); # make is a new line to be proceeed later
+                Pythonizer::getline($source); # make it a new line to be proceeed later
                 popup();  # kill the last symbol
                 last;
              }
@@ -227,7 +232,7 @@ my ($l,$m);
               $ValClass[$tno]='q';
               $cut=single_quoted_literal($s,1);
               $ValPerl[$tno]=substr($source,1,$cut-2);
-              perl_re();
+              perl_re(); # uses cut
          }elsif( $s eq "'"  ){
             #simple string, but backslashes of  are allowed
             $ValClass[$tno]="'";
@@ -278,7 +283,7 @@ my ($l,$m);
             $ValPy[$tno]=$ValPerl[$tno]=$val;
             $cut=length($val);
         }elsif( $s=~/\w/  ){
-            $source=~/(\w+)/;
+            $source=~/^(\w+(\:\:\w+)*)/;
             $w=$1;
             $ValPerl[$tno]=$w;
             $cut=length($w);
@@ -291,7 +296,7 @@ my ($l,$m);
                $class=$TokenType{$w};
                $ValClass[$tno]=$class;
                if( $class eq 'c' && $tno > 0 ) {
-                  # postfix conditional statement, line next if( line eq ''); Aug 10, 2020 --NNB
+                  # postfix conditional statement, like next if( line eq ''); Aug 10, 2020 --NNB
                    Pythonizer::getline('{');
                    Pythonizer::getline(substr($_[0],0,length($_[0])-length($source)));
                    Pythonizer::getline('}');
@@ -327,28 +332,36 @@ my ($l,$m);
                       $cut=single_quoted_literal($delim,length($w)+1);
                       $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
                       perl_re();
+
                    }elsif($w eq 'tr' || $w eq 'y' || $w eq  's'  ){
                      # tr function has two parts; also can be named y
-                     $cut=single_quoted_literal($delim,length($w)+1);
-                     $arg1=substr($source,length($w)+1,$cut-length($w)-2);
-                     if( substr($source,$cut,1) eq $delim && index('{([<',$delim) == -1  ){
+                     $source=substr($source,length($w)+1); # cure the word and delimiter
+                     $cut=single_quoted_literal($delim,0);
+                     $arg1=substr($source,0,$cut-1);
+                     $source=substr($source,$cut); # remove first part of substitution
+                     if( substr($source,0,1) eq $delim && index('{([<',$delim) == -1  ){
                         $arg2='';
-                        $cut++;
+                        $cut=1;
+                        $source=substr($source,$cut);
                      }else{
                         if( index('{([<',$delim) > -1  ){
-                           $delim=substr($source,$cut,1);
-                           $cut2=single_quoted_literal($delim,$cut+1);
-                           $arg2=substr($source,$cut+1,$cut2-$cut-2);
-                        }else{
-                           $cut2=single_quoted_literal($delim,$cut);
-                           $arg2=substr($source,$cut,$cut2-$cut-1);
+                           $delim=substr($source,0,1);
+                           $source=substr($source,1);
                         }
-                        $cut=$cut2;
-                      }
+                        $cut=single_quoted_literal($delim,0);
+                        $arg2=substr($source,0,$cut-1);
+                        $source=substr($source,$cut);
+                     }
+                     if( $source=~/^(\w+)/ ){
+                        $source=substr($source,length($1));
+                        $::TrStatus=-255;
+                        Softpano::logme('S',"Perl modifier '$1' has no direct counterparts in Python. Used in line $. : $_[0]");
+                     }
+                     $cut=0;
                       if( $w eq 'tr'  ){
                           $ValClass[$tno]='f';
                           $ValPerl[$tno]='tr';
-                          $ValPy[$tno]="maketrans('$arg1','$arg2')"; # needs to be translated into  two statements
+                          $ValPy[$tno]="maketrans(r'$arg1',r'$arg2')"; # needs to be translated into  two statements
                       }else{
                           $ValClass[$tno]='f';
                           $ValPerl[$tno]='m';
@@ -387,7 +400,7 @@ my ($l,$m);
                   $ValPy[$tno]=$1;
                   $ValPy[$tno]=~tr/:/./s;
                   if( substr($ValPy[$tno],0,1) eq '.' ){
-                     $ValPy[$tno]='main'.$ValPy[$tno];
+                     $ValPy[$tno]='__main__'.$ValPy[$tno];
                   }
                }
                $cut=length($1)+1;
@@ -404,15 +417,15 @@ my ($l,$m);
                $ValPy[$tno]=$1;
                $ValPy[$tno]=~tr/:/./s;
                if( substr($ValPy[$tno],0,1) eq '.' ){
-                  $ValPy[$tno]='main'.$ValPy[$tno];
+                  $ValPy[$tno]='__main__'.$ValPy[$tno];
                }
             }else{
               $cut=1;
             }
-         }elsif( $s eq '['  ){
+         }elsif( $s eq '[' || $s eq '(' ){
             $ValClass[$tno]='('; # we treat anything inside curvy backets as expression
             $cut=1;
-         }elsif( $s eq ']'  ){
+         }elsif( $s eq ']' || $s eq ')' ){
             $ValClass[$tno]=')'; # we treat anything inside curvy backets as expression
             $cut=1;
          }elsif( $s=~/\W/  ){
@@ -444,7 +457,7 @@ my ($l,$m);
               }
             }elsif( $s eq '<'  ){
                # diamond operator
-               if( $source=~/<(\w*)>/) {
+               if( $source=~/^<(\w*)>/) {
                   $ValClass[$tno]='i';
                   $cut=length($1)+2;
                   $ValPerl[$tno]="<$1>";
@@ -548,12 +561,12 @@ my $rc=-1;
       }
       $ValPy[$tno]='len($1)-1';
       $cut=length($1)+2;
-   }elsif( $source=~/^.(\w*\:\:\w+)/ || $source=~/^.(\w+)/ ){
+   }elsif( $source=~/^.(\w*(\:\:\w+)*)/ ){
       $cut=length($1)+1;
       $name=$1;
       $ValPy[$tno]=$name;
       if( $update ){
-           $ValPerl[$tno]=substr($source,0,$cut+1);
+           $ValPerl[$tno]=substr($source,0,$cut);
       }
       if( ($k=index($name,'::')) > -1 ){
          if( $k==0 || substr($name,$k) eq 'main' ){
@@ -637,6 +650,15 @@ my  $is_regex=0;
            $ValPy[$tno]='default_var.re.match(r'.escape_quotes($ValPerl[$tno],2).')';
        }
    }
+   $source=substr($source,$cut);
+   if( $source=~/^(\w+)/ ){
+     $source=substr($source,length($1));
+     $::TrStatus=-255;
+     Softpano::logme('S',"Manual translation requered. Perl modifier '$1' has no direct counterparts in Python. Line $.: $_[0]");
+     $cut=length($1);
+   }else{
+      $cut=0;
+   }
 } # perl_re
 #
 # Remove the last item from stack
@@ -644,7 +666,7 @@ my  $is_regex=0;
 sub popup
 {
     pop(@ValClass);
-    pop(@$ValPerl);
+    pop(@ValPerl);
     pop(@ValPy);
     pop(@ValCom);
 }
@@ -656,8 +678,10 @@ sub single_quoted_literal
 my ($m,$sym);
 # The problem is decomposting single quotes string is that for brackets closing delimiter is different from opening
 # The second problem is that \n in single quoted string in Perl means two symbols and in Python a single symbol (newline)
-      $closing_delim=~tr/{[(</}])>/;
-      #simple string, but osnmebacklashes are allowed
+      if(index('{[(<',$closing_delim)>-1){
+         $closing_delim=~tr/{[(</}])>/;
+      }
+      # only backlashes are allowed
       for($m=$offset; $m<=length($source); $m++) {
          $sym=substr($source,$m,1);
          last if( $sym eq $closing_delim && substr($source,$m-1,1) ne '\\' );
@@ -797,7 +821,7 @@ my $line='';
       for($i=0; $i<@_;$i++) {
          Pythonizer::output_line($_[$i]);
       }
-   }elsif( $::FailedTrans && scalar(@ValPy)>0  ){
+   }elsif( $::TrStatus<0 && scalar(@ValPy)>0  ){
       $line=$ValPy[0];
       for( $i=1; $i<@ValPy; $i++  ){
          next unless(defined($ValPy[$i]));
