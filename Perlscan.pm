@@ -192,7 +192,7 @@ my ($l,$m);
                 last; # artificially truncating the line making it one-symbol line
              }elsif( length($source)==1 || substr($source,1)=~/^\s*#/ || $ValClass[$tno-1] eq ')'  ){
                 # $tno>0 this is the case when curvy bracket is the last statement on the line ot is preceded by ')'
-                Pythonizer::getline($source); # make is a new line to be proceeed later
+                Pythonizer::getline($source); # make it a new line to be proceeed later
                 popup();  # kill the last symbol
                 last;
              }
@@ -287,7 +287,7 @@ my ($l,$m);
                   $w=escape_backslash($ValPerl[$tno]);
                   $ValPy[$tno]=escape_quotes($w);
                }elsif( $w eq 'qq' ){
-                  # decompose doublke quote populate $ValPy[$tno] as a side effect
+                  # decompose double quote populate $ValPy[$tno] as a side effect
                   $cut=double_quoted_literal($delim,length($w)+1); # side affect populates $ValPy[$tno] and $ValPerl[$tno]
 
                }elsif( $w eq 'qx' ) {
