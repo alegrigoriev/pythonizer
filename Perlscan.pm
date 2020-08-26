@@ -814,7 +814,7 @@ my $line='';
       for($i=0; $i<@_;$i++ ){
          Pythonizer::output_line($_[$i]);
       }
-   }elsif( $::FailedTrans && scalar(@ValPy)>0 ){
+   }elsif( $::TrStatus<0 && scalar(@ValPy)>0 ){
       $line=$ValPy[0];
       for( $i=1; $i<@ValPy; $i++ ){
          next unless(defined($ValPy[$i]));
