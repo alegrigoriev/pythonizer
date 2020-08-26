@@ -67,8 +67,11 @@ sub prolog
       }
 
        if(  exists $options{'b'}  ){
-         $options{'b'}=1 if $options{'b'} eq '';
-         if( $options{'b'}>=0  && $options{'b'}<900 ){
+         unless ($options{'b'}){
+           logme('S',"Option -b should have a numberic value. There is no default.");
+           exit 255;
+         }
+         if( $options{'b'}>=0  && $options{'b'}<9000 ){
             $::breakpoint=$options{'b'};
             ($::debug) && logme('W',"Breakpoint  set to line  $::breakpoint");
          }else{
@@ -172,7 +175,6 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          next;
       }elsif( $line =~ /^__DATA__/ || $line =~ /__END__/){
          # data block
-         $DB::single = 1;
          open(SYSDATA,'>',"$source_file.data") || abend("Can't open file $source_file.data for writing. Check permissions" );
          while( $line=<> ){
             print SYSDATA $line;
@@ -206,7 +208,7 @@ sub output_line
 my $line=(scalar(@_)==0 ) ? $IntactLine : $_[0];
 my $tailcomment=(scalar(@_)==2 ) ? $_[1] : '';
 my $indent=' ' x $::TabSize x $CurNest;
-my $flag=( $::FailedTrans ) ? 'FAIL' : '    ';
+my $flag=( $::TrStatus < 0 ) ? 'FAIL' : '    ';
 my $len=length($line);
 my $maxline=80;
 my $prefix=sprintf('%4u',$.)." | $CurNest | $flag |";
@@ -218,9 +220,14 @@ my $orig_tail_len=length($tailcomment);
    }
    # Special case of empty line or "pure" comment that needs to be indented
    if( $len==0 ){
+      if ($::TrStatus < 0) {
+         out($prefix,join(' ',@::ValPy)." #FAIL $IntactLine");
+         say SYSOUT join(' ',@::ValPy)." #FAIL $IntactLine";
+      }else{
          out($prefix,$tailcomment);
          say SYSOUT $tailcomment;
-         return;
+      }
+      return;
    }
    $line=($line=~/^\s+(.*)$/ )? $indent.$1 : $indent.$line;
    say SYSOUT $line;
