@@ -650,6 +650,15 @@ my  $is_regex=0;
            $ValPy[$tno]='default_var.re.match(r'.escape_quotes($ValPerl[$tno],2).')';
        }
    }
+   $source=substr($source,$cut);
+   if( $source=~/^(\w+)/ ){
+     $source=substr($source,length($1));
+     $::TrStatus=-255;
+     Softpano::logme('S',"Manual translation required. Perl modifier '$1' has no direct counterparts in Python. Line $.: $_[0]");
+     $cut=length($1);
+   }else{
+      $cut=0;
+   }
 } # perl_re
 #
 # Remove the last item from stack
