@@ -666,7 +666,7 @@ my  $is_regex=0;
 sub popup
 {
     pop(@ValClass);
-    pop(@$ValPerl);
+    pop(@ValPerl);
     pop(@ValPy);
     pop(@ValCom);
 }
