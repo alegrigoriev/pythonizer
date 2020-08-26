@@ -678,8 +678,10 @@ sub single_quoted_literal
 my ($m,$sym);
 # The problem is decomposting single quotes string is that for brackets closing delimiter is different from opening
 # The second problem is that \n in single quoted string in Perl means two symbols and in Python a single symbol (newline)
-      $closing_delim=~tr/{[(</}])>/;
-      #simple string, but osnmebacklashes are allowed
+      if( index('{[(<',$closing_delim)>-1 ){
+         $closing_delim=~tr/{[(</}])>/;
+      }
+      # only backlashes are allowed
       for($m=$offset; $m<=length($source); $m++ ){
          $sym=substr($source,$m,1);
          last if( $sym eq $closing_delim && substr($source,$m-1,1) ne '\\' );
