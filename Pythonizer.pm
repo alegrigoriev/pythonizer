@@ -62,7 +62,11 @@ sub prolog
       }
 
        if(  exists $options{'b'}  ){
-         if( $options{'b'}>=0  && $options{'b'}<900 ){
+         unless ($options{'b'}){
+           logme('S',"Option -b should have a numberic value. There is no default.");
+           exit 255;
+         }
+         if( $options{'b'}>=0  && $options{'b'}<9000 ){
             $::breakpoint=$options{'b'};
             ($::debug) && logme('W',"Breakpoint  set to line  $::breakpoint");
          }else{
