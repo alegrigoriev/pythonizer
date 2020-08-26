@@ -297,7 +297,7 @@ my ($l,$m);
                $class=$TokenType{$w};
                $ValClass[$tno]=$class;
                if( $class eq 'c' && $tno > 0 ){
-                  # postfix conditional statement, line next if (line eq ''); Aug 10, 2020 --NNB
+                  # postfix conditional statement, like next if (line eq ''); Aug 10, 2020 --NNB
                    Pythonizer::getline('{');
                    Pythonizer::getline(substr($_[0],0,length($_[0])-length($source)));
                    Pythonizer::getline('}');
