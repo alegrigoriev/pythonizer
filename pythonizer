@@ -68,7 +68,8 @@
 # 0.450  2020/08/26  BEZROUN   Option - r (refactor) added
 # 0.500  2020/08/31  BEZROUN   Regular expression processing competly reworked based on changed in  Perlscan
 # 0.510  2020/08/31  BEZROUN   Special subroutine for putting regex in quote created in Perlscan.pm
-# 0.520  2020/08/31  BEZROUN   Statement  $line=~/(abc)/ this is not actual  assignment statement and should  be treated differently.
+# 0.520  2020/08/31  BEZROUN   Statement  $line=~/abc/ this is not assignment statement; In no metacharaters it should  be treated as string search.
+# 0.530  2020/08/31  BEZROUN   Handling of __DATA and __END__ improved. Now they are not discarded but instead the separate file with extention.data is created.
 #!start ===============================================================================================================================
 
    use v5.10;
@@ -84,7 +85,7 @@
    use Perlscan qw(gen_statement  tokenize gen_chunk @ValClass  @ValPerl  @ValPy $TokenStr);
    use Pythonizer qw(correct_nest getline prolog epilog output_line);
 
-   $VERSION='0.50';
+   $VERSION='0.53';
 #
 # options
 #
@@ -136,7 +137,7 @@ my $start;
       last unless(defined($line));
       $TrStatus=0;
       if( $debug>1 ){
-         say STDERR "\n\n === Line $. Perl source: |",$line,"| === \n";
+         say STDERR "\n\n === Line $. Perl source: $line ===\n";
          if( $.>=$breakpoint ){
             unless ( $DB::single ){
                logme('S', "Breakpoint was triggered at line $. in pythonizer.pl");
@@ -149,7 +150,7 @@ my $start;
 #
       tokenize($line);
       if( scalar(@ValClass)==0 ){
-          $line=getline();
+          $line=getline(); # skip broken
           next;
       }
       #
@@ -737,8 +738,8 @@ my $k;
       return -255 if( $k<0 );
    }elsif( $ValPerl[$k] eq 'return' ||$ValPerl[$k]  eq 'exit'){
       gen_chunk($ValPy[$k],'(');
-      $k++ if($ValClass[$k+1] eq '(');
-      $limit=( $ValClass[-1] eq ')' ) ? $#valClass-1 : $#ValClass;
+      $k++ if( $ValClass[$k+1] eq '(' );
+      $limit=( $ValClass[-1] eq ')' ) ? $#ValClass-1 : $#ValClass;
       $k=expression($k+1,$limit,0);
       return -255 if( $k<0 );
       gen_chunk($ValPy[$k],')');
