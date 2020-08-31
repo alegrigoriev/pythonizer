@@ -182,6 +182,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
       }elsif( $line =~ /^__DATA__/ || $line =~ /^__END__/){
          # data block
          open(SYSDATA,'>',"$source_file.data") || abend("Can't open file $source_file.data for writing. Check permissions" );
+         logme('W',"Tail data after __DATA__ or __END__ line are detected in Perl Script. They are written to a separate file $source_file.data");
          while( $line=<> ){
             print SYSDATA $line;
          }
