@@ -37,7 +37,7 @@ blockquote {font-size: 10pt; font-family: arial; background: #F9F9F9}
 
 <h1>Pythonizer user guide </h1>
 
-<h3>Version 0.4 (Aug 22, 2020)</h3>
+<h3>Version 0.5 (Aug 31, 2020)</h3>
 
 <table border="1" width="100%" bgcolor="#FFFFCC">
    <tr>
@@ -67,6 +67,8 @@ blockquote {font-size: 10pt; font-family: arial; background: #F9F9F9}
 
     <li><b><a href="#Options">Options</a></b></li>
 
+    <li><b><a href="#Logs">Logs</a></b></li>
+
     <li><b><a href="#Structure">Structure</a></b></li>
 
     <li><b><a href="#Installation">Installation</a></b></li>
@@ -92,24 +94,35 @@ researchers who work in it) but know only Perl. </p>
 compiler technologies, that falls into the category of &quot;small language compliers&quot; with the total effort around one man-year or less. Assuming ten lines per day of debugged code for the task of complexity comparable with the writing of compilers, the estimated 
 size should be around 3-5K lines of code (~1K line phase 1 and 2-3K line phase 2).</p>
 
-<p>Processing consists of two passes, which currently are not integrated in any away</p>
+<p>Currently code base reached 3.5K and that close to the&nbsp; limit on which I can maintain this codebase as a hobby project, so 
+some ideas need to be abandoned. </p>
 
-<pre>pre-pythonizer [options] &lt;file&gt;
+<p>Processing consists of two passes, which currently are not integrated in any away with pre-pythonizer mainly providing 
+refactoring of Perl code to create main procedure and move all subroutines up so that were defined before use.&nbsp; It can be used 
+as as separate utility of in integrated way via <tt>-r</tt> (<b><i>refactor</i></b>) option in pythonizer. </p>
+
+<pre>pre-pythonizer [options] &lt;file&gt;  # currently performs is refactoring of  Perl script, 
+                                 # pushing subroutines to the top and creating <tt>main</tt> sub
+                                 # out of code not included  into any subroutine. 
 pythonizer [options] &lt;file&gt;</pre>
 
-<p>The first pass is optional and it just increase probability of more correct translation of the code. It reformat the code so that 
+<p>In any case the first pass is currently fully optional and need transformations of Perl code can be performed by other utilities. 
+It just slightly increase probability of more correct translation of the code. It reformat the code so that 
 curvy brackets were mostly on separate lines (this was useful for pythonizer up to version 0.2; later versions&nbsp; do not depend 
 on this transformation.) </p>
 
-<p>Another useful function that it currently performs is refactoring of&nbsp; Perl script, pushing subroutines to the top and 
-creating <tt>main</tt> sub out of code not included&nbsp; into any subroutine. This operation, of course, can be performed manually, 
-but this is a necessary step of preparation of Perl script to the translation.&nbsp; </p>
-
 <h3><a name="The_current_version">The current version</a></h3>
 
-<p>This guide corresponds to version 0.4 of pythonizer. Running&nbsp; <tt>pythonizer -h</tt> provides a&nbsp; list of options. </p>
+<p>This guide corresponds to version 0.5 of pythonizer. Running&nbsp; <tt>pythonizer -h</tt> provides a&nbsp; list of options. </p>
 
 <blockquote>
+
+   <p><b>Changes since version 0.4</b></p>
+
+   <p>
+   <span style="color: rgb(36, 41, 46); font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Helvetica, Arial, sans-serif, &quot;Apple Color Emoji&quot;, &quot;Segoe UI Emoji&quot;; font-size: 16px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; background-color: rgb(255, 255, 255); text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;">&nbsp;Regular 
+   expression and tr function translation was improved. Many other changes and error corrections. -r (refactor) option implemented to 
+   allow refactoring Perl source via pre-pythonlizer.pl in integrated fashion.</span></p>
 
    <p><b>Changes&nbsp; since version 0.3</b></p>
    <ul>
@@ -154,49 +167,62 @@ manually.&nbsp; </span></p>
 
 <ul class="simple">
 
-   <li>The Pythonizer is implemented in Perl 5.10+ and does not used any non standard Perl libraries. </li>
+   <li>The Pythonizer is implemented in Perl 5.10+ and does not use any non standard Perl libraries. </li>
 
-   <li>Converts most of Perl 4 style code typical for sysadmin scripts into Python. that includes loops, special variables, function 
+   <li>Converts most of Perl 4 style code typical for sysadmin scripts into Python. That includes loops, special variables, function 
    calls, lists, hashes,&nbsp; etc.</li>
+
+   <li>Recognizes some Perl idioms and special cases. Perform limited optimization of Perl in case this is possible (for example use 
+   of replace function&nbsp; instead or regular expression in&nbsp; case bother source and target are plain strings. it also optimize some types of split function when the regex supplied to Perl actually is a string and does not contain any 
+   metacharacters. </li>
 
    <li>Whenever there is no equivalent Python function for a Perl function, the function is emulated. currently this is done only in 
    case when this does not require additional Python library.</li>
 
-   <li>Optimize some types of split function when the regex supplied to Perl actually is a string and does not contain any 
-   metacharacters. </li>
-
-   <li>Perl special variables are renamed to selected Python names and used consistently </li>
+   <li>Perl special variables are renamed to selected Python names and used consistently. But that does not mean that they are 
+   correctly populated. </li>
 
    <li>Limited translation of double quoted literals with scalars inside list elements and hash elements and ‘here-documents’ is 
    supported. Most common special variable are also translated to their equivalents in double quoted operators. </li>
 
    <li>Arguments to Perl subroutines are emulated via lists</li>
+
+   <li>In case Perl control constructs are missing in Python (for example <tt>(debug&gt;0) say $line</tt>; or <tt>open(SYSIN,'&lt;',',$mytext) 
+   || die(&quot;Can't open the file $mytest\n&quot;);</tt></li>
 </ul>
 
 <h4><a name="Limitations">Limitations</a></h4>
 <ul class="simple">
 
-   <li>No OO constructs&nbsp; such as <tt>bless</tt> and <tt>package</tt> statement are translated.&nbsp; Use statement and import 
+   <li>No OO constructs&nbsp; such as <tt>bless</tt> and <tt>package</tt> statement are translated.&nbsp; The <tt>use</tt> statement and import 
    and expert of variables from modules also need to be translated manually.&nbsp; </li>
 
    <li>The content of&nbsp; ‘BEGIN’, ‘END’ blocked is translated but blocks itself need to be emulated manually.&nbsp; Please not 
-   that these blocks are executed at time of execution of Perl interpreter, not at the time of execution of&nbsp; the script. </li>
+   that these blocks are executed at time of execution of Perl interpreter, not at the time of execution of&nbsp; the script, so 
+   opportunities to match Perl semantic here are limited&nbsp; </li>
 
-   <li>References are not translated correctly. In many cases of usage of references in Perl this is very difficult to do and 
+   <li>References are not translated correctly. In many cases of usage of references in Perl this is very difficult to do expressing 
+   the same algorithms in Python which hide references&nbsp; 
    requires restructuring of the program. </li>
 </ul>
 
 <h3><a name="Options">Options</a></h3>
 
-<p>Currently only 3 user options are supported (<tt>pythonizer -h</tt> provides a&nbsp; list of options):&nbsp; </p>
+<p>All option with small numeric value can be expressed by&nbsp; repeating the letter, so<tt> -p 2</tt> is equivalent to <tt>-pp.</tt> </p>
+
+<p>Currently only few user options are supported (<tt>pythonizer -h</tt> provides a&nbsp; list of options):&nbsp; </p>
 <ul>
 
-   <li><tt>-p</tt> - The version of Python used for generation. Default is 3.8 (can be set explicitly by specifying <tt>-p 3</tt>) 
-   You can set 2.7 by using&nbsp; <tt>-p 2</li>
+   <li><tt>-p</tt> -- The version of Python used for generation. Default is 3.8 (can be set explicitly by specifying <tt>-p 3</tt>) 
+   You can set 2.7 by using&nbsp; <tt>-p 2</tt></li>
 
-   <li><tt></tt>-v</tt> - verbosity <tt>-v 0</tt> -minimal verbosity <tt>-v 3</tt> -- max verbosity</li>
+   <li><tt>-v</tt> -- verbosity <tt>-v 0</tt> -minimal verbosity <tt>-v 3</tt> -- max verbosity; can also be expresses as <tt>-v <tt>
+   </tt>-vv</tt> and <tt>-vvv </tt>-- forms to which Unix user got used in other utilities</li>
 
-   <li><tt>-t</tt>&nbsp; - tab size for generated code; default<tt> -t 4</tt> </li>
+   <li><tt>-t</tt>&nbsp; -- tab size for generated code; the default<tt> -t 4</tt> </li>
+
+   <li><tt>-r</tt> -- refactor Perl code. If specified, before processing the script by pythonizer, it&nbsp; invokes <tt>pre-pythonizer</tt> on the source code. Of course this can be&nbsp; done manually 
+   with&nbsp; more control but this provides an integrated way to refactor the program. </li>
 </ul>
 
 <p><b>Options for developers</b></p>
@@ -211,6 +237,11 @@ manually.&nbsp; </span></p>
 <p>The same options work for the <tt>pre-pythonizer</tt>, but usually defaults are OK.&nbsp; There is no options to control 
 refactoring of the script. </p>
 
+<h3><a name="Logs">Logs</a></h3>
+
+<p>Currently logs are written to <tt>/tmp/Pythonizer&nbsp; </tt>You can redirect this to any directory via symlink.<tt> </tt>
+Currently there is no option to customize the location of the log. </p>
+
 <h3><a name="Structure">Structure</a></h3>
 
 <p>Pythonizer consists of the main program called, as you can guess, <tt>pythonizer</tt> and three modules (which currently need to 
@@ -224,8 +255,17 @@ reside in the same directory as the main program. Main program currently used th
    <li><tt>Softpano.pm</tt></li>
 
 </ul>
+The total size of the codebase in version 0.5 is around 3.9K lines: 
+<pre>
+ wc -l Perlscan.pm Pythonizer.pm  pythonizer  Softpano.pm perl_normalizer1.pl
+  1020 Perlscan.pm
+   325 Pythonizer.pm
+  1358 pythonizer
+   339 Softpano.pm
+   833 perl_normalizer1.pl
+  3875 total</pre>
 
-<p>The total size of the codebase in version 0.4 is around 3.5K lines: </p>
+<p>The total size of the codebase in version 0.4 is around 3.6K lines: </p>
 
 <pre>wc -l Perlscan.pm Pythonizer.pm  pythonizer  Softpano.pm pre_pythonizer.pl
    866 Perlscan.pm
@@ -237,10 +277,10 @@ reside in the same directory as the main program. Main program currently used th
 
 <h3><a name="Installation">Installation</a></h3>
 
-<p>You need to download or replicate the directory iether via git&nbsp; or via manual download. In the later case the main program 
-and three modules mentioned about should be put into a separate directory.</p>
+<p>You need to download or replicate the directory either via git&nbsp; or via manual download. In the later case the main program 
+and three modules mentioned about should be put into a separate directory. For example,&nbsp; <tt>/opt/Pythonizer </tt></p>
 
-<p>The directory into which the main program and modules are downloaded&nbsp; needs to be made current before the run. </p>
+<p>The directory into which the main program and modules are downloaded&nbsp; <em>needs to be made current before the run</em>. </p>
 
 <p>Currently main program and all modules should reside in a single directory from which you will run the program.&nbsp; </p>
 
@@ -258,14 +298,37 @@ which pythonizer resides should be current</em> otherwise modules will not be lo
 
 <p>If the program runs to the end you will get &quot;pythonized&quot; text in <tt>/path/to/your/program.py</tt></p>
 
-<p>It also produces protocol of translation as it goes which allows you to detect places that need to be commented out translated 
+<p>It also produces protocol of translation in <tt>/tmp/Pythonizer</tt>&nbsp; with size by side Perl and Python code, which allows you to 
+analyses the protocol detect places that need to be commented out translated 
 manually. </p>
 <hr>
 <!--#include virtual="/adv_news_pane.htm" -->
 <hr>
 <h2><a name="News">Old News</a> ;-) </h2>
 
-   <h4><b>[Aug 22, 2020] Version 0.4 uploaded</b></h4>
+<h4>[Aug 31, 2020] Version 0.5 uploaded</h4>
+
+   <blockquote>
+
+      <p><b>Changes since version 0.4</b></p>
+      <ul>
+
+         <li>
+         <span style="color: rgb(36, 41, 46); font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Helvetica, Arial, sans-serif, &quot;Apple Color Emoji&quot;, &quot;Segoe UI Emoji&quot;; font-size: 16px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; background-color: rgb(255, 255, 255); text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;">Regular 
+   expression and tr function translation was improved. </span></li>
+
+         <li>
+         <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji'; font-size: 16px; color: #24292E; letter-spacing: normal; background-color: #FFFFFF">
+         Many</span><span style="color: rgb(36, 41, 46); font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Helvetica, Arial, sans-serif, &quot;Apple Color Emoji&quot;, &quot;Segoe UI Emoji&quot;; font-size: 16px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; background-color: rgb(255, 255, 255); text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;"> other changes and error corrections. 
+         </span></li>
+
+         <li>
+         <span style="color: rgb(36, 41, 46); font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Helvetica, Arial, sans-serif, &quot;Apple Color Emoji&quot;, &quot;Segoe UI Emoji&quot;; font-size: 16px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; background-color: rgb(255, 255, 255); text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;">-r (refactor) option implemented to 
+   allow refactoring Perl source via pre-pythonlizer.pl in integrated fashion.</span></li>
+      </ul>
+</blockquote>
+
+<h4><b>[Aug 22, 2020] Version 0.4 uploaded</b></h4>
 <blockquote>
 
    <p><b>Changes&nbsp; since version 0.3</b></p>
