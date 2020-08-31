@@ -16,12 +16,13 @@ package Pythonizer;
 # 00.50  2020/08/24  BEZROUN   Option -p added
 # 00.60  2020/08/25  BEZROUN   __DATA__ and __END__ processing added
 # 00.61  2020/08/25  BEZROUN   POD processing  added
+# 00.70  2020/08/26  BEZROUN   Option - r (refactor) added
 
 use v5.10;
 use warnings;
 use strict 'subs';
 use feature 'state';
-use Softpano qw(helpme abend logme out getopts);
+use Softpano qw(abend logme out getopts standard_options);
 require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
@@ -34,27 +35,38 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line);
    $NextNest=$CurNest=0;
    $MAXNESTING=9;
    $VERSION = '1.10';
+   $refactor=0;
 
 #
 #::prolog --  Decode parameter for the pythonizer. all parameters are exported
 #
 sub prolog
 {
-      getopts("hp:b:t:v:d:",\%options);
-      if(  exists $options{'h'} ){
-         helpme();
+      getopts("hd:v:r:p:b:t:",\%options);
+#
+# Three standard otpiotn -h, -v and -d
+#
+      standard_options(\%options);
+#
+# Custom options specific for the application
+#
+      if(  exists $options{'r'}  ){
+         if( $options{'r'} eq ''){
+            $refactor='./prepythonizer.pl';
+         }else{
+            if ( -f $options{'r'} ){
+              $refactor=$options{'r'};
+            }else{
+               logme('S',"file $options{'r'} does not exist (may be you need to specify path to the file)\n");
+               exit 255;
+            }
+         }
+         unless (-x $refactor) {
+             logme('S',"File $options{'r'} specifed in option -r is not executable\n");
+             exit 255;
+         }
       }
 
-      if(  exists $options{'d'}  ){
-         $options{'d'}=1 if $options{'d'} eq '';
-         if( $options{'d'} =~/^\d$/ ){
-            $::debug=$options{'d'};
-         }else{
-            logme('S',"Wrong value of option -d. If can be iether set of d letters like -ddd or an integer like -d 3 . You supplied the value  $options{'d'}\n");
-            exit 255;
-         }
-         ($::debug) && logme('W',"Debug flag is set to $::debug ::PyV");
-      }
       if(  exists $options{'p'}  ){
          if( $options{'p'}==2  || $options{'p'}==3 ){
             $::PyV=$options{'p'};
@@ -65,30 +77,19 @@ sub prolog
          }
       }
 
-       if(  exists $options{'b'}  ){
-         unless ($options{'b'}){
-           logme('S',"Option -b should have a numberic value. There is no default.");
+      if(  exists $options{'b'}  ){
+        unless ($options{'b'}){
+          logme('S',"Option -b should have a numberic value. There is no default.");
+          exit 255;
+        }
+        if( $options{'b'}>=0  && $options{'b'}<9000 ){
+           $::breakpoint=$options{'b'};
+           ($::debug) && logme('W',"Breakpoint  set to line  $::breakpoint");
+        }else{
+           logme('S',"Wrong value of option -b (line for debugger breakpoint): $options('b')\n");
            exit 255;
-         }
-         if( $options{'b'}>=0  && $options{'b'}<9000 ){
-            $::breakpoint=$options{'b'};
-            ($::debug) && logme('W',"Breakpoint  set to line  $::breakpoint");
-         }else{
-            logme('S',"Wrong value of option -b (line for debugger breakpoint): $options('b')\n");
-            exit 255;
-         }
+        }
       }
-
-      if(  exists $options{'v'} ){
-         $options{'v'}=1 if $options{'v'} eq '';
-         if( $options{'v'} =~/\d/ && $options{'v'}<3 && $options{'v'}>0 ){
-            $::verbosity=$options{'v'};
-         }else{
-             logme('S',"Wrong value of option -v. Should be an interger from 1 to 3. The value given was: $options('v')\n");
-             exit 255;
-         }
-      }
-
       if(  exists $options{'t'}  ){
          $options{'t'}=1 if $options{'t'} eq '';
          if( $options{'t'}>1  && $options{'t'}<10 ){
@@ -98,7 +99,9 @@ sub prolog
             exit 255;
          }
       }
-
+#
+# Application arguments
+#
       if (scalar(@ARGV)==1) {
          $fname=$ARGV[0];
          unless( -f $fname) {
@@ -107,6 +110,10 @@ sub prolog
          $source_file=substr($ARGV[0],0,rindex($ARGV[0],'.'));
          $output_file=$source_file.'.py';
          out("Results of transcription are written to the file  $output_file");
+         if ($refactor) {
+             out("Option -r (refactor) was specified. file refactored using $refactor as the fist pass over the source code");
+            `$refactor -v 0 $fname`;
+         }
          open (STDIN, '<-',) || die("Can't open $fname for reading");
          open(SYSOUT,'>',$output_file) || die("Can't open $output_file for writing");
       }else{
