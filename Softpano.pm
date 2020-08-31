@@ -164,18 +164,18 @@ my $script_mod_stamp;
 sub logme
 {
 #our $top_severity; -- should be defined globally
-my $error_code=substr($_[0],0,1);
+my $error_code=uc(substr($_[0],0,1));
 my $error_suffix=(length($_[0])>1) ? substr($_[0],1,1):''; # suffix T means add timestamp
 my $message=$_[1];
       chomp($message); # we will add \n ourselves
-state ($msg_cutlevel1, $msg_cutlevel2, @ermessage_db, @ercounter); # remeber they are statically scoped
+state ($msg_cutlevel1, $msg_cutlevel2, @ermessage_db, @ercounter); # remember they are statically scoped
 
 #
 # special cases -- ercode "D" means set msglevel1 and msglevel2, ' ' means print STDERR in log and console -- essentially out with messsage header
 #
 
       if( $error_code eq 'D' ){
-         # NOTE You can dynamically change Verbosity within the script by issue D message.
+         # NOTE You can dynamically change Verbosity within the script by issuing D message.
          # Set script name and message  prefix
          if ($_[1]>0) {
             $msg_cutlevel1=length("WEST")-$_[1]-1; # Verbosity 3 is max and means 4-3-1 =0 is index correcponfing to  ('W')
@@ -214,8 +214,9 @@ state ($msg_cutlevel1, $msg_cutlevel2, @ermessage_db, @ercounter); # remeber the
 # Generate diagnostic message from error code, line number and message (optionally timestamp is suffix of error code is T)
 #
       $message=" $filename [$lineno$error_code]: $message";
-      my $severity=index("west",lc($error_code));
+      my $severity=index("WEST",uc($error_code));
       if( $severity == -1 ){
+         # all unknown codes.
          out($message);
          return;
       }
