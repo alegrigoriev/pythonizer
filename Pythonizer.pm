@@ -180,7 +180,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          # pure comment lines
          output_line('',$1);
          next;
-      }elsif( $line =~ /^__DATA__/ || $line =~ /__END__/){
+      }elsif( $line =~ /^__DATA__/ || $line =~ /^__END__/){
          # data block
          open(SYSDATA,'>',"$source_file.data") || abend("Can't open file $source_file.data for writing. Check permissions" );
          while( $line=<> ){
