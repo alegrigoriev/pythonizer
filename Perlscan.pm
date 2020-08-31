@@ -34,11 +34,15 @@ package Perlscan;
 # 0.72 2020/08/12  BEZROUN   Pre_default_var is remaned indefault_var
 # 0.73 2020/08/14  BEZROUN   Decoding of system variables in double quoted literals implemented
 # 0.74 2020/08/18  BEZROUN   f-strings are generated for double quoted literals for Python 3.8
-# 0.75 2020/08/25  BEZROUN   vatible for other namespaces are recognized now
+# 0.75 2020/08/25  BEZROUN   variable for other namespaces are recognized now
+# 0.76 2020/08/27  BEZROUN   Special subroutine for putting regex in quote created
+# 0.80 2020/08/31  BEZROUN   Handling of regex improved
+#==start=============================================================================================
 use v5.10;
 use warnings;
 use strict 'subs';
 use feature 'state';
+use Softpano qw(abend logme out);
 #use Pythonizer qw(correct_nest getline prolog epilog output_line);
 require Exporter;
 
@@ -141,6 +145,7 @@ my ($l,$m);
                $tno--;
                $ValCom[$tno]=$source;
                $source=Pythonizer::getline();
+               last if( $source=~/^\s*[;{}]\s*(#.*)?$/); # single closing statement symnol on the line.
                next;
             }
             print("Internal error in scanner\n");
@@ -193,12 +198,11 @@ my ($l,$m);
             if( $tno==0 ){
                  # we recognize it as the end of the block if '}' is the first symbol
                 if( length($source)>1 ){
-
                    Pythonizer::getline(substr($source,1)); # save tail
                    $source=$s; # this was we artifically create line with one symbol on it;
                 }
                 last; # we need to process it as a separate one-symbol line
-            }elsif( length($source)==1 ){
+            }elsif( $tno>0 && length($source)==1 ){
                 # NOTE: here $tno>0 and we reached the last symbol of the line
                 # we recognize it as the end of the block
                 #curvy bracket as the last symbol of the line
@@ -228,11 +232,18 @@ my ($l,$m);
             $ValPy[$tno]='[';
             $cut=1;
          }elsif( $s eq '/' && ($tno==0 || index('~(',$ValClass[$tno-1])>-1) ){
-            # slash means regex in three cases: if(/abc/ ){0}; $a=~/abc/; /abc/; but split(/,/,$tst) Crazy staff
+              # slash means regex in following cases: if(/abc/ ){0}; $a=~/abc/; /abc/; split(/,/,$tst) REALLY CRAZY STAFF
               $ValClass[$tno]='q';
               $cut=single_quoted_literal($s,1);
               $ValPerl[$tno]=substr($source,1,$cut-2);
-              perl_re(); # uses cut
+              $source=substr($source,$cut);
+              $cut=0;
+              if( $tno>=2 && $ValClass[$tno-2] eq 'f' ){
+                 # in split regex should be plain vanilla -- no re.match is needed.
+                 $ValPy[$tno]=$quoted_regex; #  double quotes neeed to be escaped just in case
+              }else{
+                 $ValPy[$tno]=perl_match($ValPerl[$tno]); # there can be modifiers after the literal.
+              }
          }elsif( $s eq "'" ){
             #simple string, but backslashes of  are allowed
             $ValClass[$tno]="'";
@@ -264,20 +275,20 @@ my ($l,$m);
              $ValPy[$tno]='subprocess.check_output("'.$ValPerl[$tno].'")';
          }elsif( $s=~/\d/ ){
             # processing of digits should preceed \w ad \w includes digits
-            if( $source=~/(\d+(?:[.e]\d+)?)/ ){
+            if( $source=~/(^\d+(?:[.e]\d+)?)/ ){
                 $val=$1;
-                $ToSub[$tno]='e';
-            }elsif( $source=~/(0x\w+)/ ){
+                #$ValType[$tno]='e';
+            }elsif( $source=~/^(0x\w+)/ ){
                # need to add octal andhexadecila later
                $val=$1;
-               $ToSub[$tno]='x';
+               #$ValType[$tno]='x';
             }elsif( $source=~/(0b\d+)/ ){
                #binary
                $val=$1;
-               $ToSub[$tno]='b';
-            }elsif( $source=~/(\d+)/ ){
+               #$ValType[$tno]='b';
+            }elsif(  $source=~/(\d+)/ ){
                 $val=$1;
-                $ToSub[$tno]='i';
+                #$ValType[$tno]='i';
             }
             $ValClass[$tno]='d';
             $ValPy[$tno]=$ValPerl[$tno]=$val;
@@ -327,46 +338,105 @@ my ($l,$m);
                      }else{
                         $cut=double_quoted_literal($delim,length($w)+1);
                      }
-                   }elsif( $w eq 'm' | $w eq 'qr' ){
-                     #executable
-                      $cut=single_quoted_literal($delim,length($w)+1);
-                      $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
-                      perl_re();
-
-                   }elsif( $w eq 'tr' || $w eq 'y' || $w eq  's' ){
-                     # tr function has two parts; also can be named y
-                     $source=substr($source,length($w)+1); # cure the word and delimiter
-                     $cut=single_quoted_literal($delim,0);
+                  }elsif( $w eq 'm' | $w eq 'qr' | $w eq 's' ){
+                     $source=substr($source,length($w)+1); # cut the word and delimiter
+                     $cut=single_quoted_literal($delim,0); # regex always ends before the delimiter
                      $arg1=substr($source,0,$cut-1);
-                     $source=substr($source,$cut); # remove first part of substitution
-                     if( substr($source,0,1) eq $delim && index('{([<',$delim) == -1 ){
-                        $arg2='';
-                        $cut=1;
-                        $source=substr($source,$cut);
-                     }else{
-                        if( index('{([<',$delim) > -1 ){
-                           $delim=substr($source,0,1);
-                           $source=substr($source,1);
+                     $source=substr($source,$cut); #cut to symbol after the delimiter
+                     $cut=0;
+                     if( $w eq 'm' || ($w eq 'qr' &&  $ValClass[$tno-1] eq '~') ){
+                        $ValClass[$tno]='q';
+                        $ValPy[$tno]=perl_match($arg1); # it calls is_regex internally
+                     }elsif( $w eq 'qr' && $tno>=2 && $ValClass[$tno-1] eq '(' && $ValPerl[$tno-2] eq 'split' ){
+                         # in split regex should be  plain vanilla -- no re.match is needed.
+                         $ValPy[$tno]='r'.$quoted_regex; #  double quotes neeed to be escaped just in case
+                     }elsif( $w eq 's' ){
+                        $ValPerl[$tno]='re';
+                        $ValClass[$tno]='f';
+                        # processing second part of 's'
+                        if( $delim=~tr/{([<'/{([<'/ ){
+                           # case tr[abc][cde]
+                           $delim=substr($source,0,1); # new delimiter can be different from the old, althouth this is raraly used in Perl.
+                           $source=substr($source,1,0); # remove delimiter
                         }
+                        # now string is  /def/d or [def]
                         $cut=single_quoted_literal($delim,0);
                         $arg2=substr($source,0,$cut-1);
                         $source=substr($source,$cut);
+                        $cut=0;
+                        $modifier=is_regex($arg2); # modifies $source as a side effect
+                        if( length($modifier) > 1 ){
+                           #regex with modifiers
+                            $quoted_regex='re.compile('.put_regex_in_quotes($arg1)."$modifier)";
+                        }else{
+                           # No modifier
+                           $quoted_regex=put_regex_in_quotes($arg1);
+                        }
+                        if( length($modifier)>0 ){
+                           #this is regex
+                           if( $tno>=1 && $ValClass[$tno-1] eq '~' ){
+                              # explisit s
+                               $ValPy[$tno]='re.sub('.$quoted_regex.','.put_regex_in_quotes($arg2).','; #  double quotes neeed to be escaped just in case
+                           }else{
+                               $ValPy[$tno]=put_regex_in_quotes("re.match($quoted_regex,default_var)");
+                           }
+                        }else{
+                           # this is string replace operation coded in Perl as regex substitution
+                           $ValPy[$tno]='str.replace('.$quoted_regex.','.$quoted_regex.',1)';
+                        }
+                     }else{
+                        abend("Internal error while analysing $w in line $. : $_[0]");
                      }
+                  }elsif( $w eq 'tr' || $w eq 'y' ){
+                     # tr function has two parts; also can be named y
+                     $source=substr($source,length($w)+1); # cut the word and delimiter
+                     $cut=single_quoted_literal($delim,0);
+                     $arg1=substr($source,0,$cut-1); # regex always ends before the delimiter
+                     $source=substr($source,$cut); # remove first part of substitution exclufing including the delimeter
+                     if( index('{([<',$delim) > -1 ){
+                        # case tr[abc][cde]
+                        $delim=substr($source,0,1); # new delimiter can be different from the old, althouth this is raraly used in Perl.
+                        $source=substr($source,1,0); # remove delimiter
+                     }
+                     # now string is  /def/d or [def]
+                     $cut=single_quoted_literal($delim,0);
+                     $arg2=substr($source,0,$cut-1);
+                     $source=substr($source,$cut);
                      if( $source=~/^(\w+)/ ){
+                        $tr_modifier=$1;
                         $source=substr($source,length($1));
-                        $::TrStatus=-255;
-                        Softpano::logme('S',"Perl modifier '$1' has no direct counterparts in Python. Used in line $. : $_[0]");
+                     }else{
+                        $tr_modifier='';
                      }
                      $cut=0;
-                      if( $w eq 'tr' ){
-                          $ValClass[$tno]='f';
-                          $ValPerl[$tno]='tr';
-                          $ValPy[$tno]="maketrans(r'$arg1',r'$arg2')"; # needs to be translated into  two statements
-                      }else{
-                          $ValClass[$tno]='f';
-                          $ValPerl[$tno]='m';
-                          $ValPy[$tno]=".re.sub(r'$arg1',r'$arg2')";
-                      }
+
+                     $ValClass[$tno]='f';
+                     $ValPerl[$tno]='tr';
+                     if( $tr_modifier eq 'd' ){
+                             $ValPy[$tno]=".maketrans('','',".put_regex_in_quotes($arg1).')'; # deletion via none
+                     }elsif( $tr_modifier eq 's' ){
+                          # sqeeze In Python should be done via Regular expressions
+                            if( $arg2 eq '' || $arg1 eq $arg2 ){
+                               $ValPerl[$tno]='re';
+                               $ValPy[$tno]='re.sub('.put_regex_in_quotes("([$arg1])(\\1+)").",r'\\1'),"; # needs to be translated into  two statements
+                            }else{
+                               $ValPerl[$tno]='re';
+                               if( $ValClass[$tno-2] eq 's' ){
+                                   $ValPy[$tno]="$ValPy[$tno-2].translate($ValPy[$tno-2].maketrans(".put_regex_in_quotes($arg1).','.put_regex_in_quotes($arg2).')); ';
+                                   $ValPy[$tno].='re.sub('.put_regex_in_quotes("([$arg2])(\\1+)").",r'\\1'),"; # needs to be translated into  two statements
+                               }else{
+                                   $::TrStatus=-255;
+                                   $ValPy[$tno].='re.sub('.put_regex_in_quotes("([$arg2])(\\1+)").",r'\\1'),";
+                                   logme('S',"The modifier $tr_modifier for tr function with non empty second arg ($arg2) requires preliminary invocation of translate. Please insert it manually ");
+                               }
+                            }
+                     }elsif( $tr_modifier eq '' ){
+                         #one typical case is usage of array element on the left side $main::tail[$a_end]=~tr/\n/ /;
+                         $ValPy[$tno]='.maketrans('.put_regex_in_quotes($arg1).','.put_regex_in_quotes($arg2).')'; # needs to be translated into  two statements
+                     }else{
+                         $::TrStatus=-255;
+                         logme('S',"The modifier $tr_modifier for tr function currently is not translatable. Manual translation requred ");
+                     }
 
                   }elsif( $w eq 'qw' ){
                       $cut=single_quoted_literal($delim,length($w)+1);
@@ -504,9 +574,14 @@ my ($l,$m);
 #
 sub finish
 {
-   substr($source,0,$cut)='';
+   if( $cut>length($source) ){
+      logme('S',"The value of cut ($cut) exceeded the length (".length($source).") of the string: $source ");
+      $source='';
+   }elsif( $cut>0 ){
+      substr($source,0,$cut)='';
+   }
    if( length($source)==0 ){
-       # the current line ended by ; of { } was not reached
+       # the current line ended but ; or { } were not reached
        $source=Pythonizer::getline();
    }
    if( $::debug > 3 ){
@@ -514,10 +589,13 @@ sub finish
    }
    $tno++;
 }
-#
-#decode scalar
-#
+
 sub decode_scalar
+# Returns codes via variable $rc.-1 -special variable; 1 -regular variable
+# NOTE: currently return value is not used. Aug 28, 2020 --NNB
+# Has two modes of operation
+#    update=1 -- set ValClass and ValPerl
+#    update=0 -- set only ValPy
 {
 my $source=$_[0];
 my $update=$_[1]; # if update is zero then only ValPy is updated
@@ -609,57 +687,80 @@ my $rc=-1;
    }
    return $rc;
 }
-#
-# How to translate regular expression depending on context
-# if(/regex/) --
+
+sub is_regex
+# is_regex -- Detemine if this is regex and if yes what are modifers (extract them from $source and encode in Python re.compline faschion
+# the dsicvered situation is determinged by length of the return
+#if there is modier then return modifier tranlated in re.complile notation (the string length is more then one)
+#if this is regex but there is no modifier return 'r'
+#if this is string and there is no modifier return '';
+{
+my $myregex=$_[0];
+my (@temp,$sym,$prev_sym,$i,$modifier);
+   if( $source=~/^(\w+)/ ){
+     $source=substr($source,length($1)); # cut modifier
+     $modifier='';
+     @temp=split(//,$1);
+      for( $i=0; $i<@temp; $i++ ){
+         $modifier.=',re.'.uc($temp[$i]);
+     }#for
+     $regex=1;
+     $cut=0;
+     return $modifier;
+   }
+   @temp=split(//,$myregex);
+   $prev_sym='';
+   for( $i=0; $i<@temp; $i++ ){
+      $sym=$temp[$i];
+      if( index('.*+()[]?^$|',$sym)>=-1 ){
+         return 'r'
+      }elsif( $prev_sym='\\' && lc($sym)=~/[bsdwSDW]/ ){
+         return 'r'
+      }
+      $prev_sym=$sym;
+   }#for
+   $cut=0;
+   return '';
+}
+# Parse regex in case the opeartion is search
+# ATTEMTION: this sub modifies $source curring regex modifier from it.
+# At the point of invocation the regex is removed from $source (it is passed as the first parameter) so that modifier can be analysed
+# if(/regex/) -- .re.match(default_var, r'regex')
 # if ($line=~/regex/ )
 # ($head,$tail)=split(/s/,$line)
 # used from '/', 'm' and 'qr'
-sub perl_re
+sub perl_match
 {
-my  ($i,$sym,$prev_sym,@my_regex);
+my $myregex=$_[0];
+
+my  ($modifier, $i,$sym,$prev_sym,@temp);
 my  $is_regex=0;
 #
 # Is this regex or a reguar string used in regex for search
 #
-    if( length($ValPerl[$tno])>1 ){
-      @my_regex=split(//,$ValPerl[$tno]);
-      for( $i=0; $i<@my_regex; $i++ ){
-         $sym=$my_regex[$i];
-         $prev_sym=($i>0)? $my_regex[$i-1] : ' ';
-         if( index('.*+()[]',$sym)>=-1 ){
-            $is_regex=1;
-            last;
-         }elsif( $prev_sym='\\' && lc($sym)=~/[bsdw]/ ){
-            $is_regex=1;
-            last;
-         }
-      }#for
-    }
-   $ValClass[$tno]="'" unless($is_regex);
-   if( $tno>=1 && $ValClass[$tno-1] eq '~' ){
-      # explisit or implisit 'm'
-      $ValPy[$tno]='.re.match(r'.escape_quotes($ValPerl[$tno],2).')'; #  double quotes neeed to be escaped just in case
-   }elsif( $tno>=2 && $ValClass[$tno-1] eq '(' && $ValPerl[$tno-2] eq 'split' ){
-       # in split regex should be  plain vanilla -- no re.match is needed.
-       $ValPy[$tno]='r'.escape_quotes($ValPerl[$tno],2); #  double quotes neeed to be escaped just in case
+   $modifier=is_regex($myregex);
+   if( length($modifier) > 1 ){
+      #regex with modifiers
+      $quoted_regex='re.compile('.put_regex_in_quotes($myregex).$modifier.')';
    }else{
-       if( index(join('',@ValClass),'c')>-1 ){
-           $ValPy[$tno]='re.match(r'.escape_quotes($ValPerl[$tno],2).')';
-       }else{
-           $ValPy[$tno]='default_var.re.match(r'.escape_quotes($ValPerl[$tno],2).')';
-       }
+      # No modifier
+      $quoted_regex=put_regex_in_quotes($myregex);
    }
-   $source=substr($source,$cut);
-   if( $source=~/^(\w+)/ ){
-     $source=substr($source,length($1));
-     $::TrStatus=-255;
-     Softpano::logme('S',"Manual translation required. Perl modifier '$1' has no direct counterparts in Python. Line $.: $_[0]");
-     $cut=length($1);
+   if( length($modifier)>0 ){
+      #this is regex
+      if( $tno>=1 && $ValClass[$tno-1] eq '~' ){
+         # explisit or implisit 'm'
+         return 're.match('.$quoted_regex.','; #  double quotes neeed to be escaped just in case
+      }else{
+         return put_regex_in_quotes("re.match($quoted_regex,default_var)");
+      }
    }else{
-      $cut=0;
+      # this is a string
+      $ValClass[$tno]="'";
+      return '.find('.escape_quotes($myregex).')';
    }
-} # perl_re
+
+} # perl_match
 #
 # Remove the last item from stack
 #
@@ -671,6 +772,7 @@ sub popup
     pop(@ValCom);
 }
 sub single_quoted_literal
+# ATTENTION: returns position after closing bracket
 # A backslash represents a backslash unless followed by the delimiter or another backslash,
 # in which case the delimiter or backslash is interpolated.
 {
@@ -737,8 +839,8 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
       }
       $result.='{' if( $::PyV==3 );  # we always need '{' for f-strings
       $quote=substr($quote,$k);
-      $rc=decode_scalar($quote,0); #get's us scalar or system var
-      #regular variable
+      decode_scalar($quote,0); #get's us scalar or system var
+      #does not matter what type of veriable this is: regular or special variable
       $result.=$ValPy[$tno]; # copy string determined by decode_scalar. It might changed if Perl contained :: like in $::PyV
       $quote=substr($quote,$cut); # cure the nesserary number of symbol determined by decode_scalar.
       if( $quote=~/^\s*([\[\{].+?[\]\}])/ ){
@@ -785,6 +887,22 @@ my $result;
 # We need to escape quotes
 #
    return qq(""").$string.qq(""");
+}
+sub put_regex_in_quotes
+{
+my $string=$_[0];
+my $ver=$_[1];
+my $quote=
+my $result;
+
+   return qq(r').$string.qq(') if(index($string,"'")==-1 ); # no need to escape any quotes.
+   return q(r").$string.qq(") if( index($string,'"')==-1 ); # no need to scape any quotes.
+
+#
+# We are forced to use triple quotes
+#
+   return qq(""").$string.qq(""");
+   return $result;
 }
 sub escape_backslash
 # All special symbols different from the delimiter and \ should be escaped when translating Perl single quoted literal to Python
@@ -861,8 +979,8 @@ my $line='';
    }elsif( $line ){
        Pythonizer::output_line('','#NOTRANS: '.$line);
    }
-   if( $::FailedTrans && $::debug ){
-      Softpano::out("\nTokens: $TokenStr ValPy: ".join(' '.@PythonCode));
+   if( $::TrStatus < 0  && $::debug ){
+      out("\nTokens: $TokenStr ValPy: ".join(' '.@PythonCode));
    }
 #
 # Prepare for the next line generation
@@ -880,9 +998,10 @@ my $i;
 #
 # Put generated chunk into array.
 #
-   for($i=0; $i<@_;$i++ ){
+   for($i=0; $i<@_;$i++) {
       if( scalar(@PythonCode) >256 ){
-         Softpano::logme('S',"Number of generated chunks for the line exceeded 256");
+         logme('S',"Number of generated chunks for the line exceeded 256");
+         sleep 5;
          if( $::debug > 0 ){
             $DB::single = 1;
          }
