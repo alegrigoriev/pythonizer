@@ -22,7 +22,7 @@ require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(autocommit helpme abend banner logme out getopts);
+@EXPORT = qw(autocommit abend banner logme out getopts standard_options);
 $VERSION = '1.10';
 #
 # NOTE: autocommit used only in debugging mode
@@ -254,7 +254,7 @@ sub stepin
 }
 sub getopts
 {
-my ($options_def,$hash)=@_;
+my ($options_def,$options_hash)=@_;
 my ($first,$rest,$pos,$cur_opt);
    while(@ARGV){
       $cur_opt=$ARGV[0];
@@ -277,32 +277,58 @@ my ($first,$rest,$pos,$cur_opt);
            shift(@ARGV); # get the value of option
            unless( @ARGV ){
               warn("End of line reached for option -$first which requires argument\n");
-              $$hash{$first}='';
+              $$options_hash{$first}='';
               last;
            }
            if ( $ARGV[0] =~/^-/ ) {
                warn("Option -$first requires argument\n");
-               $$hash{$first} = '';
+               $$options_hash{$first} = '';
            }else{
-               $$hash{$first}=$ARGV[0];
+               $$options_hash{$first}=$ARGV[0];
                shift(@ARGV); # get next chunk
            }
          } else {
             #value is concatenated with option like -ddd
             if( ($first x length($rest)) eq $rest ){
-               $$hash{$first} = length($rest)+1;
+               $$options_hash{$first} = length($rest)+1;
             }else{
-               $$hash{$first}=$rest;
+               $$options_hash{$first}=$rest;
             }
             shift(@ARGV);
          }
       }else {
-         $$hash{$first} = 1; # set the option
+         $$options_hash{$first} = 1; # set the option
          if ($rest eq '') {
             shift(@ARGV);
          } else {
             $ARGV[0] = "-$rest"; # there can be other options without arguments after the first
          }
+      }
+   }
+}
+sub standard_options
+{
+my $options_hash=$_[0];
+   if(  exists $$options_hash{'h'} ){
+      helpme();
+   }
+   if(  exists $$options_hash{'d'}  ){
+      $$options_hash{'d'}=1 if $$options_hash{'d'} eq '';
+      if( $$options_hash{'d'} =~/^\d$/ ){
+         $::debug=$$options_hash{'d'};
+      }else{
+         logme('S',"Wrong value of option -d. If can be either set of d letters like -ddd or an integer like -d 3 . You supplied the value  $$options_hash{'d'}\n");
+         exit 255;
+      }
+      ($::debug) && logme('W',"Debug flag is set to $::debug ::PyV");
+   }
+   if(  exists $$options_hash{'v'} ){
+      $$options_hash{'v'}=1 if $$options_hash{'v'} eq '';
+      if( $$options_hash{'v'} =~/\d/ && $$options_hash{'v'}<3 && $$options_hash{'v'}>0 ){
+         $::verbosity=$$options_hash{'v'};
+      }else{
+          logme('S',"Wrong value of option -v. Should be an integer from 1 to 3. The value given was: $$options_hash('v')\n");
+          exit 255;
       }
    }
 }
