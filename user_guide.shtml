@@ -189,6 +189,12 @@ manually.&nbsp; </span></p>
 
    <li>In case Perl control constructs are missing in Python (for example <tt>(debug&gt;0) say $line</tt>; or <tt>open(SYSIN,'&lt;',',$mytext) 
    || die(&quot;Can't open the file $mytest\n&quot;);</tt></li>
+
+   <li>Tail data after <tt>__DATA__</tt> or <tt>__END__ </tt>&nbsp;are converted to a separate file with the same name as script and<tt> 
+   .data</tt></li>
+
+   <li>List of statements for which pythonizer encountered difficulties and most probably did not translate correctly are produced 
+   at the end. </li>
 </ul>
 
 <h4><a name="Limitations">Limitations</a></h4>
@@ -221,7 +227,8 @@ manually.&nbsp; </span></p>
 
    <li><tt>-t</tt>&nbsp; -- tab size for generated code; the default<tt> -t 4</tt> </li>
 
-   <li><tt>-r</tt> -- refactor Perl code. If specified, before processing the script by pythonizer, it&nbsp; invokes <tt>pre-pythonizer</tt> on the source code. Of course this can be&nbsp; done manually 
+   <li><tt>-r</tt> -- refactor Perl code. If specified, before processing the script by the pythonizer, it&nbsp; invokes the <tt>pre-pythonizer</tt> 
+   preliminary pass on the source code. Of course this can be&nbsp; done manually 
    with&nbsp; more control but this provides an integrated way to refactor the program. </li>
 </ul>
 
@@ -257,12 +264,12 @@ reside in the same directory as the main program. Main program currently used th
 </ul>
 The total size of the codebase in version 0.5 is around 3.9K lines: 
 <pre>
- wc -l Perlscan.pm Pythonizer.pm  pythonizer  Softpano.pm perl_normalizer1.pl
+wc -l Perlscan.pm Pythonizer.pm  pythonizer  Softpano.pm pre_pythonizer.pl
   1020 Perlscan.pm
    325 Pythonizer.pm
   1358 pythonizer
    339 Softpano.pm
-   833 perl_normalizer1.pl
+   833 pre_pythonizer.pl
   3875 total</pre>
 
 <p>The total size of the codebase in version 0.4 is around 3.6K lines: </p>
