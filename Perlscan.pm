@@ -66,7 +66,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                  '?'=>'subprocess_rc',);
 
 
-   %keyword_tr=('eq'=>'==','ne'=>'!=','lt'=>'<','gt'=>'>','le'=>'<=','ge'=>'>=','x'=>' * ',
+   %keyword_tr=('eq'=>'==','ne'=>'!=','lt'=>'<','gt'=>'>','le'=>'<=','ge'=>'>=',
+                'x'=>' * ',
                 'caller'=>'unknown','chdir'=>'.os.chdir','chmod'=>'.os.chmod','chomp'=>'.rstrip("\n")','chop'=>'[0:-1]','chr'=>'chr','close'=>'.f.close',
                 'die'=>'raise','defined'=>'unknown',
                 'for'=>'for ','foreach'=>'for ',
@@ -79,16 +80,18 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'map'=>'map','mkdir'=>'os.mkdir', 'my'=>'',
                 'next'=>'continue ',
                 'own'=>'global', 'oct'=>'eval','ord'=>'ord',
-                'package'=>'import',
+                'package'=>'import','pop'=>'.pop()',
                 'split'=>'re.split','sort'=>'sort','scalar'=>'len', 'say'=>'print','state'=>'global','substr'=>'',
                    'sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','defined'=>'perl_defined',
                 'rindex'=>'.rfind',
                 'unless'=>'if not ', 'until'=>'while not ','unlink'=>'os.unlink', 'use'=>'import', 'uc'=>'.upper()', 'ucfirst'=>'.capitalize()',
                 'STDERR'=>'sys.stderr','STDIN'=>'sys.stdin',  '__LINE__' =>'sys._getframe().f_lineno',
                 'warn'=>'print',
+                'ucfirst'=>'.capitalize()','uc'=>'.upper()',
                );
 
-       %TokenType=('eq'=>'>','ne'=>'>','lt'=>'>','gt'=>'>','le'=>'>','ge'=>'>','x'=>'*',
+       %TokenType=('eq'=>'>','ne'=>'>','lt'=>'>','gt'=>'>','le'=>'>','ge'=>'>',
+                   'x'=>'*',
                   'y'=>'q', 'q'=>'q','qq'=>'q','qr'=>'q','wq'=>'q','wr'=>'q','qx'=>'q','m'=>'q','s'=>'q','tr'=>'q',
                   'caller'=>'f','chdir'=>'f','chomp'=>'f', 'chop'=>'f', 'chmod'=>'f','chr'=>'f','close'=>'f',
                   'default'=>'C','defined'=>'f','die'=>'f',
@@ -107,14 +110,14 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'say'=>'f','scalar'=>'f','shift'=>'f', 'split'=>'f', 'sprintf'=>'f', 'sort'=>'f','system'=>'f', 'state'=>'t', 'sub'=>'k','substr'=>'f',
                   'values'=>'f',
                   'warn'=>'f', 'when'=>'C', 'while'=>'c',
-                  'unless'=>'c', 'until'=>'c','uc'=>'f', 'ucfirst'=>'f','use'=>'c',
+                  'unless'=>'c', 'unshift'=>'f','until'=>'c','uc'=>'f', 'ucfirst'=>'f','use'=>'c',
                   );
 
 #
 # one to one translation of digramms. most are directly translatatble.
 #
    %digram_tokens=('++'=>'^', '--'=>'^', '+='=>'=', '-='=>'=', '.='=>'=', '%='=>'=', '=~'=>'~','!~'=>'~',
-                   '=='=>'>','!='=>'>','>='=>'>','<='=>'>','=>'=>':','->'=>'.',
+                   '=='=>'>','!='=>'>','>='=>'>','<='=>'>','=>'=>':','->'=>'.', # comparison
                    '<<' => 'H', '>>'=>'=', '&&'=>'0', '||'=>'0',
                    '*='=>'=', '/='=>'/', '**'=>'*', '::'=>'.' ); #and/or/not
 
@@ -144,13 +147,12 @@ my ($l,$m);
             if( $tno > 0  ){
                $tno--;
                $ValCom[$tno]=$source;
-               $source=Pythonizer::getline();
-               last if($source=~/^\s*[;{}]\s*(#.*)?$/); # single closing statement symnol on the line.
-               next;
+            }else{
+                Pythonizer::output_line('',$source); # to block reproducing the first source line
             }
-            print("Internal error in scanner\n");
-            $DB::single = 1;
-
+            $source=Pythonizer::getline();
+            last if($source=~/^\s*[;{}]\s*(#.*)?$/); # single closing statement symnol on the line.
+            next;
          }elsif( $s eq ';' ){
             #
             # buffering tail is possible only if banace of round bracket is zero
@@ -364,7 +366,7 @@ my ($l,$m);
                         $arg2=substr($source,0,$cut-1);
                         $source=substr($source,$cut);
                         $cut=0;
-                        $modifier=is_regex($arg2); # modifies $source as a side effect
+                        ($modifier,undef)=is_regex($arg2); # modifies $source as a side effect
                         if( length($modifier) > 1 ){
                            #regex with modifiers
                             $quoted_regex='re.compile('.put_regex_in_quotes($arg1)."$modifier)";
@@ -462,18 +464,23 @@ my ($l,$m);
             }
          }elsif( $s eq '@'  ){
             if( substr($source,1)=~/^(\:?\:?\w+(\:\:\w+)*)/ ){
-               if( $1 eq '_') {
+               $arg1=$1;
+               if( $arg1 eq '_') {
                   $ValPy[$tno]="perl_arg_array";
-               }elsif( $1 eq 'ARGV'  ){
+               }elsif( $arg1 eq 'ARGV'  ){
                     $ValPy[$tno]='sys.argv';
                }else{
-                  $ValPy[$tno]=$1;
+                  if( $ValClass[$tno-2] =~ /[sd'"q]/  && $ValClass[$tno-1] eq '>' || $ValClass[$tno-2] =~ /cC/ && $ValClass[$tno-1] eq '(' ){
+                     $ValPy[$tno]='len('.$arg1.')'; # scalar context
+                  }else{
+                     $ValPy[$tno]=$arg1;
+                  }
                   $ValPy[$tno]=~tr/:/./s;
                   if( substr($ValPy[$tno],0,1) eq '.' ){
                      $ValPy[$tno]='__main__'.$ValPy[$tno];
                   }
                }
-               $cut=length($1)+1;
+               $cut=length($arg1)+1;
                $ValPerl[$tno]=substr($source,$cut);
                $ValClass[$tno]='a'; #array
             }else{
@@ -629,7 +636,7 @@ my $rc=-1;
        if( $s2 eq '0' ) {
          $ValPy[$tno]="__file__";
        }else{
-          $ValPy[$tno]="rematch.group($1)";
+          $ValPy[$tno]="default_match.group($1)";
        }
        $cut=length($1)+1;
    }elsif( $s2 eq '#') {
@@ -637,7 +644,7 @@ my $rc=-1;
       if( $update ){
          $ValPerl[$tno]=$1;
       }
-      $ValPy[$tno]='len($1)-1';
+      $ValPy[$tno]='len('.$1.')-1';
       $cut=length($1)+2;
    }elsif( $source=~/^.(\w*(\:\:\w+)*)/ ){
       $cut=length($1)+1;
@@ -696,7 +703,8 @@ sub is_regex
 #if this is string and there is no modifier return '';
 {
 my $myregex=$_[0];
-my (@temp,$sym,$prev_sym,$i,$modifier);
+my (@temp,$sym,$prev_sym,$i,$modifier,$meta_no);
+   $modifier='r';
    if( $source=~/^(\w+)/ ){
      $source=substr($source,length($1)); # cut modifier
      $modifier='';
@@ -706,21 +714,25 @@ my (@temp,$sym,$prev_sym,$i,$modifier);
      }#for
      $regex=1;
      $cut=0;
-     return $modifier;
    }
    @temp=split(//,$myregex);
    $prev_sym='';
+   $meta_no=0;
    for( $i=0; $i<@temp; $i++ ){
       $sym=$temp[$i];
-      if( index('.*+()[]?^$|',$sym)>=-1 ){
-         return 'r'
-      }elsif ($prev_sym='\\' && lc($sym)=~/[bsdwSDW]/ ){
-         return 'r'
+      if ($prev_sym ne '\\' && $sym eq '(' ){
+         return($modifier,1);
+      }elsif( index('.*+()[]?^$|',$sym)>=-1 || $prev_sym eq '\\' && lc($sym)=~/[bsdwSDW]/){
+        $meta_no++;
       }
       $prev_sym=$sym;
    }#for
    $cut=0;
-   return '';
+   if( $meta_no>0 ){
+      #regular expression without groups
+      return ('r', 0);
+   }
+   return('',0);
 }
 # Parse regex in case the opeartion is search
 # ATTEMTION: this sub modifies $source curring regex modifier from it.
@@ -735,10 +747,11 @@ my $myregex=$_[0];
 
 my  ($modifier, $i,$sym,$prev_sym,@temp);
 my  $is_regex=0;
+my  $groups_are_present;
 #
 # Is this regex or a reguar string used in regex for search
 #
-   $modifier=is_regex($myregex);
+   ($modifier,$groups_are_present)=is_regex($myregex);
    if( length($modifier) > 1 ){
       #regex with modifiers
       $quoted_regex='re.compile('.put_regex_in_quotes($myregex).$modifier.')';
@@ -750,7 +763,11 @@ my  $is_regex=0;
       #this is regex
       if( $tno>=1 && $ValClass[$tno-1] eq '~'   ){
          # explisit or implisit 'm'
-         return 're.match('.$quoted_regex.','; #  double quotes neeed to be escaped just in case
+         if($groups_are_present) {
+            return 'default_match:=re.match('.$quoted_regex.','; #  double quotes neeed to be escaped just in case
+         }else{
+           return 're.match('.$quoted_regex.','; #  double quotes neeed to be escaped just in case
+         }
       }else{
          return put_regex_in_quotes("re.match($quoted_regex,default_var)");
       }
