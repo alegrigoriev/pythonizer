@@ -1,7 +1,7 @@
-## Pythonizer: "fuzzy" translator/transformer from Perl to Python 
-### THIS IS AN ANNOUNCEMENT FOR ALPHA VERSION 0.5
+## Translator from Perl to Python 
+### THIS IS AN ANNOUNCEMENT FOR ALPHA VERSION 0.5 of "FUZZY"  TRANSLATOR/TRANSRIBER FROM PERL TO PYTHON 
 
-Aug 31, 2020: Version 0.5 was uploaded. Regular expression and tr function translation was  improved. Many other changes and  error corrections. -r (refactor) option implemented to allow refactoring  Perl source via pre-pythonlizer.pl in integrated fashion. 
+Aug 31, 2020: Version 0.5 was uploaded. Regular expression and tr function translation was improved. Substr function translation improved. Many other changes and  error corrections. Option -r (refactor) implemented to allow refactoring. By default loads and run pre-pythonlizer.pl. As it changes the source, creating a backup,  you need to run it only once.  
 
 Aug 22, 2020: Version 0.4 was uploaded. The walrus operator and the f-strings now are used to tranlate Perl double quoted literals if option -p iset to 3 (default is -p=3). In this case Python 3.8 is used as the target language) 
 
@@ -29,17 +29,14 @@ Aug 05, 2020: Version 0.2 was uploaded.
 Here is an fragment of translation of pre-pythonizer.pl which exists in this repositorory. It demostrates how thecurrent version if pythonizer performs:  
     
 
-#### Example of tranlsation (version 0.2 alpha, Aug 12, 2020) 
+#### Example of translation 
 
 ```Perl
    PYTHONIZER: Fuzzy translator of Python to Perl. Version 0.50 (last modified 200831_0011) Running at 20/08/31 09:11
 Logs are at /tmp/Pythonizer/pythonizer.200831_0911.log. Type -h for help.
-
-================================================================================
-
-
+=====================================================================================================================
 Results of transcription are written to the file  pre_pythonizer.py
-==========================================================================================
+=====================================================================================================================
 ... ... ...
   54 | 0 |      |#$debug=3; # starting from Debug=3 only the first chunk processed
   55 | 0 |      |STOP_STRING='' # In debug mode gives you an ability to switch trace on any type of error message for example S (via hook in logme).
