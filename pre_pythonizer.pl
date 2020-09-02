@@ -1,18 +1,12 @@
 #!/usr/bin/perl
 #:: pre_pythonizer version 0.1
 #:: Stage 1 of fuzzy translation of Perl to Python
-#:: Nikolai Bezroukov, 2019.
+#:: Nikolai Bezroukov, 2019-2020.
 #:: Licensed under Perl Artistic license
 #::
-#:: This phase produced Formatted Source PERL code and XREF table.
-#:: Both are fuzzy, in a sense  that they are constructed using  heuristic methods.
-#:: In case of fuzzy reformatting prefix and suffix of the line are analyzed to determine the nesting level.
-#:: in most cases this is successful approach and in a few case when it is not it is easovy corrected using pragma %set_nest_level
-#:: That's why we use the term "fuzzy".
-#::
-#:: To be successful, this approach requires a certain (very reasonable) layout of the script.
-#:: But there some notable exceptions. For example, for script compressed to eliminate whitespece this approach  is not sucessful
-#:: You need to run them via perltidy first.
+#:: This phase produced refactored Source PERL code and XREF table.
+#:: XREF table is fuzzy, in a sense  that it is constructed using heuristic methods.
+#:: Currently it is not used by pythonizer and just is created for reference
 #::
 #:: --- INVOCATION:
 #::
@@ -26,9 +20,7 @@
 #::
 #::--- PARAMETERS:
 #::    1st -- name of  file
-#::
-#::    NOTE: With option -p the progrem can be used as a stage fo the pipe. FOr example#::
-#::       cat my_script.sh | pre_pythonizer | pythonizer > my_script.py
+
 #--- Development History
 #
 # Ver      Date        Who        Modification
@@ -36,7 +28,7 @@
 # 0.10  2019/10/14  BEZROUN   Initial implementation
 # 0.11  2019/11/20  BEZROUN   Minor changes in legend and help screen
 # 0.20  2020/08/20  BEZROUN   The source reorganized into "subroutines-first" fashion
-
+# 0.30  2020/09/01  BEZROUN   Several errors corrected. Integration with pythonizer via option -r (refator) of the latter.
 #=========================== START =========================================================
 
    use v5.10;
@@ -133,7 +125,7 @@
 # MAIN LOOP
 #
    $ChannelNo=1;
-   for( $lineno; $lineno<@SourceText; $lineno++  ){
+   for( ; $lineno<@SourceText; $lineno++  ){
       $line=$SourceText[$lineno];
       $offset=0;
       chomp($line);
@@ -213,12 +205,12 @@
             }
          }
          $backno++;
-         for ($backno; $backno<@FormattedMain; $backno++){
+         for (; $backno<@FormattedMain; $backno++){
             $comment=$FormattedMain[$backno];
-            process_line($comment,-1000); #copy comment block
+            process_line($comment,-1000); #copy comment block from @FormattedMain were it got by mistake
          }
          for ($backno=0; $backno<$CommentBlock; $backno++){
-            pop(@FormattedMain); # then got to it by mmistake
+            pop(@FormattedMain); # then got to it by mistake
          }
          if( $cur_nest != 0 ) {
             logme('E',"Non zero nesting encounted for subroutine definition $1");
@@ -384,7 +376,7 @@ my ($line,$i,$k,$var, %dict, %type, @xref_table);
       while( ($k=index($line,'$'))>-1 ){
          $line=substr($line,$k+1);
          next unless( $line=~/^(\w+)/ );
-         next if( $1 eq '_' || $1 =~[1-9] );
+         next if( $1 eq '_' || $1 =~/[1-9]/ );
          $k+=length($1)+1;
          $var='$'.$1;
          if($line=~/^\w+\s*[<>=+-]\s*[+-]?\d+/ ){
