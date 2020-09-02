@@ -145,13 +145,12 @@ my $script_mod_stamp;
       }
 
       $logfile="$my_log_dir/$script_name.$logstamp.log";
-      open(SYSLOG, ">$logfile") || abend(__LINE__,"Fatal error: unable to open $logfile");
-      $title="\n\n".uc($script_name).": $title (last modified $script_mod_stamp) Running at $timestamp\nLogs are at $logfile. Type -h for help.\n";
-      out($title); # output the banner
+      open(SYSLOG, ">$logfile") || die("Fatal error: unable to open $logfile\n\n");
+      out("\n\n".uc($script_name).": $title (mtime $script_mod_stamp) Started at $timestamp\nLogs are at $logfile. Type -h for help.");
       for( my $i=4; $i<@_; $i++) {
          out($_[$i]); # optional subtitles
       }
-      out ("================================================================================\n\n");
+      out("=" x 121);
 } #banner
 
 #
@@ -181,10 +180,8 @@ state ($msg_cutlevel1, $msg_cutlevel2, @ermessage_db, @ercounter); # remember th
          if ($_[1]>0) {
             $msg_cutlevel1=length("WEST")-$_[1]-1; # Verbosity 3 is max and means 4-3-1 =0 is index correcponfing to  ('W')
             $msg_cutlevel2=length("WEST")-$_[2]-1; # same for log only (like in MSGLEVEL mainframes ;-)
-            return;
-         }else{
+         }elsif(scalar(@ermessage_db)){
             my $summary='ERROR STATISTICS: ';
-            out("\n$message");
             for( my $counter=1; $counter<length('WEST'); $counter++ ){
                if( defined($ercounter[$counter]) ){
                   $summary.=" ".substr('WEST',$counter,1).": ".$ercounter[$counter];
@@ -201,8 +198,8 @@ state ($msg_cutlevel1, $msg_cutlevel2, @ermessage_db, @ercounter); # remember th
                ($ercounter[2]>0) && out("\n*** PLEASE CHECK $ercounter[2] SERIOUS MESSAGES ABOVE");
                 return $ercounter[1] + $ercounter[2];
             }
-            return 0;
          }
+         return 0;
       }
       unless( $error_code ){
          # Blank error code is old equivalent of out: put obligatory message on console and into log
