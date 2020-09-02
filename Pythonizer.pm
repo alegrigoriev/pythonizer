@@ -29,7 +29,7 @@ require Exporter;
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
 #@EXPORT = qw(correct_nest getline output_open get_params prolog epilog output_line $IntactLine $::debug $::breakpoint $::TabSize $::TailComment);
-@EXPORT = qw(preprocess_line correct_nest getline prolog epilog output_line);
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line);
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line);
    $::TabSize=3;
    $::breakpoint=0;
@@ -123,20 +123,11 @@ sub prolog
       if($debug){
           print STDERR "ATTENTION!!! Working in debugging mode debug=$debug\n";
       }
-      out("=" x 90,"\n\n");
+      out("=" x 121,"\n");
       return;
 } # prolog
 
-#::epilig -- close file and produce generated code, if in debug mode
-sub epilog
-{
-   close STDIN;
-   close SYSOUT;
-   if( $::debug>2 ){
-      say STDERR "==GENERATED OUTPUT FOR INPECTION==";
-      print STDERR `cat -n $output_file`;
-   }
-} # epilog
+
 
 #
 #::get_here --  Extract here string with delimiter specified as the first argument
