@@ -48,11 +48,11 @@
 # 0.100  2020/03/16  BEZROUN   Reworked scanner
 # 0.200  2020/08/05  BEZROUN   Abandoned hope to make it perfect.
 # 0.210  2020/08/07  BEZROUN   Moved gen_output to Perlscan,  removed ValCom  from the exported list.
-# 0.220  2020/08/07  BEZROUN   Diamond operator is processes as a special type of identifier.
+# 0.220  2020/08/07  BEZROUN   Diamond operator is processed as a special type of identifier.
 # 0.230  2020/08/09  BEZROUN   gen_chunk moves to Perlscan module. Pythoncode array made local
-# 0.230  2020/08/09  BEZROUN   more functions and statement implemented
-# 0.240  2020/08/10  BEZROUN   postfix conditional re-implemented differently then in expression via scanner buffer
-# 0.250  2020/08/10  BEZROUN   split function is reimplemented and optimized in case there is plain vanilla
+# 0.230  2020/08/09  BEZROUN   more functions and statements implemented
+# 0.240  2020/08/10  BEZROUN   postfix conditional like return if(rc>0) re-implemented differently via scanner buffer
+# 0.250  2020/08/10  BEZROUN   split function is reimplemented and optimized in case there is plain vanilla string and not-regex.
 # 0.251  2020/08/12  BEZROUN   Perl_default_var is renames into default_var
 # 0.260  2020/08/14  BEZROUN   System variables in double quoted literals are now complied correctly. Perlscan.pm improved.
 # 0.261  2020/08/14  BEZROUN   for loop translation corrected
@@ -72,6 +72,7 @@
 # 0.530  2020/08/31  BEZROUN   Handling of __DATA and __END__ improved. Now they are not discarded but instead the separate file with extention.data is created.
 # 0.540  2020/09/01  BEZROUN   Translation of function substr improved by recognizing several special cases.
 # 0.550  2020/09/01  BEZROUN   Matching of groups corrected.
+# 0.560  2020/09/02  BEZROUN   Translation of for and while improved.
 #!start ===============================================================================================================================
 
    use v5.10;
@@ -172,15 +173,19 @@ my $start;
          }elsif(index($TokenStr,')=')>-1) {
             $TrStatus=assignment(0);
          }
-      }elsif( $ValPerl[0] eq 'use' || $ValPerl[0] eq 'goto' || $ValPerl[0] eq 'bless' || $ValPerl[0] eq 'package'  ){
-         output_line('','#NOTRAN: '.$line);
+      }elsif(  $ValPy[0] eq 'NoTrans!'  ){
+         output_line('','#SKIPPED: '.$line);
          $line=getline();
          next;
       }elsif( $ValPerl[0] eq 'sub' ){
+         # Perl has two types of sub statements -- prototype and actual
          correct_nest(0,0);
          gen_chunk($ValPy[0]); # def
          gen_chunk($ValPy[1]); # name
          gen_chunk('(perl_arg_array):'); # list of arguments
+      }elsif( $ValPerl[0] eq 'BEGIN' ){
+         correct_nest(0,0);
+         gen_chunk($ValPy[0]); # def
       }elsif( $ValPerl[0] eq 'close' ){
          for( my $i=1; $i<@ValPy; $i++ ){
              if( $ValClass[$i] eq 'i' ){
@@ -794,7 +799,9 @@ my ($hashpos,$end_pos,$k,$increment,$tempvar);
       }elsif( $ValPerl[$start] eq 'while' || $ValPerl[$start] eq 'until' ){
          if( $TokenStr eq 'c(s=i)' && substr($ValPerl[4],0,1) eq '<' ) {
             gen_chunk("$ValPy[0] $ValPy[2] in $ValPy[4]" );
-         }elsif( $TokenStr eq 'c(i)' ){
+         }elsif( substr($TokenStr,$start) eq 'c(d)' && $ValPy[$start+2]==1  ){
+             gen_chunk("$ValPy[0] True" );
+         }elsif( substr($TokenStr,$start) eq 'c(i)' ){
             gen_chunk("$ValPy[0] default_var in $ValPy[2]" );
          }elsif( $TokenStr =~ /c\(.*?\(.+?=.+$/ ){
             if( $PyV==2 ){
@@ -808,7 +815,7 @@ my ($hashpos,$end_pos,$k,$increment,$tempvar);
          }
          gen_chunk(':');
          return($#ValClass);
-      }elsif( $ValPerl[$start] eq 'for' && $ValPerl[$start+1] eq '(' ){
+      }elsif( $ValPerl[$start] eq 'for' && $ValPerl[$start+1] eq '('  && $ValClass[$start+2] !~ /[ahf]/ ){
          # regular for loop but can be foreach loop too
          $end_pos=matching_br($start+1);
          if( $ValPerl[$end_pos-1] eq '++'){
@@ -820,34 +827,41 @@ my ($hashpos,$end_pos,$k,$increment,$tempvar);
             $TrStatus=-1;
             return -255;
          }
+
          gen_chunk($ValPy[$start]);
-         gen_chunk($ValPy[$start+2]); # index var
-         gen_chunk('in range(');
-         $start=index($TokenStr,'=',$start); # find initialization. BTW it can be expression
-         if( $start == -1 ){$TrStatus=-1; return -255;}
-         $start++;
-         # find end of initialization
-         $end=next_same_level_token(';',$start,$end_pos); # end of expression
-         if( $end-$start==1 ){
-             gen_chunk($ValPy[$start]);
+         if ($ValClass[$start+2] eq ';'){
+            gen_chunk($ValPy[$start+3],' in range(',$ValPy[$start+3]);
+            $end=$start+2;
          }else{
-            $TrStatus=expression($start,$end-1,0); # gen expression
-            if( $TrStatus < -1 ){return -255;}
+           gen_chunk($ValPy[$start+2]); # index var
+            gen_chunk('in range(');
+            $start=index($TokenStr,'=',$start); # find initialization. BTW it can be expression
+            if( $start == -1 ){$TrStatus=-1; return -255;}
+            $start++;
+            # find end of initialization
+            $end=next_same_level_token(';',$start,$end_pos); # end of expression
+
+            if( $end-$start==1 ){
+                gen_chunk($ValPy[$start]);
+            }else{
+               $TrStatus=expression($start,$end-1,0); # gen expression
+               if( $TrStatus < -1 ){return -255;}
+            }
          }
          gen_chunk(',');
          #
          # Analize loop exit condition
          #
-         $start=index($TokenStr,'>',$start);
+         $start=index($TokenStr,'>',$end);
          if( $start == -1 ){$TrStatus=-1; return -255; }
          $start++;
          # find end of loopexit condition
          $end=next_same_level_token(';',$start,$end_pos);
          if( $end == -1 ){$TrStatus=-1; return -255; }
          if( $end-$start==1 ){
-             gen_chunk($ValPy[$start]);
+             gen_chunk($ValPy[$start]); # limit of the range
          }else{
-            $TrStatus=expression($start,$end-1); # gen expression
+            $TrStatus=expression($start,$end-1); # gen expression for the limit of the range
             return -255 if ($TrStatus<0);
          }
          if( $increment) {
@@ -1114,9 +1128,22 @@ my ($end_pos,$k,$split,$split2,$delta,$dict,$incr,$arg1,$arg2);
          if ($TrStatus<0) { return -255; }
          return $TrStatus+1;
       }elsif($ValPerl[$start] eq 'defined' ) {
+         # open used without parantethisi. always has one argument
          $k=($ValPerl[$start+1] eq '(') ? $start+2 : $start+1;
          gen_chunk("$ValPy[$k] != none");
-         $k=($ValPerl[$k+1] eq '(') ? $k+2 : $k+1;
+         $k=($ValPerl[$k+1] eq ')') ? $k+2 : $k+1;
+         return $k;
+      }elsif($ValPerl[$start] eq 'unshift' ){
+         # open used without parantethisi. always has one argument
+         $k=($ValPerl[$start+1] eq '(') ? $start+2 : $start+1;
+         gen_chunk($ValPy[$k],$ValPy[$start],$ValPy[$k+2],')');
+         $k=($ValPerl[$k+3] eq ')') ? $k+4 : $k+3;
+         return $k;
+      }elsif($ValPerl[$start] eq 'delete' ){
+         # open used without parantethisi. always has one argument
+         $k=($ValPerl[$start+1] eq '(') ? $start+2 : $start+1;
+         gen_chunk($ValPy[$k],$ValPy[$start],$ValPy[$k+2],')'); # delete($hash{$key}) => hash.pop($key)
+         $k=($ValPerl[$k+4] eq ')') ? $k+5 : $k+4;
          return $k;
       }
       #
