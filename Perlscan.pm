@@ -36,7 +36,8 @@ package Perlscan;
 # 0.74 2020/08/18  BEZROUN   f-strings are generated for double quoted literals for Python 3.8
 # 0.75 2020/08/25  BEZROUN   variable for other namespaces are recognized now
 # 0.76 2020/08/27  BEZROUN   Special subroutine for putting regex in quote created
-# 0.80 2020/08/31  BEZROUN   Handling of regex improved
+# 0.80 2020/08/31  BEZROUN   Handling of regex improved, keywords are added, my is eliminated, unless is the first token.
+
 #==start=============================================================================================
 use v5.10;
 use warnings;
@@ -68,26 +69,27 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
    %keyword_tr=('eq'=>'==','ne'=>'!=','lt'=>'<','gt'=>'>','le'=>'<=','ge'=>'>=',
                 'x'=>' * ',
+                'bless'=>'NoTrans!','BEGIN'=>'def begin():',
                 'caller'=>'unknown','chdir'=>'.os.chdir','chmod'=>'.os.chmod','chomp'=>'.rstrip("\n")','chop'=>'[0:-1]','chr'=>'chr','close'=>'.f.close',
-                'die'=>'raise','defined'=>'unknown',
+                'die'=>'raise', 'defined'=>'unknown', 'do'=>'','delete'=>'.pop(',
                 'for'=>'for ','foreach'=>'for ',
-                'else'=>'else: ','elsif'=>'elif ','exit'=>'.sys.exit','exit'=>'sys.exit','exists'=> 'in', # if  key in dictionary 'exists'=>'.has_key'
+                'else'=>'else: ','elsif'=>'elif ','eval'=>'NoTrans!', 'exit'=>'.sys.exit','exit'=>'sys.exit','exists'=> 'in', # if  key in dictionary 'exists'=>'.has_key'
                 'if'=>'if ','index'=>'.find',
-                'grep'=>'filter',
+                'grep'=>'filter','goto'=>'NoTrans!',
                 'join'=>'.join',
                 'keys'=>'.keys',
                 'last'=>'break ','local'=>'','lc'=>'.lower()','length'=>'len','localtime'=>'.localtime',
                 'map'=>'map','mkdir'=>'os.mkdir', 'my'=>'',
-                'next'=>'continue ',
+                'next'=>'continue ','no'=>'NoTrans!',
                 'own'=>'global', 'oct'=>'eval','ord'=>'ord',
-                'package'=>'import','pop'=>'.pop()',
-                'split'=>'re.split','sort'=>'sort','scalar'=>'len', 'say'=>'print','state'=>'global','substr'=>'',
+                'package'=>'NoTrans!','pop'=>'.pop()',
+                'shift'=>'.pop(0)', 'split'=>'re.split','sort'=>'sort','scalar'=>'len', 'say'=>'print','state'=>'global','substr'=>'',
                    'sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','defined'=>'perl_defined',
-                'rindex'=>'.rfind',
-                'unless'=>'if not ', 'until'=>'while not ','unlink'=>'os.unlink', 'use'=>'import', 'uc'=>'.upper()', 'ucfirst'=>'.capitalize()',
+                'rindex'=>'.rfind', 'require'=>'NoTrans!', 'ref'=>'type',
+                'unless'=>'if not ', 'until'=>'while not ','unlink'=>'os.unlink', 'use'=>'NoTrans!', 'uc'=>'.upper()', 'ucfirst'=>'.capitalize()',
                 'STDERR'=>'sys.stderr','STDIN'=>'sys.stdin',  '__LINE__' =>'sys._getframe().f_lineno',
                 'warn'=>'print',
-                'ucfirst'=>'.capitalize()','uc'=>'.upper()',
+                'ucfirst'=>'.capitalize()','uc'=>'.upper()','unshift'=>'.insert(0,',
                );
 
        %TokenType=('eq'=>'>','ne'=>'>','lt'=>'>','gt'=>'>','le'=>'>','ge'=>'>',
@@ -101,12 +103,12 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'given'=>'c','grep'=>'f',
                   'join'=>'f',
                   'keys'=>'f',
-                  'last'=>'C','lc'=>'f', 'length'=>'f','local'=>'t','localtime'=>'f',
-                  'my'=>'t','map'=>'f','mkdir'=>'f',
+                  'last'=>'C', 'lc'=>'f', 'length'=>'f', 'local'=>'t', 'localtime'=>'f',
+                  'my'=>'t', 'map'=>'f', 'mkdir'=>'f',
                   'next'=>'C',
-                  'own'=>'t', 'oct'=>'f','ord'=>'f','open'=>'f',
-                  'push'=>'f','pop'=>'f','print'=>'f','package'=>'c',
-                  'rindex'=>'f','read'=>'f', 'return'=>'C',
+                  'own'=>'t', 'oct'=>'f', 'ord'=>'f', 'open'=>'f',
+                  'push'=>'f', 'pop'=>'f', 'print'=>'f', 'package'=>'c',
+                  'rindex'=>'f','read'=>'f', 'return'=>'C', 'ref'=>'f',
                   'say'=>'f','scalar'=>'f','shift'=>'f', 'split'=>'f', 'sprintf'=>'f', 'sort'=>'f','system'=>'f', 'state'=>'t', 'sub'=>'k','substr'=>'f',
                   'values'=>'f',
                   'warn'=>'f', 'when'=>'C', 'while'=>'c',
@@ -117,7 +119,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 # one to one translation of digramms. most are directly translatatble.
 #
    %digram_tokens=('++'=>'^', '--'=>'^', '+='=>'=', '-='=>'=', '.='=>'=', '%='=>'=', '=~'=>'~','!~'=>'~',
-                   '=='=>'>','!='=>'>','>='=>'>','<='=>'>','=>'=>':','->'=>'.', # comparison
+                   '=='=>'>', '!='=>'>', '>='=>'>', '<='=>'>', # comparison
+                   '=>'=>':', '->'=>'.',
                    '<<' => 'H', '>>'=>'=', '&&'=>'0', '||'=>'0',
                    '*='=>'=', '/='=>'/', '**'=>'*', '::'=>'.' ); #and/or/not
 
@@ -173,6 +176,9 @@ my ($l,$m);
                $cut=1; # we need to continue
             }else{
                # this is regular end of statement
+               if( $ValPerl[0] eq 'sub' ){
+                  $ValPy[0]='NoTrans!'; # this is a subroutne prototype, ignore it.
+               }
                if( length($source) == 1 ){
                    last; # exit loop;
                }
@@ -303,6 +309,11 @@ my ($l,$m);
             $ValPy[$tno]=$w;
             if( exists($keyword_tr{$w}) ){
                   $ValPy[$tno]=$keyword_tr{$w};
+            }
+            if( $w eq 'my' && $tno>0 ){
+               $source=substr($source,length($w)); # eliminate it
+               popup();
+               next;
             }
             if( exists($TokenType{$w}) ){
                $class=$TokenType{$w};
@@ -440,6 +451,7 @@ my ($l,$m);
                      }
 
                   }elsif( $w eq 'qw' ){
+                     # we can emulate it with split function, althouth wq is mainly compile time.
                       $cut=single_quoted_literal($delim,length($w)+1);
                       $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
                       if( $ValPerl[0] eq 'use' ){
@@ -469,7 +481,7 @@ my ($l,$m);
                }elsif( $arg1 eq 'ARGV' ){
                     $ValPy[$tno]='sys.argv';
                }else{
-                  if( $ValClass[$tno-2] =~ /[sd'"q]/  && $ValClass[$tno-1] eq '>' || $ValClass[$tno-2] =~ /cC/ && $ValClass[$tno-1] eq '(' ){
+                  if( $tno>=2 && $ValClass[$tno-2] =~ /[sd'"q]/  && $ValClass[$tno-1] eq '>' ){
                      $ValPy[$tno]='len('.$arg1.')'; # scalar context
                   }else{
                      $ValPy[$tno]=$arg1;
@@ -721,8 +733,10 @@ my (@temp,$sym,$prev_sym,$i,$modifier,$meta_no);
       $sym=$temp[$i];
       if( $prev_sym ne '\\' && $sym eq '(' ){
          return($modifier,1);
-      }elsif( index('.*+()[]?^$|',$sym)>=-1 || $prev_sym eq '\\' && lc($sym)=~/[bsdwSDW]/ ){
+      }elsif( $prev_sym ne '\\' && index('.*+()[]?^$|',$sym)>=-1 ){
         $meta_no++;
+      }elsif( $prev_sym eq '\\' && lc($sym)=~/[bsdwSDW]/ ){
+         $meta_no++;
       }
       $prev_sym=$sym;
    }#for
