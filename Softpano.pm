@@ -13,6 +13,7 @@ package Softpano;
 # 01.22  2020/08/05  BEZROUN   out now works with multiple arguments
 # 01.30  2020/08/10  BEZROUN   tag "##" is not used as the comment prefix for help. Minor chages and corrections
 # 01.40  2020/08/17  BEZROUN   getops is now implemented in Softpano.pm to allow the repetition of option letter to set the value of options ( -ddd)
+# 01.50  2020/09/03  BEZROUN   standard_options sub introduced. Logic of logme imporved. Messages summary convered to a sspearate sun -- summary
 use v5.10;
    use warnings;
    use strict 'subs';
@@ -22,8 +23,11 @@ require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(autocommit abend banner logme out getopts standard_options);
+@EXPORT = qw(autocommit abend banner logme summary out getopts standard_options);
 $VERSION = '1.10';
+state ($msg_cutlevel1, $msg_cutlevel2, @ermessage_db, @ercounter); # remember they are statically scoped
+  $msg_cutlevel1=3;
+  $msg_cutlevel2=3;
 #
 # NOTE: autocommit used only in debugging mode
 # In debug mode it created backup and commit script to GIT repository, if there were changes from previous Version.
@@ -153,67 +157,61 @@ my $script_mod_stamp;
       out("=" x 121);
 } #banner
 
-#
-## logme -- Simple message generator: Record message in log and STDERR
+
+sub summary
+{
+ my $summary=(scalar(@_)>0) ? $_[0] : 'ERROR STATISTICS: ';
+   return 0 unless( scalar(@ermessage_db));
+   for( my $counter=0; $counter<length('WEST'); $counter++ ){
+      if( defined($ercounter[$counter]) ){
+         $summary.=" ".substr('WEST',$counter,1).": ".$ercounter[$counter];
+      }else{
+         $ercounter[$counter]=0;
+      }
+   } # for
+
+   ($summary) && out("$summary");
+   if( $ercounter[0] + $ercounter[1] + $ercounter[2] ){
+      # replicate diagnostics
+      for( my $severity=2;  $severity>=0; $severity-- ){
+          ( $ercounter[$severity] > 0 ) && out("$ermessage_db[$severity]\n\n");
+      }
+      ($ercounter[2]>0) && out("\n*** PLEASE CHECK $ercounter[2] SERIOUS MESSAGES ABOVE");
+       return $ercounter[1] + $ercounter[2];
+   }
+   return($ercounter[2]);
+}
+sub logme
+# logme -- Simple message generator: Record message in log and STDERR
 # PARAMETERS:
-#            lineno, severity, message
+#      severity, message
 # Arg1 Error code (the first letter is severity, the second letter can be used -- T is timestamp -- put timestamp inthe message)
 # Arg3 Text of the message
 # NOTE: $top_severity, $Verbosity1, $Verbosity1 are state Variables that are initialized via special call to sp:: sp::logmes
-
-sub logme
 {
 #our $top_severity; -- should be defined globally
 my $error_code=uc(substr($_[0],0,1));
 my $error_suffix=(length($_[0])>1) ? substr($_[0],1,1):''; # suffix T means add timestamp
 my $message=$_[1];
       chomp($message); # we will add \n ourselves
-state ($msg_cutlevel1, $msg_cutlevel2, @ermessage_db, @ercounter); # remember they are statically scoped
-
 #
 # special cases -- ercode "D" means set msglevel1 and msglevel2, ' ' means print STDERR in log and console -- essentially out with messsage header
 #
 
-      if( $error_code eq 'D' ){
-         # NOTE You can dynamically change Verbosity within the script by issuing D message.
-         # Set script name and message  prefix
-         if ($_[1]>0) {
-            $msg_cutlevel1=length("WEST")-$_[1]-1; # Verbosity 3 is max and means 4-3-1 =0 is index correcponfing to  ('W')
-            $msg_cutlevel2=length("WEST")-$_[2]-1; # same for log only (like in MSGLEVEL mainframes ;-)
-         }elsif(scalar(@ermessage_db)){
-            my $summary='ERROR STATISTICS: ';
-            for( my $counter=1; $counter<length('WEST'); $counter++ ){
-               if( defined($ercounter[$counter]) ){
-                  $summary.=" ".substr('WEST',$counter,1).": ".$ercounter[$counter];
-               }else{
-                  $ercounter[$counter]=0;
-               }
-            } # for
-            ($summary) && out("\n$summary\n");
-            if( $ercounter[1] + $ercounter[2] ){
-               # print STDERR errors & severe errors
-               for(  $severity=1;  $severity<=3; $severity++ ){
-                   ( $ercounter[$severity] > 0 ) && out("$ermessage_db[$severity]\n\n");
-               }
-               ($ercounter[2]>0) && out("\n*** PLEASE CHECK $ercounter[2] SERIOUS MESSAGES ABOVE");
-                return $ercounter[1] + $ercounter[2];
-            }
-         }
-         return 0;
-      }
       unless( $error_code ){
          # Blank error code is old equivalent of out: put obligatory message on console and into log
          out($message);
          return;
       }
 #
-# detect callere.
+# detect caller.
 #
       my ($package, $filename, $lineno) = caller;
 #
 # Generate diagnostic message from error code, line number and message (optionally timestamp is suffix of error code is T)
 #
-      $message=" $filename [$lineno$error_code]: $message";
+my $prefix=defined($.) ? "LINE $." : '';
+      $message="$prefix [$filename-$lineno$error_code]:  $message";
       my $severity=index("WEST",uc($error_code));
       if( $severity == -1 ){
          # all unknown codes.
@@ -321,14 +319,19 @@ my $options_hash=$_[0];
          logme('S',"Wrong value of option -d. If can be iether set of d letters like -ddd or an integer like -d 3 . You supplied the value  $$options_hash{'d'}\n");
          exit 255;
       }
-      ($::debug) && logme('W',"Debug flag is set to $::debug ::PyV");
+      ($::debug) && logme('W',"Debug flag is set to $::debug");
    }
    if(  exists $$options_hash{'v'} ){
-      $$options_hash{'v'}=1 if $$options_hash{'v'} eq '';
-      if( $$options_hash{'v'} =~/\d/ && $$options_hash{'v'}<3 && $$options_hash{'v'}>0 ){
-         $::verbosity=$$options_hash{'v'};
-      }else{
-          logme('S',"Wrong value of option -v. Should be an interger from 1 to 3. The value given was: $$options_hash('v')\n");
+      if( $$options_hash{'v'} eq '' ){
+         $msg_cutlevel1=2;
+      }elsif( $$options_hash{'v'} =~/\d/ && length($$options_hash{'v'})==1 ){
+         $msg_cutlevel1=3-$$options_hash{'v'};
+      }elsif( $$options_hash{'v'} =~/\d/ && length($$options_hash{'v'})==2 ){
+         $msg_cutlevel1=3-substr($$options_hash{'v'},0,1);
+         $msg_cutlevel2=3-substr($$options_hash{'v'},1,1);
+      }
+      if ($msg_cutlevel1<0 || $msg_cutlevel1>3 ){
+         logme('S',"Wrong value of option -v. Should be an integer from 1 to 3 or letter v repeation -v -vv or -vvv. The ddefault -v 3 (or -vvv)");
           exit 255;
       }
    }
