@@ -22,7 +22,7 @@ require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(autocommit abend banner logme out getopts standard_options);
+@EXPORT = qw(autocommit abend banner logme summary out getopts standard_options);
 $VERSION = '1.10';
 #
 # NOTE: autocommit used only in debugging mode
@@ -152,6 +152,30 @@ my $script_mod_stamp;
       }
       out("=" x 121);
 } #banner
+
+sub summary
+{
+ my $summary=(scalar(@_)>0) ? $_[0] : 'ERROR STATISTICS: ';
+   return 0 unless( scalar(@ermessage_db));
+   for( my $counter=0; $counter<length('WEST'); $counter++ ){
+      if( defined($ercounter[$counter]) ){
+         $summary.=" ".substr('WEST',$counter,1).": ".$ercounter[$counter];
+      }else{
+         $ercounter[$counter]=0;
+      }
+   } # for
+
+   ($summary) && out("$summary");
+   if( $ercounter[0] + $ercounter[1] + $ercounter[2] ){
+      # replicate diagnostics
+      for( my $severity=2;  $severity>=0; $severity-- ){
+          ( $ercounter[$severity] > 0 ) && out("$ermessage_db[$severity]\n\n");
+      }
+      ($ercounter[2]>0) && out("\n*** PLEASE CHECK $ercounter[2] SERIOUS MESSAGES ABOVE");
+       return $ercounter[1] + $ercounter[2];
+   }
+   return($ercounter[2]);
+}
 
 #
 ## logme -- Simple message generator: Record message in log and STDERR
