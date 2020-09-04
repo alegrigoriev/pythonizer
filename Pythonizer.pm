@@ -15,20 +15,21 @@ package Pythonizer;
 # 00.40  2020/08/17  BEZROUN   getops is now implemented in Softpano.pm to allow the repretion of option letter to set the value of options ( -ddd)
 # 00.50  2020/08/24  BEZROUN   Option -p added
 # 00.60  2020/08/25  BEZROUN   __DATA__ and __END__ processing added
-# 00.61  2020/08/25  BEZROUN   POD processing  added
-# 00.70  2020/08/26  BEZROUN   Option - r (refactor) added
+# 00.61  2020/08/25  BEZROUN   POD processing  added Option - r (refactor) added
+# 00.70  2020/09/03  BEZROUN   Stack manipulation functions moved from Pythonizer here and exported.
 
 use v5.10;
 use warnings;
 use strict 'subs';
 use feature 'state';
 use Softpano qw(abend logme out getopts standard_options);
+use Perlscan qw($TokenStr @ValClass  @ValPerl @ValPy @ValCom);
 require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
 #@EXPORT = qw(correct_nest getline output_open get_params prolog epilog output_line $IntactLine $::debug $::breakpoint $::TabSize $::TailComment);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line);
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line append replace destroy preprocessing);
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line);
    $::TabSize=3;
    $::breakpoint=0;
@@ -82,11 +83,11 @@ sub prolog
           logme('S',"Option -b should have a numberic value. There is no default.");
           exit 255;
         }
-        if( $options{'b'}>=0  && $options{'b'}<9000 ){
+        if( $options{'b'}>0  && $options{'b'}<9000 ){
            $::breakpoint=$options{'b'};
-           ($::debug) && logme('W',"Breakpoint  set to line  $::breakpoint");
+           ($::debug) && logme('W',"Breakpoint set to line  $::breakpoint");
         }else{
-           logme('S',"Wrong value of option -b (line for debugger breakpoint): $options('b')\n");
+           logme('S',"Wrong value of option -b ( breakpoint): $options('b')\n");
            exit 255;
         }
       }
@@ -201,6 +202,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
 #::output_line -- Output line shifted properly to the current nesting level
 # arg 1 -- actual PseudoPython generated line
 # arg 2 -- tail comment (added Dec 28, 2019)
+# arg 3 -- copy without processing ( (added Sep 3, 2020))
 sub output_line
 {
 my $line=(scalar(@_)==0 ) ? $IntactLine : $_[0];
@@ -227,7 +229,9 @@ my $orig_tail_len=length($tailcomment);
       }
       return;
    }
-   $line=($line=~/^\s+(.*)$/ )? $indent.$1 : $indent.$line;
+   if (scalar(@_)<3){
+      $line=($line=~/^\s+(.*)$/ )? $indent.$1 : $indent.$line;
+   }
    say SYSOUT $line;
    $line=$prefix.$line;
    $len=length($line);
@@ -314,4 +318,55 @@ my $delta;
        }
    }
 }
+sub append
+{
+   $TokenStr.=$_[0];
+   $ValClass[scalar(@ValClass)]=$_[0];
+   $ValPerl[scalar(@ValPerl)]=$_[1];
+   $ValPy[scalar(@ValPy)]=$_[2];
+   $ValCom[scalar(@ValPy)]=( scalar(@_)>3 ) ? $_[3]:'';
+}
+sub replace
+{
+my $pos=shift;
+   if( $pos>$#ValClass ){
+      abend('Replace position $pos is outside upper bound');
+   }
+   substr($TokenStr,$pos,1)=$ValClass[$pos]=$_[0];
+   $ValPerl[$pos]=$_[1];
+   $ValPy[$pos]=$_[2];
+   $ValCom[$pos]='';
+}
+sub destroy
+{
+($from,$howmany)=@_;
+    substr($TokenStr,$from,$howmany)='';
+    splice(@ValClass,$from,$howmany);
+    splice(@ValPerl,$from,$howmany);
+    splice(@ValPy,$from,$howmany);
+    splice(@ValCom,$from,$howmany);
+}
+sub preprocessing
+#
+# absence of autoincrament and autodecrament operators is a problem... May be even a wart.
+#
+{
+my $wart_pos;
+    #postincement
+   if (substr($TokenStr,0,6) eq 's(s^)='){
+      logme('E','Increment of array index found on the left side of assignement and replaced by append function. This guess might be wrong');
+      destroy(2,4);
+      replace( 0,'f','f',$ValPy[0].'.append' );
+      replace(1,'(','(','(');
+      append(')',')',')');
+   }elsif( ($wart_pos=index($TokenStr,'s^)')) >-1  && $ValPerl[$wart_pos+2] eq ']' ){
+       logme('S',"Posfix operation $ValPerl[$wart_pos+1] currently can't be tranlated  correctly. Attempt to replace it with walrus operator needs modification of algorithm and currently lead to syntax error which is a bug in the Python interpreter");
+       $ValPy[$wart_pos]='('.$ValPy[$wart_pos].':='.$ValPy[$wart_pos].'+1)';
+       $ValPy[$wart_pos+1]='';
+       #$ValClass[$wart_pos]='f';
+   }elsif( ($wart_pos=index($TokenStr, '(^s')) >-1 && $ValPerl[$wart_pos] eq '[' ){
+       $ValPy[$wart_pos+2]='('.$ValPy[$wart_pos+2].':='.$ValPy[$wart_pos+2].'+1)';
+       $ValPy[$wart_pos+1]='';
+   }
+} # preprocessing
 1;
