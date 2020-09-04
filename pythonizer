@@ -15,7 +15,7 @@
 ##
 ##--- OPTIONS:
 ##    -p -- version of Python for generation, Default 3, if set to 2 generation is into Python 2.7
-##    -v -- verbosity (0 -none 3 max vebosity)
+##    -v -- verbosity 0 -minimal (only serious messages) 3 max verbosity (warning, errors and serious); default -v 3
 ##    -h -- this help
 ##    -t -- size of tab ingenerated Python code (emulated with spaces). Default is 4
 ##    -d    level of debugging  default is 0 -- production mode
@@ -73,6 +73,8 @@
 # 0.540  2020/09/01  BEZROUN   Translation of function substr improved by recognizing several special cases.
 # 0.550  2020/09/01  BEZROUN   Matching of groups corrected.
 # 0.560  2020/09/02  BEZROUN   Translation of for and while improved.
+# 0.570  2020/09/03  BEZROUN   Translation of ++ and --  implemented
+# 0.580  2020/09/03  BEZROUN   Translation of function sprintf implemented
 #!start ===============================================================================================================================
 
    use v5.10;
@@ -84,11 +86,11 @@
 # Modules used ( from the current directory to make debugging more convenient; will change later)
 #
    use lib '.';
-   use Softpano qw(autocommit abend banner logme out);
-   use Perlscan qw(gen_statement  tokenize gen_chunk @ValClass  @ValPerl  @ValPy $TokenStr);
-   use Pythonizer qw(correct_nest getline prolog output_line);
+   use Softpano qw(autocommit abend banner logme summary out);
+   use Perlscan qw(gen_statement  tokenize gen_chunk @ValClass @ValPerl @ValPy $TokenStr);
+   use Pythonizer qw(correct_nest getline prolog output_line append replace destroy preprocessing);
 
-   $VERSION='0.55';
+   $VERSION='0.58';
 #
 # options
 #
@@ -106,7 +108,6 @@
       $HOME=$ENV{'HOME'}; # used for backups
    }
    $LOG_DIR='/tmp/'.ucfirst($SCRIPT_NAME);
-   logme('D',3,3); # inital settings
    banner($LOG_DIR,$SCRIPT_NAME,"Fuzzy translator of Python to Perl. Version $VERSION",30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
    prolog(); # sets all options, including breakpoint
    if( $debug > 0 ){
@@ -129,8 +130,12 @@
    }else{
       ($line)=split(' ',$line,1); # Perl idiom for removing leading blanks
    }
-   foreach $l ('import sys','import re','import os','import fileinput'){
+   foreach $l ('import sys','import re','import os','import fileinput','import subprocess'){
        output_line('',$l); # to block reproducing the first source line
+   }
+   while($l=<DATA>){
+      chomp $l;
+      output_line($l,'',''); # to block reproducing the first source line; added Sept 3, 2020 just for the future
    }
 #
 #Main loop
@@ -155,6 +160,12 @@ my $start;
       if( scalar(@ValClass)==0 ){
           $line=getline(); # skip broken
           next;
+      }
+      #
+      # Selected cases of postfix and prefix operator can be translated; other not
+      #
+      if (index($TokenStr,'^')>-1){
+         preprocessing();
       }
       #
       # Statements
@@ -200,17 +211,17 @@ my $start;
           $TrStatus=assignment(0);
       }elsif( $ValClass[0] eq 't' ){
           if( scalar(@ValClass)==2 ){
-             if( $ValClass[0] eq 't' ){
+             if( $ValPerl[0] eq 'my' ){
                 #my $k;
                 output_line("$ValPy[1]=None");
-             }else{
+             }elsif( $ValPerl[0] eq 'state' || $ValPerl[0] eq 'own' ){
                 # $i++;
                 gen_chunk($ValPy[0].$ValPy[1]);
               }
               finish();
               next;
           }
-          $TrStatus=assignment(0);
+          $TrStatus=assignment(1);
        }elsif( $ValClass[0] eq 'h' ){
           #scalar assignment or reg matching; Include my/own/state
           # expression is expected on the right side, but in Perl it can follow by condition a=2 if(b==0) => if( b==0  ){  a=2 }
@@ -318,7 +329,7 @@ my $start;
          }
       }elsif( $ValClass[0] eq 'q' ){
          # /abc/;
-         gen_chunk(qq[subprocess_rc,default_var = subprocess.getstatusoutput("$ValPerl[0]")]);
+         gen_chunk(qq[subprocess_rc,default_var =$ValPy[0]]);
       }elsif( $ValClass[0] eq 'd' ){
          if( length($TokenStr)==1 ){
              logme('W','line starts with digit');
@@ -368,9 +379,17 @@ my $start;
       finish();
     } # while
 #
-# Imitation of continue statement as Perl implementation is buggy.
+# Epilog -- close  output file and  if you are in debugging mode display the content  on the screen
 #
+   if (scalar(@NoTrans)>0) {
+      say STDERR "\nATTENTION!\nThe following lines were probably translated incorrectly:\n";
+      say STDERR join("\n",@NoTrans);
+   }
+   $rc=summary(); # print diagnostic messages summary
+   exit $rc;
+
 sub finish
+# imitation of continue statement. 
 {
     if( $TrStatus<0 ){
        push(@NoTrans,"[$.]: $line");
@@ -380,19 +399,12 @@ sub finish
     correct_nest();
 } # finish
 
-#
-# Epilog -- close  output file and  if you are in debugging mode display the content  on the screen
-#
-   if (scalar(@NoTrans)>0) {
-      say STDERR "\nATTENTION!\nThe following lines were probably translated incorrectly:\n";
-      say STDERR join("\n",@NoTrans);
-   }
-   logme('D',-1);
-   exit 0;
+
+
+sub print2
 #
 # Print statement for Python2
 #
-sub print2
 {
 my $start=$_[0];
 
@@ -490,18 +502,7 @@ my $limit;
    #
    # Analysys of the left part
    #
-   if( $ValClass[$k] eq 't' ){
-       if( $TokenStr eq 'ts') {
-         output_line('#NOTRANS '.$line);
-         return $#ValClass;
-       }elsif( $TokenStr=~/^t[sha]=/ || $TokenStr=~/^t\([sha]\s*(,[sha]\s*)*\s*\)\s*=/ ){
-         #ignore my, etc just generate the assignment
-         if( $ValPerl[$k] eq 'state'  || $ValPerl[$k] eq 'own'  ){
-             gen_chunk('global ');
-         }
-       }
-       $k++;
-   }
+
    # Perl can have a list of the left side of the assignement
 
 #
@@ -709,20 +710,12 @@ my $balance=0;
 # remove everytnogh but variable name. we need to shink arrrays
 #
 my $from=index($TokenStr,'=',$assign_start+2); # "=" now is next to identifier; should be
-my $howmany=$assign_end-$from+1;
-      if( $howmany>0 ){
-         splice(@ValClass,$from,$howmany);
-         #splice(@ToSub,$from,$howmany);
-         splice(@ValPerl,$from,$howmany);
-         splice(@ValPy,$from,$howmany);
-      }
+my $howmany=$assign_end-$from+1; # closed interval
+   if( $howmany>0 ){
+      destroy($from,$howmany);
+   }
 # Remove opening bracket -- it is no longer needed
-
-      splice(@ValClass,$assign_start,1);
-      #splice(@ToSub,$assign_start,1);
-      splice(@ValPerl,$assign_start,1);
-      splice(@ValPy,$assign_start,1);
-      $TokenStr=join('',@ValClass);
+   destroy($assign_start,1);
 }
 # Translation of shortcut i: ($debug) && print 'something'  or open() || die("cam't open");
 sub short_cut_if
@@ -1068,13 +1061,25 @@ my ($end_pos,$k,$split,$split2,$delta,$dict,$incr,$arg1,$arg2);
          return $end_pos+1; # $end_pos signifies the end of function
       }elsif( $ValPerl[$start] eq 'join' ){
          # $args=join(' ',@ARGS) => args=ARGS.join(' ');
-         if (substr($TokenStr,$start)=~/^f\(.,.+\)/ ){
-            $TrStatus=expression($start+4);
-            gen_chunk($ValPy[$start]."($ValPy[$start+2])"); # gen .join
+         $end_pos=matching_br($start+1);
+         $k=$start+2; #start of the first argument
+         $split=next_same_level_token(',',$k,$end_pos);
+         if($end_pos-$split==2 ){
+            # the second argument is not expression or function
+            gen_chunk($ValPy[$end_pos-1],$ValPy[$start]); # gen .join
          }else{
-            return -255;
+            $TrStatus=expression($split+1,$end_pos-1);
+             return $TrStatus if ($TrStatus<0);
+            gen_chunk($ValPy[$start]); # gen .join
          }
-         return $TrStatus+1;
+         if ($split-$k==1){
+             gen_chunk($ValPy[$k],')'); # gen delimiter
+         }else{
+             $TrStatus=expression($k,$split-1);
+             return $TrStatus if ($TrStatus<0);
+             gen_chunk(')'); # gen delimiter
+         }
+         return $end_pos+1;
       }elsif( $ValPerl[$start] eq 'open' ){
          $TrStatus=open_fun($start);
          return -255 if( $TrStatus < 0 );
@@ -1144,6 +1149,16 @@ my ($end_pos,$k,$split,$split2,$delta,$dict,$incr,$arg1,$arg2);
          $k=($ValPerl[$start+1] eq '(') ? $start+2 : $start+1;
          gen_chunk($ValPy[$k],$ValPy[$start],$ValPy[$k+2],')'); # delete($hash{$key}) => hash.pop($key)
          $k=($ValPerl[$k+4] eq ')') ? $k+5 : $k+4;
+         return $k;
+      }elsif($ValPerl[$start] eq 'sprintf' ){
+         # open used without parantethisi. always has one argument
+         $k=($ValPerl[$start+1] eq '(') ? $start+2 : $start+1;
+         gen_chunk($ValPy[$k],' % ( '); # format string
+         $k=expression($k+2); # skip initial','
+         return -255 if $k<0;
+         if( $ValPy[$k-1] ne ')' ){
+            gen_chunk(')'); #
+         }
          return $k;
       }
       #
@@ -1234,7 +1249,7 @@ my($k,$myline, $target,$open_mode,$handle);
    #
    if( $open_mode eq 'r' ||  $open_mode eq 'a' ){
       output_line("if os.path.isfile($target): $handle=open($target,'$open_mode')");
-      output_line("else: os.exit()");
+      output_line("else: os.exit();");
    }else{
       output_line("$handle=open($target,'$open_mode')");
    }
@@ -1440,3 +1455,18 @@ my ($replacement,$k);
       } #for
       return $k;
 } #left_hand_substr
+__DATA__
+def PostIncr(name, local={}):
+    #Equivalent to name++
+    if name in local:
+        local[name]+=1
+        return local[name]-1
+    globals()[name]+=1
+    return globals()[name]-1
+def PostDecr(name, local={}):
+    #Equivalent to name--
+    if name in local:
+        local[name]-=1
+        return local[name]-1
+    globals()[name]-=1
+    return globals()[name]-1
