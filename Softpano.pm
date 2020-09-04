@@ -321,14 +321,19 @@ my $options_hash=$_[0];
          logme('S',"Wrong value of option -d. If can be either set of d letters like -ddd or an integer like -d 3 . You supplied the value  $$options_hash{'d'}\n");
          exit 255;
       }
-      ($::debug) && logme('W',"Debug flag is set to $::debug ::PyV");
+      ($::debug) && logme('W',"Debug flag is set to $::debug");
    }
    if(  exists $$options_hash{'v'} ){
-      $$options_hash{'v'}=1 if $$options_hash{'v'} eq '';
-      if( $$options_hash{'v'} =~/\d/ && $$options_hash{'v'}<3 && $$options_hash{'v'}>0 ){
-         $::verbosity=$$options_hash{'v'};
-      }else{
-          logme('S',"Wrong value of option -v. Should be an integer from 1 to 3. The value given was: $$options_hash('v')\n");
+      if( $$options_hash{'v'} eq '' ){
+         $msg_cutlevel1=2;
+      }elsif( $$options_hash{'v'} =~/\d/ && length($$options_hash{'v'})==1 ){
+         $msg_cutlevel1=3-$$options_hash{'v'};
+      }elsif( $$options_hash{'v'} =~/\d/ && length($$options_hash{'v'})==2 ){
+         $msg_cutlevel1=3-substr($$options_hash{'v'},0,1);
+         $msg_cutlevel2=3-substr($$options_hash{'v'},1,1);
+      }
+      if ($msg_cutlevel1<0 || $msg_cutlevel1>3 ){
+         logme('S',"Wrong value of option -v. Should be an integer from 1 to 3 or letter v repetion -v -vv or -vvv. The default -v 3 (or -vvv)");
           exit 255;
       }
    }
