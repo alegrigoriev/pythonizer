@@ -37,7 +37,7 @@ package Perlscan;
 # 0.75 2020/08/25  BEZROUN   variable for other namespaces are recognized now
 # 0.76 2020/08/27  BEZROUN   Special subroutine for putting regex in quote created
 # 0.80 2020/08/31  BEZROUN   Handling of regex improved, keywords are added, my is eliminated, unless is the first token.
-
+# 0.81 2020/08/31  BEZROUN   Handling of % improved.
 #==start=============================================================================================
 use v5.10;
 use warnings;
@@ -50,7 +50,7 @@ require Exporter;
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw(Exporter);
-@EXPORT = qw(gen_statement tokenize gen_chunk @ValClass  @ValPerl  @ValPy $TokenStr);
+@EXPORT = qw(gen_statement tokenize gen_chunk @ValClass  @ValPerl  @ValPy @ValCom $TokenStr);
 #our (@ValClass,  @ValPerl,  @ValPy, $TokenStr); # those are from main::
 
   $VERSION = '0.94';
@@ -71,12 +71,12 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'x'=>' * ',
                 'bless'=>'NoTrans!','BEGIN'=>'def begin():',
                 'caller'=>'unknown','chdir'=>'.os.chdir','chmod'=>'.os.chmod','chomp'=>'.rstrip("\n")','chop'=>'[0:-1]','chr'=>'chr','close'=>'.f.close',
-                'die'=>'raise', 'defined'=>'unknown', 'do'=>'','delete'=>'.pop(',
+                'die'=>'raise', 'defined'=>'unknown', 'do'=>'','delete'=>'.pop(','defined'=>'perl_defined',
                 'for'=>'for ','foreach'=>'for ',
                 'else'=>'else: ','elsif'=>'elif ','eval'=>'NoTrans!', 'exit'=>'.sys.exit','exit'=>'sys.exit','exists'=> 'in', # if  key in dictionary 'exists'=>'.has_key'
                 'if'=>'if ','index'=>'.find',
                 'grep'=>'filter','goto'=>'NoTrans!',
-                'join'=>'.join',
+                'join'=>'.join(',
                 'keys'=>'.keys',
                 'last'=>'break ','local'=>'','lc'=>'.lower()','length'=>'len','localtime'=>'.localtime',
                 'map'=>'map','mkdir'=>'os.mkdir', 'my'=>'',
@@ -84,7 +84,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'own'=>'global', 'oct'=>'eval','ord'=>'ord',
                 'package'=>'NoTrans!','pop'=>'.pop()',
                 'shift'=>'.pop(0)', 'split'=>'re.split','sort'=>'sort','scalar'=>'len', 'say'=>'print','state'=>'global','substr'=>'',
-                   'sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','defined'=>'perl_defined',
+                   'sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','sprintf'=>'',
                 'rindex'=>'.rfind', 'require'=>'NoTrans!', 'ref'=>'type',
                 'unless'=>'if not ', 'until'=>'while not ','unlink'=>'os.unlink', 'use'=>'NoTrans!', 'uc'=>'.upper()', 'ucfirst'=>'.capitalize()',
                 'STDERR'=>'sys.stderr','STDIN'=>'sys.stdin',  '__LINE__' =>'sys._getframe().f_lineno',
@@ -278,9 +278,8 @@ my ($l,$m);
             }
          }elsif( $s eq '`'  ){
              $ValClass[$tno]='q';
-             $cut=single_quoted_literal('`',1);
-             $ValPy[$tno]=$ValPerl[$tno]=substr($source,1,$cut-2); # literal without quotes is needed.
-             $ValPy[$tno]='subprocess.check_output("'.$ValPerl[$tno].'")';
+             $cut=double_quoted_literal('`',1);
+             $ValPy[$tno]='subprocess.check_output('.$ValPy[$tno].')';
          }elsif( $s=~/\d/  ){
             # processing of digits should preceed \w ad \w includes digits
             if( $source=~/(^\d+(?:[.e]\d+)?)/  ){
@@ -343,14 +342,9 @@ my ($l,$m);
                      $cut=double_quoted_literal($delim,length($w)+1); # side affect populates $ValPy[$tno] and $ValPerl[$tno]
 
                   }elsif($w eq 'qx') {
-                     #executable, needs interpolation: to be implemented
-                     if( $delim eq "'") {
-                        $cut=single_quoted_literal($delim,length($w)+1);
-                        $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w));
-                        $ValPy[$tno]='system("'.$ValPy[$tno].'")';
-                     }else{
-                        $cut=double_quoted_literal($delim,length($w)+1);
-                     }
+                     #executable, needs interpolation
+                     $cut=double_quoted_literal($delim,length($w)+1);
+                     $ValPy[$tno]='subprocess.check_output('.$ValPy[$tno].')';
                   }elsif( $w eq 'm' | $w eq 'qr' | $w eq 's'){
                      $source=substr($source,length($w)+1); # cut the word and delimiter
                      $cut=single_quoted_literal($delim,0); # regex always ends before the delimiter
@@ -499,7 +493,8 @@ my ($l,$m);
                $cut=1;
             }
          }elsif( $s eq '%'  ){
-            if( substr($source,1)=~/^(\:?\:?\w+(\:\:\w+)*)/ ){
+            # the problem here is that %2 can be in i=k%2, so more complex regex is needed -- NNB Sept 3, 2020
+            if( substr($source,1)=~/^(\:?\:?[_a-zA-Z]\w*(\:\:[_a-zA-Z]\w*)*)/ ){
                $cut=length($1)+1;
                $ValClass[$tno]='h'; #hash
                $ValPerl[$tno]=$1;
@@ -533,6 +528,12 @@ my ($l,$m);
                if( index(join('',@ValClass),'c')>-1 && $::PyV==3 ){
                   $ValPy[$tno]=':=';
                }
+               $cut=1;
+            }elsif( $s eq '\\'  ){
+               $ValPy[$tno]='';
+               $cut=1;
+            }elsif( $s eq '!'  ){
+               $ValPy[$tno]=' not ';
                $cut=1;
             }elsif( $s eq '-'  ){
               $s2=substr($source,1,1);
@@ -831,7 +832,7 @@ sub double_quoted_literal
 {
 ($closing_delim,$offset)=@_;
 my ($k,$quote,$close_pos,$ind,$result,$prefix);
-   if ($closing_delim ne '"') {
+   if( $closing_delim=~tr/{[>// ){
       $closing_delim=~tr/{[(</}])>/;
    }
    $close_pos=single_quoted_literal($closing_delim,$offset); # first position after quote
@@ -855,7 +856,15 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
    #decode each part. Double quote literals in Perl are ver difficult to decode
    # This is a parcial implementation of the most common cases
    # Full implementation is possible only in two pass scheme
-   $result=( $::PyV==3 ) ? 'f"' : ''; #For python 3 we need special opening quote
+my  $outer_delim;
+    if (index($quote,'"')==-1){
+       $outer_delim='"'
+    }elsif(index($quote,"'")==-1){
+      $outer_delim="'";
+    }else{
+      $out_delim='"""';
+    }
+   $result=( $::PyV==3 ) ? "f$outer_delim" : ''; #For python 3 we need special opening quote
    while( $k > -1  ){
       if( $k > 0) {
          if( substr($quote,$k-1,1) eq '\\' ){
@@ -879,6 +888,7 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
          $ind=$1;
          $cut=length($ind);
          $ind =~ tr/$//d;
+         $ind =~ tr/{}/[]/;
          $result.=$ind; # add string Variable part of the string
          $quote=substr($quote,$cut);
       }
@@ -894,7 +904,7 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
        #the last part
        $result.=escape_quotes($quote,$::PyV);
    }
-   $result.=( $::PyV==3 ) ? '"' : '';
+   $result.=( $::PyV==3 ) ? $outer_delim : '';
    $ValPy[$tno]=$result;
    return $close_pos;
 }
@@ -965,6 +975,10 @@ sub gen_statement
 {
 my $i;
 my $line='';
+   if (scalar(@_)==0 && scalar(@PythonCode)==0){
+      Pythonizer::correct_nest(); # equalize CurNest and NextNest;
+      return; # nothing to do
+   }
    if( scalar(@_)>0  ){
       #direct print of the statement. Added Aug 10, 2020 --NNB
       for($i=0; $i<@_;$i++) {
