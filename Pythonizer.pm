@@ -113,7 +113,7 @@ sub prolog
          out("Results of transcription are written to the file  $output_file");
          if ($refactor) {
              out("Option -r (refactor) was specified. file refactored using $refactor as the fist pass over the source code");
-            `$refactor -v 0 $fname`;
+            `$pre_pythonizer -v 0 $fname`;
          }
          open (STDIN, '<-',) || die("Can't open $fname for reading");
          open(SYSOUT,'>',$output_file) || die("Can't open $output_file for writing");
@@ -124,6 +124,16 @@ sub prolog
           print STDERR "ATTENTION!!! Working in debugging mode debug=$debug\n";
       }
       out("=" x 121,"\n");
+      if( -f "$source_file.xref") {
+         @xref=`cat $source_file.xref`;
+      }else{
+         @xref=grep(/\s*sub\s\w+/,`cat $fname`);
+         foreach $s (@xref){
+            if( $s=~/\s*sub\s(\w+)/ ){
+               $::LocalSub{$1}=1;
+            }
+         }
+      }
       return;
 } # prolog
 
@@ -150,7 +160,7 @@ sub getline
 state @buffer; # buffer to "postponed lines. Used for translation of postfix conditinals among other things.
 
    if( scalar(@_)>0 ){
-       push(@buffer,@_); # buffer line for processing in the next call;
+       unshift(@buffer,@_); # buffer line for processing in the next call;
        return
    }
    while(1) {
