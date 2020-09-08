@@ -352,7 +352,7 @@ sub write_formatted_code
 my $output_file=$fname;
 my ($line,$i,$k,$var, %dict, %type, @xref_table);
    push(@FormattedMain,'}');
-   if( -e $fname ){
+   unless( -f "$fname.original" ){
       `cp $fname  $fname.original`;
    }
    push(@FormattedSource,@FormattedSub);
@@ -543,7 +543,7 @@ sub get_params
       if( scalar(@ARGV)==1 ){
          $fname=$ARGV[0];
          unless( -f $fname ){
-            die ("Unable to open file $ARGV[0]");
+            die ("File $ARGV[0] does not exists");
          }
          open (STDIN, "<$fname");
       } else {
