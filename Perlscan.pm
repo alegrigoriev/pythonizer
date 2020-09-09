@@ -183,9 +183,7 @@ my ($l,$m);
                if( $tno>0 && $ValPerl[0] eq 'sub' ){
                   $ValPy[0]='#NoTrans!'; # this is a subroutne prototype, ignore it.
                }
-               if( length($source) == 1 ){
-                   last; # we got full statement
-               }
+               last if( length($source) == 1); # we got full statement; semicolon needs to be ignored.
                if( $source !~/^;\s*#/ ){
                   # there is some meaningful tail -- multiple statement on the line
                   Pythonizer::getline(substr($source,1)); # save tail that we be processed as the next line.
