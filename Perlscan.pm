@@ -187,8 +187,7 @@ my ($l,$m);
                   }else{
                     $ValCom[$tno-1]=substr($source,1); # comment attributed to the last token
                   }
-                  $source='';
-                  last;
+                  last; # we got full statement for analysis
                }
             }
         }
@@ -242,7 +241,7 @@ my ($l,$m);
               $cut=0;
               if( $tno>=2 && $ValClass[$tno-2] eq 'f' ){
                  # in split regex should be plain vanilla -- no re.match is needed.
-                 $ValPy[$tno]=$quoted_regex; #  double quotes neeed to be escaped just in case
+                 $ValPy[$tno]=put_regex_in_quotes( $ValPerl[$tno]); #  double quotes neeed to be escaped just in case
               }else{
                  $ValPy[$tno]=perl_match($ValPerl[$tno]); # there can be modifiers after the literal.
               }
