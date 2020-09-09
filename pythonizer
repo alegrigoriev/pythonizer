@@ -1129,16 +1129,40 @@ my ($end_pos,$k,$split,$split2,$delta,$dict,$incr,$arg1,$arg2);
          }
          return $start+2;
       }elsif( $ValPerl[$start] eq 'split' ){
-         # you nees to exteact the second argument first
-         if($ValClass[$start+2] eq "'" ){
-            #this is text not pattern
-            gen_chunk($ValPy[$start+4],'.split(',$ValPy[$start+2],')');
+         $end_pos=matching_br($start+1);
+         $k=$start+4; # pos of the second  arg
+         # you need to process the second argument first as this is a method
+         $arg1=$ValPy[$start+2];
+         if( $end_pos-$start==3 ){
+            # default arg used
+            $arg2='default_var';
          }else{
-            gen_chunk($ValPy[$start+4],'.',$ValPy[$start],'(',$ValPy[$start+2],')');
-
+            $arg2=$ValPy[$k];
          }
-
-         return $start+5;
+         if( $ValPerl[$start+2] eq ' ' ){
+            $arg2=("$arg2.lstrip(' ')");  # accomodate AWK behavour in Perl
+         }
+         # add proper method
+         if($ValClass[$start+2] eq '"' ){
+            #this is text not pattern
+            gen_chunk("$arg2.split($arg1"); # this is method
+         }else{
+            gen_chunk($ValPy[$start],"($arg1,$arg2"); # this is a regex function
+         }
+         $k+=1;
+         # process the third argument if it is present
+         if($k<$end_pos && $ValPy[$k] eq ','){
+            $k+=1;
+            gen_chunk(',');
+            if( $end_pos-$k==1 ){
+               gen_chunk($ValPy[$k]);
+            }else{
+               $k=expression($k,$end_pos-1,0);
+               return -255 if($k<0);
+            }
+         }
+         gen_chunk(')');
+         return $end_pos+1;
       }elsif($ValPerl[$start] eq 'print' ) {
          if( $PyV==3 ){
              $TrStatus=print3($start); # in Python3 this is a function
