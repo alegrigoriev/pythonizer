@@ -917,7 +917,7 @@ my $result;
 #
 # We are forced to use triple quotes
 #
-   return qq(""").$string.qq(""");
+   return qq(r""").$string.qq(""");
    return $result;
 }
 sub escape_backslash
