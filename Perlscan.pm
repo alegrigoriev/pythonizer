@@ -183,9 +183,7 @@ my ($l,$m);
                if( $tno>0 && $ValPerl[0] eq 'sub' ){
                   $ValPy[0]='#NoTrans!'; # this is a subroutne prototype, ignore it.
                }
-               if( length($source) == 1  ){
-                   last; # we got full statement
-               }
+               last if( length($source) == 1); # we got full statement; semicolon needs to be ignored.
                if( $source !~/^;\s*#/  ){
                   # there is some meaningful tail -- multiple statement on the line
                   Pythonizer::getline(substr($source,1)); # save tail that we be processed as the next line.
@@ -197,8 +195,7 @@ my ($l,$m);
                   }else{
                     $ValCom[$tno-1]=substr($source,1); # comment attributed to the last token
                   }
-                  $source='';
-                  last;
+                  last; # we got full statement for analysis
                }
             }
         }
@@ -258,7 +255,7 @@ my ($l,$m);
               $cut=0;
               if($tno>=2 && $ValClass[$tno-2] eq 'f' ){
                  # in split regex should be plain vanilla -- no re.match is needed.
-                 $ValPy[$tno]=$quoted_regex; #  double quotes neeed to be escaped just in case
+                 $ValPy[$tno]=put_regex_in_quotes( $ValPerl[$tno]); #  double quotes neeed to be escaped just in case
               }else{
                  $ValPy[$tno]=perl_match($ValPerl[$tno]); # there can be modifiers after the literal.
               }
@@ -640,7 +637,7 @@ sub finish
        $source=Pythonizer::getline();
    }
    if( $::debug > 3  ){
-      say STDERR "Lexem $tno Current token='$ValClass[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
+     say STDERR "Lexem $tno Current token='$ValClass[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
    }
    $tno++;
 }
@@ -969,14 +966,7 @@ my $result;
 #
 # We need to escape quotes
 #
-   return qq(""").$string.qq(""") if ($ver==2);
-   $result=$string;
-   $i=length($string);
-   while( $i>0 && ($i=rindex($string,$i))>-1 ){
-      substr($result,$i,0)='\\' if( substr($string,$i,1) eq '"' );
-      $i--;
-   } # for
-   return $result;
+   return qq(""").$string.qq(""");
 }
 sub put_regex_in_quotes
 {
@@ -991,7 +981,7 @@ my $result;
 #
 # We are forced to use triple quotes
 #
-   return qq(""").$string.qq(""");
+   return qq(r""").$string.qq(""");
    return $result;
 }
 sub escape_backslash
