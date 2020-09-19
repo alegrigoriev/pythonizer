@@ -1,21 +1,20 @@
 ## Translator from Perl to Python 
-### THIS IS AN ANNOUNCEMENT FOR ALPHA VERSION 0.6 of "FUZZY"  TRANSLATOR/TRANSRIBER FROM PERL TO PYTHON 
+### THIS IS AN ANNOUNCEMENT FOR VERSION 0.7 of "FUZZY"  TRANSLATOR/TRANSRIBER FROM PERL TO PYTHON 
 
 This readme is for informational purposes only and is not intended to be updated often. More current information can be found at:  
 
 http://www.softpanorama.org/Scripting/Pythonorama/Python_for_perl_programmers/Pythonizer/index.shtml
 
 http://www.softpanorama.org/Scripting/Pythonorama/Python_for_perl_programmers/Pythonizer/user_guide.shtml
-
-Please note that this is an alpha version, not beta (traditionally beta are versions are 0.9 - 0.999). So major changes and enhancements are possible.  
+ 
 
 ### Possible use cases
 
-Some organizations are now involved in converting their old Perl codebase into other scripting languages, such as Python. But a more common task is to maintain existing Perl scripts, when the person who is assigned to this task known only Python. 
+Some organizations are now involved in converting their old Perl codebase into other scripting languages, such as Python. But a more common task is to maintain existing Perl scripts, when the person who is assigned to this task knowns only Python (University graduates now typically know Python but not Perl and that creates difficulties in the old codebase maintenance.) 
 
-University graduates now typically know Python but not Perl and that creates difficulties in the old codebase maintenance.   In this case, a program that "explains" Perl constructs in Python term would be extremely useful and, sometimes, a lifesaver. Of course, Perl 5 is here to stay (please note what happened with people who were predicting the demise of Fortran ;-), and in most cases, old scripts will stay too.
+In this case, a program that "explains" Perl constructs in Python term would be extremely useful and, sometimes, a lifesaver. Of course, Perl 5 is here to stay (please note what happened with people who were predicting the demise of Fortran ;-), and in most cases, old scripts will stay too.
 
-The other role is to give a quick start for system administrators who want to learn Python (for example, need to support researchers who work with Python), but who currently knows only Perl -- many older school sysadmins dislike Python and for a reason ;-) 
+The other role is to give a quick start for system administrators who want to learn Python (for example, who need to support researchers who work with Python), but who currently knows only Perl -- many older school sysadmins dislike Python and for a reason ;-) 
 
 
 ### Pre-pythonizer implements the first phaze of translation
@@ -62,6 +61,8 @@ If  __DATA__ or __END__ are used a separate file with  the extension  .data  (
 
 
 ### HISTORY 
+
+Sep 18, 2020: Version 0.7 was uploaded. This version creates of the list of global variables for each subroutine to maintain the same visibility in Python as in Perl and generates global statement with the list of such  variables that is inserted in each Python subroutine definition if pythonizer determined that this subroutine access global variables. 
 
 Sep 08, 2020: Version 0.6 was uploaded. Generated source does not contain syntax errors and starts executing in Python interpreter till the first error. List on internal functions created. Translation of backquotes and open statement improved. 
 
