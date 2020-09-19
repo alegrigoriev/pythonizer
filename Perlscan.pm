@@ -40,6 +40,8 @@ package Perlscan;
 # 0.81 2020/08/31  BEZROUN   Handling of % improved.
 # 0.82 2020/09/01  BEZROUN   my is eliminated, unless is the first token (for my $i...)
 # 0.83 2020/09/02  BEZROUN   if regex contains both single and double quotes use """. Same for tranlation of double quoted
+# 0.90 2020/09/17  BEZROUN   Adapted for detection of global identifiers.
+# 0.91 2020/09/18  BEZROUN   ValType array added and now used in pass 0: values set to 'X' for special variables
 #==start=============================================================================================
 use v5.10;
 use warnings;
@@ -52,10 +54,10 @@ require Exporter;
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw(Exporter);
-@EXPORT = qw(gen_statement tokenize gen_chunk @ValClass  @ValPerl  @ValPy @ValCom $TokenStr);
+@EXPORT = qw(gen_statement tokenize gen_chunk @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr);
 #our (@ValClass,  @ValPerl,  @ValPy, $TokenStr); # those are from main::
 
-  $VERSION = '0.94';
+  $VERSION = '0.91';
   #
   # types of veraiables detected during the first pass; to be implemented later
   #
@@ -141,7 +143,7 @@ sub tokenize
 my ($l,$m);
       $source=$_[0];
       $tno=0;
-      @ValClass=@ValCom=@ValPerl=@ValPy=(); # "Token Type", token comment, Perl value, Py analog (if exists)
+      @ValClass=@ValCom=@ValPerl=@ValPy=@ValType=(); # "Token Type", token comment, Perl value, Py analog (if exists)
       $TokenStr='';
       if( $::debug > 3 && $main::breakpoint >= $. ){
          $DB::single = 1;
@@ -485,17 +487,21 @@ my ($l,$m);
                $arg1=$1;
                if( $arg1 eq '_' ){
                   $ValPy[$tno]="perl_arg_array";
+                  $ValType[$tno]="X";
                }elsif( $arg1 eq 'ARGV' ){
                     $ValPy[$tno]='sys.argv';
+                     $ValType[$tno]="X";
                }else{
                   if( $tno>=2 && $ValClass[$tno-2] =~ /[sd'"q]/  && $ValClass[$tno-1] eq '>' ){
                      $ValPy[$tno]='len('.$arg1.')'; # scalar context
-                  }else{
+                     $ValType[$tno]="X";
+                   }else{
                      $ValPy[$tno]=$arg1;
                   }
                   $ValPy[$tno]=~tr/:/./s;
                   if( substr($ValPy[$tno],0,1) eq '.' ){
                      $ValPy[$tno]='__main__'.$ValPy[$tno];
+                     $ValType[$tno]="X";
                   }
                }
                $cut=length($arg1)+1;
@@ -505,7 +511,7 @@ my ($l,$m);
                $cut=1;
             }
          }elsif( $s eq '%' ){
-            # the problem here is that %2 can be in i=k%2, so more complex regex is needed -- NNB Sept 3, 2020
+            # the problem here is that %2 can be in i=k%2, so we need to excude digits from regex  -- NNB Sept 3, 2020
             if( substr($source,1)=~/^(\:?\:?[_a-zA-Z]\w*(\:\:[_a-zA-Z]\w*)*)/ ){
                $cut=length($1)+1;
                $ValClass[$tno]='h'; #hash
@@ -513,6 +519,7 @@ my ($l,$m);
                $ValPy[$tno]=$1;
                $ValPy[$tno]=~tr/:/./s;
                if( substr($ValPy[$tno],0,1) eq '.' ){
+                  $ValCom[$tno]='X';
                   $ValPy[$tno]='__main__'.$ValPy[$tno];
                }
             }else{
@@ -617,8 +624,10 @@ my ($l,$m);
       } # while
 
       $TokenStr=join('',@ValClass);
-      $num=sprintf('%4u',$.);
-      ($::debug>2) && say STDERR "\nLine $num. \$TokenStr: =|",$TokenStr, "|= \@ValPy: ",join(' ',@ValPy);
+      if( $::debug>=2 ){
+         $num=($Pythonizer::Input_mode) ? sprintf('%4u',$.) : sprintf('%4u',$Pythonizer::InLineNo);
+         say STDERR "\nLine $num. \$TokenStr: =|",$TokenStr, "|= \@ValPy: ",join(' ',@ValPy);
+      }
 
 } #tokenize
 #
@@ -659,10 +668,12 @@ my $rc=-1;
    if( $s2 eq '.' ){
       # file line number
        $ValPy[$tno]='fileinput.filelineno()';
-       $cut=2;
+       $ValType[$tno]="X";
+       $cut=2
    }elsif( $s2 eq '^' ){
        $s3=substr($source,2,1);
        $cut=3;
+       $ValType[$tno]="X";
        if( $s3=~/\w/ ){
           if( exists($SPECIAL_VAR{$s3}) ){
             $ValPy[$tno]=$SPECIAL_VAR{$s3};
@@ -673,19 +684,24 @@ my $rc=-1;
    }elsif( index(';<>()?',$s2) > -1 ){
       $ValPy[$tno]=$SPECIAL_VAR{$s2};
       $cut=2;
+      $ValType[$tno]="X";
    }elsif( $s2 =~ /\d/ ){
        $source=~/^.(\d+)/;
        if( $update ){
           $ValPerl[$tno]=$1;
+          $ValType[$tno]="X";
        }
        if( $s2 eq '0' ){
+         $ValType[$tno]="X";
          $ValPy[$tno]="__file__";
        }else{
+          $ValType[$tno]="X";
           $ValPy[$tno]="default_match.group($1)";
        }
        $cut=length($1)+1;
    }elsif( $s2 eq '#' ){
       $source=~/^..(\w+)/;
+      $ValType[$tno]="X";
       if( $update ){
          $ValPerl[$tno]=$1;
       }
@@ -699,6 +715,7 @@ my $rc=-1;
          $ValPerl[$tno]=substr($source,0,$cut);
       }
       if( ($k=index($name,'::')) > -1 ){
+         $ValType[$tno]="X";
          if( $k==0 || substr($name,$k) eq 'main' ){
             substr($name,0,2)='__main__.';
             $ValPy[$tno]=$name;
@@ -711,7 +728,8 @@ my $rc=-1;
       }elsif( length($name) ==1 ){
          $s2=$1;
          if( $s2 eq '_' ){
-            if( $source=~/^(._\s*\[\s*(\d+)\s*\])/ ){
+            $ValType[$tno]="X";
+            if( $source=~/^(._\s*\[\s*(\d+)\s*\])/  ){
                $ValPy[$tno]='perl_arg_array['.$2.']';
                $cut=length($1);
             }else{
@@ -719,6 +737,7 @@ my $rc=-1;
                $cut=2;
             }
          }elsif( $s2 eq 'a' || $s2 eq 'b' ){
+            $ValType[$tno]="X";
             $ValPy[$tno]='perl_sort_'.$s2;
             $cut=2;
          }else{
@@ -729,8 +748,10 @@ my $rc=-1;
         # $cut points to the next symbol after the scanned part of the scapar
            # check for Perl system variables
            if( $1 eq 'ENV' ){
+              $ValType[$tno]="X";
               $ValPy[$tno]='os.environ';
            }elsif( $1 eq 'ARGV' ){
+              $ValType[$tno]="X";
               $ValPy[$tno]='sys.argv';
            }else{
              $rc=1; # regular variable
@@ -1048,14 +1069,15 @@ my $line='';
             $line.=$PythonCode[$i];
          }
       } # for
-      if( defined[$ValCom[-1]] && length($ValCom[-1]) > 0 ){
-         # that means that you need a new line. bezroun Feb 3, 2020
+      if( defined[$ValCom[-1]] && length($ValCom[-1]) > 1 ){
+         # single symbol ValCom will be used as additional determinator of the token in pass 0 -- Sept 18, 200 -- NNB
+         #that means that you need a new line. bezroun Feb 3, 2020
          Pythonizer::output_line($line,$ValCom[-1] );
       }else{
         Pythonizer::output_line($line);
       }
       for ($i=1; $i<$#ValCom; $i++ ){
-          if( defined($ValCom[$i]) && length($ValCom[$i])>0 ){
+          if( defined($ValCom[$i]) && length($ValCom[$i])>1 ){
              # NOTE: This is done because comment can be in a wrong position due to Python during generation and the correct placement  is problemtic
              Pythonizer::output_line('',$ValCom[$i] );
           }  # if defined
