@@ -37,7 +37,7 @@ blockquote {font-size: 10pt; font-family: arial; background: #F9F9F9}
 
 <h1>Pythonizer user guide </h1>
 
-<h3>Version 0.8 (Sept 18, 2020)</h3>
+<h3>Version 0.8 (Oct 02, 2020)</h3>
 
 <table border="1" width="100%" bgcolor="#FFFFCC">
    <tr>
@@ -59,6 +59,9 @@ blockquote {font-size: 10pt; font-family: arial; background: #F9F9F9}
       version of Pythonizer</a></b></td>
    </tr>
 </table>
+
+<p><em>NOTE: In version 0.8&nbsp; you need to specify PERL5LIB variable pointing it to the directory with modules to run the 
+program. See installation section below</em></p>
 
 <ul>
 
@@ -82,6 +85,8 @@ blockquote {font-size: 10pt; font-family: arial; background: #F9F9F9}
 
     <li><b><a href="#History">History</a></b></li>
 
+    <li><b><a href="#Known_errors">Known errors</a></b></li>
+
 	
 </ul>
     </li>
@@ -91,6 +96,8 @@ blockquote {font-size: 10pt; font-family: arial; background: #F9F9F9}
 
 	
 </ul>
+
+<p>&nbsp;</p>
 <hr noshade color="#FF0000" width="33%" size="7">
 
 <h3><a name="Introduction">Introduction</a></h3>
@@ -340,13 +347,14 @@ refactoring of the script. </p>
 
 <h3><a name="Logs">Logs</a></h3>
 
-<p>Currently logs are written to <tt>/tmp/Pythonizer&nbsp; </tt>You can redirect this to any directory via symlink.<tt> </tt>
+<p>Logs are written to <tt>/tmp/Pythonizer&nbsp; </tt>You can redirect this to any directory via symlink.<tt> </tt>
 Currently there is no option to customize the location of the log. </p>
 
 <h3><a name="Structure">Structure</a></h3>
 
 <p>Pythonizer consists of the main program called, as you can guess, <tt>pythonizer</tt> and three modules (which currently need to 
-reside in the same directory as the main program. Main program currently used three modules: </p>
+reside in the same directory as the main program. Main program currently used three modules, which should be located so that the 
+main program can load then from @INC array set of directories: </p>
 <ul>
 
    <li><tt>Perlscan.pm</tt></li>
@@ -398,7 +406,26 @@ wc -l Perlscan.pm Pythonizer.pm  pythonizer  Softpano.pm pre_pythonizer.pl
 
 <h3><a name="Subsequent_transformations">Subsequent transformations</a></h3>
 
+<p>In may case you can get correct translation by simplifying Perl code. Some transformation can be done vis macro generator liken 
+M4 some via Perl itself using regular expressions. </p>
+
+<p>Recently Perl adopted Python stance of minimizing the number of parenthesis and <tt>pythonizer</tt> not always correctly parse 
+such &quot;newer&quot; syntax.&nbsp; Adding parenthesis in such cases allow the correct translation. </p>
+
 <p>For some ideas see <a href="../translating_perl_to_python.shtml">Perl to Python translation</a></p>
+<blockquote>
+
+   <h3><a name="Known_errors">Known errors</a></h3>
+</blockquote>
+
+<p>In version 0.8 filehandles are not included in the list of global variables and as such are not propagated correctly of file 
+operation on a given file handle spread into several different subroutines. </p>
+
+<p>State variable are now simply mapped to global namespace which can create conflicts and corrupt their value at run time.&nbsp; So 
+th eusage of state variable currently needs to ne manually reviewed to detect such conflicts. They are rare but they happen. </p>
+
+<p>One possible solutions to rename them using sub name as the prefix. For example in sub <tt>maxi</tt> the state variable <tt>limit</tt> 
+can be renamed into <tt>maxi_limit</tt></p>
 
 <h3><a name="History">History</a></h3>
 <blockquote>
@@ -406,7 +433,8 @@ wc -l Perlscan.pm Pythonizer.pm  pythonizer  Softpano.pm pre_pythonizer.pl
    <p><b>Changes since version 0.7 </b></p>
    <blockquote>
 
-      <p>More correct translation of array assignments. Global now are initialized after main sub to undef value. Simple installer 
+      <p>More correct translation of array assignments. Now you need to specify PERL5LIB variable pointing it to the directory with 
+      modules to run the program. Global now are initialized after main sub to undef value. Simple installer 
       added</p>
    </blockquote>
 
