@@ -37,7 +37,7 @@ blockquote {font-size: 10pt; font-family: arial; background: #F9F9F9}
 
 <h1>Pythonizer user guide </h1>
 
-<h3>Version 0.7 (Sept 18, 2020)</h3>
+<h3>Version 0.8 (Sept 18, 2020)</h3>
 
 <table border="1" width="100%" bgcolor="#FFFFCC">
    <tr>
@@ -107,27 +107,111 @@ cases, old scripts will stay too.</p>
 researchers who work with Python), but who currently knows only Perl -- many older school sysadmins dislike Python and for a reason 
 ;-)&nbsp;&nbsp; </p>
 
+<p>Yes another role is provide a proof that those two languages are mostly compatible and that program from one&nbsp; can be 
+translated into another with modest amount of effort. Although such translation is not necessary a best fit,&nbsp; in most cases it 
+is close enough and needs just minor manual editing.&nbsp; </p>
+
+<p>Of course, complex constructs and idioms are often translated incorrectly. Several complex issues remains unresolved (implicit 
+conversion to strings in Perl is one such issues.) As experience with Google translation of natural languages attests there&nbsp; 
+are always around 10 to 20% of sentences (depending of the subject area of the text)&nbsp; that are translated incorrectly. And, 
+probably,&nbsp; 2-3% that have absurd or funny translation.&nbsp; </p>
+
 <p>The idea here is that using &quot;fuzzy translation&quot; concept it is possible to create such a tool with relatively modest efforts. A tool, written with some knowledge of 
 compiler technologies, that falls into the category of &quot;small language compliers&quot; with the total effort around one man-year or less. Assuming ten lines per day of debugged code for the task of complexity comparable with the writing of compilers, the estimated 
 size should be around 3-5K lines of code (~1K line phase 1 and 2-3K line phase 2).</p>
 
-<p>Currently code base reached 4K lines and that close to the&nbsp; limit on which I can maintain this codebase as a hobby project, so 
-some ideas of enhancements need to be abandoned or move to the pre-pythonizer phase.&nbsp; </p>
+<p>As of version&nbsp; 0.8 it looks like the initial idea was a sound one: within&nbsp;5K LOC limit it is possible to create a 
+useful utility that transcribes Perl in Python with a decent quality. </p>
 
-<p>For example the creation of the list of global variables for each subroutine to maintain the same visibility in Python in version&nbsp; 
-0.7 is implemented&nbsp; without the opportunity to put state variables in a special namespace (they generally do not belong to the 
-global namespace as while they have lifetime similar to global variables their namespace is local). Still it is better then nothing. </p>
+<p>As the currently code base exceeded 4K lines, it is close to the&nbsp; limit on which I can maintain this codebase as a hobby project, so 
+some enhancements need to be abandoned or moved to the pre-pythonizer phase.&nbsp; This&nbsp; first of all is true about insertion 
+of proper conversion of&nbsp;&nbsp; types. Right now it is left to the programmer to fix those issues.&nbsp; </p>
+
+<p><em>NOTE: </em>Pythonizer now&nbsp; creates the list of variables that need to be declared global to preserve a part of the 
+global namespace that Perl subroutines access. This is a needed function as Python has different rules of variables visibility -- 
+global variables are visible in all subroutines, but to be able to modify them you need to declare them global explicitly (and this 
+global variable should already exist and be initialized) </p>
+
+<h3><a name="Installation">Installation</a></h3>
+
+<p>For testing the main program and all modules should reside in a single directory from which you can run the program.&nbsp; </p>
+
+<p>You need to download files or replicate the directory via git&nbsp;. Let's assume that you downloaded or replicated them into&nbsp;
+<tt>/home/softpano/Pythonizer</tt><tt> </tt></p>
+
+<p>After that you can run <tt>pythonizer</tt> from the install directory by specifying&nbsp; <tt>-I /home/softpano/Pythonizer</tt>&nbsp; option for Perl interpreter 
+to point to proper directory with modules &nbsp; 
+For example:</p>
+
+<pre class="code">perl -I /home/softpano/Pythonizer ~/Pythonizer/pythonizer script_to_be_translated.pl</pre>
+
+<p>Alternatively you can specify PERL5LIB env variable to point to this directory</p>
+<font SIZE="3">
+
+<pre class="code">export PERL5LIB=<tt>/home/softpano/Pythonizer</tt></font></pre>
+
+<p>If you already have this variable defined in your bashrc you can add this directory to the end after column, for example</p>
+
+<pre class="code">PERL5LIB=/home/softpano/perl5/lib/:<font SIZE="3">PERL5LIB=</font><tt>/home/softpano/Pythonizer</tt></pre>
+
+<p>After that you do not need to use option -I of Perl interpreter and can invoke the program directly</p>
+
+<pre class="code">~/Pythonizer/pythonizer script_to_be_tranlated.pl</pre>
+
+<p>In order to specify <tt>pythonizer</tt> without path you need to add the directory in which you installed it to the <tt>PATH </tt>
+or copy the program to one of the directories already in <tt>PATH</tt>, for example<tt> /use/local/bin i</tt>f you are root<tt> or 
+~/bin </tt>if you are a regular user<tt>.</tt></p>
+
+<p style="text-align: left">Version 0.8 has a simpler installer using which&nbsp; you&nbsp; can quickly move the main&nbsp; script 
+and module to proper places in your directory tree. It is called <tt>installer</tt> and accept two arguments:</p>
+<ul>
+
+   <li>
+
+   <p style="text-align: left"><b>path_to_pythonizer</b> -- directory in which you want to put <tt>pythonizer</tt> and <tt>
+   pre_pythonizer.pl</tt></li>
+
+<li>
+
+<p style="text-align: left"><b>path_to_modules</b> -- directory in which you want to put modules (should be defined iether in <tt>@INC</tt> 
+or in env variable <tt>PERL5LIB</tt>)&nbsp; </li>
+</ul>
+
+<p style="text-align: left">For example: </p>
+
+<pre style="text-align: left" class="code">installer path_to_pythinizer parth_to_moduldes</pre>
+
+<p style="text-align: left">for example </p>
+
+<pre style="text-align: left" class="code">cd /opt/Pythonizer &amp;&amp; installer /user/local/bin /user /usr/local/share/perl5</pre>
+
+<p>By default if run as root it assumes <tt>/usr/local/bin</tt> as the target directory for pythonizer and<tt> /usr/local/share/perl5</tt> 
+for modules if is is run as root<p>If run as a regular user defaults are&nbsp; <tt>~/bin</tt> and <tt>~/Perl5/lib</tt>
+
+<h3><a name="Invocation">Invocation</a></h3>
+
+<p>You can run Pythonizer both in Cygwin and Linux. To &quot;pythonize&quot; the Perl script you need to set <font SIZE="3">
+directory with modules in -I option&nbsp; of Perl interpreter, PERL5LIB, or to put modules in some directory already in @INC as 
+discussed in the <a href="#Installation">Installation</a> section.</font></p>
+
+<p>The simplest&nbsp; invocation can look like: <font SIZE="3">&nbsp;</font></p>
+
+<pre><font SIZE="3">export PERL5LIB=</font>/opt/Pythonizer &amp;&amp; /opt/Pythonizer/pythonizer /path/to/your/program/script_to_be_transalted.pl</pre>
+
+<p>If the program runs to the end you will get &quot;pythonized&quot; text in <tt>/path/to/your/program.py</tt></p>
+
+<p>It also produces protocol of translation in <tt>/tmp/Pythonizer</tt>&nbsp; with size by side Perl and Python code, which allows you to 
+analyses the protocol detect places that need to be commented out translated 
+manually. </p>
+
+<p>If <tt>&nbsp;__DATA__</tt> or <tt>__END__</tt> are used a separate file with&nbsp; the extension&nbsp; <b>.data </b>&nbsp;(<tt>/path/to/your/program.data </tt>
+for the example above) will be created with&nbsp; the content on this section of Perl script.</p>
 
 <h3><a name="Pre-pythonizer__implements_the_first_phase_of_translation">Pre-pythonizer&nbsp; implements the first phase of 
 translation</a></h3>
 
 <p>Processing consists of two passes, which currently are not integrated in any away with <tt>pre_pythonizer</tt> mainly providing 
-refactoring of Perl code to create main procedure and move all subroutines up so that they are now defined before use.&nbsp; </p>
-
-<p><em>NOTE: </em>In the next version it will create the list of variables that need to be declared global to preserve a part of the 
-namespace the namespace that Perl program has. This is a needed function as Python has different rules of variables visibility that 
-I decided to move to the pr-pythonizer due to the size of the codebase for pythonizer.&nbsp; Hopefully this part can be at least 
-partially automated. </p>
+refactoring of Perl code to create <tt>main</tt> procedure and move all subroutines up so that they are now defined before use.&nbsp; </p>
 
 <p>Running this phase also reformat the Perl script in a way that slightly increases chances that the script will be translated with 
 fewer errors. Opening and closeting curvy bracket are put on single lines to ease the job of the lexical scanner in Pythonizer. </p>
@@ -155,26 +239,21 @@ it more &quot;Python-compatible&quot; can be performed on this text instead of t
 <h3><a name="Pythonizer_implements_actual_transformation_of_Perl_into_Python">Pythonizer implements actual transformation of Perl 
 into Python</a></h3>
 
-<p>This guide corresponds to version 0.7 of pythonizer. Running&nbsp; <tt>pythonizer -h</tt> provides a&nbsp; list of options. </p>
-
-<p>This is alpha version, so do not expect any perfection. It woks but with errors.&nbsp; It still has bugs and not all constructs 
-are transliterate correctly.</p>
-
-<p>Also detecting of the type of variables is not implemented and that increase the number of errors in Python as conversion to 
-string is not automatic like in Perl.</p>
+<p>Running&nbsp; <tt>pythonizer -h</tt> provides a&nbsp; list of options. </p>
 
 <p>Here is example of the protocol&nbsp;
 <a href="protocol_of_translation_of_pre_pythonizer020.shtml">Full protocol of translation of pre_pythonizer.pl by version 0.2 of 
 pythonizer</a></p>
 
-<p>To increase chances of correct transliteration it is recommended to run the Perl script via
+<p>To increase chances of correct translation it is recommended to run the Perl script via
 <span class="css-truncate css-truncate-target d-block width-fit">
 <a class="js-navigation-open link-gray-dark" title="pre_pythonizer.pl" id="9413911e31717187d3a97255af3e0f95-f911160659ba8e3129cfb73f329fb2fd14950434" href="https://github.com/softpano/pythonizer/blob/master/pre_pythonizer.pl">
 pre_pythonizer.pl</a></span></p>
 
 <p><span class="css-truncate css-truncate-target d-block width-fit">Parts that can't be translated during the first invocation can 
-be commented outs and iteratively the stage can be reached when the Perl script is completely Pythonized and can be corrected 
-manually.&nbsp; </span></p>
+be commented outs and iteratively you can modify simplify Perl code and reach the stage when the Perl script is translated more or 
+less OK. After that you can work in Python debugger and iron remaining inconsistencies and cases of incorrect translation of 
+statements. Sometimes algorithm of a part of the program need to be adapted to Python.&nbsp; </span></p>
 
 <p><b><span class="css-truncate css-truncate-target d-block width-fit">Some features:</span></b></p>
 
@@ -182,15 +261,15 @@ manually.&nbsp; </span></p>
 
    <li>The Pythonizer is implemented in Perl 5.10+ and does not use any non standard Perl libraries. </li>
 
-   <li>Converts most of Perl 4 style code typical for sysadmin scripts into Python. That includes loops, special variables, function 
+   <li>Converts most of Perl 5 code typical for sysadmin scripts into Python. That includes loops, special variables, function 
    calls, lists, hashes,&nbsp; etc.</li>
 
-   <li>Recognizes some Perl idioms and special cases. Perform limited optimization of Perl in case this is possible (for example use 
-   of replace function&nbsp; instead or regular expression in&nbsp; case bother source and target are plain strings. it also optimize some types of split function when the regex supplied to Perl actually is a string and does not contain any 
+   <li>Recognizes some Perl idioms and special cases. Perform limited peophole optimization of Perl within individual statements in case this is possible (for example use 
+   of replace function&nbsp; instead or regular expression in&nbsp; case both the source and target are plain strings. it also optimize some types of split function when the regex supplied to Perl actually is a string and does not contain any 
    metacharacters. </li>
 
-   <li>Whenever there is no equivalent Python function for a Perl function, the function is emulated. currently this is done only in 
-   case when this does not require additional Python library.</li>
+   <li>Whenever there is no equivalent Python function for a Perl function, the function is emulated. Currently this is done only in 
+   cases when this does not require additional Python library.</li>
 
    <li>Perl special variables are renamed to selected Python names and used consistently. But that does not mean that they are 
    correctly populated. </li>
@@ -200,8 +279,9 @@ manually.&nbsp; </span></p>
 
    <li>Arguments to Perl subroutines are emulated via lists</li>
 
-   <li>In case Perl control constructs are missing in Python (for example <tt>(debug&gt;0) say $line</tt>; or <tt>open(SYSIN,'&lt;',',$mytext) 
-   || die(&quot;Can't open the file $mytest\n&quot;);</tt></li>
+   <li>In case of Perl control constructs that are missing in Python (for example <tt>(debug&gt;0) &amp;&amp; say $line</tt>; or <tt>open(SYSIN,'&lt;',',$mytext) 
+   || die(&quot;Can't open the file $mytest\n&quot;);<span lang="ru">) </tt></span>they are translated into equivalent Python 
+   constructs. There are some exceptions, for example Perl <tt>continue</tt> statement, but they are rarely used. </li>
 
    <li>Tail data after <tt>__DATA__</tt> or <tt>__END__ </tt>&nbsp;are converted to a separate file with the same name as script and<tt> 
    .data</tt></li>
@@ -218,9 +298,9 @@ manually.&nbsp; </span></p>
 
    <li>The content of&nbsp; ‘BEGIN’, ‘END’ blocks is translated but blocks itself need to be emulated manually.&nbsp; Please note 
    that these blocks are executed at the time of execution of Perl interpreter, not at the time of execution of&nbsp; the script, so 
-   opportunities to match Perl semantic here are limited&nbsp; </li>
+   opportunities to match Perl semantic here are limited.&nbsp; </li>
 
-   <li>References are not translated correctly. In many cases of usage of references in Perl this is very difficult to&nbsp; expres 
+   <li>References are not translated correctly. In many cases of usage of references in Perl this is very difficult to&nbsp; express 
    in Python </li>
 </ul>
 
@@ -276,7 +356,17 @@ reside in the same directory as the main program. Main program currently used th
    <li><tt>Softpano.pm</tt></li>
 
 </ul>
-The total size of the codebase in version 0.6 is over 4K lines: 
+
+<p>The total size of the codebase in version 0.8 is around 4.3K lines: </p>
+<pre>
+# wc -l Perlscan.pm Pythonizer.pm  pythonizer  Softpano.pm pre_pythonizer.pl
+  1119 Perlscan.pm
+   465 Pythonizer.pm
+  1577 pythonizer
+   339 Softpano.pm
+   825 pre_pythonizer.pl
+  4325 total</pre><p>The total size of the codebase in version 0.6 is slightly over 4K lines: 
+</p>
 <pre>
 wc -l Perlscan.pm Pythonizer.pm  pythonizer  Softpano.pm pre_pythonizer.pl
   1107 Perlscan.pm
@@ -285,7 +375,7 @@ wc -l Perlscan.pm Pythonizer.pm  pythonizer  Softpano.pm pre_pythonizer.pl
    339 Softpano.pm
    825 pre_pythonizer.pl
   4168 total</pre>
-<p>The total size of the codebase in version 0.5 is around 4K lines: 
+<p>The total size of the codebase in version 0.5 is slightly below 4K lines: 
 </p>
 <pre>
 wc -l Perlscan.pm Pythonizer.pm  pythonizer  Softpano.pm pre_pythonizer.pl
@@ -296,7 +386,7 @@ wc -l Perlscan.pm Pythonizer.pm  pythonizer  Softpano.pm pre_pythonizer.pl
    825 pre_pythonizer.pl
   3971 total</pre>
 
-<p>The total size of the codebase in version 0.4 is around 3.6K lines: </p>
+<p>The total size of the codebase in version 0.4 is around 3.5K lines: </p>
 
 <pre>wc -l Perlscan.pm Pythonizer.pm  pythonizer  Softpano.pm pre_pythonizer.pl
    866 Perlscan.pm
@@ -306,42 +396,19 @@ wc -l Perlscan.pm Pythonizer.pm  pythonizer  Softpano.pm pre_pythonizer.pl
    833 pre_pythonizer.pl
   3571 total</pre>
 
-<h3><a name="Installation">Installation</a></h3>
-
-<p>You need to download files or replicate the directory via git&nbsp;. In the later case the main program 
-and three modules mentioned about should be put into a separate directory. For example,&nbsp; <tt>/opt/Pythonizer </tt></p>
-
-<p>The directory into which the main program and modules are downloaded&nbsp; <em>needs to be made current before the run</em>. </p>
-
-<p>Currently main program and all modules should reside in a single directory from which you will run the program.&nbsp; </p>
-
-<p>ATTENTION: During 
-invocation of <tt>pythonizer</tt>&nbsp; this directory should be current. </p>
-
-<h3><a name="Invocation">Invocation</a></h3>
-
-<p>You can run Pythonizer both in Cygwin and Linux. </p>
-
-<p>To &quot;pythonize&quot; the Perl script <tt>/path/to/your/program.pl</tt>&nbsp; you need to use the following invocation (<em>the directory in 
-which pythonizer resides should be current</em> otherwise modules will not be loaded) </p>
-
-<pre>cd /path/to/pythonizer &amp;&amp; pythonizer /path/to/your/program.pl</pre>
-
-<p>If the program runs to the end you will get &quot;pythonized&quot; text in <tt>/path/to/your/program.py</tt></p>
-
-<p>It also produces protocol of translation in <tt>/tmp/Pythonizer</tt>&nbsp; with size by side Perl and Python code, which allows you to 
-analyses the protocol detect places that need to be commented out translated 
-manually. </p>
-
-<p>If <tt>&nbsp;__DATA__</tt> or <tt>__END__</tt> are used a separate file with&nbsp; the extension&nbsp; <b>.data </b>&nbsp;(<tt>/path/to/your/program.data </tt>
-for the example above) will be created with&nbsp; the content on this section of Perl script.</p>
-
 <h3><a name="Subsequent_transformations">Subsequent transformations</a></h3>
 
 <p>For some ideas see <a href="../translating_perl_to_python.shtml">Perl to Python translation</a></p>
 
 <h3><a name="History">History</a></h3>
 <blockquote>
+
+   <p><b>Changes since version 0.7 </b></p>
+   <blockquote>
+
+      <p>More correct translation of array assignments. Global now are initialized after main sub to undef value. Simple installer 
+      added</p>
+   </blockquote>
 
    <p><b>Changes since version 0.6. </b></p>
    <blockquote>
@@ -357,7 +424,8 @@ for the example above) will be created with&nbsp; the content on this section of
 
       <p>Regular expressions now are translated more&nbsp; correctly. Short cut if like <tt>(debug&gt;0) &amp;&amp; say $line</tt> are translated 
    in more general way then before.&nbsp; This is the first version that translates the main test (pre_pythonizer.pl) without syntax 
-      errors.&nbsp;&nbsp; </p>
+      errors.&nbsp;&nbsp; Generated source&nbsp; starts executing in Python interpreter till the first error. List on internal 
+      functions created. Translation of backquotes and open statement improved. </p>
    </blockquote>
 
    <p><b>Changes since version 0.4</b></p>
@@ -403,14 +471,19 @@ allows to set version 2 id you still need generation for Python 2.7 (more constr
    <p>This version creates of the list of global variables for each subroutine to maintain the same visibility in Python as in Perl 
    and generates <tt>global</tt> statement with the list of such&nbsp; variables that is inserted in each Python subroutine 
    definition if pythonizer determined that this subroutine access global variables. </p>
+
+   <p>So far the specifics of Perl <tt>state</tt> variable is ignored and they are assumed to be yet another type of global 
+   variables (they generally do not belong to the global namespace as while they have lifetime similar to global variables their 
+   namespace is local). </p>
 </blockquote>
 
-<h4>[Sep 04, 2020] <a href="https://github.com/softpano/pythonizer">Version 0.6 uploaded</a></h4>
+<h4>[Sep 08, 2020] <a href="https://github.com/softpano/pythonizer">Version 0.6 uploaded</a></h4>
 <blockquote>
 
    <p>Regular expressions now are translated more&nbsp; correctly. Short cut if like <tt>(debug&gt;0) &amp;&amp; say $line</tt> are translated 
    in more general way then before.&nbsp; This is the first version that translates the main test (pre_pythonizer.pl) without syntax 
-   errors. </p>
+   errors. Generated source&nbsp; starts executing in Python interpreter till the first error. List on internal functions created. 
+   Translation of backquotes and open statement improved. </p>
 </blockquote>
 
 <h4>[Aug 31, 2020] <a href="https://github.com/softpano/pythonizer">Version 0.5 uploaded</a></h4>
