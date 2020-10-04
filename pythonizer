@@ -76,7 +76,8 @@
 # 0.570  2020/09/03  BEZROUN   Translation of ++ and --  implemented
 # 0.580  2020/09/03  BEZROUN   Translation of function sprintf implemented
 # 0.600  2020/09/08  BEZROUN   List on internal functions created. Translation of backquotes and open improved.
-# 0.700  2020/09/17  BEZROUN   Basic global varibles detection added. Global statment generated for each local subroutine
+# 0.700  2020/09/17  BEZROUN   Basic global varibles detection added. Global statement generated for each local subroutine
+# 0.800  2020/10/02  BEZROUN   More correct translation of array assignments. Globals initialiazed after main sub.  Installer added
 #!start ===============================================================================================================================
 
    use v5.10;
@@ -87,12 +88,11 @@
 #
 # Modules used ( from the current directory to make debugging more convenient; will change later)
 #
-   use lib '.';
    use Softpano qw(autocommit abend banner logme summary out);
    use Perlscan qw(gen_statement  tokenize gen_chunk @ValClass @ValPerl @ValPy $TokenStr);
    use Pythonizer qw(correct_nest getline prolog output_line append replace destroy preprocessing @LocalSub %GlobalVar);
 
-   $VERSION='0.70';
+   $VERSION='0.80';
 #
 # options
 #
@@ -178,7 +178,13 @@ my $start;
       $RecursionLevel=-1;
       if( $ValClass[0] eq '}' ){
          # we treat curvy bracket as a separate dummy statement
-          correct_nest(-1); # next line de-indented
+         correct_nest(-1); # next line de-indented
+         if( $Pythonizer::CurNest==1 && $CurSub eq 'main' ){
+            correct_nest(0,0);
+            $globals=substr($GlobalVar{$CurSub},length('global'));
+            $globals=~tr/,/=/;
+            gen_chunk($globals,'=None');
+         }
       }elsif( $ValClass[0] eq '{' ){
          correct_nest(1); # next line indented
       }elsif( $ValClass[0] eq '(' ){
@@ -194,12 +200,15 @@ my $start;
          next;
       }elsif( $ValPerl[0] eq 'sub' ){
          # Perl has two types of sub statements -- prototype and actual
+         $CurSub=$ValPy[1];
          correct_nest(0,0);
-         gen_chunk('def',$ValPy[1],'(perl_arg_array):'); # def name ([list of arguments])
-         $LocalSub{$ValPy[1]}=1;
-         if (exists($GlobalVar{$ValPy[1]}) ){
+         gen_chunk('def',$CurSub,'(perl_arg_array):'); # def name ([list of arguments])
+         $LocalSub{$CurSub}=1;
+         if (exists($GlobalVar{$CurSub}) ){
             gen_statement();
-            gen_chunk($GlobalVar{$ValPy[1]});
+            correct_nest(1,1);
+            output_line($GlobalVar{$CurSub});
+            correct_nest(0,0);
          }
       }elsif( $ValPerl[0] eq 'BEGIN' ){
          correct_nest(0,0);
@@ -239,12 +248,16 @@ my $start;
             if($#ValClass>$last && $ValClass[$last+1] eq '='){
                $TrStatus=assignment(1);
             }else{
-               gen_chunk('[');
                for($i=2; $i<$last;$i++){
-                  gen_chunk($ValPy[$i]);
+                  if ($ValPy[$i] eq '.'){
+                     gen_chunk('=');
+                  }else{
+                     gen_chunk($ValPy[$i]);
+                  }
                }
-               $k=($last-1)/2;
-               gen_chunk("]=[None for _ in range($k)]");
+               gen_chunk('=None');
+               #$k=($last-1)/2;
+               #gen_chunk("]=[None for _ in range($k)]");
             }
           }elsif( $ValClass[2] eq '=' ){
              $TrStatus=assignment(1);
@@ -273,14 +286,47 @@ my $start;
           $TrStatus=assignment(0);
       }elsif($ValClass[0] eq 'a'){
           if( $ValClass[1] eq '=' ){
-             if( $ValClass[2] eq 'a' ){
+             if( $#ValClass==2 && $ValClass[2] eq 'a'){
                 # Special case array to array copy
                 gen_chunk("$ValPy[0]=$ValPy[2].copy");
+                finish();
+                next;
+             }elsif( $ValPerl[2] eq '(' ){
+                # array initialization
+                gen_chunk($ValPy[0],'=[');
+                $end_pos=matching_br(2);
+                for (my $i=3; $i<$end_pos; $i++){
+                    gen_chunk($ValPy[$i]);
+                }
+                gen_chunk(']');
                 finish();
                 next;
              }elsif( $ValPerl[2] =~ /<\w*>/ ){
                # Special case of array initialization via slurping
                gen_chunk("$ValPy[0]=$ValPy[2].copy");
+
+             }elsif(  $ValClass[2] eq 'a' && $ValPerl[3] eq '=' ){
+               #cascade assignement
+               $last_eq=rindex($TokenStr,'=');
+               if( $ValPerl[$last_eq+1] eq '(' ){
+                   $ValPy[$last_eq+1]='[';
+                   if( $ValPerl[-1] eq ')' ){
+                      $ValPy[-1]=']';
+                   }else{
+                      $TrStatus=-255;
+                      finish();
+                      next;
+                   }
+               }
+               for( $i=0; $i<$last_eq; $i+=2 ){
+                  if( $last_eq+1==@ValClass ){
+                     gen_statement("$ValPy[$i]=$ValPy[-1].copy");
+                  }elsif( $ValPerl[$last_eq+1] eq '(' ){
+                     gen_chunk("$ValPy[$i]=");
+                     expression($last_eq+1,$#ValClass);
+                     gen_statement();
+                  }
+               }
                finish();
                next;
              }
@@ -582,7 +628,7 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
       if( $limit - $split == 1 ){
          # only one token after '='
          if ($ValClass[$limit] eq 'x' ) {
-            gen_chunk(qq{subprocess.run($ValPy[$split-1],capture_output=True,text=True,shell=True)});
+            gen_chunk(qq{subprocess.run($ValPy[$split+1],capture_output=True,text=True,shell=True)});
             gen_statement();
             gen_statement(qq{subprocess_rc=$ValPy[$split-1].returncode});
             gen_chunk($ValPy[$k]);
