@@ -304,7 +304,8 @@ my $start;
              }elsif( $ValPerl[2] =~ /<\w*>/ ){
                # Special case of array initialization via slurping
                gen_chunk("$ValPy[0]=$ValPy[2].copy");
-
+               finish();
+               next;
              }elsif(  $ValClass[2] eq 'a' && $ValPerl[3] eq '=' ){
                #cascade assignement
                $last_eq=rindex($TokenStr,'=');
@@ -387,13 +388,17 @@ my $start;
          }elsif( $ValPerl[0] eq 'chomp' ){
             if( $#ValPerl==0) {
                gen_chunk(q[default_var=default_var.rstrip("\n")]); # chomp with no argumnets
-            }elsif( $ValClass[1] eq '(' ){
+            }elsif( $ValClass[1] eq '(' && $#ValClass==3 ){
                gen_chunk($ValPy[2].'='.$ValPy[2].$ValPy[0]);
-            }elsif( $ValClass[1] eq 's' ){
-               # function without paranthesys
+            }elsif( $ValClass[1] eq 's' && $#ValClass==1 ){
+               # function with a single argument without paranthesys
                gen_chunk($ValPy[1].'='.$ValPy[1].$ValPy[0]);
+            }elsif($ValClass[3] eq '='){
+               gen_chunk("$ValPy[2]=($ValPy[2]:=");
+               expression(4,$#ValClass-1,0);
+               gen_chunk(")$ValPy[0]");
             }else{
-               $TrStatus=-1;
+               $TrStatus=-255;
             }
          }elsif( $ValPerl[0] eq 'chop' ){
             if( $ValPerl[1] eq '(' ){
@@ -915,7 +920,11 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
       $end_pos=next_same_level_token(';',$start,$end_br_pos);
       if( $end_pos == -1 ){$TrStatus=-1; return -255; }
       if( $end_pos-$start==1 ){
-          gen_chunk($ValPy[$start]); # limit of the range
+          if($ValClass[$start] eq 'a'){
+             gen_chunk("len($ValPy[$start])"); # array as limit of the range
+          }else{
+             gen_chunk($ValPy[$start]); # all other cases of single limit of the range
+          }
       }else{
          $TrStatus=expression($start,$end_pos-1); # gen expression for the limit of the range
          return -255 if ($TrStatus<0);
@@ -1446,7 +1455,7 @@ my ($limit,$mode,$split,$start,$prev_k,$end_pos);
          $cur_pos++;
        }elsif( $ValClass[$cur_pos] eq 'x' ){
          # execution of Unix uility via shell
-          gen_chunk(qq{subprocess.run($ValPy[$split-1],capture_output=True,text=True,shell=True).sysout});
+          gen_chunk(qq{subprocess.run($ValPy[$cur_pos],capture_output=True,text=True,shell=True).stdout});
          $cur_pos++;
       }elsif( $ValClass[$cur_pos] eq 's' || $ValClass[$cur_pos] eq 'f' ){
          # match in Puthon is library re.match
