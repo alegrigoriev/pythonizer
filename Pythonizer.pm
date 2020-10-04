@@ -366,14 +366,15 @@ my $orig_tail_len=length($tailcomment);
 
 } # output_line
 
-#::correct_nest -- ensure proper indenting of the lines. Accepts two arguments
+
+sub correct_nest
+# Ensure proper indenting of the lines. Accepts two arguments
 #  if no arguments given it sets $CurNest=$NextNest;
 #  If only 1 ARG given inrements/decreaments $NextNest;
 #     NOTE: If zero is given sets NextNest to zero.
-#  if two argumants given sets increments/decrements both NexNext and $CurNest
+#  if two arguments are given increments/decrements both NexNext and $CurNest
 #     NOTE: Special case -- if 0,0 is passed both set to zero
-# Each argiment checked against the min and max threholds befor processing
-sub correct_nest
+# Each argument checked against the min and max threholds befor processing. If the threshold exceeded the operation ignored.
 {
 my $delta;
    if(  scalar(@_)==0 ){
