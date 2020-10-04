@@ -962,7 +962,7 @@ my  $outer_delim;
    }
    if( length($quote)>0 ){
        #the last part
-       $result.=escape_quotes($quote,$::PyV);
+       $result.=$quote;
    }
    $result.=( $::PyV==3 ) ? $outer_delim : '';
    $ValPy[$tno]=$result;
