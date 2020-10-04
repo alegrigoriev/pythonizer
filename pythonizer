@@ -107,7 +107,7 @@
    if( $OS eq 'cygwin' ){
       $HOME="/cygdrive/f/_Scripts";  # used for backups
    }elsif( $OS eq 'linux' ){
-      $HOME=ENV{'HOME'}; # used for backups
+      $HOME=$ENV{'HOME'}; # used for backups
    }
    $LOG_DIR='/tmp/'.ucfirst($SCRIPT_NAME);
    banner($LOG_DIR,$SCRIPT_NAME,"Fuzzy translator of Python to Perl. Version $VERSION",30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
