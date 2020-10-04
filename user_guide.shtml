@@ -156,7 +156,7 @@ For example:</p>
 
 <pre class="code">perl -I /home/softpano/Pythonizer ~/Pythonizer/pythonizer script_to_be_translated.pl</pre>
 
-<p>Alternatively you can specify PERL5LIB env variable to point to this directory</p>
+<p>Alternatively you can specify PERL5LIB environment variable to point to this directory</p>
 <font SIZE="3">
 
 <pre class="code">export PERL5LIB=<tt>/home/softpano/Pythonizer</tt></font></pre>
@@ -185,19 +185,19 @@ and module to proper places in your directory tree. It is called <tt>installer</
 <li>
 
 <p style="text-align: left"><b>path_to_modules</b> -- directory in which you want to put modules (should be defined iether in <tt>@INC</tt> 
-or in env variable <tt>PERL5LIB</tt>)&nbsp; </li>
+or in environment variable <tt>PERL5LIB</tt>)&nbsp; </li>
 </ul>
 
-<p style="text-align: left">For example: </p>
+<p style="text-align: left">General format of invocation: </p>
 
-<pre style="text-align: left" class="code">installer path_to_pythinizer parth_to_moduldes</pre>
+<pre style="text-align: left" class="code">installer path_to_pythonizer path_to_modules</pre>
 
-<p style="text-align: left">for example </p>
+<p style="text-align: left">The directory&nbsp; with pythonizer and modules should be current.&nbsp; For example: </p>
 
-<pre style="text-align: left" class="code">cd /opt/Pythonizer &amp;&amp; installer /user/local/bin /user /usr/local/share/perl5</pre>
+<pre style="text-align: left" class="code">cd ~/Pythonizer &amp;&amp; installer /user/local/bin /user /usr/local/share/perl5</pre>
 
 <p>By default if run as root it assumes <tt>/usr/local/bin</tt> as the target directory for pythonizer and<tt> /usr/local/share/perl5</tt> 
-for modules if is is run as root<p>If run as a regular user defaults are&nbsp; <tt>~/bin</tt> and <tt>~/Perl5/lib</tt>
+for modules <p>If run as a regular user defaults are&nbsp; <tt>~/bin</tt> and <tt>~/Perl5/lib</tt>
 
 <h3><a name="Invocation">Invocation</a></h3>
 
@@ -207,7 +207,7 @@ discussed in the <a href="#Installation">Installation</a> section.</font></p>
 
 <p>The simplest&nbsp; invocation can look like: <font SIZE="3">&nbsp;</font></p>
 
-<pre><font SIZE="3">export PERL5LIB=</font>/opt/Pythonizer &amp;&amp; /opt/Pythonizer/pythonizer /path/to/your/program/script_to_be_transalted.pl</pre>
+<pre><font SIZE="3">export PERL5LIB=</font>/opt/Pythonizer &amp;&amp; /opt/Pythonizer/pythonizer /path/to/your/program/script_to_be_translated.pl</pre>
 
 <p>If the program runs to the end you will get &quot;pythonized&quot; text in <tt>/path/to/your/program.py</tt></p>
 
@@ -275,7 +275,7 @@ statements. Sometimes algorithm of a part of the program need to be adapted to P
    <li>Converts most of Perl 5 code typical for sysadmin scripts into Python. That includes loops, special variables, function 
    calls, lists, hashes,&nbsp; etc.</li>
 
-   <li>Recognizes some Perl idioms and special cases. Perform limited peophole optimization of Perl within individual statements in case this is possible (for example use 
+   <li>Recognizes some Perl idioms and special cases. Perform limited peephole optimization of Perl within individual statements in case this is possible (for example use 
    of replace function&nbsp; instead or regular expression in&nbsp; case both the source and target are plain strings. it also optimize some types of split function when the regex supplied to Perl actually is a string and does not contain any 
    metacharacters. </li>
 
@@ -419,49 +419,101 @@ the code to pythonizer.&nbsp; </p>
 <p>Recently Perl adopted Python stance of minimizing the number of parenthesis and <tt>pythonizer</tt> not always correctly parse 
 such &quot;newer&quot; syntax.&nbsp; Adding parenthesis in such cases allow the correct translation. </p>
 
+<p>Perl provide too much syntax rope and some programmers manage to hang themselves with it: the syntax variety allowed is just an 
+overkill and stimulate adoption of &quot;perverted&quot; constructs which detract from, not add to the clarity of the code.&nbsp;&nbsp; One 
+example is excessive use of postfix if constructs. I would understand using them in loop to specify exist condition like </p>
+<blockquote>
+
+   <pre>last if (substr($line,0,3) eq 'EOF');</pre>
+</blockquote>
+
+<p>but not like </p>
+<blockquote>
+
+   <pre class="code">x++ if $i&lt;$limit;</pre>
+</blockquote>
+
+<p>in this case writing</p>
+<blockquote>
+
+   <pre class="code">if ( $i &lt; $limit ) { $x++; }</pre>
+</blockquote>
+
+<p>is only two symbols longer but is much clearer and modifiable.&nbsp; Pythonizer recognizes single statements with postfix if or 
+other conditional modifiers, but not</p>
+<blockquote>
+
+   <pre class="code">{Block} if(EXPR);</pre>
+</blockquote>
+
+<p>IMHO this is way too much syntax flexibility ;-).You need to transform your source to prefix if statements if you want automatic 
+translation.&nbsp;&nbsp; </p>
+
+<p>Also old <tt>open </tt>&nbsp;statement where the <i><b>opening&nbsp; mode</b></i> is prefixed to the file is better converted to 
+the new mode when it is a separate argument as not all modes are correctly recognized in the old format. </p>
+
+<p>Excessive syntax flexibility might helps to explains flimsy error reporting by Perl interpreter, when it accepts clearly 
+syntaxically incorrect programs as valid. Version 5.26.3 also refuse to function properly in some cases, but recovers if you change 
+your Perl code a little bit. I experienced one such situation with <tt>pythonizer</tt>, when I thought that it might be better to 
+switch to GOlang. </p>
+
+<p><em>NOTE:</em> To increase changes of success in translation of long scripts you can split your code into several chunks (for example main program and subs) and try to convert 
+them chunk by chunk and add global declarations manually. </p>
+
 <h3><a name="Debugging_generated_Python_code">Debugging generated Python code</a></h3>
 
-<p>Python debugger is only fair in comparitson with Perl debugger, so wokign with it is more difficult and time consuming. </p>
+<p>Python debugger is still inferior to Perl debugger, so working with it is more difficult and time consuming.&nbsp; </p>
 
-<p>For some ideas see <a href="../translating_perl_to_python.shtml">Perl to Python translation</a></p>
+<p>The standard invocation is something like </p><font SIZE="3">
+
+<pre class="code">python3.8 -m pdb maintest.py</pre>
+</font>
+
+<p>You can run the script till the first error with the command 'c' and if you are lucky at this point you have some useful 
+information what&nbsp; is wrong from the diagnostic message produced by Python interpreter. If not, you need to work step by step 
+and determine the context of the error yourself </p>
+
+<p>See&nbsp; <a href="../../Debugging/index.shtml">Python Debugging</a> for some additional information and tips. </p>
+
+<p>Generally to find the fist error you can run&nbsp; the generated code&nbsp; with the command c and proceed from this point. </p>
+
+<p>But the fact that code runs to this point does not mean that the code executed correctly: you need to verify that. </p>
+
+<p>For some additional ideas see <a href="../translating_perl_to_python.shtml">Perl to Python translation</a></p>
 <blockquote>
 
    <h3><a name="Known_errors">Known errors</a></h3>
 </blockquote>
 
-<p>Pythonizer does not line statements with omitted brackets and can mark then untranslatable, while translating them correctly if 
-bracts are added. </p>
+<ol>
 
-<p>For long scripts to increase changes of success you can split your code into several chunks (for example main program and subs) 
-and try to convert them chunk by chunk. </p>
+   <li>Pythonizer does not like statements with omitted round brackets and can mark then untranslatable, while translating them correctly if 
+brackets are added. </li>
 
-<p>In version 0.8 filehandles are not included in the list of global variables and as such are not propagated correctly of file 
-operation on a given file handle spread into several different subroutines. </p>
+   <li>For long scripts to increase changes of success you can split your code into several chunks (for example main program and subs) 
+and try to convert them chunk by chunk. </li>
 
-<p>State variable are now simply mapped to global namespace which can create conflicts and corrupt their value at run time.&nbsp; So 
-th eusage of state variable currently needs to ne manually reviewed to detect such conflicts. They are rare but they happen. </p>
+   <li>In version 0.8 filehandles are not included in the list of global variables and as such are not propagated correctly of file 
+operations on a given file handle spread into several different subroutines. </li>
 
-<p>One possible solutions to rename them using sub name as the prefix. For example in sub <tt>maxi</tt> the state variable <tt>limit</tt> 
-can be renamed into <tt>maxi_limit</tt></p>
+   <li>State variable are now simply mapped to global namespace which can create conflicts and corrupt their value at run time.&nbsp; So 
+the usage of state variable currently needs to ne manually reviewed to detect such conflicts. They are rare but they happen.&nbsp; One possible solutions to rename them using sub name as the prefix. For example in sub 
+   <tt>maxi</tt> the state variable <tt>limit</tt> 
+can be renamed into <tt>maxi_limit</tt></li>
+</ol>
 
 <h3><a name="Submission_of_tickets">Submission of tickets</a></h3>
 
 <p>Tickets can be opened on GitHub. </p>
 
-<p>The ticket should be about the most recent uploaded version; tickets related to earler version will be ignored. </p>
+<p>The ticket should be reproducible on the most recent uploaded version; non reproducible tickets related to earlier version will be ignored. </p>
 
-<p>If case of unlemited recurion please provide the current line and the context (say 3 &quot;before&quot; and 3 &quot;after&quot; lines.) </p>
+<p>If case of internal errors, for example rejection of a valid statement, incorrect translation,&nbsp; or unlimited recursion please provide the current line and the context (say 3&nbsp; &quot;before&quot; and 3 &quot;after&quot; lines.) </p>
 
-<p>In case of unsupplorted syntax like </p>
-<blockquote>
+<p>It is recommended that you run pythonizer with the debugging option -d 3 to generate additional output relevant fragment of which&nbsp; 
+you can submit with the ticket. </p>
 
-   <p>{Block} if(EXPR)</p>
-</blockquote>
-
-<p>you are currently out of lack.&nbsp; You need to transform you source to prefix if statements.&nbsp; </p>
-
-<p>To increase changes of success you can split your code into several chunks (for example main program and subs) and try to convert 
-them chunk by chunk and add global declarations manually. </p>
+<p>&nbsp;</p>
 
 <p>&nbsp;</p>
 
