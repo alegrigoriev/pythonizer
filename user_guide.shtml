@@ -87,12 +87,16 @@ program. See installation section below</em></p>
 
     <li><b><a href="#Known_errors">Known errors</a></b></li>
 
+    <li><b><a href="#Submission_of_tickets">Submission of tickets</a></b></li>
+
 	
 </ul>
     </li>
 
 	
-    <li><b><a href="#Subsequent_transformations">Subsequent transformations</a></b></li>
+    <li><b><a href="#Recommended_manual_transformations_of_Perl_code">Recommended manual transformations of Perl code</a></b></li>
+
+    <li><b><a href="#Debugging_generated_Python_code">Debugging generated Python code</a></b></li>
 
 	
 </ul>
@@ -404,19 +408,32 @@ wc -l Perlscan.pm Pythonizer.pm  pythonizer  Softpano.pm pre_pythonizer.pl
    833 pre_pythonizer.pl
   3571 total</pre>
 
-<h3><a name="Subsequent_transformations">Subsequent transformations</a></h3>
+<h3><a name="Recommended_manual_transformations_of_Perl_code">Recommended manual transformations of Perl code</a></h3>
 
-<p>In may case you can get correct translation by simplifying Perl code. Some transformation can be done vis macro generator liken 
-M4 some via Perl itself using regular expressions. </p>
+<p>In many case you can get correct translation by simplifying Perl code. Some transformation can be done via macro generator liken 
+M4 some via Perl itself using regular expressions.</p>
+
+<p>If pre-pythonizer transformation of Perl code produces errors you need to do it manually and debug the result before submitting 
+the code to pythonizer.&nbsp; </p>
 
 <p>Recently Perl adopted Python stance of minimizing the number of parenthesis and <tt>pythonizer</tt> not always correctly parse 
 such &quot;newer&quot; syntax.&nbsp; Adding parenthesis in such cases allow the correct translation. </p>
+
+<h3><a name="Debugging_generated_Python_code">Debugging generated Python code</a></h3>
+
+<p>Python debugger is only fair in comparitson with Perl debugger, so wokign with it is more difficult and time consuming. </p>
 
 <p>For some ideas see <a href="../translating_perl_to_python.shtml">Perl to Python translation</a></p>
 <blockquote>
 
    <h3><a name="Known_errors">Known errors</a></h3>
 </blockquote>
+
+<p>Pythonizer does not line statements with omitted brackets and can mark then untranslatable, while translating them correctly if 
+bracts are added. </p>
+
+<p>For long scripts to increase changes of success you can split your code into several chunks (for example main program and subs) 
+and try to convert them chunk by chunk. </p>
 
 <p>In version 0.8 filehandles are not included in the list of global variables and as such are not propagated correctly of file 
 operation on a given file handle spread into several different subroutines. </p>
@@ -427,38 +444,66 @@ th eusage of state variable currently needs to ne manually reviewed to detect su
 <p>One possible solutions to rename them using sub name as the prefix. For example in sub <tt>maxi</tt> the state variable <tt>limit</tt> 
 can be renamed into <tt>maxi_limit</tt></p>
 
+<h3><a name="Submission_of_tickets">Submission of tickets</a></h3>
+
+<p>Tickets can be opened on GitHub. </p>
+
+<p>The ticket should be about the most recent uploaded version; tickets related to earler version will be ignored. </p>
+
+<p>If case of unlemited recurion please provide the current line and the context (say 3 &quot;before&quot; and 3 &quot;after&quot; lines.) </p>
+
+<p>In case of unsupplorted syntax like </p>
+<blockquote>
+
+   <p>{Block} if(EXPR)</p>
+</blockquote>
+
+<p>you are currently out of lack.&nbsp; You need to transform you source to prefix if statements.&nbsp; </p>
+
+<p>To increase changes of success you can split your code into several chunks (for example main program and subs) and try to convert 
+them chunk by chunk and add global declarations manually. </p>
+
+<p>&nbsp;</p>
+
 <h3><a name="History">History</a></h3>
 <blockquote>
 
-   <p><b>Changes since version 0.7 </b></p>
+   <p><b>Version 0.8 uploaded</b></p>
    <blockquote>
 
-      <p>More correct translation of array assignments. Now you need to specify PERL5LIB variable pointing it to the directory with 
-      modules to run the program. Global now are initialized after main sub to undef value. Simple installer 
-      added</p>
+      <p><b>Changes since version 0.7 </b></p>
+
+      <p>More correct translation of array assignments. Some non-obvious bugs in translation were fixed. Now you need to specify 
+      PERL5LIB variable pointing it to the directory with modules to run the program. Global variable now are initialized after main sub to undef value 
+      to create a global namespace. Previously this was done incorrectly.&nbsp; Simple installer for Python programmers who do not 
+      know much Perl added: the problem proved to be useful as a help for understanding Perl scripts by Python programmers. </p>
    </blockquote>
 
-   <p><b>Changes since version 0.6. </b></p>
+   <p><b>Version 0.7 uploaded</b></p>
    <blockquote>
+
+      <p><b>Changes since version 0.6. </b></p>
 
       <p>This version creates of the list of global variables for each subroutine to maintain the same visibility in Python as in 
       Perl and generates <tt>global</tt> statement with the list of such&nbsp; variables that is inserted in each Python subroutine 
       definition if pythonizer determined that this subroutine access global variables. The list might be excessive. </p>
    </blockquote>
 
-   <p><b>Changes since version 0.5. </b></p>
-
+   <p><b>Version 0.6 uploaded</b></p>
    <blockquote>
 
+      <p><b>Changes since version 0.5. </b></p>
+
       <p>Regular expressions now are translated more&nbsp; correctly. Short cut if like <tt>(debug&gt;0) &amp;&amp; say $line</tt> are translated 
-   in more general way then before.&nbsp; This is the first version that translates the main test (pre_pythonizer.pl) without syntax 
+   in more general way then before.&nbsp; This is the first version that translates the main test (<tt>pre_pythonizer.pl</tt>) without syntax 
       errors.&nbsp;&nbsp; Generated source&nbsp; starts executing in Python interpreter till the first error. List on internal 
       functions created. Translation of backquotes and open statement improved. </p>
    </blockquote>
 
-   <p><b>Changes since version 0.4</b></p>
-
+   <p><b>Version 0.5 uploaded</b></p>
    <blockquote>
+
+      <p><b>Changes since version 0.4</b></p>
 
       <p>
       <span style="color: rgb(36, 41, 46); font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Helvetica, Arial, sans-serif, &quot;Apple Color Emoji&quot;, &quot;Segoe UI Emoji&quot;; font-size: 16px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; background-color: rgb(255, 255, 255); text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;">Regular 
@@ -466,7 +511,11 @@ can be renamed into <tt>maxi_limit</tt></p>
    allow refactoring Perl source via pre-pythonlizer.pl in integrated fashion.</span></p>
    </blockquote>
 
-   <p><b>Changes&nbsp; since version 0.3</b></p>
+   <p><b>Version 0.4 uploaded</b></p>
+   <blockquote>
+
+      <p><b>Changes&nbsp; since version 0.3</b></p>
+   </blockquote>
    <ul>
 
       <li>Scanner is improved</li>
@@ -476,7 +525,11 @@ can be renamed into <tt>maxi_limit</tt></p>
       <li>Many errors fixed. </li>
    </ul>
 
-   <p><b>Changes since version 0.2: </b></p>
+   <p><b>Version 0.3 uploaded</b></p>
+   <blockquote>
+
+      <p><b>Changes since version 0.2: </b></p>
+   </blockquote>
    <ul>
 
       <li>default version of Python used is now version 3.8; </li>
