@@ -178,15 +178,9 @@ my $start;
       $RecursionLevel=-1;
       if( $ValClass[0] eq '}' ){
          # we treat curvy bracket as a separate dummy statement
-         correct_nest(-1); # next line de-indented
-         if( $Pythonizer::CurNest==1 && $CurSub eq 'main' ){
-            correct_nest(0,0);
-            $globals=substr($GlobalVar{$CurSub},length('global'));
-            $globals=~tr/,/=/;
-            gen_chunk($globals,'=None');
-         }
+         correct_nest(-1); # next line will be de-indented
       }elsif( $ValClass[0] eq '{' ){
-         correct_nest(1); # next line indented
+         correct_nest(1); # next line will be indented
       }elsif( $ValClass[0] eq '(' ){
          $close_br_pos=matching_br(0);
          if( $close_br_pos && $ValClass[$close_br_pos+1] eq '=' ){
@@ -452,9 +446,14 @@ my $start;
       }elsif( $ValClass[0] eq 'i' ){
          # user defined functon
          if( $ValClass[1] eq '(' ){
+            if( $CurSub eq 'main' && $Pythonizer::CurNest==0 ){
+                my $globals=substr($GlobalVar{$CurSub},length('global'));
+                $globals=~tr/,/=/;
+                gen_statement($globals.'=None');
+            }
             if( $ValClass[2] eq ')' ){
                # function with sero argumants
-               gen_chunk($ValPy[0].'()');
+               gen_chunk($ValPy[0].'([])');
             }else {
                gen_chunk($ValPy[0]);
                gen_chunk('([');
