@@ -29,6 +29,7 @@
 # 0.11  2019/11/20  BEZROUN   Minor changes in legend and help screen
 # 0.20  2020/08/20  BEZROUN   The source reorganized into "subroutines-first" fashion
 # 0.30  2020/09/01  BEZROUN   Several errors corrected. Integration with pythonizer via option -r (refator) of the latter.
+# 0.40  2020/10/05  BEZROUN   Default changed to no main  sub. Option -m introduced (create_main_sub mode)
 #=========================== START =========================================================
 
    use v5.10;
@@ -38,8 +39,8 @@
    use feature 'state';
    use Getopt::Std;
 
-   $VERSION='0.1'; # alpha vestion
-   $debug=1; # 0 production mode 1 - development/testing mode. 2-9 debugging modes
+   $VERSION='0.4'; # alpha vestion
+   $debug=1; # 0 production mode 1 - development/testing mode. 2-3 debugging modes
 
    #$debug=1;  # enable saving each source version without compile errors to GIT
    #$debug=2; # starting from debug=2 the results are not written to disk
@@ -49,22 +50,18 @@
 
 # You can switch on tracing from particular line of source ( -1 to disable)
    $breakpoint=-1;
-   $SCRIPT_NAME=substr($0,rindex($0,'/')+1);
-   if( ($dotpos=index($SCRIPT_NAME,'.'))>-1 ) {
-      $SCRIPT_NAME=substr($SCRIPT_NAME,0,$dotpos);
+   $CreateMainSub=0; # do not create main sub when refactring Perl source(now this is a defualt mode)
+
+   $HOME=$ENV{'HOME'}; # the directory used for backups if debug>0
+   if( $^O eq 'cygwin' ){
+      # $^O is built-in Perl Variable that contains OS name
+      $HOME="/cygdrive/f/_Scripts";  # CygWin development mode -- the directory used for backups
    }
 
-   $OS=$^O; # $^O is built-in Perl variable that contains OS name
-   if($OS eq 'cygwin' ){
-      $HOME="/cygdrive/f/_Scripts";  # $HOME/Archive is used for backups
-   }elsif($OS eq 'linux' ){
-      $HOME=$ENV{'HOME'}; # $HOME/Archive is used for backups
-   }
-   $LOG_DIR="/tmp/$SCRIPT_NAME";
-   @FormattedMain=("sub main\n","{\n");
-   @FormattedSource=@FormattedSub=@FormattedData=();
-   $mainlineno=scalar( @FormattedMain); # we need to reserve one line for sub main
-   $sourcelineno=$sublineno=$datalineno=0;
+   $SCRIPT_NAME='pre_pythonizer';
+
+   $LOG_DIR='/tmp/'.ucfirst($SCRIPT_NAME);
+
 
    $tab=4;
    $nest_corrections=0;
@@ -80,6 +77,14 @@
    }
    say "Log is written to $LOG_DIR, The original file will be saved as $fname.original unless this file already exists ";
    say STDERR  "=" x 80,"\n";
+   if ($CreateMainSub) {
+      @FormattedMain=("sub main\n","{\n");
+   }else{
+      @FormattedMain=();
+   }
+   @FormattedSource=@FormattedSub=@FormattedData=();
+   $mainlineno=scalar( @FormattedMain); # we need to reserve one line for sub main
+   $sourcelineno=$sublineno=$datalineno=0;
 
 #
 # Main loop initialization variables
@@ -134,7 +139,6 @@
          $DB::single = 1
       }
       $line=normalize_line($line);
-
       #
       # Check for HERE line
       #
@@ -194,9 +198,17 @@
       if( $line =~ /^sub\s+(\w+)/ ){
          $SubList{$1}=$lineno;
          $SubsNo++;
-         $ChannelNo=2;
+         $ChannelNo=2; # write to subroutine block
          $CommentBlock=0;
+         #
+         # Here is have problem with comment block on level zero -- it belongs to the sub that will follow
+         #
          for( $backno=$#FormattedMain;$backno>0;$backno-- ){
+            unless( defined($FormattedMain[$backno]) ){
+               logme('E',"Line $backno in FormattedMain is undefined");
+               $DB::single = 1;
+               next;
+            }
             $comment=$FormattedMain[$backno];
             if ($comment =~ /^\s*#/ || $comment =~ /^\s*$/){
                $CommentBlock++;
@@ -309,7 +321,7 @@ my $line=$_[0];
       if( substr($line,-1,1) eq "\r" ){
          chop($line);
       }
-      # trip trailing blanks, if any
+      # strip trailing blanks, if any
       if( $line=~/(^.*\S)\s+$/ ){
          $line=$1;
       }
@@ -320,9 +332,9 @@ sub process_line
 my $line=$_[0];
 my $offset=$_[1];
 
-      if( length($line)>1 && substr($line,0,1) ne '#' ){
-         check_delimiter_balance($line);
-      }
+      #if( length($line)>1 && substr($line,0,1) ne '#' ){
+      #   $line=perl_optimizer($line);
+      #}
       $prefix=sprintf('%4u %3d %4s',$lineno, $cur_nest, $InfoTags);
       if( ($cur_nest+$offset)<0 || $cur_nest<0 ){
          $spaces='';
@@ -335,6 +347,10 @@ my $offset=$_[1];
       if( $ChannelNo==0) {
          $FormattedSource[$sourcelineno++]=$line;
       }elsif($ChannelNo==1){
+         unless( defined($line) ){
+               logme('E',"Line $lineno is undefined");
+               $DB::single = 1;
+         }
          $FormattedMain[$mainlineno++]=$line;
       }elsif($ChannelNo==2){
          $FormattedSub[$sublineno++]=$line;
@@ -351,18 +367,20 @@ sub write_formatted_code
 {
 my $output_file=$fname;
 my ($line,$i,$k,$var, %dict, %type, @xref_table);
-   push(@FormattedMain,'}');
+
    unless( -f "$fname.original" ){
       `cp $fname  $fname.original`;
    }
    push(@FormattedSource,@FormattedSub);
    push(@FormattedSource,@FormattedMain);
-   push(@FormattedSource,"\nmain();\n"); # generate call to main
+   if ($CreateMainSub){
+      push(@FormattedSource,"}\nmain();\n");# close main and generate call to main
+   }
    push(@FormattedSource,@FormattedData);
    open (SYSFORM,'>',$output_file ) || abend(__LINE__,"Cannot open file $output_file for writing");
    print SYSFORM @FormattedSource;
    close SYSFORM;
-   `perl -cw  $output_file`;
+   print `perl -cw  $output_file`;
    if(  $? > 0 ){
       logme('E',"Checking reformatted source code via perl -cw produced some errors (RC=$?). Please correct them before proceeding");
    }
@@ -431,59 +449,16 @@ my $myline=$_[0];
   say SYSFORM $myline;
 }
 #
-# Check delimiters balance without lexical parcing of the string
+# Try to normalise perl text whenever possible
 #
-sub check_delimiter_balance
+sub perl_optimizer
 {
-my $i;
-my $scan_SourceText=$_[0];
-      $sq_br=0;
-      $round_br=0;
-      $curve_br=0;
-      $single_quote=0;
-      $double_quote=0;
-      return if( length($_[0])==1 || $line=~/.\s*#/); # no balance in one symbol line.
-      for( $i=0; $i<length($scan_SourceText); $i++ ){
-         $s=substr($scan_SourceText,$i,1);
-         if( $s eq '{' ){ $curve_br++;} elsif( $s eq '}' ){ $curve_br--; }
-         if( $s eq '(' ){ $round_br++;} elsif( $s eq ')' ){ $round_br--; }
-         if( $s eq '[' ){ $sq_br++;} elsif( $s eq ']' ){ $sq_br--; }
+my $line=$_[0];
 
-         if(  $s eq "'"  ){ $single_quote++;}
-         if(  $s eq '"'  ){ $double_quote++;}
-      }
-      if(  $single_quote%2==1  ){ $InfoTags.="'";}
-      elsif(  $double_quote%2==1  ){  $InfoTags.='"'; }
-
-      $first_word=( $line=~/(\w+)/ ) ? $1 : '';
-
-      if( $single_quote%2==0 && $double_quote%2==0 ){
-         unless( exists($keyword{$first_word}) ){
-            if( $curve_br>0 && index($line,'\{') == -1 ){
-               $inbalance ='{';
-               ( $single_quote==0 && $double_quote==0 ) && logme('W',"Possible missing '}' on the following line:");
-            } elsif(  $curve_br<0  ){
-               $inbalance ='}';
-               ( $single_quote==0 && $double_quote==0 ) && logme('W',"Possible missing '{' on the following line:  ");
-            }
-         }
-
-         if(  $round_br>0 && index($line,'\(') == -1 ){
-            $inbalance ='(';
-            ( $single_quote==0 && $double_quote==0 ) && logme('W',"Possible missing ')' on the following line:");
-         }elsif(  $round_br<0  ){
-            $inbalance =')';
-            ( $single_quote==0 && $double_quote==0 ) && logme('W',"Possible missing '(' on the following line:");
-         }
-
-         if(  $sq_br>0 && index($line,'\[') == -1  ){
-            $inbalance ='[';
-            ( $single_quote==0 && $double_quote==0 ) &&logme('W',"Possible missing ']' on the following line:");
-         } elsif(  $sq_br<0  ){
-            $inbalance =']';
-            ( $single_quote==0 && $double_quote==0 ) && logme('W',"Possible missing '[' on the following line:");
-         }
-      }
+   if( $line=~/^\s*print\b(.+)\\[n]"$/ ){
+      $line=qw(say$1";);
+   }
+   return $line;
 
 }
 #
@@ -491,7 +466,7 @@ my $scan_SourceText=$_[0];
 #
 sub get_params
 {
-      getopts("fhrb:t:v:d:",\%options);
+      getopts("hv:b:d:f:t:m",\%options);
       if(  exists $options{'v'} ){
          if( $options{'v'} =~/\d/ && $options{'v'}<3  ){
             logme('D',$options{'v'},);
@@ -506,6 +481,9 @@ sub get_params
 
       if(  exists $options{'f'}  ){
          $write_FormattedSource=1;
+      }
+      if(  exists $options{'m'}  ){
+         $CreateMainSub=1;
       }
 
       if(  exists $options{'t'}  ){
@@ -645,12 +623,10 @@ my $script_name=$_[1];
 my $title=$_[2]; # this is an optional argumnet which is print STDERRed as subtitle after the title.
 my $log_retention_period=$_[3];
 
-my $timestamp=`date "+%y/%m/%d %H:%M"`; chomp $timestamp;
-my $day=`date '+%d'`; chomp $day;
-my $logstamp=`date +"%y%m%d_%H%M"`; chomp $logstamp;
-my $script_mod_stamp;
+my ($script_mod_stamp,$day);
       chomp($script_mod_stamp=`date -r $0 +"%y%m%d_%H%M"`);
       if( -d $my_log_dir ){
+         chomp($day=`date '+%d'`);
          if( 1 == $day && $log_retention_period>0 ){
             #Note: in debugging script home dir is your home dir and the last thing you want is to clean it ;-)
             `find $my_log_dir -name "*.log" -type f -mtime +$log_retention_period -delete`; # monthly cleanup
@@ -658,8 +634,9 @@ my $script_mod_stamp;
       }else{
          `mkdir -p $my_log_dir`;
       }
-
+my $logstamp=`date +"%y%m%d_%H%M"`; chomp $logstamp;
       $logfile="$my_log_dir/$script_name.$logstamp.log";
+my $timestamp=`date "+%y/%m/%d %H:%M"`; chomp $timestamp;
       open(SYSLOG, ">$logfile") || abend(__LINE__,"Fatal error: unable to open $logfile");
       $title="\n\n".uc($script_name).": $title (last modified $script_mod_stamp) Running at $timestamp\nLogs are at $logfile. Type -h for help.\n";
       out($title); # output the banner
@@ -762,13 +739,8 @@ state $MessagePrefix='';
          }
          return;
       } # $severity<3
-# severity=3 -- error code T
-# Here we processing error code 'T' which means "Issue error summary and normally terminate"
-# termination will be using die if the message suffix is "A" -- Nov 12, 2015
-#
 
 my $summary='';
-
       #
       # We will put the most severe errors at the end and make 15 sec pause before  read them
       #
@@ -791,7 +763,6 @@ my $summary='';
          }
          ($ercounter[2]>0) && out("\n*** PLEASE CHECK $ercounter[2] SERIOUS MESSAGES ABOVE");
       }
-
 #
 # Compute RC code: 10 or higher there are serious messages
 #
@@ -805,10 +776,11 @@ my $summary='';
       exit $rc;
 } # logme
 
+
+sub out
 #
 # Output message to both log and STDERR
 #
-sub out
 {
       if( scalar(@_)==0 ){
          say STDERR;
