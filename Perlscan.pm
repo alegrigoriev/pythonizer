@@ -996,9 +996,10 @@ sub put_regex_in_quotes
 {
 my $string=$_[0];
 my $ver=$_[1];
-my $quote=
 my $result;
-
+   if( $string =~/\$\w+/ ){
+      return substr($string,1); # this case of /$regex/ we return the variable.
+   }
    return qq(r').$string.qq(') if(index($string,"'")==-1 ); # no need to escape any quotes.
    return q(r").$string.qq(") if( index($string,'"')==-1 ); # no need to scape any quotes.
 
