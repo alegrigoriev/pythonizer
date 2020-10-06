@@ -853,16 +853,19 @@ my  $groups_are_present;
    }
 
 } # perl_match
+
+sub popup
 #
 # Remove the last item from stack
 #
-sub popup
 {
-    pop(@ValClass);
-    pop(@ValPerl);
-    pop(@ValPy);
-    pop(@ValCom);
+   return unless ($#ValClass>0);
+   pop(@ValClass);
+   pop(@ValPerl);
+   pop(@ValPy);
+   pop(@ValCom);
 }
+
 sub single_quoted_literal
 # ATTENTION: returns position after closing bracket
 # A backslash represents a backslash unless followed by the delimiter or another backslash,
