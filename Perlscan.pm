@@ -59,7 +59,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
   $VERSION = '0.91';
   #
-  # types of veraiables detected during the first pass; to be implemented later
+  # types of variables detected during the first pass; to be implemented later
   #
   #%is_numeric=();
 #
