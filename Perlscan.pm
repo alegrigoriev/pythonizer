@@ -861,7 +861,7 @@ my  $outer_delim;
     }elsif( index($quote,"'")==-1 ){
       $outer_delim="'";
     }else{
-      $out_delim='"""';
+      $outer_delim='"""';
     }
    $result=( $::PyV==3 ) ? "f$outer_delim" : ''; #For python 3 we need special opening quote
    while( $k > -1 ){
