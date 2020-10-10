@@ -127,7 +127,7 @@ my ($l,$m);
       if( $::debug > 3 && $main::breakpoint >= $. ){
          $DB::single = 1;
       }
-      while($source) {
+      while( $source ){
          ($source)=split(' ',$source,1);  # truncate white space on the left (Perl treats ' ' like AWK. )
          $s=substr($source,0,1);
          if( $s eq '#' ){
@@ -488,7 +488,7 @@ my $rc=-1;
        $source=~/^.(\d+)/;
        $ValClass[$tno]='s'; #scalar
        $ValPerl[$tno]=$1;
-       if( $s2 eq '0' ) {
+       if( $s2 eq '0' ){
          $ValPy[$tno]="__file__";
        }else{
           $ValPy[$tno]="rematch.group($1)";
@@ -518,7 +518,7 @@ my $rc=-1;
       if( length($name) ==1 ){
          $s2=$1;
          if( $s2 eq '_' ){
-            if( $source=~/^(._\s*\[\s*(\d+)\s*\])/  ){
+            if( $source=~/^(._\s*\[\s*(\d+)\s*\])/ ){
                $ValPy[$tno]='perl_arg_array['.$2.']';
                $cut=length($1); $rc=-1;
             }else{
@@ -642,7 +642,7 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
    #decode each part. Double quote literals in Perl are ver difficult to decode
    # This is a parcial implementation of the most common cases
    # Full implementation is possible only in two pass scheme
-   while( $k > -1  ){
+   while( $k > -1 ){
       if( $k > 0 && substr($quote,$k-1,1) ne '/' ){
          $result.=escape_quotes(substr($quote,0,$k)).' + '; # add literal part of the string
       }else{
