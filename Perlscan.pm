@@ -169,7 +169,7 @@ my ($l,$m);
                    Pythonizer::getline(substr($source,1)); # save tail
                    $source=$s; # this was we artifically create line with one symbol on it;
                 }
-                last; # we need to prosess it as a seperate one-symbol line
+                last; # we need to process it as a separate one-symbol line
             }elsif( length($source)==1 ){
                 # NOTE: here $tno>0 and we reached the last symbol of the line
                 # we recognize it as the end of the block
@@ -225,7 +225,7 @@ my ($l,$m);
          }elsif( $s eq '"' ){
             $ValClass[$tno]='"';
             $cut=double_quoted_literal('"',1); # side affect populates $ValPy[$tno] and $ValPerl[$tno]
-            if( $tno>0 && $ValPerl[$tno-1] eq '<<'){
+            if( $tno>0 && $ValPerl[$tno-1] eq '<<' ){
                # my $here_str = <<'END'; -- added Dec 20, 2019
                $tno--; # overwrite previous token; Dec 20, 2019 --NNB
                $ValClass[$tno]="'";
@@ -292,7 +292,7 @@ my ($l,$m);
 
                }elsif( $w eq 'qx' ) {
                   #executable
-                  if( $delim eq "'") {
+                  if( $delim eq "'" ) {
                      $cut=single_quoted_literal($delim,length($w)+1);
                      $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w));
                      $ValPy[$tno]='system("'.$ValPy[$tno].'")';
@@ -384,7 +384,7 @@ my ($l,$m);
                $ValPerl[$tno]=$1;
                $ValPy[$tno]='addr($1)';
                $cut=length($1)+2;
-            }elsif( $source=~/^.(\w+)/) {
+            }elsif( $source=~/^.(\w+)/ ) {
                $ValClass[$tno]='s'; #scalar
                $ValPy[$tno]=$ValPerl[$tno]=$1;
                $cut=length($1)+1;
@@ -633,7 +633,7 @@ my $i;
 my $line='';
    if( scalar(@_)>0 ){
       #direct print of the statement. Added Aug 10, 2020 --NNB
-      for($i=0; $i<@_;$i++) {
+      for($i=0; $i<@_;$i++ ){
          Pythonizer::output_line($_[$i]);
       }
    }elsif( $::FailedTrans && scalar(@ValPy)>0 ){
@@ -703,7 +703,7 @@ my $i;
 # Put generated chunk into array.
 #
    for($i=0; $i<@_;$i++) {
-      if (scalar(@PythonCode) >256 ){
+      if( scalar(@PythonCode) >256 ){
          logme('S',"Number of generated chunks for the line exceeded 256");
          if( $::debug > 0 ){
             $DB::single = 1;
