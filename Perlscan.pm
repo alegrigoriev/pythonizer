@@ -126,19 +126,19 @@ my ($l,$m);
             # because of for($i=0; $i<@x; $i++)
             #
             $balance=0;
-            for ($i=0;$i<@ValClass;$i++){
+            for ($i=0;$i<@ValClass;$i++ ){
                if( $ValClass[$i] eq '(' ){
                   $balance++;
                }elsif( $ValClass[$i] eq ')' ){
                   $balance--;
                }
             }
-            if($balance != 0 ) {
+            if( $balance != 0 ){
                # for statement or similar situation
                $ValClass[$tno]=$ValPerl[$tno]=$s;
                $ValPy[$tno]=',';
                $cut=1; # we need to continue
-            }else {
+            }else{
                # this is regular end of statement
                if( length($source) == 1 ){
                    last; # exit loop;
@@ -168,7 +168,7 @@ my ($l,$m);
                    $source=$s; # this was we artifically create line with one symbol on it;
                 }
                 last; # we need to prosess it as a seperate one-symbol line
-            }elsif(length($source)==1) {
+            }elsif( length($source)==1 ){
                 # NOTE: here $tno>0 and we reached the last symbol of the line
                 # we recognize it as the end of the block
                 #curvy bracket as the last symbol of the line
@@ -183,7 +183,7 @@ my ($l,$m);
 
          }elsif( $s eq '{' ){
             # we treat '{' as the beginning of the block if it is the first or the last symbol on the line or is preceeded by ')' -- Aug 7, 2020
-             if( $tno==0) {
+             if( $tno==0 ){
                 if( length($source)>1 ){
                    Pythonizer::getline(substr($source,1)); # save tail
                 }
@@ -279,16 +279,16 @@ my ($l,$m);
             }elsif( $class eq 'q' ){
                # q can be tranlated into """", but qw actually is an expression
                $delim=substr($source,length($w),1);
-               if($w eq 'q') {
+               if( $w eq 'q' ){
                   $cut=single_quoted_literal($delim,2);
                   $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
                   $w=escape_backslash($ValPerl[$tno]);
                   $ValPy[$tno]=escape_quotes($w);
-               }elsif($w eq 'qq'){
+               }elsif( $w eq 'qq' ){
                   # decompose doublke quote populate $ValPy[$tno] as a side effect
                   $cut=double_quoted_literal($delim,length($w)+1); # side affect populates $ValPy[$tno] and $ValPerl[$tno]
 
-               }elsif($w eq 'qx') {
+               }elsif( $w eq 'qx' ) {
                   #executable
                   if( $delim eq "'") {
                      $cut=single_quoted_literal($delim,length($w)+1);
@@ -297,12 +297,12 @@ my ($l,$m);
                   }else{
                      $cut=double_quoted_literal($delim,length($w)+1);
                   }
-                }elsif($w eq 'm' | $w eq 'qr') {
+                }elsif( $w eq 'm' | $w eq 'qr' ){
                   #executable
                    $cut=single_quoted_literal($delim,length($w)+1);
                    $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
                    $ValPy[$tno]='.re.match(r"'.$ValPerl[$tno].'")';
-                }elsif($w eq 'tr' || $w eq 'y' || $w eq  's' ){
+                }elsif( $w eq 'tr' || $w eq 'y' || $w eq  's' ){
                   # tr function has two parts; also can be named y
                   $cut=single_quoted_literal($delim,length($w)+1);
                   $arg1=substr($source,length($w)+1,$cut-length($w)-2);
@@ -330,7 +330,7 @@ my ($l,$m);
                        $ValPy[$tno]=".re.sub(r'$arg1',r'$arg2')";
                    }
 
-               }elsif($w eq 'qw') {
+               }elsif( $w eq 'qw' ){
                    $cut=single_quoted_literal($delim,length($w)+1);
                    $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
                    if( $ValPerl[0] eq 'use' ){
@@ -360,7 +360,7 @@ my ($l,$m);
             }elsif( index(';<>()',$s2) > -1 ){
                $ValPy[$tno]=$SPECIAL_VAR{$s2};
                $cut=2;
-            }elsif( $s2 =~ /\d/ ) {
+            }elsif( $s2 =~ /\d/ ){
                 $source=~/^.(\d+)/;
                 $ValClass[$tno]='s'; #scalar
                 $ValPerl[$tno]=$1;
@@ -370,13 +370,13 @@ my ($l,$m);
                    $ValPy[$tno]="rematch.group($1)";
                 }
                 $cut=length($1)+1;
-            }elsif( $s2 eq '#') {
+            }elsif( $s2 eq '#' ){
                $source=~/^..(\w+)/;
                $ValClass[$tno]='s';
                $ValPerl[$tno]=$1;
                $ValPy[$tno]='len($1)';
                $cut=length($1)+2;
-            }elsif( $s2 eq '$'){
+            }elsif( $s2 eq '$' ){
                $source=~/^..(\w+)/;
                $ValClass[$tno]='p';
                $ValPerl[$tno]=$1;
@@ -489,7 +489,7 @@ my ($m,$sym);
 # The second problem is that \n in single quoted string in Perl means two symbols and in Python a single symbol (newline)
       $closing_delim=~tr/{[(</}])>/;
       #simple string, but osnmebacklashes are allowed
-      for($m=$offset; $m<=length($source); $m++) {
+      for($m=$offset; $m<=length($source); $m++ ){
          $sym=substr($source,$m,1);
          last if ($sym eq $closing_delim && substr($source,$m-1,1) ne '\\' );
       }
@@ -525,7 +525,7 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
          #element of the array of hash
          $ind=$2;
          $cut=length($1);
-         if (defined($ind)) {
+         if( defined($ind) ){
             $cut+=length($ind);
             $ind =~ tr/$//d;
          }else {
@@ -538,7 +538,7 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
             $result.=$1.$ind; # add string Variable part of the string
          }
          $quote=substr($quote,$cut);
-         if( length($quote)>0 ) {
+         if( length($quote)>0 ){
             $result.=' + '; # we will add at least one chunk
          }
      }else{
@@ -557,7 +557,7 @@ sub escape_quotes
 {
 my $string=$_[0];
 my $delim='"';
-   if (scalar(@_)>1) {
+   if( scalar(@_)>1 ){
       $delim=$_[1];
    }
 my $result;
@@ -568,7 +568,7 @@ my $result;
    }else{
      $result=$string;
      for( my $i=length($string); $i>=0; $i-- ){
-        if (substr($string,$i,1) eq $delim ) {
+        if( substr($string,$i,1) eq $delim ){
            substr($result,$i,0)='\\';
         }
      } # for
@@ -601,16 +601,16 @@ my $line='';
       $line=$ValPy[0];
       for( $i=1; $i<@ValPy; $i++ ){
          next unless(defined($ValPy[$i]));
-         next if ($ValPy[$i] eq '');
+         next if( $ValPy[$i] eq '');
          $s=substr($ValPy[$i],0,1);
-         if( $ValPy[$i-1]=~/\w$/) {
+         if( $ValPy[$i-1]=~/\w$/ ){
             if( index(q('"/),$s)>-1 || $s=~/\w/ ){
                 # print "something" if /abc/
                 $line.=' '.$ValPy[$i];
             }else{
                 $line.=$ValPy[$i];
             }
-         }else {
+         }else{
             $line.=$ValPy[$i];
          }
       }
@@ -631,19 +631,19 @@ my $line='';
 
 
       } # for
-      if( defined[$ValCom[-1]] && length($ValCom[-1]) > 0  ){
+      if( defined[$ValCom[-1]] && length($ValCom[-1]) > 0 ){
          # that means that you need a new line. bezroun Feb 3, 2020
          Pythonizer::output_line($line,$ValCom[-1] );
       }else{
         Pythonizer::output_line($line);
       }
-      for ($i=1; $i<$#ValCom; $i++) {
+      for ($i=1; $i<$#ValCom; $i++ ){
           if( defined($ValCom[$i]) && length($ValCom[$i])>0 ){
              # NOTE: This is done because comment can be in a wrong position due to Python during generation and the correct placement  is problemtic
              Pythonizer::output_line('',$ValCom[$i] );
           }  # if defined
       }
-   }elsif($line){
+   }elsif( $line ){
        Pythonizer::output_line('','#NOTRANS: '.$line);
    }
    if( $::FailedTrans && $debug ){
