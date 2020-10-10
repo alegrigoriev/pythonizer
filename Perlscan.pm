@@ -148,7 +148,7 @@ my ($l,$m);
             # because of for($i=0; $i<@x; $i++)
             #
             $balance=0;
-            for ($i=0;$i<@ValClass;$i++ ) {
+            for ($i=0;$i<@ValClass;$i++ ){
                if( $ValClass[$i] eq '(' ){
                   $balance++;
                }elsif( $ValClass[$i] eq ')' ){
@@ -302,7 +302,7 @@ my ($l,$m);
                    $tno=0;
                    next;
                }
-               if( $class eq 't' ) {
+               if( $class eq 't' ){
                   $ValPy[$tno]='';
                }elsif( $class eq 'q' ){
                   # q can be tranlated into """", but qw actually is an expression
@@ -774,7 +774,7 @@ my $i;
 #
 # Put generated chunk into array.
 #
-   for($i=0; $i<@_;$i++) {
+   for($i=0; $i<@_;$i++ ){
       if( scalar(@PythonCode) >256 ){
          logme('S',"Number of generated chunks for the line exceeded 256");
          if( $::debug > 0 ){
