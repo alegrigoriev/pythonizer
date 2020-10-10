@@ -459,10 +459,10 @@ my ($l,$m);
               }
             }elsif( $s eq '<' ){
                # diamond operator
-               if ($source=~/<(\w*)>/) {
+               if( $source=~/<(\w*)>/ ){
                   $ValClass[$tno]='i';
                   $ValPerl[$tno]="<$1>";
-                  if(length($1)==0) {
+                  if( length($1)==0 ){
                     $ValPy[$tno]='sys.stdin()';
                   }else{
                     $ValPy[$tno]="$1.input()";
@@ -475,14 +475,14 @@ my ($l,$m);
                $ValClass[$tno]=$ValPerl[$tno]=$ValPy[$tno]=$s;
                if( $s eq '.' ){
                   $ValPy[$tno]=' + ';
-               }elsif($s eq '<' ){
+               }elsif( $s eq '<' ){
                   $ValClass[$tno]='>';
                }
                $cut=1;
             }
          }
          substr($source,0,$cut)='';
-         if( length($source)==0 ) {
+         if( length($source)==0 ){
              # the current line ended by ; of { } was not reached
              $source=Pythonizer::getline();
          }
@@ -627,7 +627,7 @@ my $line='';
       $line=$ValPy[0];
       for( $i=1; $i<@ValPy; $i++ ){
          next unless(defined($ValPy[$i]));
-         next if( $ValPy[$i] eq '');
+         next if( $ValPy[$i] eq '' );
          $s=substr($ValPy[$i],0,1);
          if( $ValPy[$i-1]=~/\w$/ ){
             if( index(q('"/),$s)>-1 || $s=~/\w/ ){
@@ -645,7 +645,7 @@ my $line='';
       $line=$::PythonCode[0];
       for( my $i=1; $i<@::PythonCode; $i++ ){
          next unless(defined($::PythonCode[$i]));
-         next if ($::PythonCode[$i] eq '');
+         next if( $::PythonCode[$i] eq '' );
          $s=substr($::PythonCode[$i],0,1); # the first symbol
          if( substr($line,-1,1)=~/[\w'"]/ &&  $s =~/[\w'"]/ ){
             # space between identifiers and before quotes
