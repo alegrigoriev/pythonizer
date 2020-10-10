@@ -1087,7 +1087,7 @@ my $line='';
          next unless(defined($PythonCode[$i]));
          next if( $PythonCode[$i] eq '' );
          $s=substr($PythonCode[$i],0,1); # the first symbol
-         if( substr($line,-1,1)=~/[\w'"]/ &&  $s =~/[\w'"]/ ){
+         if( defined($line) && substr($line,-1,1)=~/[\w'"]/ &&  $s =~/[\w'"]/ ){
             # space between identifiers and before quotes
             $line.=' '.$PythonCode[$i];
          }else{
