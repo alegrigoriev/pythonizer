@@ -330,7 +330,9 @@ my ($l,$m);
                   next; # rescan !!! A very elegant solution.
                }
                if( $class eq 'c' && $tno > 0 && $Pythonizer::PassNo ){
-                  # token buffer implemented Oct 08, 2020 --NNB
+                  # The current solution is pretty britle but works
+                  # You can't recreate Perl source from ValPerl as it does not have 100% correspondence.
+                  # So the token buffer implemented Oct 08, 2020 --NNB
                   # Note you can't use both getline buffer and token buffer, so you can't add '{' to the end of if statement
                   # You need to jump through the hoops in Pythonizer to inject '{' and '}' into the stream
                   pop(@ValClass);
@@ -345,6 +347,9 @@ my ($l,$m);
                   $tno=0;
                   $ValClass[$tno]=$class;
                   $ValPy[$tno]=$w;
+                  if( exists($keyword_tr{$w}) ){
+                     $ValPy[$tno]=$keyword_tr{$w};
+                  }
                   $ValPerl[$tno]=$w;
                   $ValType[$tno]='P';
                }elsif ( $class eq 't'  ){
@@ -358,6 +363,10 @@ my ($l,$m);
 
                   if( $w eq 'q' ){
                      $cut=single_quoted_literal($delim,2);
+                     if( $cut== -1 ){
+                        $pythonizer::TrStatus=-1;
+                        last;
+                     }
                      $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
                      $w=escape_backslash($ValPerl[$tno]);
                      $ValPy[$tno]=escape_quotes($w,2);
