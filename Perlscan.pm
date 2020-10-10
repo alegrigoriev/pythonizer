@@ -536,7 +536,7 @@ my ($l,$m);
                      # postfix conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020 --NNB
                      Pythonizer::getline('{',substr($source,3),'}');
                      $source=substr($_[0],0,length($_[0])-length($source));
-                     $source=$1 if ($source=~/(.+)\s+$/);
+                     $source=$1 if( $source=~/(.+)\s+$/);
                      $prefix=($digram eq '&&') ? 'if( ' : ' if( ! ';
                      if( substr($source,0,1) eq '(' ){
                         substr($source,0,1)=$prefix;
@@ -556,7 +556,7 @@ my ($l,$m);
                   }
                   $cut=2;
                }
-            }elsif( $s eq '='  ){
+            }elsif( $s eq '=' ){
                if( index(join('',@ValClass),'c')>-1 && $::PyV==3 ){
                   $ValPy[$tno]=':=';
                }
@@ -696,7 +696,7 @@ my $rc=-1;
       $name=$1;
       $ValPy[$tno]=$name;
       if( $update ){
-           $ValPerl[$tno]=substr($source,0,$cut);
+         $ValPerl[$tno]=substr($source,0,$cut);
       }
       if( ($k=index($name,'::')) > -1 ){
          if( $k==0 || substr($name,$k) eq 'main' ){
@@ -785,7 +785,7 @@ my (@temp,$sym,$prev_sym,$i,$modifier,$meta_no);
 # ATTEMTION: this sub modifies $source curring regex modifier from it.
 # At the point of invocation the regex is removed from $source (it is passed as the first parameter) so that modifier can be analysed
 # if(/regex/) -- .re.match(default_var, r'regex')
-# if ($line=~/regex/ )
+# if( $line=~/regex/ )
 # ($head,$tail)=split(/s/,$line)
 # used from '/', 'm' and 'qr'
 sub perl_match
@@ -1082,7 +1082,7 @@ my $i;
 #
 # Put generated chunk into array.
 #
-   for($i=0; $i<@_;$i++) {
+   for($i=0; $i<@_;$i++ ){
       if( scalar(@PythonCode) >256 ){
          logme('S',"Number of generated chunks for the line exceeded 256");
          sleep 1;
