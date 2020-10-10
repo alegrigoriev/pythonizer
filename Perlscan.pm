@@ -89,11 +89,11 @@ my ($l,$m);
       @ValPy=(); # Corresponding Python token value, of any
 
       $::TailComment='';
-      if ($::debug > 3 ) {
+      if ( $::debug > 3 ){
          $DB::single = 1;
       }
       while($source) {
-         if( $source=~/^(\s+)/) {
+         if( $source=~/^(\s+)/ ){
             # truncate white space on the left
             substr($source,0,length($1))='';
          }
@@ -104,23 +104,23 @@ my ($l,$m);
             # tail comment means the end of processing of the line
             $ValCom[$tno-1]=$source;
             last;
-         }elsif( $s eq ';'){
+         }elsif( $s eq ';' ){
             #
             # buffering tail is possible only if banace of round bracket is zero becuse of for statement
             #
             $balance=0;
-            for ($i=0;$i<@ValClass;$i++) {
-               if ($ValClass[$i] eq '(') {
+            for ($i=0;$i<@ValClass;$i++){
+               if( $ValClass[$i] eq '(' ){
                   $balance++;
-               }elsif ($ValClass[$i] eq '(') {
+               }elsif( $ValClass[$i] eq '(' ){
                   $balance--;
                }
             }
             $ValClass[$tno]=$ValPerl[$tno]=$s;
             $ValPy[$tno]='';
             $cut=1;
-            if ($balance==0) {
-               if( length($source)>1 && $source !~/^;\s*#/ ){
+            if( $balance==0 ){
+               if (length($source)>1 && $source !~/^;\s*#/ ){
                   Pythonizer::getline(substr($source,1));
                   last;
                }
@@ -130,7 +130,7 @@ my ($l,$m);
               $ValClass[$tno]='q';
               $cut=single_quoted_literal($s,1);
               $ValPerl[$tno]=substr($source,1,$cut-2);
-              if (index('~>',$ValClass[$tno-1])==-1) {
+              if( index('~>',$ValClass[$tno-1])==-1 ){
                  $ValPy[$tno]='perl_default_var.re.match(r'.escape_quotes($ValPerl[$tno]).')'; #  double quotes neeed to be escaped just in case
               }else{
                  $ValPy[$tno]='.re.match(r'.escape_quotes($ValPerl[$tno]).')'; #  double quotes neeed to be escaped just in case
@@ -140,7 +140,7 @@ my ($l,$m);
             $ValClass[$tno]="'";
             $cut=single_quoted_literal($s,1);
             $ValPerl[$tno]=substr($source,1,$cut-2);
-            if ($tno>0 && $ValPerl[$tno-1] eq '<<' ) {
+            if( $tno>0 && $ValPerl[$tno-1] eq '<<' ){
                # my $here_str = <<'END'; -- added Dec 20, 2019
                $tno--; # overwrite previous token; Dec 20, 2019 --NNB
                $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno]);
@@ -151,7 +151,7 @@ my ($l,$m);
          }elsif( $s eq '"' ){
             $ValClass[$tno]='"';
             $cut=double_quoted_literal('"',1); # side affect populates $ValPy[$tno] and $ValPerl[$tno]
-            if ($tno>0 && $ValPerl[$tno-1] eq '<<' ) {
+            if( $tno>0 && $ValPerl[$tno-1] eq '<<'){
                # my $here_str = <<'END'; -- added Dec 20, 2019
                $tno--; # overwrite previous token; Dec 20, 2019 --NNB
                $ValClass[$tno]="'";
@@ -183,7 +183,7 @@ my ($l,$m);
                #binary
                $val=$1;
                $ToSub[$tno]='b';
-            }elsif ( $source=~/(\d+)/ ){
+            }elsif( $source=~/(\d+)/ ){
                 $val=$1;
                 $ToSub[$tno]='i';
             }
@@ -196,7 +196,7 @@ my ($l,$m);
             $ValPerl[$tno]=$w;
             $cut=length($w);
             $class=(exists($TokenType{$w})) ? $TokenType{$w}:'i';
-            if (exists($keyword_tr{$w})){
+            if( exists($keyword_tr{$w}) ){
                 $ValPy[$tno]=$keyword_tr{$w};
             }else{
                 $ValPy[$tno]=$w;
@@ -261,7 +261,7 @@ my ($l,$m);
                }elsif($w eq 'qw') {
                    $cut=single_quoted_literal($delim,length($w)+1);
                    $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
-                   if ($ValPerl[0] eq 'use') {
+                   if( $ValPerl[0] eq 'use' ){
                       $ValPy[$tno]=$ValPerl[$tno];
                    }else{
                       $ValPy[$tno]='"'.$ValPerl[$tno].'".split(r"\s+")';
@@ -278,8 +278,8 @@ my ($l,$m);
             }elsif( $s2 eq '^' ){
                 $s3=substr($source,2,1);
                 $cut=3;
-                if ($s3=~/\w/ ){
-                   if (exists($SPECIAL_VAR{$s3})) {
+                if( $s3=~/\w/ ){
+                   if( exists($SPECIAL_VAR{$s3})) {
                      $ValPy[$tno]=$SPECIAL_VAR{$s3};
                    }else{
                      $ValPy[$tno]='perl_special_var_'.$s3;
@@ -313,9 +313,9 @@ my ($l,$m);
                $ValClass[$tno]='s'; #scalar
                $ValPy[$tno]=$ValPerl[$tno]=$1;
                $cut=length($1)+1;
-               if (length($1) ==1 ) {
+               if( length($1) ==1 ){
                   $s2=$1;
-                  if ($s2 eq '_') {
+                  if( $s2 eq '_' ){
                      if( $source=~/^(._\s*\[\s*(\d+)\s*\])/ ){
                         $ValPy[$tno]='perl_arg_array['.$2.']';
                         $cut=length($1);
@@ -323,7 +323,7 @@ my ($l,$m);
                         $ValPy[$tno]='perl_default_var';
                         $cut=2;
                      }
-                  }elsif ($s2 eq 'a' || $s2 eq 'b' ) {
+                  }elsif( $s2 eq 'a' || $s2 eq 'b' ){
                      $ValPy[$tno]='perl_sort_'.$s2;
                      $cut=2;
                   }
@@ -331,7 +331,7 @@ my ($l,$m);
                  $ValPy[$tno]='os.environ';
                }
 
-            }elsif($source=~/^.(\w+(?:\:\:\w+)+)/ ){
+            }elsif( $source=~/^.(\w+(?:\:\:\w+)+)/ ){
                $var=$1;
                $ValPerl[$tno]=$1;
                $var =~ tr/:/_/;
@@ -404,8 +404,8 @@ my ($l,$m);
       pop @ValPerl;
       pop @ValPy;
    }
-   if (scalar(@ValClass) > 0 ) {
-      if( $ValClass[-1] eq ';') {
+   if( scalar(@ValClass) > 0 ){
+      if( $ValClass[-1] eq ';' ){
          # removal of semicolon: not needed in Python for single line  statements
          pop @ValClass;
          pop @ValPerl;
@@ -454,7 +454,7 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
    # decompose all scalar variables, if any, Array and hashes are left "as is"
    #
    $k=index($quote,'$');
-   if ($k==-1) {
+   if( $k==-1 ){
       # double quotes are used for a simple literal that does not reaure interpolation
       # Python equvalence between single and doble quotes alows some flexibility
       $ValPy[$tno]=escape_quotes($quote);
@@ -504,9 +504,9 @@ my $delim='"';
       $delim=$_[1];
    }
 my $result;
-   if (index($string,'"')==-1 ) {
+   if( index($string,'"')==-1 ){
       $result.=q(").$string.qq("); # closing quote in the last chank if it exist.
-   }elsif(index($string,"'")==-1 ) {
+   }elsif( index($string,"'")==-1 ){
       $result.=qq(').$string.qq('); # closing quote in the last chank if it exist.
    }else{
      $result=$string;
@@ -527,8 +527,8 @@ my $string=$_[0];
 my $backslash='\\';
 my $result=$string;
    for( my $i=length($string)-1; $i>=0; $i-- ){
-      if (substr($string,$i,1) eq $backslash) {
-         if(index('nrtfbvae',substr($string,$i+1,1))>-1 ) {
+      if( substr($string,$i,1) eq $backslash ){
+         if( index('nrtfbvae',substr($string,$i+1,1))>-1 ){
             substr($result,$i,0)='\\'; # this is a really crazy nuance
          }
       }
