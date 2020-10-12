@@ -1179,7 +1179,7 @@ my $pos=shift; # if pos is negative, count from the end of the string
    if( $pos<0 ){
       $pos=scalar($ValClass)-$pos;
    }
-   if(  $pos>$#ValClass ){
+   if( $pos>$#ValClass ){
       abend('Replace position $pos is outside upper bound');
    }
    substr($TokenStr,$pos,1)=$ValClass[$pos]=$_[0];
@@ -1190,7 +1190,7 @@ my $pos=shift; # if pos is negative, count from the end of the string
 sub insert
 {
 my $pos=shift;
-   if(  $pos>$#ValClass ){
+   if( $pos>$#ValClass ){
       abend('Insert position $pos is outside upper bound');
    }
    substr($TokenStr,$pos,0)=$_[0];
@@ -1210,10 +1210,10 @@ sub destroy
       $howmany=scalar(@ValClass)-$from; # is no length then up to the nd of arrays.
    }
     # sanity checks
-   if ($from>$#ValClass) {
+   if( $from>$#ValClass ){
        logme('E',"Attempt to delete element  $from in set containing $#ValClass elements. Request ignored");
        return;
-   }elsif($from+$howmany>$#ValClass){
+   }elsif( $from+$howmany>$#ValClass ){
       logme('E',"Attempt to delete  $howmany from position $from exceeds the index of the last element $#ValClass. Request ignored");
       return;
    }
@@ -1229,18 +1229,18 @@ sub autoincrement_fix
 {
 my $wart_pos;
     #postincement
-   if( length($TokenStr)>6 &&  substr($TokenStr,0,6) eq 's(s^)='){
+   if( length($TokenStr)>6 &&  substr($TokenStr,0,6) eq 's(s^)=' ){
       logme('E','Increment of array index found on the left side of assignement and replaced by append function. This guess might be wrong');
       destroy(2,4);
       replace( 0,'f','f',$ValPy[0].'.append' );
       replace(1,'(','(','(');
       append(')',')',')');
-   }elsif(  ($wart_pos=index($TokenStr,'s^)')) >-1  && $ValPerl[$wart_pos+2] eq ']' ){
+   }elsif( ($wart_pos=index($TokenStr,'s^)')) >-1  && $ValPerl[$wart_pos+2] eq ']' ){
        logme('E',"Posfix operation $ValPerl[$wart_pos+1] might be translated incorrectly. Please verify and/or translate manually ");
        $ValPy[$wart_pos]='('.$ValPy[$wart_pos].':='.$ValPy[$wart_pos].'+1)';
        $ValPy[$wart_pos+1]='';
        #$ValClass[$wart_pos]='f';
-   }elsif(  ($wart_pos=index($TokenStr, '(^s')) >-1 && $ValPerl[$wart_pos] eq '[' ){
+   }elsif( ($wart_pos=index($TokenStr, '(^s')) >-1 && $ValPerl[$wart_pos] eq '[' ){
        $ValPy[$wart_pos+2]='('.$ValPy[$wart_pos+2].':='.$ValPy[$wart_pos+2].'+1)';
        $ValPy[$wart_pos+1]='';
    }
