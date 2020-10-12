@@ -665,7 +665,7 @@ my $original;
        # the current line ended but ; or ){ } were not reached
        $original=$Pythonizer::IntactLine;
        $source=Pythonizer::getline();
-       if( length(Pythonizer::IntactLine)>0 ){
+       if( length($Pythonizer::IntactLine)>0 ){
           $original.="\n".$Pythonizer::IntactLine;
           $Pythonizer::IntactLine=$original;
        }else{
