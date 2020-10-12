@@ -1188,6 +1188,7 @@ my $pos=shift; # if pos is negative, count from the end of the string
    $ValType[$pos]='';
 }
 sub insert
+#inserts before the position $pos
 {
 my $pos=shift;
    if( $pos>$#ValClass ){
