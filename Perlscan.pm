@@ -1189,20 +1189,23 @@ my $pos=shift;
    splice(@ValType,$pos,0,'');
 }
 sub destroy
+# accept two parameters
+# start of deletion
+# number of tokens; if omitted to the end of the token string.
 {
 ($from,$howmany)=@_;
    # defaults and special cases
    if( $from == -1 ){
-      $from=$#ValClass
-   }
-   if( scalar(@_)==1 ){
-      $howmany=scalar(@ValClass)-$from; # is no length then up to the nd of arrays.
+      $from=$#ValClass;
+      $howmany=1;
+   }elsif( scalar(@_)==1 ){
+      $howmany=scalar(@ValClass)-$from; # is no length then up to the end of arrays.
    }
     # sanity checks
    if( $from>$#ValClass ){
        logme('E',"Attempt to delete element  $from in set containing $#ValClass elements. Request ignored");
        return;
-   }elsif( $from+$howmany>$#ValClass ){
+   }elsif( $from+$howmany>scalar(@ValClass) ){
       logme('E',"Attempt to delete  $howmany from position $from exceeds the index of the last element $#ValClass. Request ignored");
       return;
    }
@@ -1213,7 +1216,7 @@ sub destroy
 }
 sub autoincrement_fix
 #
-# absence of autoincrament and autodecrament operators is a problem... May be even a wart.
+# absence of autoincrement and autodecrement operators is a problem... May be even a wart.
 #
 {
 my $wart_pos;
