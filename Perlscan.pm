@@ -1036,19 +1036,10 @@ my $result;
 sub put_regex_in_quotes
 {
 my $string=$_[0];
-my $ver=$_[1];
-my $result;
    if( $string =~/\$\w+/ ){
       return substr($string,1); # this case of /$regex/ we return the variable.
    }
-   return qq(r').$string.qq(') if(index($string,"'")==-1 ); # no need to escape any quotes.
-   return q(r").$string.qq(") if( index($string,'"')==-1 ); # no need to scape any quotes.
-
-#
-# We are forced to use triple quotes
-#
-   return qq(r""").$string.qq(""");
-   return $result;
+   return escape_quotes($string);
 }
 sub escape_backslash
 # All special symbols different from the delimiter and \ should be escaped when translating Perl single quoted literal to Python
