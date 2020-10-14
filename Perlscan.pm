@@ -145,6 +145,7 @@ my ($source,$cut,$tno)=('',0,0);
 @PythonCode=(); # array for generated code chunks
 @BufferValClass=@BufferValCom=@BufferValPerl=@BufferValPy=();
 $TokenStr='';
+$delayed_block_closure=0;
 #
 # Tokenize line into one string and three arrays @ValClass  @ValPerl  @ValPy
 #
@@ -190,10 +191,15 @@ my ($l,$m);
             $ValClass[$tno]=$ValPerl[$tno]=$s;
             $ValPy[$tno]=',';
             $cut=1; # we need to continue
+
          }else{
             # this is regular end of statement
             if( $tno>0 && $ValPerl[0] eq 'sub' ){
                $ValPy[0]='#NoTrans!'; # this is a subroutne prototype, ignore it.
+            }
+            if( $delayed_block_closure ){
+               Pythonizer::getline('}');
+               $delayed_block_closure=0;
             }
             last if( length($source) == 1); # we got full statement; semicolon needs to be ignored.
             if( $source !~/^;\s*#/ ){
@@ -682,9 +688,11 @@ sub bash_style_or_and_fix
 # On level zero those are used instead of if statement
 {
 my $split=$_[0];
-   # postfix conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020 --NNB
+   # bash-style conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020 --NNB
+   Pythonizer::getline('{');
+   $delayed_block_closure=1;
    if( $split<length($source) ){
-      Pythonizer::getline('{',substr($source,$split),'}');
+      Pythonizer::getline(substr($source,$split)); # at this point processing contines untill th eend of the statement
    }
    $source='';
    $TokenStr=join('',@ValClass); # replace will not work without $TokenStr
