@@ -963,13 +963,12 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
       return($#ValClass);
    }elsif( $ValPerl[$begin] eq 'for' && $ValPerl[$begin+1] eq '('  && $ValClass[$begin+2] !~ /[ahf]/ ){
       # regular for loop but can be foreach loop too
-      $end_br_pos=matching_br($start);
-      if( $ValPerl[$end_br_pos-1] eq '++'){
+      if( $ValPerl[-1] eq '++'){
          $increment='';
-      }elsif( $ValPerl[$end_br_pos-1] eq '--'){
+      }elsif( $ValPerl[-1] eq '--'){
          $increment='-1';
       }else{
-         logme('S', "More complex increment than ++ or -- requires manual translation");
+         logme('S', "In the current version more complex increment than ++ or -- requires manual translation");
          $TrStatus=-1;
          return -255;
       }
@@ -986,7 +985,7 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
          $start++;
 
          # find end of initialization
-         $end_pos=next_same_level_token(';',$start,$end_br_pos); # end of expression
+         $end_pos=next_same_level_token(';',$start,$limit); # end of expression
 
          if( $end_pos-$start==1 ){
              gen_chunk($ValPy[$start]);
@@ -1003,11 +1002,11 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
       if( $start == -1 ){$TrStatus=-1; return -255; }
       $start++;
       # find end of loopexit condition
-      $end_pos=next_same_level_token(';',$start,$end_br_pos);
+      $end_pos=next_same_level_token(';',$start,$limit);
       if( $end_pos == -1 ){$TrStatus=-1; return -255; }
       if( $end_pos-$start==1 ){
           if($ValClass[$start] eq 'a'){
-             gen_chunk("len($ValPy[$start])"); # array as limit of the range
+             gen_chunk($ValPy[$start]); # array as limit of the range
           }else{
              gen_chunk($ValPy[$start]); # all other cases of single limit of the range
           }
@@ -1587,7 +1586,7 @@ my ($cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos);
             gen_chunk($ValPy[$cur_pos]);
             $cur_pos++;
          }
-      }elsif( $ValClass[$cur_pos] eq 'i' && $ValClass[$cur_pos+1] eq '(' ){
+      }elsif( $cur_pos<=$#ValClass && $ValClass[$cur_pos] eq 'i' && $ValClass[$cur_pos+1] eq '(' ){
          $end_pos=matching_br($cur_pos+1);
          gen_chunk($ValPy[$cur_pos]);
          if( $LocalSub{$ValPy[$cur_pos]} ){
