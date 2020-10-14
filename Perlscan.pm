@@ -590,7 +590,7 @@ my ($l,$m);
                $cut=2;
             }
          }elsif( $s eq '=' ){
-            if( index(join('',@ValClass),'c')>-1 && $::PyV==3 ){
+            if( index(join('',@ValClass),'c')>-1 ){
                $ValPy[$tno]=':=';
             }
             $cut=1;
@@ -980,7 +980,7 @@ my  $outer_delim;
     }else{
       $outer_delim='"""';
     }
-   $result=( $::PyV==3 ) ? "f$outer_delim" : ''; #For python 3 we need special opening quote
+   $result='f'.$outer_delim; #For python 3 we need special opening quote
    while( $k > -1 ){
       if( $k > 0 ){
          if( substr($quote,$k-1,1) eq '\\' ){
@@ -989,15 +989,14 @@ my  $outer_delim;
             next;
          }else{
             # we have the first literal string  before varible
-            $result.=escape_quotes(substr($quote,0,$k),$::PyV); # with or without quotes depending on version.
-            $result.=' + ' if $::PyV==2; # add literal part of the string
+            $result.=substr($quote,0,$k); # with or without quotes depending on version.
          }
       }
-      $result.='{' if( $::PyV==3 );  # we always need '{' for f-strings
+      $result.='{';  # we always need '{' for f-strings
       $quote=substr($quote,$k);
       decode_scalar($quote,0); #get's us scalar or system var
       #does not matter what type of veriable this is: regular or special variable
-      $result.=$ValPy[$tno]; # copy string provided by decode_scalar. ValPy[$tno] changes if Perl contained :: like in $::PyV
+      $result.=$ValPy[$tno]; # copy string provided by decode_scalar. ValPy[$tno] changes if Perl contained :: like in $::debug
       $quote=substr($quote,$cut); # cure the nesserary number of symbol determined by decode_scalar.
       if( $quote=~/^\s*([\[\{].+?[\]\}])/ ){
          #HACK element of the array of hash. Here we cut corners and do not process expressions as index.
@@ -1008,19 +1007,14 @@ my  $outer_delim;
          $result.=$ind; # add string Variable part of the string
          $quote=substr($quote,$cut);
       }
-
-      if( $::PyV==3 ){
-         $result.='}'; # end of variable
-      }elsif( length($quote)>0 ){
-          $result.=' + '; # for Python2  we add + only if there is at least one more chunk
-      }
+      $result.='}'; # end of variable
       $k=index($quote,'$'); #next scalar
    }
    if( length($quote)>0 ){
        #the last part
        $result.=$quote;
    }
-   $result.=( $::PyV==3 ) ? $outer_delim : '';
+   $result.=$outer_delim;
    $ValPy[$tno]=$result;
    return $close_pos;
 }
@@ -1030,16 +1024,10 @@ my  $outer_delim;
 sub escape_quotes
 {
 my $string=$_[0];
-my $ver=$_[1];
-my $quote=
 my $result;
 
-   if( $ver==2 ){
-      return qq(').$string.qq(') if(index($string,"'")==-1 ); # no need to escape any quotes.
-      return q(").$string.qq(") if( index($string,'"')==-1 ); # no need to scape any quotes.
-   }else{
-      return $string if( index($string,'"')==-1 ); # no need to scape any quotes.
-   }
+   return qq(').$string.qq(') if(index($string,"'")==-1 ); # no need to escape any quotes.
+   return q(").$string.qq(") if( index($string,'"')==-1 ); # no need to scape any quotes.
 #
 # We need to escape quotes
 #
