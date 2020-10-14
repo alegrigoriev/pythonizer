@@ -374,7 +374,8 @@ my ($l,$m);
                   next;
                }
             }elsif( $class eq 'q' ){
-               # q can be tranlated into """", but qw actually is an expression
+               # q can be translated into """", but qw actually is an expression
+               $delim=substr($source,length($w),1);
                if( $w eq 'q' ){
                   $cut=single_quoted_literal($delim,2);
                   if( $cut== -1 ){
