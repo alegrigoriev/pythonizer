@@ -698,8 +698,10 @@ my $split=$_[0];
    }
    $source='';
    $TokenStr=join('',@ValClass); # replace will not work without $TokenStr
-   replace($#ValClass,')',')',')'); # we need to do this befor insert as insert changes size of array and makes $tno invalid
-   if( $ValClass[0] ne '(' ){
+   if( $ValClass[0] eq '(' && $ValClass[-2] ){
+      destroy(-1);
+   }else{
+      replace($#ValClass,')',')',')'); # we need to do this befor insert as insert changes size of array and makes $tno invalid
       insert(0,'(','(','(');
    }
    insert(0,'c','if','if');
