@@ -333,7 +333,7 @@ return if ($PassNo==0); # no output during the first pass
 my $line=(scalar(@_)==0 ) ? $IntactLine : $_[0];
 my $tailcomment=(scalar(@_)==2 ) ? $_[1] : '';
 my $indent=' ' x $::TabSize x $CurNest;
-my $flag=( $::TrStatus < 0 ) ? 'F' : ' ';
+my $flag=( defined($main::TrStatus) && $main::TrStatus < 0 ) ? 'F' : ' ';
 my $len=length($line);
 my $prefix=sprintf('%4u',$.)." |".sprintf('%2u',$CurNest)." | ".sprintf('%1s',$flag)." |";
 my $zone_size=($maxlinelen-length($prefix))/2; # length of prefix is 20
