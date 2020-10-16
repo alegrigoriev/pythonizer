@@ -46,7 +46,7 @@ package Perlscan;
 #==start=============================================================================================
 use v5.10.1;
 use warnings;
-use strict 'subs';
+#use strict 'subs';
 use feature 'state';
 use Softpano qw(abend logme out);
 #use Pythonizer qw(correct_nest getline prolog epilog output_line);
@@ -78,8 +78,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'and'=>'and','or'=>'or','not'=>'not',
                 'x'=>' * ',
                 'bless'=>'NoTrans!','BEGIN'=>'def begin():',
-                'caller'=>'unknown','chdir'=>'.os.chdir','chmod'=>'.os.chmod','chomp'=>'.rstrip("\n")','chop'=>'[0:-1]','chr'=>'chr','close'=>'.f.close',
-                'die'=>'raise', 'defined'=>'unknown', 'do'=>'','delete'=>'.pop(','defined'=>'perl_defined',
+                'caller'=>q(['implementable_via_inspect',__file__,sys._getframe().f_lineno]),'chdir'=>'.os.chdir','chmod'=>'.os.chmod','chomp'=>'.rstrip("\n")','chop'=>'[0:-1]','chr'=>'chr','close'=>'.f.close',
+                'die'=>'sys.exit', 'defined'=>'unknown', 'do'=>'','delete'=>'.pop(','defined'=>'perl_defined',
                 'for'=>'for ','foreach'=>'for ',
                 'else'=>'else: ','elsif'=>'elif ','eval'=>'NoTrans!', 'exit'=>'sys.exit','exists'=> 'in', # if  key in dictionary 'exists'=>'.has_key'
                 'if'=>'if ', 'index'=>'.find',
@@ -96,7 +96,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                    'substr'=>'','sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','sprintf'=>'',
                    'sysseek'=>'perl_sysseek',
                    'STDERR'=>'sys.stderr','STDIN'=>'sys.stdin', '__LINE__' =>'sys._getframe().f_lineno',
-                'rindex'=>'.rfind', 'require'=>'NoTrans!', 'ref'=>'type', 'rmdir'=>'os.rmdir',
+                'rindex'=>'.rfind', 'ref'=>'type', 'require'=>'NoTrans!', 'return'=>'return', 'rmdir'=>'os.rmdir',
                 'tie'=>'NoTrans!',
                 'uc'=>'.upper()', 'ucfirst'=>'.capitalize()', 'undef'=>'Null', 'unless'=>'if not ', 'unlink'=>'os.unlink',
                    'unshift'=>'insert(0,', 'use'=>'NoTrans!', 'until'=>'while not ','untie'=>'NoTrans!',
@@ -109,18 +109,18 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'and'=>'0',
                   'caller'=>'f','chdir'=>'f','chomp'=>'f', 'chop'=>'f', 'chmod'=>'f','chr'=>'f','close'=>'f',
                   'default'=>'C','defined'=>'f','die'=>'f',
-                  'else'=>'C', 'elsif'=>'C', 'exists'=>'f', 'exit'=>'C', 'export'=>'f',
+                  'else'=>'C', 'elsif'=>'C', 'exists'=>'f', 'exit'=>'f', 'export'=>'f',
                   'if'=>'c',  'index'=>'f',
                   'for'=>'c', 'foreach'=>'c',
                   'given'=>'c','grep'=>'f',
                   'join'=>'f',
                   'keys'=>'f',
-                  'last'=>'C', 'lc'=>'f', 'length'=>'f', 'local'=>'t', 'localtime'=>'f',
+                  'last'=>'k', 'lc'=>'f', 'length'=>'f', 'local'=>'t', 'localtime'=>'f',
                   'my'=>'t', 'map'=>'f', 'mkdir'=>'f',
-                  'next'=>'C','not'=>'!',
+                  'next'=>'k','not'=>'!',
                   'or'=>'0', 'own'=>'t', 'oct'=>'f', 'ord'=>'f', 'open'=>'f',
                   'push'=>'f', 'pop'=>'f', 'print'=>'f', 'package'=>'c',
-                  'rindex'=>'f','read'=>'f', 'return'=>'C', 'ref'=>'f',
+                  'rindex'=>'f','read'=>'f', 'return'=>'f', 'ref'=>'f',
                   'say'=>'f','scalar'=>'f','shift'=>'f', 'split'=>'f', 'sprintf'=>'f', 'sort'=>'f','system'=>'f', 'state'=>'t',
                   'stat'=>'t','sub'=>'k','substr'=>'f','sysread'=>'f',  'sysseek'=>'f',
                   'tie'=>'f',
@@ -138,7 +138,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                    '<<' => 'H', '>>'=>'=', '&&'=>'0', '||'=>'0',
                    '*='=>'=', '/='=>'/', '**'=>'*', '::'=>'.' ); #and/or/not
 
-   %digram_map=('++'=>'+=1','--'=>'-=1','+='=>'+=', '*='=>'*=', '/='=>'/=', '.='=>'+=', '=~'=>'=','<>'=>'readline()','=>'=>': ','->'=>'.',
+   %digram_map=('++'=>'+=1','--'=>'-=1','+='=>'+=', '*='=>'*=', '/='=>'/=', '.='=>'+=', '=~'=>'','<>'=>'readline()','=>'=>': ','->'=>'.',
                 '&&'=>' and ', '||'=>' or ','::'=>'.',
                );
 my ($source,$cut,$tno)=('',0,0);
