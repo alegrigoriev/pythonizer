@@ -1140,17 +1140,18 @@ my $line='';
 #
 sub gen_chunk
 {
-my $i;
+my ($i,$k);
 #
 # Put generated chunk into array.
 #
    for($i=0; $i<@_;$i++ ){
       if( scalar(@PythonCode) >256 ){
-         logme('S',"Number of generated chunks for the line exceeded 256");
-         sleep 1;
-         if( $::debug > 0 ){
-            $DB::single = 1;
-         }
+         $chunk=$PythonCode[$i];
+         $k=$i;
+         --$k while($PythonCode[$k] eq $chunk);
+         logme('T','The number of generated chunk exceeed 256');
+         logme('T',"First generated chunk is $PythonCode[0] . The last generated chunk befor infinite loop is $PythonCode[$k]");
+         abend("You might need to exclude or simplify the line. Please refer to the user guide as for how to trableshoot this situation");
       }
       push(@PythonCode,$_[$i]);
    } #for
