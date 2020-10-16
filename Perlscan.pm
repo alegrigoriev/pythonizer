@@ -379,7 +379,7 @@ my ($l,$m);
                if( $w eq 'q' ){
                   $cut=single_quoted_literal($delim,2);
                   if( $cut== -1 ){
-                     $pythonizer::TrStatus=-1;
+                     $Pythonizer::TrStatus=-255;
                      last;
                   }
                   $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
