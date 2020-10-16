@@ -1125,7 +1125,7 @@ my $line='';
    }elsif( $line ){
        Pythonizer::output_line('','#NOTRANS: '.$line);
    }
-   if( $::TrStatus < 0  && $::debug ){
+   if( $::debug==4 ){
       out("\nTokens: $TokenStr ValPy: ".join(' '.@PythonCode));
    }
 #
