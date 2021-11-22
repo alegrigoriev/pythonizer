@@ -26,11 +26,12 @@ use strict 'subs';
 use feature 'state';
 use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType);
 use Softpano qw(abend logme out getopts standard_options);
+use config;				# issue 32
 require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line @LocalSub %GlobalVar);
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %GlobalVar);
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line);
    $::TabSize=3;
    $::breakpoint=0;
@@ -48,6 +49,7 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line);
 #
 sub prolog
 {
+      my $dir = shift;				# issue 55
       getopts("hd:v:r:b:t:l:",\%options);
 #
 # Three standard otpiotn -h, -v and -d
@@ -58,7 +60,8 @@ sub prolog
 #
       if(   exists $options{'r'}  ){
          if(  $options{'r'} eq ''){
-            $refactor='./pre_pythonizer.pl';
+	    # issue 55 $refactor='./pre_pythonizer.pl';
+            $refactor="$dir/pre_pythonizer.pl";		# issue 55
          }else{
             if(   -f $options{'r'} ){
               $refactor=$options{'r'};
@@ -201,6 +204,12 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
          $CurSubName=$ValPy[1];
          $LocalSub{$CurSubName}=1;
          %DeclaredVarH=(); # this is the list of my varible for given sub; does not needed for any other sub
+	 $we_are_in_sub_body=1;			# issue 45
+      }elsif( $ValClass[0] eq '}' ) {		# issue 45
+	 if($we_are_in_sub_body && $NextNest == 0) {	# issue 45
+	     $we_are_in_sub_body = 0;		# issue 45
+	     $CurSubName='main';		# issue 45
+	 }					# issue 45
       }else{
          for( $k=0; $k<@ValClass; $k++ ){
              if(  $ValClass[$k]=~/[sah]/ ){
@@ -243,11 +252,27 @@ sub get_here
 #
 {
 my $here_str;
-   while (substr($line,0,length($_[0])) ne $_[0] ){
-      $here_str.=$line;
-      $line=getline();
+   $line=getline();		# issue 39
+   if($::debug > 2) {
+      say STDERR "get_here($_[0]): line=$line\n";
    }
-   return '""""'."\n".$here_str."\n".'"""""'."\n";
+   if(!$line) {
+      logme('S', "Unclosed here string - terminiator '$_[0]' not found");
+   }
+   while (substr($line,0,length($_[0])) ne $_[0] ){
+      # issue 39 $here_str.=$line;
+      $here_str.=$line."\n";
+      $line=getline();
+      if($::debug > 2) {
+   	say STDERR "get_here:line=$line\n";
+      }
+      if(!$line) {
+         logme('S', "Unclosed here string - terminiator '$_[0]' not found");
+	 last;
+      }
+   }
+   # issue 39 return '""""'."\n".$here_str."\n".'"""""'."\n";
+   return '"""'.$here_str.'"""';	# issue 39
 } # get_here
 
 
@@ -337,10 +362,11 @@ my $start_of_comment_zone=$zone_size+length($prefix); #  the start of comment_zo
 #                                                   So the total line length=180
 my $orig_tail_len=length($tailcomment);
 my $i;
-
+my $orig_tail_comment = $tailcomment;
 
    if(  $tailcomment){
        $tailcomment=($tailcomment=~/^\s+(.*)$/ ) ? $indent.$1 : $indent.$tailcomment;
+       $tailcomment =~ s/[\r]//g;       # SNOOPYJC - remove CR when run on Windoze
    }
    # Special case of empty line or "pure" comment that needs to be indented
    if(  $len==0 ){
@@ -356,7 +382,11 @@ my $i;
    if(  scalar(@_)<3){
       $line=($line=~/^\s+(.*)$/ )? $indent.$1 : $indent.$line;
    }
-   say SYSOUT $line;
+   if($orig_tail_comment) {     # SNOOPYJC
+      say SYSOUT "$line    $orig_tail_comment";       # SNOOPYJC
+   } else {
+      say SYSOUT $line;
+   }
    $line=$prefix.$line;
    $len=length($line); # new length woth prefix containing line no and nesting
 my (@lineblock,$filler);
@@ -471,6 +501,157 @@ my $delta;
          $CurNest+=$delta;
        }
    }
+}
+
+sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in the output file
+{
+    close SYSOUT;
+    open(SYSOUT,'<',$output_file);
+    # Pass 1 - find all the defs
+    my %defs = ();
+    chomp(my @lines = <SYSOUT>);
+    close SYSOUT;
+    $lno = 0;
+    for my $line (@lines){
+        $lno++;
+        if($line =~ /^def ([A-Za-z0-9_]+)/) {
+            my $i;
+            my $func = $1;
+            for($i = $lno-1; $i >= 1; $i--) {
+                # Grab any prior blank lines or comments
+                if($lines[$i-1] =~ /^\s*$/ || $lines[$i-1] =~ /^\s*#/) {
+                    ;
+                } else {
+                    $i++;
+                    last;
+                }
+            }
+            $defs{$func} = $i;
+        }
+    }
+    # Pass 2 - find all the refs
+    my @words = keys %defs;
+    #say STDERR "Defs: @words";
+    my %refs = ();
+    my $insertion_point;
+    $lno = 0;
+    my $in_def = 0;
+    for my $line (@lines) {
+        $lno++;
+        $insertion_point = $lno+1 if($line =~ /^$PERL_ARG_ARRAY/);
+        #say STDERR "$lno: $line";
+        if($in_def) {
+            $in_def = 0 if($line !~ /^def / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/);
+            #say STDERR "Not in_def on $line" if(!$in_def);
+        } else {
+            $in_def = 1 if($line =~ /^def /);
+            #say STDERR "in_def on $line" if($in_def);
+        }
+        next if($in_def);               # Refs inside of defs don't matter
+        my @found = grep { $line =~ /\b$_\b/ } @words;
+        foreach $f (@found) {
+            if(!defined $refs{$f}) {    # Only put in the first one
+                $refs{$f} = $lno;
+            }
+        }
+    }
+    #say STDERR "Refs @{[%refs]}";
+    return if(!$insertion_point);
+    # Create the move group
+    my %to_move = ();
+    for my $ref (keys %refs) {
+        $ref_lno = $refs{$ref};
+        $def_lno = $defs{$ref};
+        if($ref_lno < $def_lno) {
+            $to_move{$ref} = 1;
+        }
+    }
+    my $size = keys %to_move;
+    return if(!cleanup_imports(\@lines) && $size == 0);      # nothing to do
+    #say STDERR "to_move: @{[%to_move]}";
+    #say STDERR "defs @{[%defs]}";
+    # Pass 3 - regenerate the output file in the right order
+    open(SYSOUT,'>',$output_file);
+    $lno = 0;
+    my %moved_lines = ();
+    for my $line (@lines) {
+        $lno++;
+        if($lno < $insertion_point) {
+           say SYSOUT $line;
+           next
+        }
+        for my $func (keys %to_move) {
+            $start_line = $defs{$func};
+            for(my $i=$start_line-1; $i<scalar(@lines); $i++) {
+                if($lines[$i] =~ /^\s+/ || $lines[$i] =~ /^def $func\(/ ||
+                        $lines[$i] =~ /^\s*$/ || $lines[$i] =~ /^\s*#/) {
+                        #say STDERR "Found def $func";
+                    next if(exists $moved_lines{$i+1});         # Don't include it twice
+                    $moved_lines{$i+1} = 1;
+                    #say STDERR "writing lines[$i] ($lines[$i])";
+                    say SYSOUT $lines[$i];
+                } else {
+                    last;
+                }
+            }
+        }
+        %to_move = ();
+        next if(exists $moved_lines{$lno});
+        say SYSOUT $line;
+    }
+    close SYSOUT;
+}
+
+sub cleanup_imports
+{
+    # Minimize the amount of imports we need based on what we actually reference in the code
+    # Return 1 if any changes are made
+
+    my $line_ref = shift;
+
+    my $lno = 0;
+    my $import_lno = 0;
+    my $import_as_lno = 0;
+    my $as_what = '';
+    my @imports = ();
+    my %referenced_imports = ();
+    my $import_as_referenced = 0;
+    for my $line (@$line_ref) {
+        $lno++;
+        if($line =~ /^import /) {
+            my $import_s = $line =~ s/^import //r;
+            if(index($import_s, ' as ') > 0) {      # import time as tm_py
+                ($as_what) = $line =~ / as ([a-z_]+)/;
+                $import_as_lno = $lno;
+            } else {
+                @imports = split /,/, $import_s;
+                $import_lno = $lno;
+            }
+        } elsif($import_lno) {
+            my @found = grep { $line =~ /\b$_\./ } @imports;
+            foreach $f (@found) {
+                $referenced_imports{$f} = 1;
+            }
+            if($line =~ /\b$as_what\./) {
+                $import_as_referenced = 1;
+                #say STDERR $line;
+            }
+        }
+    }
+    #say STDERR "cleanup_imports import_lno=$import_lno, refs=@{[%referenced_imports]}, imports=@imports, as_what=$as_what, import_as_referenced=$import_as_referenced, import_as_lno=$import_as_lno";
+    if($import_lno) {
+        my $size = keys %referenced_imports;
+        if($size) {
+            $line_ref->[$import_lno-1] = 'import ' . join(',', keys %referenced_imports);
+        } else {
+            $line_ref->[$import_lno-1] = '';
+        }
+        if($import_as_lno && !$import_as_referenced) {
+            $line_ref->[$import_as_lno-1] = '';
+        }
+        return 1;
+    }
+    return 0;
 }
 
 
