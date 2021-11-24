@@ -189,6 +189,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 my ($source,$cut,$tno)=('',0,0);
 @PythonCode=(); # array for generated code chunks
 @BufferValClass=@BufferValCom=@BufferValPerl=@BufferValPy=();
+@BufferValType=();		# issue 37
 $TokenStr='';
 $delayed_block_closure=0;
 #
@@ -311,7 +312,7 @@ my ($l,$m);
              popup(); # eliminate '{' as it does not have tno==0
              last;
           }elsif($ValClass[$tno-1] eq '.' && $ValPerl[$tno-1] eq '->') {	# issue 50
-	    pop @ValClass; pop @ValPerl; pop @ValPy;	# issue 50
+	    pop @ValClass; pop @ValPerl; pop @ValPy;pop @ValType; # issue 50, 37
 	    $tno--;				# issue 50 - no need to keep arrow operator in python
       	    $ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
           }
@@ -347,6 +348,7 @@ my ($l,$m);
 	    pop @ValPerl;			# issue 39
 	    pop @ValPy;				# issue 39
 	    pop @ValCom;			# issue 39
+	    pop @ValType;			# issue 39, 37
 	    # issue 39 $cut=length($source);
 	 }elsif(index($ValPerl[$tno], "\n") >= 0) {		# issue 39 - multi-line string
             $ValPy[$tno]="'''".escape_backslash($ValPerl[$tno])."'''"; # only \n \t \r, etc needs to be  escaped # issue 39
@@ -368,6 +370,7 @@ my ($l,$m);
 	    pop @ValPerl;			# issue 39
 	    pop @ValPy;				# issue 39
 	    pop @ValCom;			# issue 39
+	    pop @ValType;			# issue 39, 37
 	    # issue 39 $cut=length($source);
 	 }elsif(index($ValPy[$tno], "\n") >= 0) {		# issue 39 - multi-line string
             $ValPy[$tno] =~ s/^f"/f"""/;			# issue 39
@@ -421,8 +424,11 @@ my ($l,$m);
                # Note you can't use both getline buffer and token buffer, so you can't add '{' to the end of if statement
                # You need to jump thoou the hoops in Pythonizer to inject '{' and '}' into the stream
                pop(@ValClass); pop(@ValCom); pop(@ValPerl); pop(@ValPy);
+	       pop(@ValType);	# issue 37
                @BufferValClass=@ValClass; @BufferValCom=@ValCom; @BufferValPerl=@ValPerl; @BufferValPy=@ValPy;
+	       @BufferValType=@ValType;	# issue 37
                @ValClass=@ValCom=@ValPerl=@ValPy=();
+	       @ValType=();	# issue 37
                $tno=0;
                $ValClass[$tno]=$class;
                $ValPy[$tno]=$w;
@@ -590,6 +596,7 @@ my ($l,$m);
 	    pop @ValPerl;			# issue 39
 	    pop @ValPy;				# issue 39
 	    pop @ValCom;			# issue 39
+	    pop @ValType;			# issue 39, 37
          }
       }elsif( $s eq '$'  ){
          if( substr($source,0,length('$DB::single')) eq '$DB::single' ){
@@ -601,7 +608,7 @@ my ($l,$m);
             $cut=length('perl_trace');
          }else{
 	    if($tno != 0 && ($ValClass[$tno-1] eq '@' || $ValClass[$tno-1] eq '%')) {	# issue 50
-	       pop @ValClass; pop @ValPerl; pop @ValPy;	# issue 50
+	       pop @ValClass; pop @ValPerl; pop @ValPy;	pop @ValType; # issue 50
 	       $tno--;				# issue 50 - no need to change hashref to hash or arrayref to array in python
       	       $ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
 	    }
@@ -655,7 +662,7 @@ my ($l,$m);
          }
       }elsif( $s eq '[' || $s eq '(' ){
          if($tno != 0 && $ValClass[$tno-1] eq '.' && $ValPerl[$tno-1] eq '->') {	# issue 50
-	    pop @ValClass; pop @ValPerl; pop @ValPy;	# issue 50
+	    pop @ValClass; pop @ValPerl; pop @ValPy; pop @ValType; # issue 50
 	    $tno--;				# issue 50 - no need to keep arrow operator in python
       	    $ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
 	 }
@@ -1053,6 +1060,7 @@ sub popup
    pop(@ValPerl);
    pop(@ValPy);
    pop(@ValCom);
+   pop(@ValType);	# issue 37
 }
 
 sub single_quoted_literal
@@ -1075,8 +1083,16 @@ my ($m,$sym);
       	for($m=$offset; $m<=length($source); $m++ ){
            $sym=substr($source,$m,1);
 	   # issue 39 last if( $sym eq $closing_delim && substr($source,$m-1,1) ne '\\' );
-           if( $sym eq $closing_delim && substr($source,$m-1,1) ne '\\' ) {		# issue 39
-      	       return $m+1; # this is first symbol after closing quote			# issue 39
+           if( $sym eq $closing_delim ) {			# issue 39
+	       if(substr($source,$m-1,1) eq '\\' ) {		# issue 39
+		   # handle "...\\" - the second '"' IS the end of the string!	# issue 39
+		   if($m-2 >= 0 && substr($source,$m-2,1) eq '\\') {	# issue 39
+		       return $m+1;				# issue 39
+		   }						# issue 39
+	       } else {						# issue 39
+      	       	   return $m+1; # this is first symbol after closing quote		# issue 39
+	       }
+	       
 	   }										# issue 39
       	}
 	# issue 39: if we get here, we ran out of road - grab the next line and keep going!
@@ -1164,11 +1180,11 @@ my  $outer_delim;
          $cut=length($ind);
          $ind =~ tr/$//d;
 	 # issue 53 $ind =~ tr/{}/[]/;
-	 say "looking for '{' in $ind";
+	 #say "looking for '{' in $ind";
 	 for(my $i = 0; $i < length($ind); $i++) {	# issue 53: change hash ref {...} to use .get(...) instead
 	     if(substr($ind,$i,1) eq '{') {		# issue 53
 	         $l = matching_curly_br($ind, $i);	# issue 53
-		 say "found '{' in $ind at $i, l=$l";
+		 #say "found '{' in $ind at $i, l=$l";
 		 next if($l < 0);			# issue 53
 		 $ind = substr($ind,0,$i).'.get('.substr($ind,$i+1,$l-($i+1)).",'')".substr($ind,$l+1);	# issue 53: splice in the call to get
 		 $i = $l+7;				# issue 53: 7 is length('.get') + length(",''")
@@ -1363,7 +1379,9 @@ my $pos=shift;
    splice(@ValClass,$pos,0,$_[0]);
    splice(@ValPerl,$pos,0,$_[1]);
    splice(@ValPy,$pos,0,$_[2]);
-   splice(@ValType,$pos,0,'');
+   if($pos <= $#ValType) {		# issue 37 - sometimes it's not set
+   	splice(@ValType,$pos,0,'');
+   }
 }
 sub destroy
 # accespt two parameters
@@ -1390,6 +1408,9 @@ sub destroy
     splice(@ValClass,$from,$howmany);
     splice(@ValPerl,$from,$howmany);
     splice(@ValPy,$from,$howmany);
+    if(scalar(@ValType) >= $from+$howmany) {	# issue 37
+    	splice(@ValType,$from,$howmany);	# issue 37
+    }
 }
 sub autoincrement_fix
 #

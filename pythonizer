@@ -95,6 +95,7 @@
 # 0.907  2021/11/15  SNOOPYJC  Fix issues 43, 44, more issue 37 (my $x=@a)
 # 0.908  2021/11/15  SNOOPYJC  Fix issue 48
 # 0.909  2021/11/16  SNOOPYJC  Handle more cases of issue 48, issue 49, additional fix for issue 44, issue 54, issue 52 (in assignment only), issue 50, issue 53, issue 45, issue 55, issue 56, issue 57, issue 58, issue 46, issue 59, issue 61, issue 62, issue 59, issue 61, issue 62, issue 41, issue 45
+# 0.910  2021/11/22  SNOOPYJC  Fix issue 63, issue with post-pass refactoring of multi-line strings, issue 64, addl fixes for issue 36 and issue 39, another issue 13 fix (array assignment of function call)
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -119,7 +120,7 @@
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar);
 
-   $VERSION='0.909';
+   $VERSION='0.910';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -142,9 +143,9 @@
    %PyOpen=('<'=>'r', '>'=>'w', '>>'=>'a', '+<'=>'+');
 
    $LOG_DIR='/tmp/'.ucfirst($SCRIPT_NAME);
-   banner($LOG_DIR,$SCRIPT_NAME,"Fuzzy translator of Python to Perl. Version $VERSION",30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
+   # issue 64    banner($LOG_DIR,$SCRIPT_NAME,"Fuzzy translator of Python to Perl. Version $VERSION",30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
    # issue 55 prolog(); # sets all options, including breakpoint
-   prolog(dirname(__FILE__)); # issue 55  # sets all options, including breakpoint
+   prolog(dirname(__FILE__), $LOG_DIR,$SCRIPT_NAME,"Fuzzy translator of Python to Perl. Version $VERSION",30); # issue 55, issue 64  # sets all options, including breakpoint
 
    if( $debug > 0 ){
       autocommit("$HOME/Archive",$ENV{'PERL5LIB'},qw(Softpano.pm Perlscan.pm Pythonizer.pm));
@@ -446,9 +447,17 @@ my ($start,$token_buffer_active);
                 $end_pos=matching_br(2);
                 for (my $i=3; $i<$end_pos; $i++){
 		    if( $ValClass[$i] eq 'i' && $ValPerl[$i] eq $ValPy[$i]) {	# issue 13
-		        $ValPy[$i] = "'".$ValPy[$i]."'";			# issue 13 - put in quotes
-		    }								# issue 13
-                    gen_chunk($ValPy[$i]);
+	      		if( $LocalSub{$ValPy[$i]} ){				# issue 13: local sub call with no parens
+	        	    gen_chunk(escape_keywords($ValPy[$i]));		# issue 13, issue 41
+	        	    gen_chunk('([])');  				# issue 13
+              		} elsif ($Constants{$ValPy[$i]}) {                      # issue 13: constant or file handle
+                	    gen_chunk($ValPy[$i]);           		        # issue 13
+			} else {
+			    $ValPy[$i] = "'".$ValPy[$i]."'";		        # issue 13 - put in quotes
+			}
+		    } else {							# issue 13
+                        gen_chunk($ValPy[$i]);
+                    }
                 }
                 gen_chunk(']');
                 finish();
@@ -876,7 +885,7 @@ my ($k,$handle);
 my $end_pos;                                            # issue 10
 # end="") instead of trailing comma in Python 2
    gen_chunk($ValPy[$start],'(');
-   if( $ValClass[$start+1] eq 'i' ){
+   if( $start+1 <= $#ValClass && $ValClass[$start+1] eq 'i' ){	# issue 32
       $handle=$ValPy[$start+1];
       $k=$start+2;
    }else{
@@ -1010,7 +1019,8 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
           $k++;
           while($k<$split ){
              # this was we skip delimiters
-             if( substr($TokenStr,$k,1)=~/^[sha]/ ){
+             # issue 63 if( substr($TokenStr,$k,1)=~/^[sha]/ ){
+             if( substr($TokenStr,$k,1)=~/^[shaf]/ ){   # issue 63: handle multiple undef in lhs list
                 gen_chunk(','.$ValPy[$k]);
                 $number_of_elements++;          # issue 56
              }
@@ -1020,6 +1030,13 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
           $k++;
       }else{
          # possibly  array with complex subscripts or complex hash key expression
+	 if(substr($TokenStr,$k) =~ /^s\([si"]\)=\(\)$/ &&
+	    $ValPerl[$k+1] eq '{' && $ValPy[$k+5] eq '(') {	# issue 36
+	    # Assigning an empty tuple to a hash value is never what you want
+	    $ValPy[$k+5] = '{';					# issue 36
+	    $ValPy[$k+6] = '}';					# issue 36
+	 }
+         
          $k=expression($k,$split-1,0); # on the left side it can be array index or something more complex
          return -255 if ($k<0);
       }
@@ -1046,7 +1063,7 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
 	 }elsif($ValClass[$limit] eq 'f') {	# Issue 8: this is a function like shift with no args
             function($limit,$limit);		# Issue 8
 	 }elsif($ValClass[$limit] eq 'i' && $ValPy[$limit] eq $ValPerl[$limit]) {	# issue 13
-	     if( $LocalSub{$ValPy[$limit]} ){						# issue 13: local sub call with no parens
+	      if( $LocalSub{$ValPy[$limit]} ){						# issue 13: local sub call with no parens
 	        gen_chunk(escape_keywords($ValPy[$limit]));				# issue 13, issue 41
 	        gen_chunk('([])');							# issue 13
               } elsif ($Constants{$ValPy[$limit]}) {                                    # issue 13: constant or file handle
