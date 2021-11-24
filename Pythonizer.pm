@@ -50,11 +50,16 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line);
 sub prolog
 {
       my $dir = shift;				# issue 55
+      my $log_dir = shift;                      # issue 64
+      my $script_name = shift;                  # issue 64
+      my $banner_msg = shift;                   # issue 64
+      my $log_retention = shift;                # issue 64
       getopts("hd:v:r:b:t:l:",\%options);
 #
 # Three standard otpiotn -h, -v and -d
 #
       standard_options(\%options);
+      Softpano::banner($log_dir, $script_name, $banner_msg, $log_retention);      # issue 64
 #
 # Custom options specific for the application
 #
@@ -536,18 +541,20 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     my $insertion_point;
     $lno = 0;
     my $in_def = 0;
-    for my $line (@lines) {
+    for my $Line (@lines) {
         $lno++;
-        $insertion_point = $lno+1 if($line =~ /^$PERL_ARG_ARRAY/);
+        $insertion_point = $lno+1 if($Line =~ /^$PERL_ARG_ARRAY/);
         #say STDERR "$lno: $line";
+        $line = eat_strings($Line);     # we change variables so eat_strings doesn't modify @lines
         if($in_def) {
-            $in_def = 0 if($line !~ /^def / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/);
+            $in_def = 0 if($line !~ /^def / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/ && !$multiline_string_sep);
             #say STDERR "Not in_def on $line" if(!$in_def);
         } else {
             $in_def = 1 if($line =~ /^def /);
             #say STDERR "in_def on $line" if($in_def);
         }
         next if($in_def);               # Refs inside of defs don't matter
+        next if($line =~ /^\s*#/);      # ignore comments
         my @found = grep { $line =~ /\b$_\b/ } @words;
         foreach $f (@found) {
             if(!defined $refs{$f}) {    # Only put in the first one
@@ -574,6 +581,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     open(SYSOUT,'>',$output_file);
     $lno = 0;
     my %moved_lines = ();
+    $multiline_string_sep = '';
     for my $line (@lines) {
         $lno++;
         if($lno < $insertion_point) {
@@ -583,6 +591,20 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         for my $func (keys %to_move) {
             $start_line = $defs{$func};
             for(my $i=$start_line-1; $i<scalar(@lines); $i++) {
+                if($multiline_string_sep) {
+                    unless(exists $moved_lines{$i+1}) {
+                        say SYSOUT $lines[$i];
+                        $moved_lines{$i+1} = 1;
+                    }
+                    $multiline_string_sep = '' if(index($lines[$i], $multiline_string_sep) >= 0);
+                    next;
+                } elsif(($lines[$i] =~ /"""/ || $lines[$i] =~ /'''/) && $lines[$i] !~ /^\s*#/) {
+                    $ndx = index($lines[$i], '"""');
+                    $ndx = index($lines[$i], "'''") if $ndx < 0;
+                    $multiline_string_sep = substr($lines[$i],$ndx,3);
+                    # if the string terminates on the same line, then it's not a multiline string
+                    $multiline_string_sep = '' if(index($lines[$i], $multiline_string_sep, $ndx+3) >= 0);
+                }
                 if($lines[$i] =~ /^\s+/ || $lines[$i] =~ /^def $func\(/ ||
                         $lines[$i] =~ /^\s*$/ || $lines[$i] =~ /^\s*#/) {
                         #say STDERR "Found def $func";
@@ -654,5 +676,66 @@ sub cleanup_imports
     return 0;
 }
 
+sub eat_strings
+# Given a python line, eat any strings in it.  Handle multi-line strings with ''' or """ too!
+{
+    state $mstring_sep = '';
+    my $line = shift;
+    #print STDERR "eat_strings($line)=";
+    if($mstring_sep) {
+        if(($ndx = index($line, $mstring_sep)) >= 0) {
+            $mstring_sep = '';
+            $line = substr($line, $ndx+3);
+        }
+        $line = '';
+    } elsif(($line =~ /"""/ || $line =~ /'''/) && $line !~ /^\s*#/) {
+        $ndx = index($line, '"""');
+        $ndx = index($line, "'''") if $ndx < 0;
+        $mstring_sep = substr($line,$ndx,3);
+        # if the string terminates on the same line, then it's not a multiline string
+        if($ndx > 0) {
+           my $c = substr($line,$ndx-1,1);
+           $ndx-- if($c eq 'f' || $c eq 'r');   # Eat the 'f' from f-strings, and 'r' likewise
+        }
+        if(($ndx2 = index($line, $mstring_sep, $ndx+3)) >= 0) {
+            $mstring_sep = '';
+            #substr($line,$ndx,$ndx2+4-$ndx) = '';
+            $line = substr($line,0,$ndx).substr($line,$ndx2+3);
+        } else {                # Start of a multi-line string
+            #substr($line,$ndx) = '';
+            $line = substr($line,0,$ndx);
+        }
+    } else {
+        my @quotes = ('"', "'");
+        for my $quote (@quotes) {
+	    OUTER:
+            while(1) {
+                $ndx = index($line, $quote);
+                last if($ndx < 0);
+                my $start = $ndx;
+                if($start > 0) {
+                    my $c = substr($line,$start-1,1);
+                    $start-- if($c eq 'f' || $c eq 'r');   # Eat the 'f' from f-strings, and 'r' likewise
+                }
+                while(1) {
+                    $ndx2 = index($line, $quote, $ndx+1);
+                    if($ndx2 >= 0) {
+                        if(substr($line,$ndx2-1,1) eq "\\") {
+                            $ndx = $ndx2;
+                            next;
+                        }
+                        #substr($line,$start,$ndx2+1-$start) = '';
+                        $line = substr($line,0,$start).substr($line,$ndx2+1);
+                        last;
+                    } else {
+                        last OUTER;
+                    }
+                }
+            }
+        }
+    }
+    #say STDERR $line;
+    return $line;
+}
 
 1;

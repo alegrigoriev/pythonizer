@@ -30,6 +30,7 @@ $VERSION = '1.10';
 state ($verbosity, $msg_cutlevel2, @ermessage_db, @ercounter); # remember they are statically scoped
   $verbosity=3;
 
+$syslog_opened = 0;	# issue 64
 #
 # NOTE: autocommit used only in debugging mode
 # In debug mode it created backup and commit script to GIT repository, if there were changes from previous Version.
@@ -141,6 +142,7 @@ my ($script_mod_stamp,$day);
 my $logstamp=`date +"%y%m%d_%H%M"`; chomp $logstamp;
    $logfile="$my_log_dir/$script_name.$logstamp.log";
    open(SYSLOG, ">$logfile") || die("Fatal error: unable to open $logfile\n\n");
+   $syslog_opened = 1;		# issue 64
 my $timestamp=`date "+%y/%m/%d %H:%M"`; chomp $timestamp;
    $title="\n\n".uc($script_name).": $title (mtime $script_mod_stamp) Started at $timestamp";
    out($title);
@@ -212,7 +214,7 @@ my $prefix=defined($.) ? "LINE $." : '';
       $ercounter[$severity]++; #Increase messages counter  for given severity (supressed messages are counted too)
       $ermessage_db[$severity] .= "\n\n$message"; #Error history for the ercodes E and S
       ($severity >= 3-$verbosity ) && say STDERR $message;
-      say SYSLOG $message;
+      say SYSLOG $message if($syslog_opened);	# issue 64
       return;
 } # logme
 
@@ -222,10 +224,12 @@ my $prefix=defined($.) ? "LINE $." : '';
 sub out
 {
       if( scalar(@_)==0 ){
-         say STDERR;
+	 # issue 64 say STDERR;
+         say STDERR if($verbosity > 0);	# issue 64
          say SYSLOG;
       }else{
-         say STDERR @_;
+	 # issue 64 say STDERR @_;
+         say STDERR @_ if($verbosity > 0); # issue 64
          say SYSLOG @_;
       }
 }
@@ -316,13 +320,15 @@ my $options_hash=$_[0];
       if( $$options_hash{'v'} eq '' ){
          $verbosity=2;
       }elsif( $$options_hash{'v'} =~/\d/ && length($$options_hash{'v'})==1 ){
-         $verbosity=3-$$options_hash{'v'};
+         #issue 64 $verbosity=3-$$options_hash{'v'};
+         $verbosity=+$$options_hash{'v'};	# issue 64
       }elsif( $$options_hash{'v'} =~/\d/ && length($$options_hash{'v'})==2 ){
-         $verbosity=3-substr($$options_hash{'v'},0,1);
+	 # issue 64 $verbosity=3-substr($$options_hash{'v'},0,1);
+         $verbosity=+substr($$options_hash{'v'},0,1);	# issue 64
          $msg_cutlevel2=3-substr($$options_hash{'v'},1,1);
       }
       if ($verbosity<0 || $verbosity>3 ){
-         logme('S',"Wrong value of option -v. Should be an integer from 1 to 3 or letter v repeation -v -vv or -vvv. The ddefault -v 3 (or -vvv)");
+         logme('S',"Wrong value of option -v. Should be an integer from 0 to 3 or letter v repeation -v -vv or -vvv. The default -v 3 (or -vvv)");
           exit 255;
       }
    }
