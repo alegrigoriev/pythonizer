@@ -11,7 +11,7 @@ $options{debug} = 1;
 $redirect = ($options{debug}) ? "2>&1" : "2>&1 >/dev/null";
 assert($redirect eq "2>&1");
 
-# Some more complicated cases (Not yet implemented)
+# Some more complicated cases
 
 assert($options{debug} ? "2>&1" : "2>&1 >/dev/null" eq "2>&1");
 assert(($options{debug}) ? "2>&1" : "2>&1 >/dev/null" eq "2>&1");

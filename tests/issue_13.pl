@@ -1,3 +1,4 @@
+# issue 13: Handle scalar context
 use Carp::Assert;
 my @z = (this, that, those);
 $x = @z;
@@ -6,6 +7,14 @@ my $m = @z;
 assert($m == 3);
 $x = localtime();
 assert($x =~ /[A-Z][a-z][a-z] [A-Z][a-z][a-z] \d+ \d\d:\d\d:\d\d \d\d\d\d/);
+my $y = localtime();
+assert($y =~ /[A-Z][a-z][a-z] [A-Z][a-z][a-z] \d+ \d\d:\d\d:\d\d \d\d\d\d/);
+@arr = ('');
+$arr[0] = localtime();
+assert($arr[0] =~ /[A-Z][a-z][a-z] [A-Z][a-z][a-z] \d+ \d\d:\d\d:\d\d \d\d\d\d/);
+%hash = ();
+$hash{key} = localtime();
+assert($hash{key} =~ /[A-Z][a-z][a-z] [A-Z][a-z][a-z] \d+ \d\d:\d\d:\d\d \d\d\d\d/);
 $y = 3 + @z;
 assert($y == 6);
 $y = @z - 1;

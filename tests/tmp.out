@@ -1,0 +1,1987 @@
+ [Softpano-W317]:  Debug flag is set to 5
+
+
+PYTHONIZER: Fuzzy translator of Python to Perl. Version 0.911 (mtime 211128_2334) Started at 21/11/28 23:35
+
+Logs are at /tmp/Pythonizer/pythonizer.211128_2335.log. Type -h for help.
+=============================================================================================================
+Results of transcription are written to the file  issue_42.py
+=========================================================================================================================
+
+Lexem 0 Current token='c' value='NoTrans!' Tokenstr |c| translated: NoTrans!
+Lexem 1 Current token='i' value='Carp::Assert' Tokenstr |ci| translated: NoTrans! Carp::Assert
+Lexem 0 Current token='C' value='try' Tokenstr |C| translated: try
+Lexem 0 Current token='s' value='i' Tokenstr |s| translated: i
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: i =
+Lexem 2 Current token='d' value='1' Tokenstr |s=d| translated: i = 1
+Lexem 3 Current token='+' value='+' Tokenstr |s=d+| translated: i = 1 +
+Lexem 4 Current token='d' value='1' Tokenstr |s=d+d| translated: i = 1 + 1
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+Lexem 0 Current token='C' value='try' Tokenstr |C| translated: try
+Lexem 0 Current token='s' value='i' Tokenstr |s| translated: i
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: i =
+Lexem 2 Current token='d' value='1' Tokenstr |s=d| translated: i = 1
+Lexem 3 Current token='/' value='/' Tokenstr |s=d/| translated: i = 1 /
+Lexem 4 Current token='d' value='0' Tokenstr |s=d/d| translated: i = 1 / 0
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='EVAL_ERROR' Tokenstr |c(s| translated: assert ( EVAL_ERROR
+Lexem 3 Current token=')' value=')' Tokenstr |c(s)| translated: assert ( EVAL_ERROR )
+Lexem 0 Current token='C' value='try' Tokenstr |C| translated: try
+Lexem 0 Current token='s' value='i' Tokenstr |s| translated: i
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: i =
+Lexem 2 Current token='d' value='1' Tokenstr |s=d| translated: i = 1
+Lexem 3 Current token='+' value='+' Tokenstr |s=d+| translated: i = 1 +
+Lexem 4 Current token='d' value='1' Tokenstr |s=d+d| translated: i = 1 + 1
+Lexem 0 Current token='s' value='j' Tokenstr |s| translated: j
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: j =
+Lexem 2 Current token='s' value='i' Tokenstr |s=s| translated: j = i
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+Lexem 0 Current token='C' value='try' Tokenstr |C| translated: try
+Lexem 0 Current token='f' value='raise Die' Tokenstr |f| translated: raise Die
+Lexem 1 Current token='(' value='(' Tokenstr |f(| translated: raise Die (
+Lexem 2 Current token='"' value=''message'' Tokenstr |f("| translated: raise Die ( 'message'
+Lexem 3 Current token=')' value=')' Tokenstr |f(")| translated: raise Die ( 'message' )
+Lexem 0 Current token='f' value='print' Tokenstr |f| translated: print
+Lexem 1 Current token='s' value='EVAL_ERROR' Tokenstr |fs| translated: print EVAL_ERROR
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='EVAL_ERROR' Tokenstr |c(s| translated: assert ( EVAL_ERROR
+Lexem 3 Current token='~' value='' Tokenstr |c(s~| translated: assert ( EVAL_ERROR 
+Lexem 4 Current token='q' value='re.search(r'^message',' Tokenstr |c(s~q| translated: assert ( EVAL_ERROR  re.search(r'^message',
+Lexem 5 Current token=')' value=')' Tokenstr |c(s~q)| translated: assert ( EVAL_ERROR  re.search(r'^message', )
+Lexem 0 Current token='s' value='fourtytwo' Tokenstr |s| translated: fourtytwo
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: fourtytwo =
+Lexem 2 Current token='C' value='try' Tokenstr |s=C| translated: fourtytwo = try
+Lexem 0 Current token='d' value='40' Tokenstr |d| translated: 40
+Lexem 1 Current token='+' value='+' Tokenstr |d+| translated: 40 +
+Lexem 2 Current token='d' value='2' Tokenstr |d+d| translated: 40 + 2
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='fourtytwo' Tokenstr |c(s| translated: assert ( fourtytwo
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( fourtytwo ==
+Lexem 4 Current token='d' value='42' Tokenstr |c(s>d| translated: assert ( fourtytwo == 42
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>d)| translated: assert ( fourtytwo == 42 )
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+Lexem 0 Current token='s' value='twentyone' Tokenstr |s| translated: twentyone
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: twentyone =
+Lexem 2 Current token='C' value='try' Tokenstr |s=C| translated: twentyone = try
+Lexem 0 Current token='c' value='if ' Tokenstr |c| translated: if 
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: if  (
+Lexem 2 Current token='s' value='i' Tokenstr |c(s| translated: if  ( i
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: if  ( i ==
+Lexem 4 Current token='d' value='2' Tokenstr |c(s>d| translated: if  ( i == 2
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>d)| translated: if  ( i == 2 )
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='d' value='21' Tokenstr |kd| translated: return 21
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='twentyone' Tokenstr |c(s| translated: assert ( twentyone
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( twentyone ==
+Lexem 4 Current token='d' value='21' Tokenstr |c(s>d| translated: assert ( twentyone == 21
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>d)| translated: assert ( twentyone == 21 )
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+Lexem 0 Current token='s' value='outerval' Tokenstr |s| translated: outerval
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: outerval =
+Lexem 2 Current token='C' value='try' Tokenstr |s=C| translated: outerval = try
+Lexem 0 Current token='s' value='innerval' Tokenstr |s| translated: innerval
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: innerval =
+Lexem 2 Current token='C' value='try' Tokenstr |s=C| translated: innerval = try
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='"' value=''inner'' Tokenstr |k"| translated: return 'inner'
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='innerval' Tokenstr |c(s| translated: assert ( innerval
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( innerval ==
+Lexem 4 Current token='"' value=''inner'' Tokenstr |c(s>"| translated: assert ( innerval == 'inner'
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( innerval == 'inner' )
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='f' value='perl_defined' Tokenstr |c(!f| translated: assert ( not perl_defined
+Lexem 4 Current token='s' value='outerval' Tokenstr |c(!fs| translated: assert ( not perl_defined outerval
+Lexem 5 Current token=')' value=')' Tokenstr |c(!fs)| translated: assert ( not perl_defined outerval )
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='s' value='three' Tokenstr |ts| translated:  three
+Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  three =
+Lexem 3 Current token='x' value=''perl -e "print +(2 + 1);"'' Tokenstr |ts=x| translated:  three = 'perl -e "print +(2 + 1);"'
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='f' value='int' Tokenstr |c(f| translated: assert ( int
+Lexem 3 Current token='(' value='(' Tokenstr |c(f(| translated: assert ( int (
+Lexem 4 Current token='s' value='three' Tokenstr |c(f(s| translated: assert ( int ( three
+Lexem 5 Current token=')' value=')' Tokenstr |c(f(s)| translated: assert ( int ( three )
+Lexem 6 Current token='>' value='==' Tokenstr |c(f(s)>| translated: assert ( int ( three ) ==
+Lexem 7 Current token='d' value='3' Tokenstr |c(f(s)>d| translated: assert ( int ( three ) == 3
+Lexem 8 Current token=')' value=')' Tokenstr |c(f(s)>d)| translated: assert ( int ( three ) == 3 )
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='s' value='four' Tokenstr |ts| translated:  four
+Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  four =
+Lexem 3 Current token='C' value='try' Tokenstr |ts=C| translated:  four = try
+Lexem 4 Current token='(' value='(' Tokenstr |ts=C(| translated:  four = try (
+Lexem 5 Current token='"' value=''2 + 2'' Tokenstr |ts=C("| translated:  four = try ( '2 + 2'
+Lexem 6 Current token=')' value=')' Tokenstr |ts=C(")| translated:  four = try ( '2 + 2' )
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='f' value='int' Tokenstr |c(f| translated: assert ( int
+Lexem 3 Current token='(' value='(' Tokenstr |c(f(| translated: assert ( int (
+Lexem 4 Current token='s' value='four' Tokenstr |c(f(s| translated: assert ( int ( four
+Lexem 5 Current token=')' value=')' Tokenstr |c(f(s)| translated: assert ( int ( four )
+Lexem 6 Current token='>' value='==' Tokenstr |c(f(s)>| translated: assert ( int ( four ) ==
+Lexem 7 Current token='d' value='4' Tokenstr |c(f(s)>d| translated: assert ( int ( four ) == 4
+Lexem 8 Current token=')' value=')' Tokenstr |c(f(s)>d)| translated: assert ( int ( four ) == 4 )
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='s' value='code' Tokenstr |ts| translated:  code
+Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  code =
+Lexem 3 Current token='"' value='f"{four} == 4 ? 'ok' : 'not ok'"' Tokenstr |ts="| translated:  code = f"{four} == 4 ? 'ok' : 'not ok'"
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='s' value='ok' Tokenstr |ts| translated:  ok
+Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  ok =
+Lexem 3 Current token='C' value='try' Tokenstr |ts=C| translated:  ok = try
+Lexem 4 Current token='(' value='(' Tokenstr |ts=C(| translated:  ok = try (
+Lexem 5 Current token='s' value='code' Tokenstr |ts=C(s| translated:  ok = try ( code
+Lexem 6 Current token=')' value=')' Tokenstr |ts=C(s)| translated:  ok = try ( code )
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='ok' Tokenstr |c(s| translated: assert ( ok
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( ok ==
+Lexem 4 Current token='"' value=''ok'' Tokenstr |c(s>"| translated: assert ( ok == 'ok'
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( ok == 'ok' )
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+Lexem 0 Current token='s' value='_d' Tokenstr |s| translated: _d
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: _d =
+Lexem 2 Current token='s' value='code' Tokenstr |s=s| translated: _d = code
+Lexem 0 Current token='s' value='ok2' Tokenstr |s| translated: ok2
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: ok2 =
+Lexem 2 Current token='C' value='try' Tokenstr |s=C| translated: ok2 = try
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='ok' Tokenstr |c(s| translated: assert ( ok
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( ok ==
+Lexem 4 Current token='"' value=''ok'' Tokenstr |c(s>"| translated: assert ( ok == 'ok'
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( ok == 'ok' )
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+Lexem 0 Current token='s' value='EVAL_ERROR' Tokenstr |s| translated: EVAL_ERROR
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: EVAL_ERROR =
+Lexem 2 Current token='"' value=''oops'' Tokenstr |s="| translated: EVAL_ERROR = 'oops'
+Lexem 0 Current token='C' value='try' Tokenstr |C| translated: try
+Lexem 1 Current token='(' value='(' Tokenstr |C(| translated: try (
+Lexem 2 Current token='s' value='code' Tokenstr |C(s| translated: try ( code
+Lexem 3 Current token=')' value=')' Tokenstr |C(s)| translated: try ( code )
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+Lexem 0 Current token='C' value='try' Tokenstr |C| translated: try
+Lexem 1 Current token='(' value='(' Tokenstr |C(| translated: try (
+Lexem 2 Current token='"' value=''%'' Tokenstr |C("| translated: try ( '%'
+Lexem 3 Current token=')' value=')' Tokenstr |C(")| translated: try ( '%' )
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='EVAL_ERROR' Tokenstr |c(s| translated: assert ( EVAL_ERROR
+Lexem 3 Current token=')' value=')' Tokenstr |c(s)| translated: assert ( EVAL_ERROR )
+Lexem 0 Current token='C' value='try' Tokenstr |C| translated: try
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+Lexem 0 Current token='f' value='print' Tokenstr |f| translated: print
+Lexem 1 Current token='"' value='f"{__file__} - test passed!\n"' Tokenstr |f"| translated: print f"{__file__} - test passed!\n"
+
+DETECTED GLOBAL VARIABLES:
+
+List of local subroutines:
+main
+mkdir: cannot create directory ‘/c/Users/Joe’: File exists
+cp: target 'Orost/Archive/pythonizer' is not a directory
+cp: target 'Orost/Archive/Softpano.pm' is not a directory
+cp: target 'Orost/Archive/Perlscan.pm' is not a directory
+cp: target 'Orost/Archive/Pythonizer.pm' is not a directory
+   1 | 0 |   |#!/usr/bin/python3 -u
+   1 | 0 |   |# Generated by pythonizer 0.911 run by Joe Orost on Sun Nov 28 23:35:42 2021
+   1 | 0 |   |# Issue 42: Handle Eval and Die should raise an exception
+   2 | 0 |   |import sys,os,re,fcntl,math,fileinput,subprocess,inspect,collections.abc,argparse,glob,warnings,inspect,functools
+   2 | 0 |   |import time as tm_py
+   2 | 0 |   |LIST_SEPARATOR = ' '
+   2 | 0 |   |class Die(Exception):
+    pass
+   2 | 0 |   |class EvalReturn(Exception):
+    pass
+   2 | 0 |   |_args = sys.argv[1:]
+Main loop, line=use Carp::Assert;
+
+
+ === Line 2 Perl source:use Carp::Assert;===
+
+Lexem 0 Current token='c' value='NoTrans!' Tokenstr |c| translated: NoTrans!
+Lexem 1 Current token='i' value='Carp::Assert' Tokenstr |ci| translated: NoTrans! Carp::Assert
+
+Line:    2 TokenStr: =|ci|= @ValPy: NoTrans! Carp::Assert
+   2 | 0 |   |#SKIPPED: use Carp::Assert;
+   3 | 0 |   |
+Main loop, line=eval {
+
+
+ === Line 4 Perl source:eval {===
+
+Lexem 0 Current token='C' value='try' Tokenstr |C| translated: try
+
+Line:    4 TokenStr: =|C|= @ValPy: try
+   4 | 0 |   |try:                                                                                    #PL: eval {
+
+Tokens: C ValPy: 
+eval_stack=HASH(0x80036cd70), eval_nest=0
+Main loop, line={
+
+
+ === Line 4 Perl source:{===
+
+
+Line:    4 TokenStr: =|{|= @ValPy: {
+eval_stack=HASH(0x80036cd70), eval_nest=0
+Main loop, line=$i = 1 + 1;
+
+
+ === Line 5 Perl source:$i = 1 + 1;===
+
+Lexem 0 Current token='s' value='i' Tokenstr |s| translated: i
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: i =
+Lexem 2 Current token='d' value='1' Tokenstr |s=d| translated: i = 1
+Lexem 3 Current token='+' value='+' Tokenstr |s=d+| translated: i = 1 +
+Lexem 4 Current token='d' value='1' Tokenstr |s=d+d| translated: i = 1 + 1
+
+Line:    5 TokenStr: =|s=d+d|= @ValPy: i = 1 + 1
+assignment(0, 4) =|s=d+d|= $i = 1 + 1
+
+Generated partial line i
+Generated partial line i=
+expression(2, 4, 0) =|s=d+d|= $i = 1 + 1
+
+Generated partial line i=1
+Generated partial line i=1+
+Generated partial line i=1+1
+expression returns 5
+   5 | 1 |   |    i = 1+1                                                                             #PL: $i = 1 + 1;
+
+Tokens: s=d+d ValPy: 
+finish: prev_line=$i = 1 + 1;, PythonCode=
+finish: Resetting line to return $i ;
+eval_stack=HASH(0x80036cd70), eval_nest=0
+Main loop, line=return $i ;
+
+
+ === Line 6 Perl source:return $i ;===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='s' value='i' Tokenstr |ks| translated: return i
+
+Line:    6 TokenStr: =|ks|= @ValPy: return i
+Generated partial line _eval_result4 = 
+expression(1, 1, -1) =|ks|= return $i
+
+Generated partial line _eval_result4 = i
+expression returns 2
+   6 | 1 |   |    _eval_result4 = i                                                                   #PL: };
+
+Tokens: ks ValPy: 
+   6 | 1 |   |    raise EvalReturn                                                                    #PL: };
+
+Tokens: ks ValPy: 
+eval_stack=HASH(0x80036cd70), eval_nest=0
+Main loop, line=}
+
+
+ === Line 6 Perl source:}===
+
+
+Line:    6 TokenStr: =|}|= @ValPy: }
+eval_stack=HASH(0x80036cd70), eval_nest=0
+   7 | 1 |   |    EVAL_ERROR = None                                                                   #PL: assert(!$@);
+
+Tokens: } ValPy: 
+   7 | 0 |   |except EvalReturn:                                                                      #PL: assert(!$@);
+
+Tokens: } ValPy: 
+   7 | 1 |   |    EVAL_ERROR = None                                                                   #PL: assert(!$@);
+
+Tokens: } ValPy: 
+   7 | 0 |   |except Exception as _e:                                                                 #PL: assert(!$@);
+
+Tokens: } ValPy: 
+   7 | 1 |   |    EVAL_ERROR = _exc(_e)                                                               #PL: assert(!$@);
+
+Tokens: } ValPy: 
+Main loop, line=assert(!$@);
+
+
+ === Line 7 Perl source:assert(!$@);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+
+Line:    7 TokenStr: =|c(!s)|= @ValPy: assert ( not EVAL_ERROR )
+control(0) =|c(!s)|= assert ( ! $ )
+
+control-parens removed, begin=0 start=1 =|c!s|= assert ! $
+
+Generated partial line assert
+expression(1, 2, 0) =|c!s|= assert ! $
+
+Generated partial line assertnot
+Generated partial line assertnotEVAL_ERROR
+expression returns 3
+   7 | 0 |   |assert not EVAL_ERROR                                                                   #PL: assert(!$@);
+
+Tokens: c!s ValPy: 
+   8 | 0 |   |
+eval_stack=, eval_nest=-2
+Main loop, line=eval {
+
+
+ === Line 9 Perl source:eval {===
+
+Lexem 0 Current token='C' value='try' Tokenstr |C| translated: try
+
+Line:    9 TokenStr: =|C|= @ValPy: try
+   9 | 0 |   |try:                                                                                    #PL: eval {
+
+Tokens: C ValPy: 
+eval_stack=HASH(0x800077860), eval_nest=0
+Main loop, line={
+
+
+ === Line 9 Perl source:{===
+
+
+Line:    9 TokenStr: =|{|= @ValPy: {
+eval_stack=HASH(0x800077860), eval_nest=0
+Main loop, line=$i = 1 / 0;
+
+
+ === Line 10 Perl source:$i = 1 / 0;===
+
+Lexem 0 Current token='s' value='i' Tokenstr |s| translated: i
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: i =
+Lexem 2 Current token='d' value='1' Tokenstr |s=d| translated: i = 1
+Lexem 3 Current token='/' value='/' Tokenstr |s=d/| translated: i = 1 /
+Lexem 4 Current token='d' value='0' Tokenstr |s=d/d| translated: i = 1 / 0
+
+Line:   10 TokenStr: =|s=d/d|= @ValPy: i = 1 / 0
+assignment(0, 4) =|s=d/d|= $i = 1 / 0
+
+Generated partial line i
+Generated partial line i=
+expression(2, 4, 0) =|s=d/d|= $i = 1 / 0
+
+Generated partial line i=1
+Generated partial line i=1/
+Generated partial line i=1/0
+expression returns 5
+  10 | 1 |   |    i = 1/0                                                                             #PL: $i = 1 / 0;
+
+Tokens: s=d/d ValPy: 
+finish: prev_line=$i = 1 / 0;, PythonCode=
+finish: Resetting line to return $i ;
+eval_stack=HASH(0x800077860), eval_nest=0
+Main loop, line=return $i ;
+
+
+ === Line 11 Perl source:return $i ;===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='s' value='i' Tokenstr |ks| translated: return i
+
+Line:   11 TokenStr: =|ks|= @ValPy: return i
+Generated partial line _eval_result9 = 
+expression(1, 1, -1) =|ks|= return $i
+
+Generated partial line _eval_result9 = i
+expression returns 2
+  11 | 1 |   |    _eval_result9 = i                                                                   #PL: };
+
+Tokens: ks ValPy: 
+  11 | 1 |   |    raise EvalReturn                                                                    #PL: };
+
+Tokens: ks ValPy: 
+eval_stack=HASH(0x800077860), eval_nest=0
+Main loop, line=}
+
+
+ === Line 11 Perl source:}===
+
+
+Line:   11 TokenStr: =|}|= @ValPy: }
+eval_stack=HASH(0x800077860), eval_nest=0
+  12 | 1 |   |    EVAL_ERROR = None                                                                   #PL: assert($@);
+
+Tokens: } ValPy: 
+  12 | 0 |   |except EvalReturn:                                                                      #PL: assert($@);
+
+Tokens: } ValPy: 
+  12 | 1 |   |    EVAL_ERROR = None                                                                   #PL: assert($@);
+
+Tokens: } ValPy: 
+  12 | 0 |   |except Exception as _e:                                                                 #PL: assert($@);
+
+Tokens: } ValPy: 
+  12 | 1 |   |    EVAL_ERROR = _exc(_e)                                                               #PL: assert($@);
+
+Tokens: } ValPy: 
+Main loop, line=assert($@);
+
+
+ === Line 12 Perl source:assert($@);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='EVAL_ERROR' Tokenstr |c(s| translated: assert ( EVAL_ERROR
+Lexem 3 Current token=')' value=')' Tokenstr |c(s)| translated: assert ( EVAL_ERROR )
+
+Line:   12 TokenStr: =|c(s)|= @ValPy: assert ( EVAL_ERROR )
+control(0) =|c(s)|= assert ( $ )
+
+control-parens removed, begin=0 start=1 =|cs|= assert $
+
+Generated partial line assert
+expression(1, 1, 0) =|cs|= assert $
+
+Generated partial line assertEVAL_ERROR
+expression returns 2
+  12 | 0 |   |assert EVAL_ERROR                                                                       #PL: assert($@);
+
+Tokens: cs ValPy: 
+  13 | 0 |   |
+eval_stack=, eval_nest=-2
+Main loop, line=eval {
+
+
+ === Line 14 Perl source:eval {===
+
+Lexem 0 Current token='C' value='try' Tokenstr |C| translated: try
+
+Line:   14 TokenStr: =|C|= @ValPy: try
+  14 | 0 |   |try:                                                                                    #PL: eval {
+
+Tokens: C ValPy: 
+eval_stack=HASH(0x8000777e8), eval_nest=0
+Main loop, line={
+
+
+ === Line 14 Perl source:{===
+
+
+Line:   14 TokenStr: =|{|= @ValPy: {
+eval_stack=HASH(0x8000777e8), eval_nest=0
+Main loop, line=$i = 1 + 1;
+
+
+ === Line 15 Perl source:$i = 1 + 1;===
+
+Lexem 0 Current token='s' value='i' Tokenstr |s| translated: i
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: i =
+Lexem 2 Current token='d' value='1' Tokenstr |s=d| translated: i = 1
+Lexem 3 Current token='+' value='+' Tokenstr |s=d+| translated: i = 1 +
+Lexem 4 Current token='d' value='1' Tokenstr |s=d+d| translated: i = 1 + 1
+
+Line:   15 TokenStr: =|s=d+d|= @ValPy: i = 1 + 1
+assignment(0, 4) =|s=d+d|= $i = 1 + 1
+
+Generated partial line i
+Generated partial line i=
+expression(2, 4, 0) =|s=d+d|= $i = 1 + 1
+
+Generated partial line i=1
+Generated partial line i=1+
+Generated partial line i=1+1
+expression returns 5
+  15 | 1 |   |    i = 1+1                                                                             #PL: $i = 1 + 1;
+
+Tokens: s=d+d ValPy: 
+eval_stack=HASH(0x8000777e8), eval_nest=0
+Main loop, line=$j = $i;
+
+
+ === Line 16 Perl source:$j = $i;===
+
+Lexem 0 Current token='s' value='j' Tokenstr |s| translated: j
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: j =
+Lexem 2 Current token='s' value='i' Tokenstr |s=s| translated: j = i
+
+Line:   16 TokenStr: =|s=s|= @ValPy: j = i
+assignment(0, 2) =|s=s|= $j = $i
+
+Generated partial line j
+Generated partial line j=
+assign, ValClass[limit] = s, ValPy=i, ValPerl=$i
+
+Generated partial line j=i
+  16 | 1 |   |    j = i                                                                               #PL: $j = $i;
+
+Tokens: s=s ValPy: 
+finish: prev_line=$j = $i;, PythonCode=
+finish: Resetting line to return $j ;
+eval_stack=HASH(0x8000777e8), eval_nest=0
+Main loop, line=return $j ;
+
+
+ === Line 17 Perl source:return $j ;===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='s' value='j' Tokenstr |ks| translated: return j
+
+Line:   17 TokenStr: =|ks|= @ValPy: return j
+Generated partial line _eval_result14 = 
+expression(1, 1, -1) =|ks|= return $j
+
+Generated partial line _eval_result14 = j
+expression returns 2
+  17 | 1 |   |    _eval_result14 = j                                                                  #PL: };
+
+Tokens: ks ValPy: 
+  17 | 1 |   |    raise EvalReturn                                                                    #PL: };
+
+Tokens: ks ValPy: 
+eval_stack=HASH(0x8000777e8), eval_nest=0
+Main loop, line=}
+
+
+ === Line 17 Perl source:}===
+
+
+Line:   17 TokenStr: =|}|= @ValPy: }
+eval_stack=HASH(0x8000777e8), eval_nest=0
+  18 | 1 |   |    EVAL_ERROR = None                                                                   #PL: assert(!$@);
+
+Tokens: } ValPy: 
+  18 | 0 |   |except EvalReturn:                                                                      #PL: assert(!$@);
+
+Tokens: } ValPy: 
+  18 | 1 |   |    EVAL_ERROR = None                                                                   #PL: assert(!$@);
+
+Tokens: } ValPy: 
+  18 | 0 |   |except Exception as _e:                                                                 #PL: assert(!$@);
+
+Tokens: } ValPy: 
+  18 | 1 |   |    EVAL_ERROR = _exc(_e)                                                               #PL: assert(!$@);
+
+Tokens: } ValPy: 
+Main loop, line=assert(!$@);
+
+
+ === Line 18 Perl source:assert(!$@);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+
+Line:   18 TokenStr: =|c(!s)|= @ValPy: assert ( not EVAL_ERROR )
+control(0) =|c(!s)|= assert ( ! $ )
+
+control-parens removed, begin=0 start=1 =|c!s|= assert ! $
+
+Generated partial line assert
+expression(1, 2, 0) =|c!s|= assert ! $
+
+Generated partial line assertnot
+Generated partial line assertnotEVAL_ERROR
+expression returns 3
+  18 | 0 |   |assert not EVAL_ERROR                                                                   #PL: assert(!$@);
+
+Tokens: c!s ValPy: 
+  19 | 0 |   |
+eval_stack=, eval_nest=-2
+Main loop, line=eval {
+
+
+ === Line 20 Perl source:eval {===
+
+Lexem 0 Current token='C' value='try' Tokenstr |C| translated: try
+
+Line:   20 TokenStr: =|C|= @ValPy: try
+  20 | 0 |   |try:                                                                                    #PL: eval {
+
+Tokens: C ValPy: 
+eval_stack=HASH(0x800077758), eval_nest=0
+Main loop, line={
+
+
+ === Line 20 Perl source:{===
+
+
+Line:   20 TokenStr: =|{|= @ValPy: {
+eval_stack=HASH(0x800077758), eval_nest=0
+Main loop, line=die('message');
+
+
+ === Line 21 Perl source:die('message');===
+
+Lexem 0 Current token='f' value='raise Die' Tokenstr |f| translated: raise Die
+Lexem 1 Current token='(' value='(' Tokenstr |f(| translated: raise Die (
+Lexem 2 Current token='"' value=''message'' Tokenstr |f("| translated: raise Die ( 'message'
+Lexem 3 Current token=')' value=')' Tokenstr |f(")| translated: raise Die ( 'message' )
+
+Line:   21 TokenStr: =|f(")|= @ValPy: raise Die ( 'message' )
+function(0, 3) =|f(")|= die ( message )
+
+function start=2, end_pos=2, bracketed=1
+Generated partial line raise Die
+Generated partial line raise Die(
+expression(2, 2, 0) =|f(")|= die ( message )
+
+Generated partial line raise Die('message'
+expression returns 3
+Generated partial line raise Die('message')
+  21 | 1 |   |    raise Die('message')                                                                #PL: die('message');
+
+Tokens: f(") ValPy: 
+finish: prev_line=die('message');, PythonCode=
+finish: Resetting line to };
+eval_stack=HASH(0x800077758), eval_nest=0
+Main loop, line=};
+
+
+ === Line 22 Perl source:};===
+
+
+Line:   22 TokenStr: =|}|= @ValPy: }
+eval_stack=HASH(0x800077758), eval_nest=0
+  22 | 1 |   |    EVAL_ERROR = None                                                                   #PL: ;
+
+Tokens: } ValPy: 
+  22 | 0 |   |except Exception as _e:                                                                 #PL: ;
+
+Tokens: } ValPy: 
+  22 | 1 |   |    EVAL_ERROR = _exc(_e)                                                               #PL: ;
+
+Tokens: } ValPy: 
+Main loop, line=;
+
+
+ === Line 22 Perl source:;===
+
+
+Line:   22 TokenStr: =||= @ValPy: 
+  22 | 0 |   |pass                                                                                    #PL: ;
+
+Tokens:  ValPy: 
+  23 | 0 |   |
+Main loop, line=print $@;
+
+
+ === Line 24 Perl source:print $@;===
+
+Lexem 0 Current token='f' value='print' Tokenstr |f| translated: print
+Lexem 1 Current token='s' value='EVAL_ERROR' Tokenstr |fs| translated: print EVAL_ERROR
+
+Line:   24 TokenStr: =|fs|= @ValPy: print EVAL_ERROR
+Generated partial line print(
+print3(0) handle=, k=1, end_pos=1
+
+expression(1, 1, 0) =|fs|= print $
+
+Generated partial line print(EVAL_ERROR
+expression returns 2
+Generated partial line print(EVAL_ERROR,end=""
+Generated partial line print(EVAL_ERROR,end="")
+  24 | 0 |   |print(EVAL_ERROR,end="")                                                                #PL: print $@;
+
+Tokens: fs ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=assert($@ =~ /^message/);
+
+
+ === Line 25 Perl source:assert($@ =~ /^message/);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='EVAL_ERROR' Tokenstr |c(s| translated: assert ( EVAL_ERROR
+Lexem 3 Current token='~' value='' Tokenstr |c(s~| translated: assert ( EVAL_ERROR 
+Lexem 4 Current token='q' value='re.search(r'^message',' Tokenstr |c(s~q| translated: assert ( EVAL_ERROR  re.search(r'^message',
+Lexem 5 Current token=')' value=')' Tokenstr |c(s~q)| translated: assert ( EVAL_ERROR  re.search(r'^message', )
+
+Line:   25 TokenStr: =|c(s~q)|= @ValPy: assert ( EVAL_ERROR  re.search(r'^message', )
+control(0) =|c(s~q)|= assert ( $ =~ ^message )
+
+control-parens removed, begin=0 start=1 =|cs~q|= assert $ =~ ^message
+
+Generated partial line assert
+expression(1, 3, 0) =|cs~q|= assert $ =~ ^message
+
+Generated partial line assertre.search(r'^message',
+expression(1, 1, 0) =|cs~q|= assert $ =~ ^message
+
+Generated partial line assertre.search(r'^message',EVAL_ERROR
+expression returns 2
+Generated partial line assertre.search(r'^message',EVAL_ERROR)
+expression returns 4
+  25 | 0 |   |assert re.search(r'^message',EVAL_ERROR)                                                #PL: assert($@ =~ /^message/);
+
+Tokens: cs~q ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=$fourtytwo = eval {
+
+
+ === Line 26 Perl source:$fourtytwo = eval {===
+
+Lexem 0 Current token='s' value='fourtytwo' Tokenstr |s| translated: fourtytwo
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: fourtytwo =
+Lexem 2 Current token='C' value='try' Tokenstr |s=C| translated: fourtytwo = try
+
+Line:   26 TokenStr: =|s=C|= @ValPy: fourtytwo = try
+assignment(0, 2) =|s=C|= $fourtytwo = eval
+
+  26 | 0 |   |_eval_result26 = None                                                                   #PL: $fourtytwo = eval {
+
+Tokens: s=C ValPy: 
+  26 | 0 |   |try:                                                                                    #PL: $fourtytwo = eval {
+
+Tokens: s=C ValPy: 
+eval_stack=HASH(0x8000778c0), eval_nest=0
+Main loop, line={
+
+
+ === Line 26 Perl source:{===
+
+
+Line:   26 TokenStr: =|{|= @ValPy: {
+eval_stack=HASH(0x8000778c0), eval_nest=0
+Main loop, line=40+2;
+
+
+ === Line 27 Perl source:40+2;===
+
+Lexem 0 Current token='d' value='40' Tokenstr |d| translated: 40
+Lexem 1 Current token='+' value='+' Tokenstr |d+| translated: 40 +
+Lexem 2 Current token='d' value='2' Tokenstr |d+d| translated: 40 + 2
+
+Line:   27 TokenStr: =|d+d|= @ValPy: 40 + 2
+finish: prev_line=40+2;, PythonCode=
+finish: Resetting line to return 40+2;
+eval_stack=HASH(0x8000778c0), eval_nest=0
+Main loop, line=return 40+2;
+
+
+ === Line 28 Perl source:return 40+2;===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='d' value='40' Tokenstr |kd| translated: return 40
+Lexem 2 Current token='+' value='+' Tokenstr |kd+| translated: return 40 +
+Lexem 3 Current token='d' value='2' Tokenstr |kd+d| translated: return 40 + 2
+
+Line:   28 TokenStr: =|kd+d|= @ValPy: return 40 + 2
+Generated partial line _eval_result26 = 
+expression(1, 3, -1) =|kd+d|= return 40 + 2
+
+Generated partial line _eval_result26 = 40
+Generated partial line _eval_result26 = 40+
+Generated partial line _eval_result26 = 40+2
+expression returns 4
+  28 | 1 |   |    _eval_result26 = 40+2                                                               #PL: };
+
+Tokens: kd+d ValPy: 
+  28 | 1 |   |    raise EvalReturn                                                                    #PL: };
+
+Tokens: kd+d ValPy: 
+eval_stack=HASH(0x8000778c0), eval_nest=0
+Main loop, line=}
+
+
+ === Line 28 Perl source:}===
+
+
+Line:   28 TokenStr: =|}|= @ValPy: }
+eval_stack=HASH(0x8000778c0), eval_nest=0
+  29 | 1 |   |    EVAL_ERROR = None                                                                   #PL: assert($fourtytwo == 42);
+
+Tokens: } ValPy: 
+  29 | 0 |   |except EvalReturn:                                                                      #PL: assert($fourtytwo == 42);
+
+Tokens: } ValPy: 
+  29 | 1 |   |    EVAL_ERROR = None                                                                   #PL: assert($fourtytwo == 42);
+
+Tokens: } ValPy: 
+  29 | 0 |   |except Exception as _e:                                                                 #PL: assert($fourtytwo == 42);
+
+Tokens: } ValPy: 
+  29 | 1 |   |    EVAL_ERROR = _exc(_e)                                                               #PL: assert($fourtytwo == 42);
+
+Tokens: } ValPy: 
+assignment(0, 2) =|s=s|= $fourtytwo = _eval_result26
+
+Generated partial line fourtytwo
+Generated partial line fourtytwo=
+assign, ValClass[limit] = s, ValPy=_eval_result26, ValPerl=_eval_result26
+
+Generated partial line fourtytwo=_eval_result26
+  29 | 0 |   |fourtytwo = _eval_result26                                                              #PL: assert($fourtytwo == 42);
+
+Tokens: s=s ValPy: 
+Main loop, line=assert($fourtytwo == 42);
+
+
+ === Line 29 Perl source:assert($fourtytwo == 42);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='fourtytwo' Tokenstr |c(s| translated: assert ( fourtytwo
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( fourtytwo ==
+Lexem 4 Current token='d' value='42' Tokenstr |c(s>d| translated: assert ( fourtytwo == 42
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>d)| translated: assert ( fourtytwo == 42 )
+
+Line:   29 TokenStr: =|c(s>d)|= @ValPy: assert ( fourtytwo == 42 )
+control(0) =|c(s>d)|= assert ( $fourtytwo == 42 )
+
+control-parens removed, begin=0 start=1 =|cs>d|= assert $fourtytwo == 42
+
+Generated partial line assert
+expression(1, 3, 0) =|cs>d|= assert $fourtytwo == 42
+
+Generated partial line assertfourtytwo
+Generated partial line assertfourtytwo==
+Generated partial line assertfourtytwo==42
+expression returns 4
+  29 | 0 |   |assert fourtytwo==42                                                                    #PL: assert($fourtytwo == 42);
+
+Tokens: cs>d ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=assert(!$@);
+
+
+ === Line 30 Perl source:assert(!$@);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+
+Line:   30 TokenStr: =|c(!s)|= @ValPy: assert ( not EVAL_ERROR )
+control(0) =|c(!s)|= assert ( ! $ )
+
+control-parens removed, begin=0 start=1 =|c!s|= assert ! $
+
+Generated partial line assert
+expression(1, 2, 0) =|c!s|= assert ! $
+
+Generated partial line assertnot
+Generated partial line assertnotEVAL_ERROR
+expression returns 3
+  30 | 0 |   |assert not EVAL_ERROR                                                                   #PL: assert(!$@);
+
+Tokens: c!s ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=$twentyone = eval {
+
+
+ === Line 31 Perl source:$twentyone = eval {===
+
+Lexem 0 Current token='s' value='twentyone' Tokenstr |s| translated: twentyone
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: twentyone =
+Lexem 2 Current token='C' value='try' Tokenstr |s=C| translated: twentyone = try
+
+Line:   31 TokenStr: =|s=C|= @ValPy: twentyone = try
+assignment(0, 2) =|s=C|= $twentyone = eval
+
+  31 | 0 |   |_eval_result31 = None                                                                   #PL: $twentyone = eval {
+
+Tokens: s=C ValPy: 
+  31 | 0 |   |try:                                                                                    #PL: $twentyone = eval {
+
+Tokens: s=C ValPy: 
+eval_stack=HASH(0x8003e67d0), eval_nest=0
+Main loop, line={
+
+
+ === Line 31 Perl source:{===
+
+
+Line:   31 TokenStr: =|{|= @ValPy: {
+eval_stack=HASH(0x8003e67d0), eval_nest=0
+Main loop, line=if($i == 2) {
+
+
+ === Line 32 Perl source:if($i == 2) {===
+
+Lexem 0 Current token='c' value='if ' Tokenstr |c| translated: if 
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: if  (
+Lexem 2 Current token='s' value='i' Tokenstr |c(s| translated: if  ( i
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: if  ( i ==
+Lexem 4 Current token='d' value='2' Tokenstr |c(s>d| translated: if  ( i == 2
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>d)| translated: if  ( i == 2 )
+
+Line:   32 TokenStr: =|c(s>d)|= @ValPy: if  ( i == 2 )
+control(0) =|c(s>d)|= if ( $i == 2 )
+
+control-parens removed, begin=0 start=1 =|cs>d|= if $i == 2
+
+Generated partial line if 
+expression(1, 3, 0) =|cs>d|= if $i == 2
+
+Generated partial line if i
+Generated partial line if i==
+Generated partial line if i==2
+expression returns 4
+Generated partial line if i==2:
+  32 | 1 |   |    if i==2:                                                                            #PL: if($i == 2) {
+
+Tokens: cs>d ValPy: 
+eval_stack=HASH(0x8003e67d0), eval_nest=0
+Main loop, line={
+
+
+ === Line 32 Perl source:{===
+
+
+Line:   32 TokenStr: =|{|= @ValPy: {
+eval_stack=HASH(0x8003e67d0), eval_nest=0
+Main loop, line=return 21;
+
+
+ === Line 33 Perl source:return 21;===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='d' value='21' Tokenstr |kd| translated: return 21
+
+Line:   33 TokenStr: =|kd|= @ValPy: return 21
+Generated partial line _eval_result31 = 
+expression(1, 1, -1) =|kd|= return 21
+
+Generated partial line _eval_result31 = 21
+expression returns 2
+  33 | 2 |   |        _eval_result31 = 21                                                             #PL: return 21;
+
+Tokens: kd ValPy: 
+  33 | 2 |   |        raise EvalReturn                                                                #PL: return 21;
+
+Tokens: kd ValPy: 
+eval_stack=HASH(0x8003e67d0), eval_nest=0
+Main loop, line=}
+
+
+ === Line 34 Perl source:}===
+
+
+Line:   34 TokenStr: =|}|= @ValPy: }
+finish: prev_line=}, PythonCode=
+finish: Resetting line to };
+eval_stack=HASH(0x8003e67d0), eval_nest=0
+Main loop, line=};
+
+
+ === Line 35 Perl source:};===
+
+
+Line:   35 TokenStr: =|}|= @ValPy: }
+eval_stack=HASH(0x8003e67d0), eval_nest=0
+  35 | 1 |   |    EVAL_ERROR = None                                                                   #PL: ;
+
+Tokens: } ValPy: 
+  35 | 0 |   |except EvalReturn:                                                                      #PL: ;
+
+Tokens: } ValPy: 
+  35 | 1 |   |    EVAL_ERROR = None                                                                   #PL: ;
+
+Tokens: } ValPy: 
+  35 | 0 |   |except Exception as _e:                                                                 #PL: ;
+
+Tokens: } ValPy: 
+  35 | 1 |   |    EVAL_ERROR = _exc(_e)                                                               #PL: ;
+
+Tokens: } ValPy: 
+assignment(0, 2) =|s=s|= $twentyone = _eval_result31
+
+Generated partial line twentyone
+Generated partial line twentyone=
+assign, ValClass[limit] = s, ValPy=_eval_result31, ValPerl=_eval_result31
+
+Generated partial line twentyone=_eval_result31
+  35 | 0 |   |twentyone = _eval_result31                                                              #PL: ;
+
+Tokens: s=s ValPy: 
+Main loop, line=;
+
+
+ === Line 35 Perl source:;===
+
+
+Line:   35 TokenStr: =||= @ValPy: 
+  35 | 0 |   |pass                                                                                    #PL: ;
+
+Tokens:  ValPy: 
+Main loop, line=assert($twentyone == 21);
+
+
+ === Line 36 Perl source:assert($twentyone == 21);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='twentyone' Tokenstr |c(s| translated: assert ( twentyone
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( twentyone ==
+Lexem 4 Current token='d' value='21' Tokenstr |c(s>d| translated: assert ( twentyone == 21
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>d)| translated: assert ( twentyone == 21 )
+
+Line:   36 TokenStr: =|c(s>d)|= @ValPy: assert ( twentyone == 21 )
+control(0) =|c(s>d)|= assert ( $twentyone == 21 )
+
+control-parens removed, begin=0 start=1 =|cs>d|= assert $twentyone == 21
+
+Generated partial line assert
+expression(1, 3, 0) =|cs>d|= assert $twentyone == 21
+
+Generated partial line asserttwentyone
+Generated partial line asserttwentyone==
+Generated partial line asserttwentyone==21
+expression returns 4
+  36 | 0 |   |assert twentyone==21                                                                    #PL: assert($twentyone == 21);
+
+Tokens: cs>d ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=assert(!$@);
+
+
+ === Line 37 Perl source:assert(!$@);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+
+Line:   37 TokenStr: =|c(!s)|= @ValPy: assert ( not EVAL_ERROR )
+control(0) =|c(!s)|= assert ( ! $ )
+
+control-parens removed, begin=0 start=1 =|c!s|= assert ! $
+
+Generated partial line assert
+expression(1, 2, 0) =|c!s|= assert ! $
+
+Generated partial line assertnot
+Generated partial line assertnotEVAL_ERROR
+expression returns 3
+  37 | 0 |   |assert not EVAL_ERROR                                                                   #PL: assert(!$@);
+
+Tokens: c!s ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=$outerval = eval {
+
+
+ === Line 38 Perl source:$outerval = eval {===
+
+Lexem 0 Current token='s' value='outerval' Tokenstr |s| translated: outerval
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: outerval =
+Lexem 2 Current token='C' value='try' Tokenstr |s=C| translated: outerval = try
+
+Line:   38 TokenStr: =|s=C|= @ValPy: outerval = try
+assignment(0, 2) =|s=C|= $outerval = eval
+
+  38 | 0 |   |_eval_result38 = None                                                                   #PL: $outerval = eval {
+
+Tokens: s=C ValPy: 
+  38 | 0 |   |try:                                                                                    #PL: $outerval = eval {
+
+Tokens: s=C ValPy: 
+eval_stack=HASH(0x800074360), eval_nest=0
+Main loop, line={
+
+
+ === Line 38 Perl source:{===
+
+
+Line:   38 TokenStr: =|{|= @ValPy: {
+eval_stack=HASH(0x800074360), eval_nest=0
+Main loop, line=$innerval = eval {
+
+
+ === Line 39 Perl source:$innerval = eval {===
+
+Lexem 0 Current token='s' value='innerval' Tokenstr |s| translated: innerval
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: innerval =
+Lexem 2 Current token='C' value='try' Tokenstr |s=C| translated: innerval = try
+
+Line:   39 TokenStr: =|s=C|= @ValPy: innerval = try
+assignment(0, 2) =|s=C|= $innerval = eval
+
+  39 | 1 |   |    _eval_result39 = None                                                               #PL: $innerval = eval {
+
+Tokens: s=C ValPy: 
+  39 | 1 |   |    try:                                                                                #PL: $innerval = eval {
+
+Tokens: s=C ValPy: 
+eval_stack=HASH(0x800074360) HASH(0x80036cd70), eval_nest=1
+Main loop, line={
+
+
+ === Line 39 Perl source:{===
+
+
+Line:   39 TokenStr: =|{|= @ValPy: {
+eval_stack=HASH(0x800074360) HASH(0x80036cd70), eval_nest=1
+Main loop, line=return "inner";
+
+
+ === Line 40 Perl source:return "inner";===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='"' value=''inner'' Tokenstr |k"| translated: return 'inner'
+
+Line:   40 TokenStr: =|k"|= @ValPy: return 'inner'
+Generated partial line _eval_result39 = 
+expression(1, 1, -1) =|k"|= return inner
+
+Generated partial line _eval_result39 = 'inner'
+expression returns 2
+  40 | 2 |   |        _eval_result39 = 'inner'                                                        #PL: return "inner";
+
+Tokens: k" ValPy: 
+  40 | 2 |   |        raise EvalReturn                                                                #PL: return "inner";
+
+Tokens: k" ValPy: 
+eval_stack=HASH(0x800074360) HASH(0x80036cd70), eval_nest=1
+Main loop, line=};
+
+
+ === Line 41 Perl source:};===
+
+
+Line:   41 TokenStr: =|}|= @ValPy: }
+eval_stack=HASH(0x800074360) HASH(0x80036cd70), eval_nest=1
+  41 | 2 |   |        EVAL_ERROR = None                                                               #PL: ;
+
+Tokens: } ValPy: 
+  41 | 1 |   |    except EvalReturn:                                                                  #PL: ;
+
+Tokens: } ValPy: 
+  41 | 2 |   |        EVAL_ERROR = None                                                               #PL: ;
+
+Tokens: } ValPy: 
+  41 | 1 |   |    except Exception as _e:                                                             #PL: ;
+
+Tokens: } ValPy: 
+  41 | 2 |   |        EVAL_ERROR = _exc(_e)                                                           #PL: ;
+
+Tokens: } ValPy: 
+assignment(0, 2) =|s=s|= $innerval = _eval_result39
+
+Generated partial line innerval
+Generated partial line innerval=
+assign, ValClass[limit] = s, ValPy=_eval_result39, ValPerl=_eval_result39
+
+Generated partial line innerval=_eval_result39
+  41 | 1 |   |    innerval = _eval_result39                                                           #PL: ;
+
+Tokens: s=s ValPy: 
+Main loop, line=;
+
+
+ === Line 41 Perl source:;===
+
+
+Line:   41 TokenStr: =||= @ValPy: 
+  41 | 1 |   |    pass                                                                                #PL: ;
+
+Tokens:  ValPy: 
+Main loop, line=assert($innerval eq 'inner');
+
+
+ === Line 42 Perl source:assert($innerval eq 'inner');===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='innerval' Tokenstr |c(s| translated: assert ( innerval
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( innerval ==
+Lexem 4 Current token='"' value=''inner'' Tokenstr |c(s>"| translated: assert ( innerval == 'inner'
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( innerval == 'inner' )
+
+Line:   42 TokenStr: =|c(s>")|= @ValPy: assert ( innerval == 'inner' )
+control(0) =|c(s>")|= assert ( $innerval eq inner )
+
+control-parens removed, begin=0 start=1 =|cs>"|= assert $innerval eq inner
+
+Generated partial line assert
+expression(1, 3, 0) =|cs>"|= assert $innerval eq inner
+
+Generated partial line assertinnerval
+Generated partial line assertinnerval==
+Generated partial line assertinnerval=='inner'
+expression returns 4
+  42 | 1 |   |    assert innerval=='inner'                                                            #PL: assert($innerval eq 'inner');
+
+Tokens: cs>" ValPy: 
+finish: prev_line=assert($innerval eq 'inner');, PythonCode=
+finish: Resetting line to };
+eval_stack=HASH(0x800074360), eval_nest=0
+Main loop, line=};
+
+
+ === Line 43 Perl source:};===
+
+
+Line:   43 TokenStr: =|}|= @ValPy: }
+eval_stack=HASH(0x800074360), eval_nest=0
+  43 | 1 |   |    EVAL_ERROR = None                                                                   #PL: ;
+
+Tokens: } ValPy: 
+  43 | 0 |   |except Exception as _e:                                                                 #PL: ;
+
+Tokens: } ValPy: 
+  43 | 1 |   |    EVAL_ERROR = _exc(_e)                                                               #PL: ;
+
+Tokens: } ValPy: 
+assignment(0, 2) =|s=s|= $outerval = _eval_result38
+
+Generated partial line outerval
+Generated partial line outerval=
+assign, ValClass[limit] = s, ValPy=_eval_result38, ValPerl=_eval_result38
+
+Generated partial line outerval=_eval_result38
+  43 | 0 |   |outerval = _eval_result38                                                               #PL: ;
+
+Tokens: s=s ValPy: 
+Main loop, line=;
+
+
+ === Line 43 Perl source:;===
+
+
+Line:   43 TokenStr: =||= @ValPy: 
+  43 | 0 |   |pass                                                                                    #PL: ;
+
+Tokens:  ValPy: 
+Main loop, line=assert(!defined $outerval);
+
+
+ === Line 44 Perl source:assert(!defined $outerval);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='f' value='perl_defined' Tokenstr |c(!f| translated: assert ( not perl_defined
+Lexem 4 Current token='s' value='outerval' Tokenstr |c(!fs| translated: assert ( not perl_defined outerval
+Lexem 5 Current token=')' value=')' Tokenstr |c(!fs)| translated: assert ( not perl_defined outerval )
+
+Line:   44 TokenStr: =|c(!fs)|= @ValPy: assert ( not perl_defined outerval )
+control(0) =|c(!fs)|= assert ( ! defined $outerval )
+
+control-parens removed, begin=0 start=1 =|c!fs|= assert ! defined $outerval
+
+Generated partial line assert
+expression(1, 3, 0) =|c!fs|= assert ! defined $outerval
+
+Generated partial line assertnot
+function(2, 3) =|c!fs|= assert ! defined $outerval
+
+function start=3, end_pos=3, bracketed=0
+Generated partial line assertnotouterval is not None
+expression returns 4
+  44 | 0 |   |assert not outerval is not None                                                         #PL: assert(!defined $outerval);
+
+Tokens: c!fs ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=assert(!$@);
+
+
+ === Line 45 Perl source:assert(!$@);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+
+Line:   45 TokenStr: =|c(!s)|= @ValPy: assert ( not EVAL_ERROR )
+control(0) =|c(!s)|= assert ( ! $ )
+
+control-parens removed, begin=0 start=1 =|c!s|= assert ! $
+
+Generated partial line assert
+expression(1, 2, 0) =|c!s|= assert ! $
+
+Generated partial line assertnot
+Generated partial line assertnotEVAL_ERROR
+expression returns 3
+  45 | 0 |   |assert not EVAL_ERROR                                                                   #PL: assert(!$@);
+
+Tokens: c!s ValPy: 
+  46 | 0 |   |
+  47 | 0 |   |#  Now let's run some perl code!
+  48 | 0 |   |
+eval_stack=, eval_nest=-2
+Main loop, line=my $three = `perl -e "print +(2 + 1);"`;
+
+
+ === Line 49 Perl source:my $three = `perl -e "print +(2 + 1);"`;===
+
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='s' value='three' Tokenstr |ts| translated:  three
+Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  three =
+Lexem 3 Current token='x' value=''perl -e "print +(2 + 1);"'' Tokenstr |ts=x| translated:  three = 'perl -e "print +(2 + 1);"'
+
+Line:   49 TokenStr: =|ts=x|= @ValPy:  three = 'perl -e "print +(2 + 1);"'
+Generated partial line three = 
+expression(3, 3, 0) =|ts=x|= my $three = perl -e "print +(2 + 1);"
+
+Generated partial line three = subprocess.run('perl -e "print +(2 + 1);"',capture_output=True,text=True,shell=True).stdout
+expression returns 4
+  49 | 0 |   |three = subprocess.run('perl -e "print +(2 + 1);"',capture_output=True,text=True,shell=True).stdout #PL: my $three = `perl -e "print +(2 + 1);"`;
+
+Tokens: ts=x ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=assert(int($three) == 3);
+
+
+ === Line 50 Perl source:assert(int($three) == 3);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='f' value='int' Tokenstr |c(f| translated: assert ( int
+Lexem 3 Current token='(' value='(' Tokenstr |c(f(| translated: assert ( int (
+Lexem 4 Current token='s' value='three' Tokenstr |c(f(s| translated: assert ( int ( three
+Lexem 5 Current token=')' value=')' Tokenstr |c(f(s)| translated: assert ( int ( three )
+Lexem 6 Current token='>' value='==' Tokenstr |c(f(s)>| translated: assert ( int ( three ) ==
+Lexem 7 Current token='d' value='3' Tokenstr |c(f(s)>d| translated: assert ( int ( three ) == 3
+Lexem 8 Current token=')' value=')' Tokenstr |c(f(s)>d)| translated: assert ( int ( three ) == 3 )
+
+Line:   50 TokenStr: =|c(f(s)>d)|= @ValPy: assert ( int ( three ) == 3 )
+control(0) =|c(f(s)>d)|= assert ( int ( $three ) == 3 )
+
+control-parens removed, begin=0 start=1 =|cf(s)>d|= assert int ( $three ) == 3
+
+Generated partial line assert
+expression(1, 6, 0) =|cf(s)>d|= assert int ( $three ) == 3
+
+function(1, 6) =|cf(s)>d|= assert int ( $three ) == 3
+
+function start=3, end_pos=3, bracketed=1
+Generated partial line assertint
+Generated partial line assertint(
+expression(3, 3, 0) =|cf(s)>d|= assert int ( $three ) == 3
+
+Generated partial line assertint(three
+expression returns 4
+Generated partial line assertint(three)
+Generated partial line assertint(three)==
+Generated partial line assertint(three)==3
+expression returns 7
+  50 | 0 |   |assert int(three)==3                                                                    #PL: assert(int($three) == 3);
+
+Tokens: cf(s)>d ValPy: 
+  51 | 0 |   |
+eval_stack=, eval_nest=-2
+Main loop, line=my $four = eval("2 + 2");
+
+
+ === Line 52 Perl source:my $four = eval("2 + 2");===
+
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='s' value='four' Tokenstr |ts| translated:  four
+Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  four =
+Lexem 3 Current token='C' value='try' Tokenstr |ts=C| translated:  four = try
+Lexem 4 Current token='(' value='(' Tokenstr |ts=C(| translated:  four = try (
+Lexem 5 Current token='"' value=''2 + 2'' Tokenstr |ts=C("| translated:  four = try ( '2 + 2'
+Lexem 6 Current token=')' value=')' Tokenstr |ts=C(")| translated:  four = try ( '2 + 2' )
+
+Line:   52 TokenStr: =|ts=C(")|= @ValPy:  four = try ( '2 + 2' )
+assignment(1, 6) =|ts=C(")|= my $four = eval ( 2 + 2 )
+
+  52 | 0 |   |_eval_result52 = None                                                                   #PL: my $four = eval("2 + 2");
+
+Tokens: ts=C(") ValPy: 
+  52 | 0 |   |try:                                                                                    #PL: my $four = eval("2 + 2");
+
+Tokens: ts=C(") ValPy: 
+  52 | 1 |   |    EVAL_ERROR = None                                                                   #PL: my $four = eval("2 + 2");
+
+Tokens: ts=C(") ValPy: 
+Generated partial line _eval_result52 = 
+Generated partial line _eval_result52 = subprocess.run(['perl','-e',
+expression(5, 7, 0) =|ts=C(".")|= my $four = eval (  . 2 + 2 )
+
+Generated partial line _eval_result52 = subprocess.run(['perl','-e','print +'
+Generated partial line _eval_result52 = subprocess.run(['perl','-e','print +' + 
+Generated partial line _eval_result52 = subprocess.run(['perl','-e','print +' + '2 + 2'
+expression returns 8
+Generated partial line _eval_result52 = subprocess.run(['perl','-e','print +' + '2 + 2'],capture_output=True,text=True,check=True).stdout
+  52 | 1 |   |    _eval_result52 = subprocess.run(['perl','-e','print +' + '2 + 2'],capture_output=True,text=True,check=True).stdout #PL: my $four = eval("2 + 2");
+
+Tokens: ts=C(".") ValPy: 
+  52 | 0 |   |except Exception as _e:                                                                 #PL: my $four = eval("2 + 2");
+
+Tokens: ts=C(".") ValPy: 
+  52 | 1 |   |    EVAL_ERROR = _exc(_e)                                                               #PL: my $four = eval("2 + 2");
+
+Tokens: ts=C(".") ValPy: 
+Generated partial line four
+Generated partial line four=
+assign, ValClass[limit] = s, ValPy=_eval_result52, ValPerl=_eval_result52
+
+Generated partial line four=_eval_result52
+  52 | 0 |   |four = _eval_result52                                                                   #PL: my $four = eval("2 + 2");
+
+Tokens: ts=s ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=assert(int($four) == 4);
+
+
+ === Line 53 Perl source:assert(int($four) == 4);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='f' value='int' Tokenstr |c(f| translated: assert ( int
+Lexem 3 Current token='(' value='(' Tokenstr |c(f(| translated: assert ( int (
+Lexem 4 Current token='s' value='four' Tokenstr |c(f(s| translated: assert ( int ( four
+Lexem 5 Current token=')' value=')' Tokenstr |c(f(s)| translated: assert ( int ( four )
+Lexem 6 Current token='>' value='==' Tokenstr |c(f(s)>| translated: assert ( int ( four ) ==
+Lexem 7 Current token='d' value='4' Tokenstr |c(f(s)>d| translated: assert ( int ( four ) == 4
+Lexem 8 Current token=')' value=')' Tokenstr |c(f(s)>d)| translated: assert ( int ( four ) == 4 )
+
+Line:   53 TokenStr: =|c(f(s)>d)|= @ValPy: assert ( int ( four ) == 4 )
+control(0) =|c(f(s)>d)|= assert ( int ( $four ) == 4 )
+
+control-parens removed, begin=0 start=1 =|cf(s)>d|= assert int ( $four ) == 4
+
+Generated partial line assert
+expression(1, 6, 0) =|cf(s)>d|= assert int ( $four ) == 4
+
+function(1, 6) =|cf(s)>d|= assert int ( $four ) == 4
+
+function start=3, end_pos=3, bracketed=1
+Generated partial line assertint
+Generated partial line assertint(
+expression(3, 3, 0) =|cf(s)>d|= assert int ( $four ) == 4
+
+Generated partial line assertint(four
+expression returns 4
+Generated partial line assertint(four)
+Generated partial line assertint(four)==
+Generated partial line assertint(four)==4
+expression returns 7
+  53 | 0 |   |assert int(four)==4                                                                     #PL: assert(int($four) == 4);
+
+Tokens: cf(s)>d ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=assert(!$@);
+
+
+ === Line 54 Perl source:assert(!$@);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+
+Line:   54 TokenStr: =|c(!s)|= @ValPy: assert ( not EVAL_ERROR )
+control(0) =|c(!s)|= assert ( ! $ )
+
+control-parens removed, begin=0 start=1 =|c!s|= assert ! $
+
+Generated partial line assert
+expression(1, 2, 0) =|c!s|= assert ! $
+
+Generated partial line assertnot
+Generated partial line assertnotEVAL_ERROR
+expression returns 3
+  54 | 0 |   |assert not EVAL_ERROR                                                                   #PL: assert(!$@);
+
+Tokens: c!s ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=my $code = qq($four == 4 ? 'ok' : 'not ok');
+
+
+ === Line 55 Perl source:my $code = qq($four == 4 ? 'ok' : 'not ok');===
+
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='s' value='code' Tokenstr |ts| translated:  code
+Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  code =
+Lexem 3 Current token='"' value='f"{four} == 4 ? 'ok' : 'not ok'"' Tokenstr |ts="| translated:  code = f"{four} == 4 ? 'ok' : 'not ok'"
+
+Line:   55 TokenStr: =|ts="|= @ValPy:  code = f"{four} == 4 ? 'ok' : 'not ok'"
+  55 | 0 |   |code=f"{four} == 4 ? 'ok' : 'not ok'"                                                   #PL: my $code = qq($four == 4 ? 'ok' : 'not ok');
+eval_stack=, eval_nest=-2
+Main loop, line=my $ok = eval($code);
+
+
+ === Line 56 Perl source:my $ok = eval($code);===
+
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='s' value='ok' Tokenstr |ts| translated:  ok
+Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  ok =
+Lexem 3 Current token='C' value='try' Tokenstr |ts=C| translated:  ok = try
+Lexem 4 Current token='(' value='(' Tokenstr |ts=C(| translated:  ok = try (
+Lexem 5 Current token='s' value='code' Tokenstr |ts=C(s| translated:  ok = try ( code
+Lexem 6 Current token=')' value=')' Tokenstr |ts=C(s)| translated:  ok = try ( code )
+
+Line:   56 TokenStr: =|ts=C(s)|= @ValPy:  ok = try ( code )
+assignment(1, 6) =|ts=C(s)|= my $ok = eval ( $code )
+
+  56 | 0 |   |_eval_result56 = None                                                                   #PL: my $ok = eval($code);
+
+Tokens: ts=C(s) ValPy: 
+  56 | 0 |   |try:                                                                                    #PL: my $ok = eval($code);
+
+Tokens: ts=C(s) ValPy: 
+  56 | 1 |   |    EVAL_ERROR = None                                                                   #PL: my $ok = eval($code);
+
+Tokens: ts=C(s) ValPy: 
+Generated partial line _eval_result56 = 
+Generated partial line _eval_result56 = subprocess.run(['perl','-e',
+expression(5, 7, 0) =|ts=C(".s)|= my $ok = eval (  . $code )
+
+Generated partial line _eval_result56 = subprocess.run(['perl','-e','print +'
+Generated partial line _eval_result56 = subprocess.run(['perl','-e','print +' + 
+Generated partial line _eval_result56 = subprocess.run(['perl','-e','print +' + code
+expression returns 8
+Generated partial line _eval_result56 = subprocess.run(['perl','-e','print +' + code],capture_output=True,text=True,check=True).stdout
+  56 | 1 |   |    _eval_result56 = subprocess.run(['perl','-e','print +' + code],capture_output=True,text=True,check=True).stdout #PL: my $ok = eval($code);
+
+Tokens: ts=C(".s) ValPy: 
+  56 | 0 |   |except Exception as _e:                                                                 #PL: my $ok = eval($code);
+
+Tokens: ts=C(".s) ValPy: 
+  56 | 1 |   |    EVAL_ERROR = _exc(_e)                                                               #PL: my $ok = eval($code);
+
+Tokens: ts=C(".s) ValPy: 
+Generated partial line ok
+Generated partial line ok=
+assign, ValClass[limit] = s, ValPy=_eval_result56, ValPerl=_eval_result56
+
+Generated partial line ok=_eval_result56
+  56 | 0 |   |ok = _eval_result56                                                                     #PL: my $ok = eval($code);
+
+Tokens: ts=s ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=assert($ok eq 'ok');
+
+
+ === Line 57 Perl source:assert($ok eq 'ok');===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='ok' Tokenstr |c(s| translated: assert ( ok
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( ok ==
+Lexem 4 Current token='"' value=''ok'' Tokenstr |c(s>"| translated: assert ( ok == 'ok'
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( ok == 'ok' )
+
+Line:   57 TokenStr: =|c(s>")|= @ValPy: assert ( ok == 'ok' )
+control(0) =|c(s>")|= assert ( $ok eq ok )
+
+control-parens removed, begin=0 start=1 =|cs>"|= assert $ok eq ok
+
+Generated partial line assert
+expression(1, 3, 0) =|cs>"|= assert $ok eq ok
+
+Generated partial line assertok
+Generated partial line assertok==
+Generated partial line assertok=='ok'
+expression returns 4
+  57 | 0 |   |assert ok=='ok'                                                                         #PL: assert($ok eq 'ok');
+
+Tokens: cs>" ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=assert(!$@);
+
+
+ === Line 58 Perl source:assert(!$@);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+
+Line:   58 TokenStr: =|c(!s)|= @ValPy: assert ( not EVAL_ERROR )
+control(0) =|c(!s)|= assert ( ! $ )
+
+control-parens removed, begin=0 start=1 =|c!s|= assert ! $
+
+Generated partial line assert
+expression(1, 2, 0) =|c!s|= assert ! $
+
+Generated partial line assertnot
+Generated partial line assertnotEVAL_ERROR
+expression returns 3
+  58 | 0 |   |assert not EVAL_ERROR                                                                   #PL: assert(!$@);
+
+Tokens: c!s ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=$_ = $code;
+
+
+ === Line 59 Perl source:$_ = $code;===
+
+Lexem 0 Current token='s' value='_d' Tokenstr |s| translated: _d
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: _d =
+Lexem 2 Current token='s' value='code' Tokenstr |s=s| translated: _d = code
+
+Line:   59 TokenStr: =|s=s|= @ValPy: _d = code
+assignment(0, 2) =|s=s|= $_ = $code
+
+Generated partial line _d
+Generated partial line _d=
+assign, ValClass[limit] = s, ValPy=code, ValPerl=$code
+
+Generated partial line _d=code
+  59 | 0 |   |_d = code                                                                               #PL: $_ = $code;
+
+Tokens: s=s ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=$ok2 = eval;
+
+
+ === Line 60 Perl source:$ok2 = eval;===
+
+Lexem 0 Current token='s' value='ok2' Tokenstr |s| translated: ok2
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: ok2 =
+Lexem 2 Current token='C' value='try' Tokenstr |s=C| translated: ok2 = try
+
+Line:   60 TokenStr: =|s=C|= @ValPy: ok2 = try
+assignment(0, 2) =|s=C|= $ok2 = eval
+
+  60 | 0 |   |_eval_result60 = None                                                                   #PL: $ok2 = eval;
+
+Tokens: s=C ValPy: 
+  60 | 0 |   |try:                                                                                    #PL: $ok2 = eval;
+
+Tokens: s=C ValPy: 
+  60 | 1 |   |    EVAL_ERROR = None                                                                   #PL: $ok2 = eval;
+
+Tokens: s=C ValPy: 
+Generated partial line _eval_result60 = 
+Generated partial line _eval_result60 = subprocess.run(['perl','-e',
+Generated partial line _eval_result60 = subprocess.run(['perl','-e',"print +" + _d
+Generated partial line _eval_result60 = subprocess.run(['perl','-e',"print +" + _d],capture_output=True,text=True,check=True).stdout
+  60 | 1 |   |    _eval_result60 = subprocess.run(['perl','-e',"print +" + _d],capture_output=True,text=True,check=True).stdout #PL: $ok2 = eval;
+
+Tokens: s=C ValPy: 
+  60 | 0 |   |except Exception as _e:                                                                 #PL: $ok2 = eval;
+
+Tokens: s=C ValPy: 
+  60 | 1 |   |    EVAL_ERROR = _exc(_e)                                                               #PL: $ok2 = eval;
+
+Tokens: s=C ValPy: 
+Generated partial line ok2
+Generated partial line ok2=
+assign, ValClass[limit] = s, ValPy=_eval_result60, ValPerl=_eval_result60
+
+Generated partial line ok2=_eval_result60
+  60 | 0 |   |ok2 = _eval_result60                                                                    #PL: $ok2 = eval;
+
+Tokens: s=s ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=assert($ok eq 'ok');
+
+
+ === Line 61 Perl source:assert($ok eq 'ok');===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='ok' Tokenstr |c(s| translated: assert ( ok
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( ok ==
+Lexem 4 Current token='"' value=''ok'' Tokenstr |c(s>"| translated: assert ( ok == 'ok'
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( ok == 'ok' )
+
+Line:   61 TokenStr: =|c(s>")|= @ValPy: assert ( ok == 'ok' )
+control(0) =|c(s>")|= assert ( $ok eq ok )
+
+control-parens removed, begin=0 start=1 =|cs>"|= assert $ok eq ok
+
+Generated partial line assert
+expression(1, 3, 0) =|cs>"|= assert $ok eq ok
+
+Generated partial line assertok
+Generated partial line assertok==
+Generated partial line assertok=='ok'
+expression returns 4
+  61 | 0 |   |assert ok=='ok'                                                                         #PL: assert($ok eq 'ok');
+
+Tokens: cs>" ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=assert(!$@);
+
+
+ === Line 62 Perl source:assert(!$@);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+
+Line:   62 TokenStr: =|c(!s)|= @ValPy: assert ( not EVAL_ERROR )
+control(0) =|c(!s)|= assert ( ! $ )
+
+control-parens removed, begin=0 start=1 =|c!s|= assert ! $
+
+Generated partial line assert
+expression(1, 2, 0) =|c!s|= assert ! $
+
+Generated partial line assertnot
+Generated partial line assertnotEVAL_ERROR
+expression returns 3
+  62 | 0 |   |assert not EVAL_ERROR                                                                   #PL: assert(!$@);
+
+Tokens: c!s ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=$@ = 'oops';
+
+
+ === Line 63 Perl source:$@ = 'oops';===
+
+Lexem 0 Current token='s' value='EVAL_ERROR' Tokenstr |s| translated: EVAL_ERROR
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: EVAL_ERROR =
+Lexem 2 Current token='"' value=''oops'' Tokenstr |s="| translated: EVAL_ERROR = 'oops'
+
+Line:   63 TokenStr: =|s="|= @ValPy: EVAL_ERROR = 'oops'
+assignment(0, 2) =|s="|= $ = oops
+
+Generated partial line EVAL_ERROR
+Generated partial line EVAL_ERROR=
+assign, ValClass[limit] = ", ValPy='oops', ValPerl=oops
+
+Generated partial line EVAL_ERROR='oops'
+  63 | 0 |   |EVAL_ERROR = 'oops'                                                                     #PL: $@ = 'oops';
+
+Tokens: s=" ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=eval($code);
+
+
+ === Line 64 Perl source:eval($code);===
+
+Lexem 0 Current token='C' value='try' Tokenstr |C| translated: try
+Lexem 1 Current token='(' value='(' Tokenstr |C(| translated: try (
+Lexem 2 Current token='s' value='code' Tokenstr |C(s| translated: try ( code
+Lexem 3 Current token=')' value=')' Tokenstr |C(s)| translated: try ( code )
+
+Line:   64 TokenStr: =|C(s)|= @ValPy: try ( code )
+  64 | 0 |   |try:                                                                                    #PL: eval($code);
+
+Tokens: C(s) ValPy: 
+  64 | 1 |   |    EVAL_ERROR = None                                                                   #PL: eval($code);
+
+Tokens: C(s) ValPy: 
+Generated partial line subprocess.run(['perl','-e',
+expression(2, 4, 0) =|C(".s)|= eval (  . $code )
+
+Generated partial line subprocess.run(['perl','-e','print +'
+Generated partial line subprocess.run(['perl','-e','print +' + 
+Generated partial line subprocess.run(['perl','-e','print +' + code
+expression returns 5
+Generated partial line subprocess.run(['perl','-e','print +' + code],capture_output=True,text=True,check=True).stdout
+  64 | 1 |   |    subprocess.run(['perl','-e','print +' + code],capture_output=True,text=True,check=True).stdout #PL: eval($code);
+
+Tokens: C(".s) ValPy: 
+  64 | 0 |   |except Exception as _e:                                                                 #PL: eval($code);
+
+Tokens: C(".s) ValPy: 
+  64 | 1 |   |    EVAL_ERROR = _exc(_e)                                                               #PL: eval($code);
+
+Tokens: C(".s) ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=assert(!$@);
+
+
+ === Line 65 Perl source:assert(!$@);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+
+Line:   65 TokenStr: =|c(!s)|= @ValPy: assert ( not EVAL_ERROR )
+control(0) =|c(!s)|= assert ( ! $ )
+
+control-parens removed, begin=0 start=1 =|c!s|= assert ! $
+
+Generated partial line assert
+expression(1, 2, 0) =|c!s|= assert ! $
+
+Generated partial line assertnot
+Generated partial line assertnotEVAL_ERROR
+expression returns 3
+  65 | 0 |   |assert not EVAL_ERROR                                                                   #PL: assert(!$@);
+
+Tokens: c!s ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=eval('%');
+
+
+ === Line 66 Perl source:eval('%');===
+
+Lexem 0 Current token='C' value='try' Tokenstr |C| translated: try
+Lexem 1 Current token='(' value='(' Tokenstr |C(| translated: try (
+Lexem 2 Current token='"' value=''%'' Tokenstr |C("| translated: try ( '%'
+Lexem 3 Current token=')' value=')' Tokenstr |C(")| translated: try ( '%' )
+
+Line:   66 TokenStr: =|C(")|= @ValPy: try ( '%' )
+  66 | 0 |   |try:                                                                                    #PL: eval('%');
+
+Tokens: C(") ValPy: 
+  66 | 1 |   |    EVAL_ERROR = None                                                                   #PL: eval('%');
+
+Tokens: C(") ValPy: 
+Generated partial line subprocess.run(['perl','-e',
+expression(2, 4, 0) =|C(".")|= eval (  . % )
+
+Generated partial line subprocess.run(['perl','-e','print +'
+Generated partial line subprocess.run(['perl','-e','print +' + 
+Generated partial line subprocess.run(['perl','-e','print +' + '%'
+expression returns 5
+Generated partial line subprocess.run(['perl','-e','print +' + '%'],capture_output=True,text=True,check=True).stdout
+  66 | 1 |   |    subprocess.run(['perl','-e','print +' + '%'],capture_output=True,text=True,check=True).stdout #PL: eval('%');
+
+Tokens: C(".") ValPy: 
+  66 | 0 |   |except Exception as _e:                                                                 #PL: eval('%');
+
+Tokens: C(".") ValPy: 
+  66 | 1 |   |    EVAL_ERROR = _exc(_e)                                                               #PL: eval('%');
+
+Tokens: C(".") ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=assert($@);
+
+
+ === Line 67 Perl source:assert($@);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='EVAL_ERROR' Tokenstr |c(s| translated: assert ( EVAL_ERROR
+Lexem 3 Current token=')' value=')' Tokenstr |c(s)| translated: assert ( EVAL_ERROR )
+
+Line:   67 TokenStr: =|c(s)|= @ValPy: assert ( EVAL_ERROR )
+control(0) =|c(s)|= assert ( $ )
+
+control-parens removed, begin=0 start=1 =|cs|= assert $
+
+Generated partial line assert
+expression(1, 1, 0) =|cs|= assert $
+
+Generated partial line assertEVAL_ERROR
+expression returns 2
+  67 | 0 |   |assert EVAL_ERROR                                                                       #PL: assert($@);
+
+Tokens: cs ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=eval;
+
+
+ === Line 68 Perl source:eval;===
+
+Lexem 0 Current token='C' value='try' Tokenstr |C| translated: try
+
+Line:   68 TokenStr: =|C|= @ValPy: try
+  68 | 0 |   |try:                                                                                    #PL: eval;
+
+Tokens: C ValPy: 
+  68 | 1 |   |    EVAL_ERROR = None                                                                   #PL: eval;
+
+Tokens: C ValPy: 
+Generated partial line subprocess.run(['perl','-e',
+Generated partial line subprocess.run(['perl','-e',"print +" + _d
+Generated partial line subprocess.run(['perl','-e',"print +" + _d],capture_output=True,text=True,check=True).stdout
+  68 | 1 |   |    subprocess.run(['perl','-e',"print +" + _d],capture_output=True,text=True,check=True).stdout #PL: eval;
+
+Tokens: C ValPy: 
+  68 | 0 |   |except Exception as _e:                                                                 #PL: eval;
+
+Tokens: C ValPy: 
+  68 | 1 |   |    EVAL_ERROR = _exc(_e)                                                               #PL: eval;
+
+Tokens: C ValPy: 
+eval_stack=, eval_nest=-2
+Main loop, line=assert(!$@);
+
+
+ === Line 69 Perl source:assert(!$@);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='s' value='EVAL_ERROR' Tokenstr |c(!s| translated: assert ( not EVAL_ERROR
+Lexem 4 Current token=')' value=')' Tokenstr |c(!s)| translated: assert ( not EVAL_ERROR )
+
+Line:   69 TokenStr: =|c(!s)|= @ValPy: assert ( not EVAL_ERROR )
+control(0) =|c(!s)|= assert ( ! $ )
+
+control-parens removed, begin=0 start=1 =|c!s|= assert ! $
+
+Generated partial line assert
+expression(1, 2, 0) =|c!s|= assert ! $
+
+Generated partial line assertnot
+Generated partial line assertnotEVAL_ERROR
+expression returns 3
+  69 | 0 |   |assert not EVAL_ERROR                                                                   #PL: assert(!$@);
+
+Tokens: c!s ValPy: 
+  70 | 0 |   |
+eval_stack=, eval_nest=-2
+Main loop, line=print "$0 - test passed!\n";
+
+
+ === Line 71 Perl source:print "$0 - test passed!\n";===
+
+Lexem 0 Current token='f' value='print' Tokenstr |f| translated: print
+Lexem 1 Current token='"' value='f"{__file__} - test passed!\n"' Tokenstr |f"| translated: print f"{__file__} - test passed!\n"
+
+Line:   71 TokenStr: =|f"|= @ValPy: print f"{__file__} - test passed!\n"
+Generated partial line print(
+print3(0) handle=, k=1, end_pos=1
+
+expression(1, 1, 0) =|f"|= print $0 - test passed!\n
+
+Generated partial line print(f"{__file__} - test passed!\n"
+expression returns 2
+Generated partial line print(f"{__file__} - test passed!")
+  71 | 0 |   |print(f"{__file__} - test passed!")                                                     #PL: print "$0 - test passed!\n";
+
+Tokens: f" ValPy: 
+eval_stack=, eval_nest=-2
+ERROR STATISTICS:  W: 1
+
+
+ [Softpano-W317]:  Debug flag is set to 5
+
+
