@@ -121,3 +121,5 @@ Archive/
 *.bak
 tests/*.py
 .gitignore
+test/*.out
+test/*.tmp
