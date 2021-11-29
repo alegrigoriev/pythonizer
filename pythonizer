@@ -97,6 +97,7 @@
 # 0.909  2021/11/16  SNOOPYJC  Handle more cases of issue 48, issue 49, additional fix for issue 44, issue 54, issue 52 (in assignment only), issue 50, issue 53, issue 45, issue 55, issue 56, issue 57, issue 58, issue 46, issue 59, issue 61, issue 62, issue 61, issue 62, issue 41, issue 45
 # 0.910  2021/11/22  SNOOPYJC  Fix issue 63, issue with post-pass refactoring of multi-line strings, issue 64, addl fixes for issue 36 and issue 39, another issue 13 fix (array assignment of function call)
 # 0.911  2021/11/23  SNOOPYJC  Another issue 49 fix ($ARGV), another issue 43 fix (${var} not in ...), issue 68, issue 65, issue 69, more issue 32 fixes, some pep8 enhancements to spacing, implement 'abs(...)', issue 74, issue 66, issue 75, issue 76, issue 42, issue 52, another issue 45 fix, isue 42, issue 73, issue 71
+# 0.912  2021/11/29  SNOOPYJC  Fix coding error in perl_open (encoding)
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -124,7 +125,7 @@
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar);
 
-   $VERSION='0.911';
+   $VERSION='0.912';
    $SCRIPT_NAME='pythonizer';
 #
 # options
