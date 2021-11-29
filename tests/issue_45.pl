@@ -1,10 +1,12 @@
-# simple constant definition sub doesn't generate proper code
+# issue 45: simple constant definition sub doesn't generate proper code
 use Carp::Assert;
 
 sub false { 0 }
 assert(!false);
 sub true { 1; }
 assert(true);
+sub QUIET { 1 }         # Be quiet!
+assert(0) if(!QUIET);
 sub PI ()           { 4 * atan2 1, 1 }
 assert(int(PI) == 3);
 sub thirteen {

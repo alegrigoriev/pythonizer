@@ -57,7 +57,7 @@ require Exporter;
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw(Exporter);
-@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords);		# issue 41
+@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code);		# issue 41, issue 65, issue 74
 #our (@ValClass,  @ValPerl,  @ValPy, $TokenStr); # those are from main::
 
   $VERSION = '0.93';
@@ -73,19 +73,29 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 '?'=>'subprocess_rc',
 		#SNOOPYJC '!'=>'unix_diag_message',
 		'!'=>'sys.last_value',		# SNOOPYJC
-		'$'=>'process_number',';'=>'subscript_separator,',
+                # SNOOPYJC '$'=>'process_number',
+		'$'=>'os.getpid()',             # SNOOPYJC
+                ';'=>'subscript_separator,',
                 ']'=>'perl_version',
 		#SNOOPYJC '&'=>'last_successful_match',
 		'&'=>"$DEFAULT_MATCH.group(0)",	# SNOOPYJC, issue 32
+                '@'=>'EVAL_ERROR',              # SNOOPYC
 		'"'=>'LIST_SEPARATOR',		# issue 46
 		'`'=>'string_preceeeding_last_match',"'"=>'post_last_match_string',
                 '+'=>'last_capture_group','/'=>'lines_separator',','=>'output_field_separator','\\'=>'unknown_perl_special_var',
                 );
    %SPECIAL_VAR2=('O'=>'os.name','T'=>'OS_BASETIME', 'V'=>'sys.version[0]', 'X'=>'sys.executable()',); # $^O and friends
 
+   # Map of functions to python where the mapping is different for scalar and list context
+   %SPECIAL_FUNCTION_MAPPINGS=('localtime'=>{scalar=>'tm_py.ctime', list=>'tm_py.localtime'},
+                'reverse'=>{list=>'[::-1]', scalar=>'_reverse_scalar'}  # issue 65
+                );
+
+
    %keyword_tr=('eq'=>'==','ne'=>'!=','lt'=>'<','gt'=>'>','le'=>'<=','ge'=>'>=',
                 'and'=>'and','or'=>'or','not'=>'not',
                 'x'=>' * ',
+                'abs'=>'abs',                           # SNOOPYJC
 		'assert'=>'assert',			# SNOOPYJC
 		'atan2'=>'math.atan2',			# SNOOPYJC
 		'basename'=>'os.path.basename',		# SNOOPYJC
@@ -96,9 +106,15 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'chomp'=>'.rstrip("\n")','chop'=>'[0:-1]','chr'=>'chr',
 		# issue close 'close'=>'.f.close',
 		'close'=>'.close()',	# issue close
-                'die'=>'sys.exit', 'defined'=>'unknown', 'do'=>'','delete'=>'.pop(','defined'=>'perl_defined',
+                'cmp'=>'_cmp',                          # SNOOPYJC
+                # issue 42 'die'=>'sys.exit', 
+                'die'=>'raise Die',     # issue 42
+                'defined'=>'unknown', 'do'=>'','delete'=>'.pop(','defined'=>'perl_defined',
                 'for'=>'for ','foreach'=>'for ',
-                'else'=>'else: ','elsif'=>'elif ','eval'=>'NoTrans!', 'exit'=>'sys.exit','exists'=> 'in', # if  key in dictionary 'exists'=>'.has_key'
+                'else'=>'else: ','elsif'=>'elif ',
+                # issue 42 'eval'=>'NoTrans!', 
+                'eval'=>'try',  # issue 42
+                'exit'=>'sys.exit','exists'=> 'in', # if  key in dictionary 'exists'=>'.has_key'
 		'flock'=>'fcntl.flock',			# issue flock
 		'glob'=>'glob.glob',			# SNOOPYJC
                 'if'=>'if ', 'index'=>'.find',
@@ -119,11 +135,13 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		# issue 34 'sort'=>'sort', 
 		'sort'=>'sorted', 		# issue 34
 		'state'=>'global',
-                   'stat'=>'os.stat','sysread'=>'read',
+                'read'=>'.read',                # issue 10
+                   'stat'=>'os.stat','sysread'=>'.read',
                    'substr'=>'','sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','sprintf'=>'',
 		   'STDOUT'=>'sys.stdout',	# issue 10
                    'sysseek'=>'perl_sysseek',
                    'STDERR'=>'sys.stderr','STDIN'=>'sys.stdin', '__LINE__' =>'sys._getframe().f_lineno',
+                'reverse'=>'[::-1]',            # issue 65
                 'rindex'=>'.rfind', 'ref'=>'type', 'require'=>'NoTrans!', 'return'=>'return', 'rmdir'=>'os.rmdir',
                 'tie'=>'NoTrans!',
 		'time'=>'_time',		# SNOOPYJC
@@ -133,6 +151,42 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                  'warn'=>'print',
                );
 
+       #
+       # TOKENS TYPES:
+       # a => Array like @arr
+       # b
+       # c => Control like if, for, foreach, while, unless, until, ...
+       # d => Digits like 123 or 12.34 or .5
+       # e
+       # f => Built-in function like abs, atan2, basename, or chomp
+       # g => Glob like <*.c>
+       # h => Hashname like %hash
+       # i => BareWord like ABC or abc - could be a local sub name
+       # j
+       # k => Special control like last, next, return, or sub
+       # l, m, n, o, p
+       # q => Pattern like  m/.../, s/../.../, tr/../../, or wr, or /.../
+       # r => range (..)
+       # s => Scalar like $var
+       # t => Variable type like local, my, own, state
+       # u, v, w
+       # x => Executable in `...` or qx
+       # y, z
+       # C => More control like default, else, elsif
+       # H => Here doc <<
+       # W => Context manager (with)
+       # 0 => and, or, &&, ||
+       # ^ => ++ or --
+       # > => comparison like > < >= <= == eq ne lt gt le ge
+       # = => assignment like = += -= etc
+       # ? => ? (part of ? : )
+       # : => : or =>
+       # . => . or -> or ::
+       # * => *, **, or x
+       # +, -, /, % => Operators
+       # ~ => Pattern match like =~ or !~
+       # " => Quoted string or q/abc/, qq(def), etc
+       
        %TokenType=('eq'=>'>','ne'=>'>','lt'=>'>','gt'=>'>','le'=>'>','ge'=>'>',
                   'x'=>'*',
                   'y'=>'q', 'q'=>'q','qq'=>'q','qr'=>'q',
@@ -140,12 +194,16 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'qw'=>'q',		# issue 44
 		  'wr'=>'q','qx'=>'q','m'=>'q','s'=>'q','tr'=>'q',
                   'and'=>'0',
+		  'abs'=>'f',	        # SNOOPYJC
 		  'assert'=>'c',	# SNOOPYJC
 		  'atan2'=>'f',		# SNOOPYJC
 		  'basename'=>'f',	# SNOOPYJC
                   'caller'=>'f','chdir'=>'f','chomp'=>'f', 'chop'=>'f', 'chmod'=>'f','chr'=>'f','close'=>'f',
+                  'cmp'=>'<',           # SNOOPYJC: comparison
+                  'delete'=>'f',        # issue delete
                   'default'=>'C','defined'=>'f','die'=>'f',
                   'else'=>'C', 'elsif'=>'C', 'exists'=>'f', 'exit'=>'f', 'export'=>'f',
+                  'eval'=>'C',          # issue 42
 		  'flock'=>'f',		# issue flock
 		  'glob'=>'f',		# SNOOPYJC
                   'if'=>'c',  'index'=>'f',
@@ -164,6 +222,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'rindex'=>'f','read'=>'f', 
 		  # issue 61 'return'=>'f', 
 		  'return'=>'k', 		# issue 61
+                  'reverse'=>'f',               # issue 65
 		  'ref'=>'f',
                   'say'=>'f','scalar'=>'f','shift'=>'f', 'split'=>'f', 'sprintf'=>'f', 'sort'=>'f','system'=>'f', 'state'=>'t',
                   'stat'=>'t','sub'=>'k','substr'=>'f','sysread'=>'f',  'sysseek'=>'f',
@@ -186,8 +245,16 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
    %digram_map=('++'=>'+=1','--'=>'-=1','+='=>'+=', '*='=>'*=', '/='=>'/=', '.='=>'+=', '=~'=>'','<>'=>'readline()','=>'=>': ','->'=>'.',
                 '&&'=>' and ', '||'=>' or ','::'=>'.',
                );
+
+   %SpaceBefore=(in=>1, is=>1, an=>1, or=>1);                  # SNOOPYJC - always generate a space before these 2-letter output words
+
+   %SpaceBoth=('='=>1, '+='=>1, '-='=>1, '*='=>1, '/='=>1, '%='=>1,
+               '|='=>1, '&='=>1, '^='=>1, '>>='=>1, '<<='=>1, '**='=>1, '//='=>1); # SNOOPYJC - always generate a space before and after these
+
 my ($source,$cut,$tno)=('',0,0);
 @PythonCode=(); # array for generated code chunks
+$PREV_HAD_COLON=1;               # SNOOPYJC
+@SavePythonCode=();     # issue 74
 @BufferValClass=@BufferValCom=@BufferValPerl=@BufferValPy=();
 @BufferValType=();		# issue 37
 $TokenStr='';
@@ -206,6 +273,7 @@ my ($l,$m);
       $DB::single = 1;
    }
    while( $source ){
+      $had_space = (substr($source,0,1) eq ' ');   # issue 50
       ($source)=split(' ',$source,1);  # truncate white space on the left (Perl treats ' ' like AWK. )
       $s=substr($source,0,1);
       if( $s eq '#'  ){
@@ -275,11 +343,12 @@ my ($l,$m);
                 $source=$s; # this was we artifically create line with one symbol on it;
              }
              last; # we need to process it as a seperate one-symbol line
-         }elsif( $tno>0 && length($source)==1 ){
+         }elsif( $tno>0 && (length($source)==1 || $source =~ /^}\s*#/)){                # issue 45
              # NOTE: here $tno>0 and we reached the last symbol of the line
              # we recognize it as the end of the block
              #curvy bracket as the last symbol of the line
-             Pythonizer::getline('}'); # make it a separate statement
+             # issue 45 Pythonizer::getline('}'); # make it a separate statement
+             Pythonizer::getline($source); # make it a separate statement # issue 45
              popup(); # kill the last symbol
              last; # we truncate '}' and will process it as the next line
          }
@@ -312,7 +381,8 @@ my ($l,$m);
              popup(); # eliminate '{' as it does not have tno==0
              last;
           }elsif($ValClass[$tno-1] eq '.' && $ValPerl[$tno-1] eq '->') {	# issue 50
-	    pop @ValClass; pop @ValPerl; pop @ValPy;pop @ValType; # issue 50, 37
+	    pop @ValClass; pop @ValPerl; pop @ValPy;pop @ValType if($#ValType > $#ValClass); # issue 50, 37
+            $TokenStr=join('',@ValClass);       # issue 50
 	    $tno--;				# issue 50 - no need to keep arrow operator in python
       	    $ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
           }
@@ -320,11 +390,12 @@ my ($l,$m);
          $ValPy[$tno]='[';
          $cut=1;
       # issue 17 }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,k]/ || $ValPerl[$tno-1] eq 'split') ){
-      }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,kc]/ || $ValPerl[$tno-1] eq 'split') ){	# issue 17
+      }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,kc=0!]/ || $ValPerl[$tno-1] eq 'split') ){	# issue 17, 32, 66
            # typical cases: if(/abc/ ){0}; $a=~/abc/; /abc/; split(/,/,$text)  split /,/,$text REALLY CRAZY STAFF
            $ValClass[$tno]='q';
            $cut=single_quoted_literal($s,1);
-           $ValPerl[$tno]=substr($source,1,$cut-2);
+           # issue 51 $ValPerl[$tno]=substr($source,1,$cut-2);
+           $ValPerl[$tno]=remove_escaped_delimiters($s, substr($source,1,$cut-2));       # issue 51
            substr($source,0,$cut)=''; # you need to provide modifiers to perl_match
            $cut=0;
            if( $tno>=1 && ( $ValClass[$tno-2] eq 'f' || $ValPerl[$tno-1] eq 'split') ){
@@ -338,6 +409,8 @@ my ($l,$m);
          $ValClass[$tno]='"';
          $cut=single_quoted_literal($s,1);
          $ValPerl[$tno]=substr($source,1,$cut-2);
+         # issue 51 - we leave the \' in place because we use a single quote deliminator below
+         # NO GOOD!!  $ValPerl[$tno]=remove_escaped_delimiters($s, substr($source,1,$cut-2));       # issue 51
          if( $tno>0 && $ValPerl[$tno-1] eq '<<'  ){
             # my $here_str = <<'END'; -- added Dec 20, 2019
             $tno--; # overwrite previous token; Dec 20, 2019 --NNB
@@ -348,13 +421,15 @@ my ($l,$m);
 	    pop @ValPerl;			# issue 39
 	    pop @ValPy;				# issue 39
 	    pop @ValCom;			# issue 39
-	    pop @ValType;			# issue 39, 37
-	    # issue 39 $cut=length($source);
+	    pop @ValType if($#ValType > $#ValClass);	# issue 39, 37
+	    $TokenStr=join('',@ValClass);       # issue 39
+            # issue 39 $cut=length($source);
 	 }elsif(index($ValPerl[$tno], "\n") >= 0) {		# issue 39 - multi-line string
             $ValPy[$tno]="'''".escape_backslash($ValPerl[$tno])."'''"; # only \n \t \r, etc needs to be  escaped # issue 39
          }else{
             $ValPy[$tno]="'".escape_backslash($ValPerl[$tno])."'"; # only \n \t \r, etc needs to be  escaped
          }
+         #say STDERR "Simple String: ValPerl=$ValPerl[$tno], ValPy=$ValPy[$tno]";
       }elsif( $s eq '"'  ){
          $ValClass[$tno]='"';
          $cut=double_quoted_literal('"',1); # side affect populates $ValPy[$tno] and $ValPerl[$tno]
@@ -371,6 +446,7 @@ my ($l,$m);
 	    pop @ValPy;				# issue 39
 	    pop @ValCom;			# issue 39
 	    pop @ValType;			# issue 39, 37
+	    $TokenStr=join('',@ValClass);       # issue 39
 	    # issue 39 $cut=length($source);
 	 }elsif(index($ValPy[$tno], "\n") >= 0) {		# issue 39 - multi-line string
             $ValPy[$tno] =~ s/^f"/f"""/;			# issue 39
@@ -383,10 +459,7 @@ my ($l,$m);
       }elsif( $s=~/\d/  ){
          # processing of digits should preceed \w ad \w includes digits
 	 # issue 23 if( $source=~/(^\d+(?:[.e]\d+)?)/  ){
-         if( $source=~/(^\d+(?:[.]\d*)?(?:e[+-]?\d+)?)/  ){	# issue 23
-             $val=$1;
-             #$ValType[$tno]='e';
-         }elsif( $source=~/^(0x\w+)/  ){
+         if( $source=~/^(0x\w+)/  ){
             # need to add octal andhexadecila later
             $val=$1;
             #$ValType[$tno]='x';
@@ -394,6 +467,9 @@ my ($l,$m);
             #binary
             $val=$1;
             #$ValType[$tno]='b';
+         }elsif( $source=~/(^\d+(?:[.]\d*)?(?:e[+-]?\d+)?)/  ){	# issue 23
+             $val=$1;
+             #$ValType[$tno]='e';
          }elsif(  $source=~/(\d+)/  ){
              $val=$1;
              #$ValType[$tno]='i';
@@ -401,7 +477,7 @@ my ($l,$m);
          $ValClass[$tno]='d';
          $ValPy[$tno]=$ValPerl[$tno]=$val;
          $cut=length($val);
-	 if($cut > 1 && substr($ValPy[$tno], 0, 1) eq '0' && $ValPy[$tno] !~ /[.e]/) {   # issue 22
+	 if($cut > 1 && substr($ValPy[$tno], 0, 1) eq '0' && $ValPy[$tno] !~ /[.exb]/) {   # issue 22
             $ValPy[$tno] = "0o".substr($ValPy[$tno], 1);	# issue 22
 	 }							# issue 22
      }elsif( $s=~/\w/  ){
@@ -412,10 +488,14 @@ my ($l,$m);
          $ValClass[$tno]='i';
          $ValPy[$tno]=$w;
          if( exists($keyword_tr{$w}) ){
-             $ValPy[$tno]=$keyword_tr{$w};
+            $ValPy[$tno]=$keyword_tr{$w};
          }
          if( exists($TokenType{$w}) ){
             $class=$TokenType{$w};
+            if($class eq 'f' && $w eq 'delete' && $tno != 0 && $ValPerl[$tno-1] eq '{') {        # issue delete in a $hash{delete}
+                $class = 'i';                   # issue delete
+                $ValPy[$tno] = $w;              # issue delete
+            }                                   # issue delete
             $ValClass[$tno]=$class;
             if( $class eq 'c' && $tno > 0 && $Pythonizer::PassNo ){	# Control statement, like if
                # The current solution is pretty britle but works
@@ -429,6 +509,7 @@ my ($l,$m);
 	       @BufferValType=@ValType;	# issue 37
                @ValClass=@ValCom=@ValPerl=@ValPy=();
 	       @ValType=();	# issue 37
+               $TokenStr = '';  # issue 37
                $tno=0;
                $ValClass[$tno]=$class;
                $ValPy[$tno]=$w;
@@ -451,14 +532,19 @@ my ($l,$m);
                }
             }elsif( $class eq 'q' ){
                # q can be translated into """", but qw actually is an expression
-               $delim=substr($source,length($w),1);
+               # issue 69 $delim=substr($source,length($w),1);
+               if(($delim=substr($source,length($w),1)) =~ /\s/) {     # issue 69 - handle whitespace after the initial q
+                   substr($source,length($w),1) = '';                   # issue 69 - eat whitespace
+                   next;                                                # issue 69 - start over
+               }
                if( $w eq 'q' ){
                   $cut=single_quoted_literal($delim,2);
                   if( $cut== -1 ){
                      $Pythonizer::TrStatus=-255;
                      last;
                   }
-                  $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
+                  # issue 51 $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
+                  $ValPerl[$tno]=remove_escaped_delimiters($delim, substr($source,length($w)+1,$cut-length($w)-2));      # issue 51
                   $w=escape_backslash($ValPerl[$tno]);
                   $ValPy[$tno]=escape_quotes($w,2);
                   $ValClass[$tno]='"';
@@ -478,7 +564,8 @@ my ($l,$m);
                }elsif( $w eq 'm' | $w eq 'qr' | $w eq 's' ){
                   $source=substr($source,length($w)+1); # cut the word and delimiter
                   $cut=single_quoted_literal($delim,0); # regex always ends before the delimiter
-                  $arg1=substr($source,0,$cut-1);
+                  # issue 51 $arg1=substr($source,0,$cut-1);
+                  $arg1=remove_escaped_delimiters($delim, substr($source,0,$cut-1));     # issue 51
                   $source=substr($source,$cut); #cut to symbol after the delimiter
                   $cut=0;
                   if( $w eq 'm' || ($w eq 'qr' &&  $ValClass[$tno-1] eq '~') ){
@@ -498,7 +585,8 @@ my ($l,$m);
                      }
                      # now string is  /def/d or [def]
                      $cut=single_quoted_literal($delim,0);
-                     $arg2=substr($source,0,$cut-1);
+                     # issue 51 $arg2=substr($source,0,$cut-1);
+                     $arg2=remove_escaped_delimiters($delim, substr($source,0,$cut-1));          # issue 51
                      $source=substr($source,$cut);
                      $cut=0;
                      ($modifier,undef)=is_regex($arg2); # modifies $source as a side effect
@@ -528,7 +616,8 @@ my ($l,$m);
                   # tr function has two parts; also can be named y
                   $source=substr($source,length($w)+1); # cut the word and delimiter
                   $cut=single_quoted_literal($delim,0);
-                  $arg1=substr($source,0,$cut-1); # regex always ends before the delimiter
+                  # issue 51 $arg1=substr($source,0,$cut-1); # regex always ends before the delimiter
+                  $arg1=remove_escaped_delimiters($delim, substr($source,0,$cut-1)); # regex always ends before the delimiter # issue 51
                   $source=substr($source,$cut); # remove first part of substitution exclufing including the delimeter
                   if( index('{([<',$delim) > -1 ){
                      # case tr[abc][cde]
@@ -537,7 +626,8 @@ my ($l,$m);
                   }
                   # now string is  /def/d or [def]
                   $cut=single_quoted_literal($delim,0);
-                  $arg2=substr($source,0,$cut-1);
+                  # issue 51 $arg2=substr($source,0,$cut-1);
+                  $arg2=remove_escaped_delimiters($delim, substr($source,0,$cut-1));     # issue 51
                   $source=substr($source,$cut);
                   if( $source=~/^(\w+)/ ){
                      $tr_modifier=$1;
@@ -578,7 +668,8 @@ my ($l,$m);
                }elsif( $w eq 'qw' ){
                   # we can emulate it with split function, althouth wq is mainly compile time.
                    $cut=single_quoted_literal($delim,length($w)+1);
-                   $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
+                   # issue 51 $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
+                   $ValPerl[$tno]=remove_escaped_delimiters($delim, substr($source,length($w)+1,$cut-length($w)-2));
                    if( $ValPerl[0] eq 'use' ){
                       $ValPy[$tno]=$ValPerl[$tno];
                    }else{
@@ -607,12 +698,22 @@ my ($l,$m);
             substr($source,0,$cut)='perl_trace()'; # remove non-tranlatable part.
             $cut=length('perl_trace');
          }else{
-	    if($tno != 0 && ($ValClass[$tno-1] eq '@' || $ValClass[$tno-1] eq '%')) {	# issue 50
+	    if($tno != 0 && ($ValClass[$tno-1] eq '@' || ($ValClass[$tno-1] eq '%' && !$had_space))) {	# issue 50
+               # Change @$xxx to $xxx and %$yyy to $yyy but NOT % $yyy as that's a MOD operator!
 	       pop @ValClass; pop @ValPerl; pop @ValPy;	pop @ValType; # issue 50
 	       $tno--;				# issue 50 - no need to change hashref to hash or arrayref to array in python
       	       $ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
 	    }
+            $end_br = 0;                                # issue 43
+            if(substr($source,1,1) eq '{') {		# issue 43: ${...}
+                $end_br = matching_curly_br($source, 1); # issue 43
+                $source = '$'.substr($source,2);	# issue 43: eat the '{'. At this point, $end_br points after the '}'
+            }
             decode_scalar($source,1);
+            if($end_br) {                               # issue 43
+                $cut = $end_br;                         # issue 43
+                $ValPerl[$tno] = '{'.$ValPerl[$tno].'}'; # issue 43: remember we had ${var} for where we care (like <${var}>)
+            }
          }
       }elsif( $s eq '@'  ){
          if( substr($source,1)=~/^(\:?\:?\w+(\:\:\w+)*)/ ){
@@ -673,8 +774,16 @@ my ($l,$m);
          $cut=1;
       }elsif( $s=~/\W/  ){
          #This is delimiter
+         $quadgram=substr($source,0,4);         # issue 66
+         $trigram=substr($source,0,3);          # issue 66
          $digram=substr($source,0,2);
-         if( exists($digram_tokens{$digram})  ){
+         $digram = '' if($quadgram eq '<<>>');  # issue 66
+         if($trigram eq '<=>') {                # issue 66
+             $ValClass[$tno] = '>';             # issue 66: comparison
+             $ValPerl[$tno] = $trigram;         # issue 66
+             $ValPy[$tno] = '_spaceship';       # issue 66
+             $cut=3;                            # issue 66
+         } elsif( exists($digram_tokens{$digram})  ){
             $ValClass[$tno]=$digram_tokens{$digram};
             $ValPy[$tno]=$digram_map{$digram};
             #next unless($ValPy[$tno]); # =~ does not need to be tranlated to token
@@ -696,6 +805,10 @@ my ($l,$m);
                }
                $cut=2;
             }
+            if($digram eq '=>' && $tno != 0 && $ValClass[$tno-1] eq 'f' && $ValPerl[$tno-1] eq 'delete') {    # issue delete
+                $ValClass[$tno-1] = '"';        # delete => '...' - make it into 'delete' => '...'
+                $ValPy[$tno-1] = "'delete'";
+            }
          }elsif( $s eq '='  ){
             if( index(join('',@ValClass),'c')>-1 ){
                $ValPy[$tno]=':=';
@@ -705,7 +818,8 @@ my ($l,$m);
             $ValPy[$tno]='';
             $cut=1;
          }elsif( $s eq '!'  ){
-            $ValPy[$tno]=' not ';
+             # SNOOPYJC $ValPy[$tno]=' not ';
+            $ValPy[$tno]='not';
             $cut=1;
          }elsif( $s eq '-'  ){
            $s2=substr($source,1,1);
@@ -719,27 +833,89 @@ my ($l,$m);
            }
          }elsif( $s eq '<'  ){
             # diamond operator
-            if( $source=~/^<(\w*)>/ ){
+            my $safe_mode = 0;                  # issue 66: FIXME: Not implemented (to implement, use openhook and perl_open)
+            my $fh = '';
+            if( $source=~/^<(\w*)>/ || $quadgram eq '<<>>'){    # issue 66
                $ValClass[$tno]='i';
-               $cut=length($1)+2;
-               $ValPerl[$tno]="<$1>";
+               if($quadgram eq '<<>>') {        # issue 66
+                   $cut = 4;                    # issue 66
+                   $safe_mode = 1;              # issue 66
+               } else {                         # issue 66
+                   $cut=length($1)+2;
+                   $ValPerl[$tno]="<$1>";
+                   $fh = $1;
+               }                                # issue 66
                #
                # Let's try to determine the context
                #
 	       # issue 62 if( $tno==2 && $ValClass[0] eq 'a' && $ValClass[1] eq '='){
                if( $tno>=2 && $ValClass[$tno-2] eq 'a' && $ValClass[$tno-1] eq '='){	# issue 62: handle "my @a=<FH>;" and "chomp(my @a=<FH>);"
-                  if(length($1)==0 || $1 eq 'STDIN' ){
+                   if(length($fh)==0){         # issue 66
+                     insert(0, 'W', "<>", "with fileinput.input() as $DIAMOND:");    # issue 66
+                     $tno++;
+                     $ValPy[$tno]="list($DIAMOND)";     # issue 66
+                   } elsif($fh eq 'STDIN' ){            # issue 66
                      $ValPy[$tno]='sys.stdin.readlines()';
                   }else{
-                     $ValPy[$tno]="$1.readlines()";
+                     $ValPy[$tno]="$fh.readlines()";
                   }
-               }else{
-                   if(length($1)==0 || $1 eq 'STDIN' ){
-                      $ValPy[$tno]='sys.stdin().readline()';
+               }elsif($ValClass[0] eq 'c' and $ValPerl[0] eq 'while') { # issue 66
+                   if(length($fh)==0){         # issue 66
+                       insert(0, 'W', "<$fh>", "with fileinput.input() as $DIAMOND:");    # issue 66
+                       $tno++;
+                       $ValPy[$tno]="next($DIAMOND, None)";        # issue 66: Allows for $.
+                   }elsif($fh eq 'STDIN' ){     # issue 66
+                       insert(0, 'W', "<$fh>", "with fileinput.input('-') as $DIAMOND:");    # issue 66
+                       $tno++;
+                       $ValPy[$tno]="next($DIAMOND, None)";        # issue 66: Allows for $.
                    }else{
-                      $ValPy[$tno]="$1.readline()";
+                       # issue 66: use a context manager so it's automatically closed
+                       insert(0, 'W', "<$fh>", qq{with fileinput.input("<$fh>",openhook=lambda _,__:$fh) as $DIAMOND:});    # issue 66
+                       $tno++;                                     # issue 66
+                       $ValPy[$tno]="next($DIAMOND, None)";        # issue 66: Allows for $.
+                   }
+               }else{           # we're just reading one line so we can't use the context manager as it closes the file handle
+                   if(length($fh)==0){         # issue 66
+                       $ValPy[$tno]="next(fileinput.input(), None)";        # issue 66: Allows for $.
+                   }elsif($fh eq 'STDIN' ){     # issue 66
+                       # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
+                       $ValPy[$tno]='sys.stdin().readline()';
+                       # $ValPy[$tno]="next(with fileinput.input('-'), None)";        # issue 66: Allows for $.
+                   }else{
+                       # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
+                       $ValPy[$tno]="$fh.readline()";
+                       #insert(0, 'W', "<$fh>", qq{with fileinput.input("<$fh>",openhook=lambda _,__:$fh) as $DIAMOND:});    # issue 66
+                       #$tno++;                                     # issue 66
+                       #$ValPy[$tno]=qq{next(with fileinput.input("<$fh>",openhook=lambda _,__:$fh), None)};        # issue 66: Allows for $.
                    }
                }
+            }elsif($source =~ /^<\$(\w*)>/ ) {          # issue 66: <$fh>
+               $ValClass[$tno]='i';
+               $cut=length($1)+3;
+               $ValPerl[$tno]="<\$$1>";
+               #
+               # Let's try to determine the context
+               #
+	       # issue 62 if( $tno==2 && $ValClass[0] eq 'a' && $ValClass[1] eq '='){
+               if( $tno>=2 && $ValClass[$tno-2] eq 'a' && $ValClass[$tno-1] eq '='){	# issue 62: handle "my @a=<FH>;" and "chomp(my @a=<FH>);"
+                   $ValPy[$tno]="$1.readlines()";
+               }elsif($ValClass[0] eq 'c' and $ValPerl[0] eq 'while') { # issue 66
+                   insert(0, 'W', "<$1>", qq{with fileinput.input("<$1>",openhook=lambda _,__:$1) as $DIAMOND:});    # issue 66
+                   $tno++;                                     # issue 66
+                   $ValPy[$tno]="next($DIAMOND, None)";        # issue 66: Allows for $.
+               }else{
+                   # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
+                   $ValPy[$tno]="$1.readline()";
+                   # issue 66: use a context manager so it's automatically closed
+                   #insert(0, 'W', "<$1>", qq{with fileinput.input("<$1>",openhook=lambda _,__:$1) as $DIAMOND:});    # issue 66
+                   #$tno++;                                     # issue 66
+                   #$ValPy[$tno]=qq{next(with fileinput.input("<$1>",openhook=lambda _,__:$1), None)};        # issue 66: Allows for $.
+               }
+            }elsif($tno > 0 && index("(.=", $ValClass[$tno-1]) >= 0 && $source =~ /^<[^>]+>/) {    # issue 66 <glob>
+                $ValClass[$tno] = 'g';
+                $cut=double_quoted_literal('<',1);
+                $ValPy[$tno] = $keyword_tr{glob}.'('.join('",f"', split ' ', $ValPy[$tno]).')';
+                $ValPy[$tno] =~ s/,f""\)/)/;    # For the <$pat > case, remove the extra space
             }else{
               $ValClass[$tno]='>'; # regular < operator
               $cut=1;
@@ -851,9 +1027,14 @@ my $rc=-1;
    if ( $update  ){
       $ValClass[$tno]='s'; # we do not need to set it if we are analysing double wuoted literal
    }
+   my $specials = q(!?<>()!;]&`'+"@$);                  # issue 50
+   if($s2 eq '$' && substr($source,2,1) =~ /[\w:]/) {   # issue 50
+       $specials = '!';
+   }
    if( $s2 eq '.'  ){
       # file line number
-       $ValPy[$tno]='fileinput.filelineno()';
+      # issue 66 $ValPy[$tno]='fileinput.filelineno()';
+       $ValPy[$tno]='fileinput.lineno()';       # issue 66: Mimic the perl behavior
        $ValType[$tno]="X";
        $cut=2
    }elsif( $s2 eq '^'  ){
@@ -868,7 +1049,7 @@ my $rc=-1;
          }
        }
    # issue 46 }elsif( index(q(!?<>()!;]&`'+"),$s2) > -1  ){
-   }elsif( index(q(!?<>()!;]&`'+"),$s2) > -1  ){	# issue 46
+   }elsif( index($specials,$s2) > -1  ){	# issue 46, issue 50
       $ValPy[$tno]=$SPECIAL_VAR{$s2};
       $cut=2;
       $ValType[$tno]="X";
@@ -941,8 +1122,11 @@ my $rc=-1;
               $ValPy[$tno]='os.environ';
            }elsif( $1 eq 'ARGV'  ){
               $ValType[$tno]="X";
-	      # issue 49 $ValPy[$tno]='sys.argv';
-              $ValPy[$tno]='sys.argv[1:]';	# issue 49
+              if($cut < length($source) && substr($source,$cut,1) eq '[') {    # $ARGV[...] is a reference to @ARGV
+	          $ValPy[$tno]='sys.argv[1:]';
+              } else {
+                  $ValPy[$tno]='fileinput.filename()';	# issue 49: Differentiate @ARGV from $ARGV, issue 66
+              }
            }else{
 	     $ValPy[$tno] = escape_keywords($ValPy[$tno]);	# issue 41
              $rc=1; # regular variable
@@ -1028,19 +1212,19 @@ my  $groups_are_present;
       if( $tno>=1 && $ValClass[$tno-1] eq '~' ){
          # explisit or implisit '~m' can't be at position 0; you need the left part
          if( $groups_are_present ){
-            return "($DEFAULT_MATCH:=re.match(".$quoted_regex.','; #  we need to have the result of match to extract groups.	# issue 32
+            return "($DEFAULT_MATCH:=re.search(".$quoted_regex.','; #  we need to have the result of match to extract groups.	# issue 32, 75
          }else{
-           return 're.match('.$quoted_regex.','; #  we do not need the result of match as no groups is present.
+           return 're.search('.$quoted_regex.','; #  we do not need the result of match as no groups is present. # issue 75
          }
       }elsif( $ValClass[$tno-1] eq '0'  ||  $ValClass[$tno-1] eq '(' ){
             # this is calse like || /text/ or while(/#/)
             if( $groups_are_present ){
-                return "($DEFAULT_MATCH:=re.match(".$quoted_regex.",$DEFAULT_VAR))"; #  we need to have the result of match to extract groups. # issue 32
+                return "($DEFAULT_MATCH:=re.search(".$quoted_regex.",$DEFAULT_VAR))"; #  we need to have the result of match to extract groups. # issue 32
          }else{
-           return 're.match('.$quoted_regex.",$DEFAULT_VAR)"; #  we do not need the result of match as no groups is present.	# issue 32
+           return 're.search('.$quoted_regex.",$DEFAULT_VAR)"; #  we do not need the result of match as no groups is present.	# issue 32, 75
          }
       }else{
-         return 're.match('.$quoted_regex.",$DEFAULT_VAR)"; #  we do not need the result of match as no groups is present.	# issue 32
+         return 're.search('.$quoted_regex.",$DEFAULT_VAR)"; #  we do not need the result of match as no groups is present.	# issue 32, 75
       }
    }else{
       # this is a string
@@ -1060,7 +1244,9 @@ sub popup
    pop(@ValPerl);
    pop(@ValPy);
    pop(@ValCom);
-   pop(@ValType);	# issue 37
+   if($#ValType > $#ValClass) {     # issue 37
+       pop(@ValType);	# issue 37
+   }
 }
 
 sub single_quoted_literal
@@ -1080,7 +1266,9 @@ my ($m,$sym);
       $start_line = $.;			# issue 39
       while (1) {			# issue 39
       	# only backlashes are allowed
+        #say STDERR "single_quoted_literal($source, $closing_delim, $offset)";
       	for($m=$offset; $m<=length($source); $m++ ){
+            #say STDERR "sym = $sym";
            $sym=substr($source,$m,1);
 	   # issue 39 last if( $sym eq $closing_delim && substr($source,$m-1,1) ne '\\' );
            if( $sym eq $closing_delim ) {			# issue 39
@@ -1120,6 +1308,7 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
    }
    $close_pos=single_quoted_literal($closing_delim,$offset); # first position after quote
    $quote=substr($source,$offset,$close_pos-1-$offset); # extract literal
+   $quote=remove_escaped_delimiters($closing_delim, $quote);     # issue 51
    $ValPerl[$tno]=$quote; # also will serve as original
    if (length($quote) == 1 ){
       $ValPy[$tno]=escape_quotes($quote,2);
@@ -1129,7 +1318,7 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
    # decompose all scalar variables, if any, Array and hashes are left "as is"
    #
    $k=index($quote,'$');
-   if( $k==-1 ){
+   if( $k==-1 && index($quote, '@') == -1){             # issue 47
       # case when double quotes are used for a simple literal that does not reaure interpolation
       # Python equvalence between single and doble quotes alows some flexibility
       $ValPy[$tno]=escape_quotes($quote,2); # always generate with quotes --same for Python 2 and 3
@@ -1140,6 +1329,9 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
    # This is a parcial implementation of the most common cases
    # Full implementation is possible only in two pass scheme
 my  $outer_delim;
+    $quote = escape_curly_braces($quote);        # issue 51
+    $k=index($quote,'$');                        # issue 51 - recompute in case it moved
+
     if (index($quote,'"')==-1){
        $outer_delim='"'
     }elsif(index($quote,"'")==-1){
@@ -1152,7 +1344,9 @@ my  $outer_delim;
       if( $k > 0 ){
          if( substr($quote,$k-1,1) eq '\\' ){
             # escaped $
-            $k=index($quote,'$',$k+1);
+            # issue 51 $k=index($quote,'$',$k+1);
+            substr($quote,$k-1,1) = '';         # issue 51 - eat the escape
+            $k=index($quote,'$',$k);            # issue 51
             next;
          }else{
             # we have the first literal string  before varible
@@ -1166,37 +1360,89 @@ my  $outer_delim;
       if(substr($quote,1,1) eq '{') {		# issue 43: ${...}
          $end_br = matching_curly_br($quote, 1); # issue 43
          $quote = '$'.substr($quote,2);		# issue 43: eat the '{'. At this point, $end_br points after the '}'
-	 #say STDERR "quote1a=$quote, end_br=$end_br\n";
+         #say STDERR "quote1a=$quote, end_br=$end_br\n";
       }
       decode_scalar($quote,0); #get's us scalar or system var
       #does not matter what type of veriable this is: regular or special variable
       $result.=$ValPy[$tno]; # copy string provided by decode_scalar. ValPy[$tno] changes if Perl contained :: like in $::debug
       $quote=substr($quote,$cut); # cure the nesserary number of symbol determined by decode_scalar.
       $end_br -= $cut;			# issue 43
-      #say STDERR "quote2=$quote, result1=$result\n";
+      #say STDERR "quote2=$quote, result1=$result, end_br=$end_br";
+      my $p_len = length($quote);                       # issue 13, 43
+      $quote =~ s/(?<!\$)\{([A-Za-z_][A-Za-z0-9_]*)\}/\{\'$1\'\}/g;     # issue 13: Remove bare words in $hash{...}
+      my $n_len = length($quote);
+      if($end_br >= 0 && $n_len > $p_len) {             # issue 13, 43  it grew so move the pointer over
+          $end_br += ($n_len - $p_len);                 # issue 13, 43
+      }                                                 # issue 13, 43
+      #say STDERR "quote3=$quote";
       if( $quote=~/^\s*([\[\{].+?[\]\}])/  ){
          #HACK element of the array of hash. Here we cut corners and do not process expressions as index.
          $ind=$1;
          $cut=length($ind);
          $ind =~ tr/$//d;
 	 # issue 53 $ind =~ tr/{}/[]/;
-	 #say "looking for '{' in $ind";
+         #say "looking for '{' in $ind";
 	 for(my $i = 0; $i < length($ind); $i++) {	# issue 53: change hash ref {...} to use .get(...) instead
 	     if(substr($ind,$i,1) eq '{') {		# issue 53
 	         $l = matching_curly_br($ind, $i);	# issue 53
-		 #say "found '{' in $ind at $i, l=$l";
+                 #say "found '{' in $ind at $i, l=$l";
 		 next if($l < 0);			# issue 53
 		 $ind = substr($ind,0,$i).'.get('.substr($ind,$i+1,$l-($i+1)).",'')".substr($ind,$l+1);	# issue 53: splice in the call to get
+                 #say "ind=$ind";
 		 $i = $l+7;				# issue 53: 7 is length('.get') + length(",''")
 	     }
 	 }						# issue 53
          $result.=$ind; # add string Variable part of the string
          $quote=substr($quote,$cut);
          $end_br -= $cut;			# issue 43
+         #say STDERR "quote4=$quote, end_br=$end_br";
       }
+      #say STDERR "quote5=$quote, end_br=$end_br";
       $quote = substr($quote, $end_br) if($end_br > 0);	# issue 43
       $result.='}'; # end of variable
       $k=index($quote,'$'); #next scalar
+   }
+
+   $k=index($quote,'@');                # issue 47
+   while( $k > -1  ){
+      if( $k > 0 ){
+         if( substr($quote,$k-1,1) eq '\\' ){
+            # escaped $
+            # issue 51 $k=index($quote,'$',$k+1);
+            substr($quote,$k-1,1) = '';         # issue 51 - eat the escape
+            $k=index($quote,'@',$k);            # issue 51
+            next;
+         }else{
+            # we have the first literal string  before varible
+            $result.=substr($quote,0,$k); # with or without quotes depending on version.
+         }
+      }
+      $result.='{';  # we always need '{' for f-strings
+      $quote=substr($quote,$k);
+      #say STDERR "quote1=$quote\n";
+      $end_br = -1;				# issue 43
+      if(substr($quote,1,1) eq '{') {		# issue 43: @{...}
+         $end_br = matching_curly_br($quote, 1); # issue 43
+         $quote = '@'.substr($quote,2);		# issue 43: eat the '{'. At this point, $end_br points after the '}'
+         #say STDERR "quote1a=$quote, end_br=$end_br\n";
+      }
+      if($end_br > 0 && substr($quote,0,3) eq '@[%') {  # @{[%hash]}
+          $quote = substr($quote, 2);
+          decode_hash($quote,0);
+          $ValPy[$tno] = 'functools.reduce(lambda x,y:x+y,'.$ValPy[$tno].'.items())';
+          $end_br -= 2;    # 2 to account for the 2 we ate
+          #say STDERR "quote1b=$quote, end_br=$end_br\n";
+      } else {
+          decode_array($quote,0); #get's us scalar or system var
+      }
+      #does not matter what type of veriable this is: regular or special variable
+      $result.="LIST_SEPARATOR.join($ValPy[$tno])"; # copy string provided by decode_array. ValPy[$tno] changes if Perl contained :: like in $::debug
+      $quote=substr($quote,$cut); # cure the nesserary number of symbol determined by decode_array.
+      $end_br -= $cut;			# issue 43
+      #say STDERR "quote2=$quote, result1=$result, end_br=$end_br";
+      $quote = substr($quote, $end_br) if($end_br > 0);	# issue 43
+      $result.='}'; # end of variable
+      $k=index($quote,'@'); #next array
    }
    if( length($quote)>0  ){
        #the last part
@@ -1206,6 +1452,120 @@ my  $outer_delim;
    $ValPy[$tno]=$result;
    return $close_pos;
 }
+
+sub escape_curly_braces                 # issue 51
+# If the string already has {...} in it, replace them with {{...}} for f strings
+# Make sure NOT to replace ${...} and @{...} as they have special meaning
+# Also don't mess with $hash{...} or $arrhash[...]{...} or $hashhash{...}{...}
+{
+    my $str = shift;
+
+    my $in_id = 0;
+    for(my $k = 0; $k < length($str); $k++) {
+        my $c = substr($str,$k,1);
+        if($c eq '$' && substr($str, $k+1) =~ /^(\:?\:?\w+(\:\:\w+)*)/) {
+            $k += length($1);
+            if($k+1 < length($str)) {
+                my $d = substr($str,$k+1,1);
+                $k = matching_curly_br($str,$k+1) if ($d eq '{');
+                $k = matching_square_br($str,$k+1) if ($d eq '[');
+                if($k+1 < length($str)) {
+                    my $d = substr($str,$k+1,1);
+                    $k = matching_curly_br($str,$k+1) if ($d eq '{');
+                    $k = matching_square_br($str,$k+1) if ($d eq '[');
+                }
+            }
+        }
+        if($c eq '{') {
+            if($k == 0 || index('$@', substr($str,$k-1,1)) < 0) {
+                substr($str,$k,0) = '{';
+                $k++;
+            } else {
+                $k = matching_curly_br($str, $k);
+            }
+        } elsif($c eq '}') {
+            substr($str,$k,0) = '}';
+            $k++;
+        }
+    }
+
+    #say STDERR "escape_curly_braces=$str";
+    return $str;
+}
+
+sub remove_escaped_delimiters            # issue 51
+# Given a string and a delimiter, remove all escaped instances of the given delimiter
+{
+    my $delim = shift;
+    my $str = shift;
+
+    if(index('{[(<',$delim)>-1){
+         $delim=~tr/{[(</}])>/;         # Swap it!
+    }
+
+    for(my $k = index($str, "\\"); $k >= 0; $k = index($str, "\\", $k+1)) {
+        if($k+1 < length($str) && substr($str, $k+1, 1) eq $delim) {
+            substr($str, $k, 1) = '';           # change \' to '
+        }
+    }
+    return $str;
+}
+
+sub decode_array                # issue 47
+{
+    my $source = shift;
+
+     if( substr($source,1)=~/^(\:?\:?\w+(\:\:\w+)*)/ ){
+        $arg1=$1;
+        if( $arg1 eq '_' ){
+           $ValPy[$tno]="$PERL_ARG_ARRAY";	# issue 32
+           #$ValType[$tno]="X";
+        }elsif( $arg1 eq 'ARGV'  ){
+                # issue 49 $ValPy[$tno]='sys.argv';
+              $ValPy[$tno]='sys.argv[1:]';	# issue 49
+              #$ValType[$tno]="X";
+        }else{
+           $arg1 = escape_keywords($arg1);		# issue 41
+           #if( $tno>=2 && $ValClass[$tno-2] =~ /[sd'"q]/  && $ValClass[$tno-1] eq '>'  ){
+              #$ValPy[$tno]='len('.$arg1.')'; # scalar context
+              #$ValType[$tno]="X";
+              #}else{
+              $ValPy[$tno]=$arg1;
+              #}
+           $ValPy[$tno]=~tr/:/./s;
+           if( substr($ValPy[$tno],0,1) eq '.' ){
+              $ValPy[$tno]='__main__'.$ValPy[$tno];
+              #$ValType[$tno]="X";
+           }
+        }
+        $cut=length($arg1)+1;
+        #$ValPerl[$tno]=substr($source,$cut);
+        #$ValClass[$tno]='a'; #array
+     }else{
+        $cut=1;
+     }
+}
+
+sub decode_hash                 # issue 47
+{
+    my $source = shift;
+
+     if( substr($source,1)=~/^(\:?\:?[_a-zA-Z]\w*(\:\:[_a-zA-Z]\w*)*)/ ){
+        $cut=length($1)+1;
+        #$ValClass[$tno]='h'; #hash
+        #$ValPerl[$tno]=$1;
+        $ValPy[$tno]=$1;
+        $ValPy[$tno]=~tr/:/./s;
+        $ValPy[$tno] = escape_keywords($ValPy[$tno]);
+        if( substr($ValPy[$tno],0,1) eq '.' ){
+            #$ValCom[$tno]='X';
+           $ValPy[$tno]='__main__'.$ValPy[$tno];
+        }
+     }else{
+       $cut=1;
+     }
+}
+
 #
 # Aug 20, 2020 -- we wilol use the hack -- if there are quotes in the string we will anclose it introple quotes.
 #
@@ -1230,7 +1590,8 @@ my $string=$_[0];
    if( $string =~/\$\w+/ ){
       return substr($string,1); # this case of /$regex/ we return the variable.
    }
-   return escape_quotes($string);
+   # SNOOPYJC return 'r'.escape_quotes($string);
+   return 'r'.escape_quotes($string);   # SNOOPYJC
 }
 sub escape_backslash
 # All special symbols different from the delimiter and \ should be escaped when translating Perl single quoted literal to Python
@@ -1239,7 +1600,8 @@ sub escape_backslash
 my $string=$_[0];
 my $backslash='\\';
 my $result=$string;
-   for( my $i=length($string)-1; $i>=0; $i--  ){
+# issue 51 for( my $i=length($string)-1; $i>=0; $i--  ){
+   for( my $i=length($string)-2; $i>=0; $i--  ){                # issue 51
       if( substr($string,$i,1) eq $backslash ){
          if(index('nrtfbvae',substr($string,$i+1,1))>-1 ){
             substr($result,$i,0)='\\'; # this is a really crazy nuance
@@ -1264,6 +1626,7 @@ my $line='';
       for($i=0; $i<@_;$i++ ){
          Pythonizer::output_line($_[$i]);
       }
+      $PREV_HAD_COLON = (substr($_[-1], -1, 1) eq ':') ? 1 : 0;      # SNOOPYJC
    }elsif( defined($::TrStatus) && $::TrStatus<0 && scalar(@ValPy)>0 ){
       $line=$ValPy[0];
       for( $i=1; $i<@ValPy; $i++ ){
@@ -1285,18 +1648,31 @@ my $line='';
    }elsif( scalar(@PythonCode)>0 ){
 
       $line=$PythonCode[0];
+      if(defined $line && exists $PYTHON_KEYWORD_SET{$line}) {          # SNOOPYJC
+          $line .= ' ';                                                 # SNOOPYJC: space after every keyword
+      }                                                                 # SNOOPYJC
       for( my $i=1; $i<@PythonCode; $i++  ){
          next unless(defined($PythonCode[$i]));
          next if( $PythonCode[$i] eq '' );
          $s=substr($PythonCode[$i],0,1); # the first symbol
-         if( defined($line) && substr($line,-1,1)=~/[\w'"]/ &&  $s =~/[\w'"]/ ){
+         if(exists $PYTHON_KEYWORD_SET{$PythonCode[$i]}) {         # SNOOPYJC: surround keywords with space
+            if( defined($line) && substr($line,-1,1) ne ' ') {
+                $line .= ' ';
+            }
+            $line .= $PythonCode[$i] . ' ';
+        } elsif( defined($line) && substr($line,-1,1)=~/[\w'"]/ &&  $s =~/[\w'"]/ ){
             # space between identifiers and before quotes
             $line.=' '.$PythonCode[$i];
+         } elsif( exists $SpaceBefore{substr($PythonCode[$i],0,2)} && defined($line) && substr($line,-1,1) ne ' ' ) {        # SNOOPYJC
+            $line.=' '.$PythonCode[$i];                         # SNOOPYJC e.g. ...)or => ...) or
+         } elsif( exists $SpaceBoth{$PythonCode[$i]} && defined($line) && substr($line,-1,1) ne ' ' ) {        # SNOOPYJC
+            $line.=' '.$PythonCode[$i].' ';                     # SNOOPYJC e.g. a=b => a = b
          }else{
             #no space befor delimiter
             $line.=$PythonCode[$i];
          }
       } # for
+      $PREV_HAD_COLON = (substr($line, -1, 1) eq ':') ? 1 : 0;      # SNOOPYJC
       if( defined[$ValCom[-1]] && length($ValCom[-1]) > 1  ){
          # single symbol ValCom will be used as additional determinator of the token in pass 0 -- Sept 18, 200 -- NNB
          #that means that you need a new line. bezroun Feb 3, 2020
@@ -1338,13 +1714,24 @@ my ($i,$k);
          $k=$i;
          --$k while($PythonCode[$k] eq $chunk);
          logme('T','The number of generated chunk exceeed 256');
-         logme('T',"First generated chunk is $PythonCode[0] . The last generated chunk befor infinite loop is $PythonCode[$k]");
-         abend("You might need to exclude or simplify the line. Please refer to the user guide as for how to trableshoot this situation");
+         logme('T',"First generated chunk is $PythonCode[0] . The last generated chunk before infinite loop is $PythonCode[$k]");
+         abend("You might need to exclude or simplify the line. Please refer to the user guide as for how to troubleshoot this situation");
       }
       push(@PythonCode,$_[$i]);
    } #for
-   ($::debug>4) && say 'Generated parcial line ',join('',@PythonCode);
+   ($::debug>4) && say 'Generated partial line ',join('',@PythonCode);
 }
+
+sub save_code           # issue 74: save the generated python code so we can insert some new code before it
+{
+    @SavePythonCode = @PythonCode;      # copy the code
+    @PythonCode = ();
+}
+sub restore_code        # issue 74
+{
+    @PythonCode = @SavePythonCode;
+}
+
 sub append
 {
    $TokenStr.=$_[0];
@@ -1370,8 +1757,12 @@ my $pos=shift; # if pos is negative, count from the end of the string
 }
 sub insert
 #inserts before the position $pos
+#issue 74: If the $pos is at the end, it does an append
 {
 my $pos=shift;
+   if($pos == scalar @ValClass) {               # issue 74
+       append($_[0], $_[1], $_[2]);             # issue 74
+   }                                            # issue 74
    if(  $pos>$#ValClass ){
       abend('Insert position $pos is outside upper bound');
    }
@@ -1381,6 +1772,8 @@ my $pos=shift;
    splice(@ValPy,$pos,0,$_[2]);
    if($pos <= $#ValType) {		# issue 37 - sometimes it's not set
    	splice(@ValType,$pos,0,'');
+   } else {
+       $ValType[$pos] = '';
    }
 }
 sub destroy
@@ -1449,6 +1842,29 @@ my $balance=(scalar(@_)>2) ? $_[2] : 0; # case where opening bracket is missing 
      if( $s eq '{' ){
         $balance++;
      }elsif( $s eq '}' ){
+        $balance--;
+        if( $balance==0  ){
+           return $k;
+        }
+     }
+  } # for
+  return $#str;
+} # matching_br
+
+sub matching_square_br			# issue 43
+# Find matching square bracket, aka closing square bracket, if found.
+# Arg1 - the string to scan
+# Arg2 - starting position for scan
+# Arg3 - (optional) -- balance from whichto start (allows to skip opening brace)
+{
+my $str=$_[0];
+my $scan_start=$_[1];
+my $balance=(scalar(@_)>2) ? $_[2] : 0; # case where opening bracket is missing for some reason or was skipped.
+   for( my $k=$scan_start; $k<length($str); $k++ ){
+     $s=substr($str,$k,1);
+     if( $s eq '[' ){
+        $balance++;
+     }elsif( $s eq ']' ){
         $balance--;
         if( $balance==0  ){
            return $k;

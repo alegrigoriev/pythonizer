@@ -1,8 +1,8 @@
 
-# Replacements for perl built-in directory functions
-def opendir(dir):
+def opendir(DIR):
+    """Replacement for perl built-in directory function"""
     try:
-        return [list(os.listdir(dir)), 0]
+        return [list(os.listdir(DIR)), 0]
     except Exception:
         return None    # sys.last_value will be set
 

@@ -1,18 +1,24 @@
 #!/bin/sh
 echo "Running pythonizer tests"
 status=0
+failed=0
+tests=0
+passed=0
 for f in *.pl;
 do
    echo "==================== $f ===================="
+   ((tests++))
    perl $f
    if [ $? -ne 0 ]; then
       echo "$f run with perl FAILED - skipping next steps"
+      ((failed++))
       status=1
       continue
    fi
    ../pythonizer -v 0 $f
    if [ $? -ne 0 ]; then
       echo "$f run with pythonizer FAILED"
+      ((failed++))
       status=1
       continue
    fi
@@ -20,13 +26,15 @@ do
    python $pyf
    if [ $? -ne 0 ]; then
       echo "$pyf run with python FAILED"
+      ((failed++))
       status=1
    fi
+   ((passed++))
 done;
 if [ $status -eq 0 ]; then
-   echo "pythonizer tests PASSED!"
+   echo "pythonizer $tests tests PASSED!"
 else
-   echo "pythonizer tests FAILED!"
+   echo "pythonizer $passed tests PASSED. $failed tests FAILED!"
    exit 1
 fi
 exit 0

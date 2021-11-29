@@ -3,7 +3,7 @@
 use Getopt::Long;
 use Carp::Assert;
 %options = ();
-@ARGV=qw/-d D --maxage 2.5 --cttage 42.2 --debug --inc --inc --num --three 1 2 3 --var 5 6 --arr 0 --arr 1 --arr 2/;
+@ARGV=qw/-d D --maxage 2.5 --cttage 42.2 --debug --inc --inc --num --three 1 2 3 --var 5 6 --arr 0 --arr 1 --arr 2 file1.f file2.fy/;
 GetOptions(\%options,"dir|d:s","maxage:f","cttage=f","debug!","inc+","num:42",'three=i@{3}','var:i@{,}',"arr:i@");
 #print %options;
 assert($options{dir} eq 'D');
@@ -18,6 +18,7 @@ assert(scalar(@three) == 3 && $three[0] == 1 && $three[1] == 2 && $three[2] == 3
 assert(scalar(@var) == 2 && $var[0] == 5 && $var[1] == 6);
 @arr = @{$options{arr}};
 assert(scalar(@arr) == 3 && $arr[0] == 0 && $arr[1] == 1 && $arr[2] == 2);
+assert(scalar(@ARGV) == 2 && $ARGV[0] eq 'file1.f' && $ARGV[1] eq 'file2.fy');
 my $Test=0;
 my $Dev=0;
 my $table='';
@@ -36,4 +37,5 @@ assert($dscHostFromCmdLine eq '');
 assert(!$DEBUG);
 assert($inc == 2);
 assert($num == 42);
+assert(scalar(@ARGV) == 0);
 print "$0 - test passed!\n";
