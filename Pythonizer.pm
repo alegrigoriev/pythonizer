@@ -330,13 +330,35 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          return $line;
       }elsif(  substr($line,0,1) eq '='){
          # POD block
-         output_line('',q['''']);
+         # issue 79 output_line('',q['''']);
+         output_line('',q[''']) if( $PassNo);                # issue 79
+         output_line('',$line,1) if(  $PassNo);              # issue 79
          while($line=<>){
-            last if( $line eq '=cut');
-            output_line('',$line) if(  $PassNo);
+             # issue 79 last if( $line eq '=cut');
+            output_line('',$line,1) if(  $PassNo);  # issue 79
+            if( substr($line,0,4) eq '=cut') {      # issue 79
+                $line = <>;                         # issue 79
+                last;
+            }
          }
-         output_line('',q['''']) if(  $PassNo);
+         # issue 79 output_line('',q['''']) if(  $PassNo);
+         output_line('',q[''']) if(  $PassNo);      # issue 79
+      }elsif( substr($line,0,5) eq 'goto ') {   # SNOOPYJC: strange way to skip some code
+         $line =~ /goto\s+([A-Za-z0-9_]+)/;
+         $label = $1;
+         output_line('',q[''']) if( $PassNo);
+         output_line('',$line,1) if( $PassNo);
+         while($line=<>){
+            output_line('', $line,1) if(  $PassNo);
+            if( $line =~ /^$label:/ ) {
+                $line = <>; 
+                last;
+            }
+         }
+         output_line('',q[''']) if(  $PassNo);
       }
+
+      return $line if(!defined $line);          # issue 79 - gives lots of errors below if we hit EOF
 
       if(  substr($line,-1,1) eq "\r" ){
          chop($line);
@@ -360,7 +382,7 @@ sub output_line
 {
 return if ($PassNo==0); # no output during the first pass
 my $line=(scalar(@_)==0 ) ? $IntactLine : $_[0];
-my $tailcomment=(scalar(@_)==2 ) ? $_[1] : '';
+my $tailcomment=(scalar(@_)>=2 ) ? $_[1] : '';          # SNOOPYJC
 my $indent=' ' x $::TabSize x $CurNest;
 my $flag=( defined($main::TrStatus) && $main::TrStatus < 0 ) ? 'F' : ' ';
 my $len=length($line);
@@ -373,7 +395,9 @@ my $i;
 my $orig_tail_comment = $tailcomment;
 
    if(  $tailcomment){
-       $tailcomment=($tailcomment=~/^\s+(.*)$/ ) ? $indent.$1 : $indent.$tailcomment;
+       if (scalar(@_) < 3) {            # SNOOPYJC
+           $tailcomment=($tailcomment=~/^\s+(.*)$/ ) ? $indent.$1 : $indent.$tailcomment;
+       }
        $tailcomment =~ s/[\r]//g;       # SNOOPYJC - remove CR when run on Windoze
    }
    # Special case of empty line or "pure" comment that needs to be indented
@@ -679,6 +703,8 @@ sub cleanup_imports
     my $eval_referenced = 0;
     my $list_sep_lno = 0;
     my $list_sep_referenced = 0;
+    my $script_start_lno = 0;
+    my $script_start_referenced = 0;
     for my $line (@$line_ref) {
         $lno++;
         if($line =~ /^import /) {
@@ -696,6 +722,8 @@ sub cleanup_imports
             $eval_return_lno = $lno;
         } elsif($line =~ /^LIST_SEPARATOR = /) {
             $list_sep_lno = $lno;
+        } elsif($line =~ /^$SCRIPT_START = /) {
+            $script_start_lno = $lno;   # doesn't count for $import_as_referenced
         } elsif($import_lno) {
             my @found = grep { $line =~ /\b$_\./ } @imports;
             foreach $f (@found) {
@@ -710,6 +738,9 @@ sub cleanup_imports
                 $die_referenced = 1;
             } elsif($line =~ /\b$EVAL_RETURN_EXCEPTION\b/) {
                 $eval_referenced = 1;
+            } elsif($line =~ /\b$SCRIPT_START\b/ || $line =~ /\b_get[ACM]\b/) {
+                $script_start_referenced = 1;
+                $import_as_referenced = 1;      # yes, this references that!
             }
         }
     }
@@ -734,6 +765,9 @@ sub cleanup_imports
         }
         if($list_sep_lno && !$list_sep_referenced) {
             $line_ref->[$list_sep_lno-1] = '';
+        }
+        if($script_start_lno && !$script_start_referenced) {
+            $line_ref->[$script_start_lno-1] = '';
         }
         return 1;
     }
