@@ -1,0 +1,726 @@
+ [Softpano-W317]:  Debug flag is set to 5
+
+
+PYTHONIZER: Fuzzy translator of Python to Perl. Version 0.913 (mtime 211201_0131) Started at 21/12/01 01:54
+
+Logs are at /tmp/Pythonizer/pythonizer.211201_0154.log. Type -h for help.
+=============================================================================================================
+Results of transcription are written to the file  issue_78.py
+=========================================================================================================================
+
+Lexem 0 Current token='c' value='NoTrans!' Tokenstr |c| translated: NoTrans!
+Lexem 1 Current token='i' value='strict' Tokenstr |ci| translated: NoTrans! strict
+Lexem 0 Current token='c' value='NoTrans!' Tokenstr |c| translated: NoTrans!
+Lexem 1 Current token='i' value='warnings' Tokenstr |ci| translated: NoTrans! warnings
+Lexem 2 Current token='"' value=''all'' Tokenstr |ci"| translated: NoTrans! warnings 'all'
+Lexem 0 Current token='c' value='NoTrans!' Tokenstr |c| translated: NoTrans!
+Lexem 1 Current token='i' value='Carp.Assert' Tokenstr |ci| translated: NoTrans! Carp.Assert
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='a' value='lines' Tokenstr |ta| translated:  lines
+Lexem 2 Current token='=' value='=' Tokenstr |ta=| translated:  lines =
+Lexem 3 Current token='(' value='(' Tokenstr |ta=(| translated:  lines = (
+Lexem 4 Current token='"' value=''these lines are going to be'' Tokenstr |ta=("| translated:  lines = ( 'these lines are going to be'
+Lexem 5 Current token=',' value=',' Tokenstr |ta=(",| translated:  lines = ( 'these lines are going to be' ,
+Lexem 6 Current token='"' value=''converted to uppercase words'' Tokenstr |ta=(","| translated:  lines = ( 'these lines are going to be' , 'converted to uppercase words'
+Lexem 7 Current token=',' value=',' Tokenstr |ta=(",",| translated:  lines = ( 'these lines are going to be' , 'converted to uppercase words' ,
+Lexem 8 Current token='"' value='"let's see if it works"' Tokenstr |ta=(",","| translated:  lines = ( 'these lines are going to be' , 'converted to uppercase words' , "let's see if it works"
+Lexem 9 Current token=')' value=')' Tokenstr |ta=(",",")| translated:  lines = ( 'these lines are going to be' , 'converted to uppercase words' , "let's see if it works" )
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='a' value='ulines' Tokenstr |ta| translated:  ulines
+Lexem 2 Current token='=' value='=' Tokenstr |ta=| translated:  ulines =
+Lexem 3 Current token='(' value='(' Tokenstr |ta=(| translated:  ulines = (
+Lexem 4 Current token='"' value=''These Lines Are Going To Be'' Tokenstr |ta=("| translated:  ulines = ( 'These Lines Are Going To Be'
+Lexem 5 Current token=',' value=',' Tokenstr |ta=(",| translated:  ulines = ( 'These Lines Are Going To Be' ,
+Lexem 6 Current token='"' value=''Converted To Uppercase Words'' Tokenstr |ta=(","| translated:  ulines = ( 'These Lines Are Going To Be' , 'Converted To Uppercase Words'
+Lexem 7 Current token=',' value=',' Tokenstr |ta=(",",| translated:  ulines = ( 'These Lines Are Going To Be' , 'Converted To Uppercase Words' ,
+Lexem 8 Current token='"' value='"Let'S See If It Works"' Tokenstr |ta=(",","| translated:  ulines = ( 'These Lines Are Going To Be' , 'Converted To Uppercase Words' , "Let'S See If It Works"
+Lexem 9 Current token=')' value=')' Tokenstr |ta=(",",")| translated:  ulines = ( 'These Lines Are Going To Be' , 'Converted To Uppercase Words' , "Let'S See If It Works" )
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='s' value='fn' Tokenstr |ts| translated:  fn
+Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  fn =
+Lexem 3 Current token='"' value=''test_tmp.tmp'' Tokenstr |ts="| translated:  fn = 'test_tmp.tmp'
+Lexem 0 Current token='f' value='open' Tokenstr |f| translated: open
+Lexem 1 Current token='(' value='(' Tokenstr |f(| translated: open (
+Lexem 2 Current token='s' value='outf' Tokenstr |f(s| translated: open ( outf
+Lexem 3 Current token=',' value=',' Tokenstr |f(s,| translated: open ( outf ,
+Lexem 4 Current token='"' value=''>'' Tokenstr |f(s,"| translated: open ( outf , '>'
+Lexem 5 Current token=',' value=',' Tokenstr |f(s,",| translated: open ( outf , '>' ,
+Lexem 6 Current token='s' value='fn' Tokenstr |f(s,",s| translated: open ( outf , '>' , fn
+Lexem 7 Current token=')' value=')' Tokenstr |f(s,",s)| translated: open ( outf , '>' , fn )
+Lexem 0 Current token='c' value='for ' Tokenstr |c| translated: for 
+Lexem 1 Current token='s' value='line' Tokenstr |cs| translated: for  line
+Lexem 2 Current token='(' value='(' Tokenstr |cs(| translated: for  line (
+Lexem 3 Current token='a' value='lines' Tokenstr |cs(a| translated: for  line ( lines
+Lexem 4 Current token=')' value=')' Tokenstr |cs(a)| translated: for  line ( lines )
+Lexem 0 Current token='f' value='print' Tokenstr |f| translated: print
+Lexem 1 Current token='s' value='outf' Tokenstr |fs| translated: print outf
+Lexem 2 Current token='s' value='line' Tokenstr |fss| translated: print outf line
+Lexem 0 Current token='f' value='.close()' Tokenstr |f| translated: .close()
+Lexem 1 Current token='s' value='outf' Tokenstr |fs| translated: .close() outf
+Lexem 0 Current token='f' value='open' Tokenstr |f| translated: open
+Lexem 1 Current token='(' value='(' Tokenstr |f(| translated: open (
+Lexem 2 Current token='s' value='fh' Tokenstr |f(s| translated: open ( fh
+Lexem 3 Current token=',' value=',' Tokenstr |f(s,| translated: open ( fh ,
+Lexem 4 Current token='"' value=''<'' Tokenstr |f(s,"| translated: open ( fh , '<'
+Lexem 5 Current token=',' value=',' Tokenstr |f(s,",| translated: open ( fh , '<' ,
+Lexem 6 Current token='"' value='f"{fn}"' Tokenstr |f(s,","| translated: open ( fh , '<' , f"{fn}"
+Lexem 7 Current token=')' value=')' Tokenstr |f(s,",")| translated: open ( fh , '<' , f"{fn}" )
+bash_style_or_and_fix(2) is_or=1
+After bash_style_or_and_fix(2): =|c(!(f(s,",")))|=
+Lexem 0 Current token='f' value='raise Die' Tokenstr |f| translated: raise Die
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='a' value='upper' Tokenstr |ta| translated:  upper
+Lexem 2 Current token='=' value='=' Tokenstr |ta=| translated:  upper =
+Lexem 3 Current token='(' value='(' Tokenstr |ta=(| translated:  upper = (
+Lexem 4 Current token=')' value=')' Tokenstr |ta=()| translated:  upper = ( )
+Lexem 0 Current token='c' value='while' Tokenstr |c| translated: while
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: while (
+Lexem 3 Current token='i' value='next(_dia, None)' Tokenstr |Wc(i| translated: with fileinput.input("<fh>",openhook=lambda _,__:fh) as _dia: while ( next(_dia, None)
+Lexem 4 Current token=')' value=')' Tokenstr |Wc(i)| translated: with fileinput.input("<fh>",openhook=lambda _,__:fh) as _dia: while ( next(_dia, None) )
+Lexem 0 Current token='f' value='.rstrip("\n")' Tokenstr |f| translated: .rstrip("\n")
+Lexem 0 Current token='f' value='re.sub(re.compile(r'\b(\D)',re.G|re.E),r'uc \g<1>',_d)' Tokenstr |f| translated: re.sub(re.compile(r'\b(\D)',re.G|re.E),r'uc \g<1>',_d)
+Lexem 0 Current token='f' value='.extend(' Tokenstr |f| translated: .extend(
+Lexem 1 Current token='a' value='upper' Tokenstr |fa| translated: .extend( upper
+Lexem 2 Current token=',' value=',' Tokenstr |fa,| translated: .extend( upper ,
+Lexem 3 Current token='s' value='_d' Tokenstr |fa,s| translated: .extend( upper , _d
+Lexem 0 Current token='f' value='.close()' Tokenstr |f| translated: .close()
+Lexem 1 Current token='s' value='fh' Tokenstr |fs| translated: .close() fh
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='f' value='len' Tokenstr |c(f| translated: assert ( len
+Lexem 3 Current token='(' value='(' Tokenstr |c(f(| translated: assert ( len (
+Lexem 4 Current token='a' value='upper' Tokenstr |c(f(a| translated: assert ( len ( upper
+Lexem 5 Current token=')' value=')' Tokenstr |c(f(a)| translated: assert ( len ( upper )
+Lexem 6 Current token='>' value='==' Tokenstr |c(f(a)>| translated: assert ( len ( upper ) ==
+Lexem 7 Current token='f' value='len' Tokenstr |c(f(a)>f| translated: assert ( len ( upper ) == len
+Lexem 8 Current token='(' value='(' Tokenstr |c(f(a)>f(| translated: assert ( len ( upper ) == len (
+Lexem 9 Current token='a' value='ulines' Tokenstr |c(f(a)>f(a| translated: assert ( len ( upper ) == len ( ulines
+Lexem 10 Current token=')' value=')' Tokenstr |c(f(a)>f(a)| translated: assert ( len ( upper ) == len ( ulines )
+Lexem 11 Current token=')' value=')' Tokenstr |c(f(a)>f(a))| translated: assert ( len ( upper ) == len ( ulines ) )
+Lexem 0 Current token='c' value='for ' Tokenstr |c| translated: for 
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: for  (
+Lexem 2 Current token='s' value='i' Tokenstr |c(s| translated: for  ( i
+Lexem 3 Current token='=' value=':=' Tokenstr |c(s=| translated: for  ( i :=
+Lexem 4 Current token='d' value='0' Tokenstr |c(s=d| translated: for  ( i := 0
+Lexem 5 Current token=';' value=';' Tokenstr |c(s=d;| translated: for  ( i := 0 ;
+Lexem 6 Current token='s' value='i' Tokenstr |c(s=d;s| translated: for  ( i := 0 ; i
+Lexem 7 Current token='>' value='<' Tokenstr |c(s=d;s>| translated: for  ( i := 0 ; i <
+Lexem 8 Current token='f' value='len' Tokenstr |c(s=d;s>f| translated: for  ( i := 0 ; i < len
+Lexem 9 Current token='(' value='(' Tokenstr |c(s=d;s>f(| translated: for  ( i := 0 ; i < len (
+Lexem 10 Current token='a' value='ulines' Tokenstr |c(s=d;s>f(a| translated: for  ( i := 0 ; i < len ( ulines
+Lexem 11 Current token=')' value=')' Tokenstr |c(s=d;s>f(a)| translated: for  ( i := 0 ; i < len ( ulines )
+Lexem 12 Current token=';' value=';' Tokenstr |c(s=d;s>f(a);| translated: for  ( i := 0 ; i < len ( ulines ) ;
+Lexem 13 Current token='s' value='i' Tokenstr |c(s=d;s>f(a);s| translated: for  ( i := 0 ; i < len ( ulines ) ; i
+Lexem 14 Current token='^' value='+=1' Tokenstr |c(s=d;s>f(a);s^| translated: for  ( i := 0 ; i < len ( ulines ) ; i +=1
+Lexem 15 Current token=')' value=')' Tokenstr |c(s=d;s>f(a);s^)| translated: for  ( i := 0 ; i < len ( ulines ) ; i +=1 )
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='upper' Tokenstr |c(s| translated: assert ( upper
+Lexem 3 Current token='(' value='[' Tokenstr |c(s(| translated: assert ( upper [
+Lexem 4 Current token='s' value='i' Tokenstr |c(s(s| translated: assert ( upper [ i
+Lexem 5 Current token=')' value=']' Tokenstr |c(s(s)| translated: assert ( upper [ i ]
+Lexem 6 Current token='>' value='==' Tokenstr |c(s(s)>| translated: assert ( upper [ i ] ==
+Lexem 7 Current token='s' value='ulines' Tokenstr |c(s(s)>s| translated: assert ( upper [ i ] == ulines
+Lexem 8 Current token='(' value='[' Tokenstr |c(s(s)>s(| translated: assert ( upper [ i ] == ulines [
+Lexem 9 Current token='s' value='i' Tokenstr |c(s(s)>s(s| translated: assert ( upper [ i ] == ulines [ i
+Lexem 10 Current token=')' value=']' Tokenstr |c(s(s)>s(s)| translated: assert ( upper [ i ] == ulines [ i ]
+Lexem 11 Current token=')' value=')' Tokenstr |c(s(s)>s(s))| translated: assert ( upper [ i ] == ulines [ i ] )
+Lexem 0 Current token='f' value='print' Tokenstr |f| translated: print
+Lexem 1 Current token='"' value='f"{__file__} - test passed!\n"' Tokenstr |f"| translated: print f"{__file__} - test passed!\n"
+
+DETECTED GLOBAL VARIABLES:
+
+List of local subroutines:
+main
+mkdir: cannot create directory ‘/c/Users/Joe’: File exists
+cp: target 'Orost/Archive/pythonizer' is not a directory
+cp: target 'Orost/Archive/Softpano.pm' is not a directory
+cp: target 'Orost/Archive/Perlscan.pm' is not a directory
+cp: target 'Orost/Archive/Pythonizer.pm' is not a directory
+   1 | 0 |   |#!/usr/bin/python3 -u
+   1 | 0 |   |# Generated by pythonizer 0.913 run by Joe Orost on Wed Dec  1 01:54:56 2021
+   1 | 0 |   |# issue 78 - bad code to translate all words to upper case
+   2 | 0 |   |import sys,os,re,fcntl,math,fileinput,subprocess,inspect,collections.abc,argparse,glob,warnings,inspect,functools
+   2 | 0 |   |import time as tm_py
+   2 | 0 |   |_script_start = tm_py.time()
+   2 | 0 |   |LIST_SEPARATOR = ' '
+   2 | 0 |   |class Die(Exception):
+    pass
+   2 | 0 |   |class EvalReturn(Exception):
+    pass
+   2 | 0 |   |_args = sys.argv[1:]
+Main loop, line=use strict;
+
+
+ === Line 2 Perl source:use strict;===
+
+Lexem 0 Current token='c' value='NoTrans!' Tokenstr |c| translated: NoTrans!
+Lexem 1 Current token='i' value='strict' Tokenstr |ci| translated: NoTrans! strict
+
+Line:    2 TokenStr: =|ci|= @ValPy: NoTrans! strict
+   2 | 0 |   |#SKIPPED: use strict;
+Main loop, line=use warnings "all";
+
+
+ === Line 3 Perl source:use warnings "all";===
+
+Lexem 0 Current token='c' value='NoTrans!' Tokenstr |c| translated: NoTrans!
+Lexem 1 Current token='i' value='warnings' Tokenstr |ci| translated: NoTrans! warnings
+Lexem 2 Current token='"' value=''all'' Tokenstr |ci"| translated: NoTrans! warnings 'all'
+
+Line:    3 TokenStr: =|ci"|= @ValPy: NoTrans! warnings 'all'
+   3 | 0 |   |#SKIPPED: use warnings "all";
+Main loop, line=use Carp::Assert;
+
+
+ === Line 4 Perl source:use Carp::Assert;===
+
+Lexem 0 Current token='c' value='NoTrans!' Tokenstr |c| translated: NoTrans!
+Lexem 1 Current token='i' value='Carp.Assert' Tokenstr |ci| translated: NoTrans! Carp.Assert
+
+Line:    4 TokenStr: =|ci|= @ValPy: NoTrans! Carp.Assert
+   4 | 0 |   |#SKIPPED: use Carp::Assert;
+   5 | 0 |   |
+Main loop, line=my @lines = ('these lines are going to be',
+
+
+ === Line 6 Perl source:my @lines = ('these lines are going to be',===
+
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='a' value='lines' Tokenstr |ta| translated:  lines
+Lexem 2 Current token='=' value='=' Tokenstr |ta=| translated:  lines =
+Lexem 3 Current token='(' value='(' Tokenstr |ta=(| translated:  lines = (
+Lexem 4 Current token='"' value=''these lines are going to be'' Tokenstr |ta=("| translated:  lines = ( 'these lines are going to be'
+Lexem 5 Current token=',' value=',' Tokenstr |ta=(",| translated:  lines = ( 'these lines are going to be' ,
+Lexem 6 Current token='"' value=''converted to uppercase words'' Tokenstr |ta=(","| translated:  lines = ( 'these lines are going to be' , 'converted to uppercase words'
+Lexem 7 Current token=',' value=',' Tokenstr |ta=(",",| translated:  lines = ( 'these lines are going to be' , 'converted to uppercase words' ,
+Lexem 8 Current token='"' value='"let's see if it works"' Tokenstr |ta=(",","| translated:  lines = ( 'these lines are going to be' , 'converted to uppercase words' , "let's see if it works"
+Lexem 9 Current token=')' value=')' Tokenstr |ta=(",",")| translated:  lines = ( 'these lines are going to be' , 'converted to uppercase words' , "let's see if it works" )
+
+Line:    8 TokenStr: =|ta=(",",")|= @ValPy:  lines = ( 'these lines are going to be' , 'converted to uppercase words' , "let's see if it works" )
+Generated partial line lines = [
+Generated partial line lines = ['these lines are going to be'
+Generated partial line lines = ['these lines are going to be',
+Generated partial line lines = ['these lines are going to be','converted to uppercase words'
+Generated partial line lines = ['these lines are going to be','converted to uppercase words',
+Generated partial line lines = ['these lines are going to be','converted to uppercase words',"let's see if it works"
+Generated partial line lines = ['these lines are going to be','converted to uppercase words',"let's see if it works"]
+   8 | 0 |   |lines = ['these lines are going to be','converted to uppercase words',"let's see if it works"]
+                                                                                                      #PL: my @lines = ('these lines are going to be',
+                                                                                                      #PL: 'converted to uppercase words',
+                                                                                                      #PL: "let's see if it works");
+
+Tokens: a=(",",") ValPy: 
+Main loop, line=my @ulines = ('These Lines Are Going To Be',
+
+
+ === Line 9 Perl source:my @ulines = ('These Lines Are Going To Be',===
+
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='a' value='ulines' Tokenstr |ta| translated:  ulines
+Lexem 2 Current token='=' value='=' Tokenstr |ta=| translated:  ulines =
+Lexem 3 Current token='(' value='(' Tokenstr |ta=(| translated:  ulines = (
+Lexem 4 Current token='"' value=''These Lines Are Going To Be'' Tokenstr |ta=("| translated:  ulines = ( 'These Lines Are Going To Be'
+Lexem 5 Current token=',' value=',' Tokenstr |ta=(",| translated:  ulines = ( 'These Lines Are Going To Be' ,
+Lexem 6 Current token='"' value=''Converted To Uppercase Words'' Tokenstr |ta=(","| translated:  ulines = ( 'These Lines Are Going To Be' , 'Converted To Uppercase Words'
+Lexem 7 Current token=',' value=',' Tokenstr |ta=(",",| translated:  ulines = ( 'These Lines Are Going To Be' , 'Converted To Uppercase Words' ,
+Lexem 8 Current token='"' value='"Let'S See If It Works"' Tokenstr |ta=(",","| translated:  ulines = ( 'These Lines Are Going To Be' , 'Converted To Uppercase Words' , "Let'S See If It Works"
+Lexem 9 Current token=')' value=')' Tokenstr |ta=(",",")| translated:  ulines = ( 'These Lines Are Going To Be' , 'Converted To Uppercase Words' , "Let'S See If It Works" )
+
+Line:   11 TokenStr: =|ta=(",",")|= @ValPy:  ulines = ( 'These Lines Are Going To Be' , 'Converted To Uppercase Words' , "Let'S See If It Works" )
+Generated partial line ulines = [
+Generated partial line ulines = ['These Lines Are Going To Be'
+Generated partial line ulines = ['These Lines Are Going To Be',
+Generated partial line ulines = ['These Lines Are Going To Be','Converted To Uppercase Words'
+Generated partial line ulines = ['These Lines Are Going To Be','Converted To Uppercase Words',
+Generated partial line ulines = ['These Lines Are Going To Be','Converted To Uppercase Words',"Let'S See If It Works"
+Generated partial line ulines = ['These Lines Are Going To Be','Converted To Uppercase Words',"Let'S See If It Works"]
+  11 | 0 |   |ulines = ['These Lines Are Going To Be','Converted To Uppercase Words',"Let'S See If It Works"]
+                                                                                                      #PL: my @ulines = ('These Lines Are Going To Be',
+                                                                                                      #PL: 'Converted To Uppercase Words',
+                                                                                                      #PL: "Let'S See If It Works");
+
+Tokens: a=(",",") ValPy: 
+  12 | 0 |   |
+Main loop, line=my $fn = 'test_tmp.tmp';
+
+
+ === Line 13 Perl source:my $fn = 'test_tmp.tmp';===
+
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='s' value='fn' Tokenstr |ts| translated:  fn
+Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  fn =
+Lexem 3 Current token='"' value=''test_tmp.tmp'' Tokenstr |ts="| translated:  fn = 'test_tmp.tmp'
+
+Line:   13 TokenStr: =|ts="|= @ValPy:  fn = 'test_tmp.tmp'
+  13 | 0 |   |fn='test_tmp.tmp'                                                                       #PL: my $fn = 'test_tmp.tmp';
+Main loop, line=open(my $outf, ">", $fn);
+
+
+ === Line 14 Perl source:open(my $outf, ">", $fn);===
+
+Lexem 0 Current token='f' value='open' Tokenstr |f| translated: open
+Lexem 1 Current token='(' value='(' Tokenstr |f(| translated: open (
+Lexem 2 Current token='s' value='outf' Tokenstr |f(s| translated: open ( outf
+Lexem 3 Current token=',' value=',' Tokenstr |f(s,| translated: open ( outf ,
+Lexem 4 Current token='"' value=''>'' Tokenstr |f(s,"| translated: open ( outf , '>'
+Lexem 5 Current token=',' value=',' Tokenstr |f(s,",| translated: open ( outf , '>' ,
+Lexem 6 Current token='s' value='fn' Tokenstr |f(s,",s| translated: open ( outf , '>' , fn
+Lexem 7 Current token=')' value=')' Tokenstr |f(s,",s)| translated: open ( outf , '>' , fn )
+
+Line:   14 TokenStr: =|f(s,",s)|= @ValPy: open ( outf , '>' , fn )
+  14 | 0 |   |try:                                                                                    #PL: open(my $outf, ">", $fn);
+  14 | 1 |   |    outf=open(fn,'w')                                                                   #PL: open(my $outf, ">", $fn);
+  14 | 0 |   |except OSError:                                                                         #PL: open(my $outf, ">", $fn);
+  14 | 1 |   |    pass                                                                                #PL: open(my $outf, ">", $fn);
+Main loop, line=for my $line (@lines) {
+
+
+ === Line 15 Perl source:for my $line (@lines) {===
+
+Lexem 0 Current token='c' value='for ' Tokenstr |c| translated: for 
+Lexem 1 Current token='s' value='line' Tokenstr |cs| translated: for  line
+Lexem 2 Current token='(' value='(' Tokenstr |cs(| translated: for  line (
+Lexem 3 Current token='a' value='lines' Tokenstr |cs(a| translated: for  line ( lines
+Lexem 4 Current token=')' value=')' Tokenstr |cs(a)| translated: for  line ( lines )
+
+Line:   15 TokenStr: =|cs(a)|= @ValPy: for  line ( lines )
+control(0) =|cs(a)|= for $line ( ) { )
+
+Generated partial line for 
+Generated partial line for line in 
+Generated partial line for line in lines
+Generated partial line for line in lines:
+  15 | 0 |   |for line in lines:                                                                      #PL: for my $line (@lines) {
+
+Tokens: cs(a) ValPy: 
+Main loop, line={
+
+
+ === Line 15 Perl source:{===
+
+
+Line:   15 TokenStr: =|{|= @ValPy: {
+Main loop, line=say $outf $line;
+
+
+ === Line 16 Perl source:say $outf $line;===
+
+Lexem 0 Current token='f' value='print' Tokenstr |f| translated: print
+Lexem 1 Current token='s' value='outf' Tokenstr |fs| translated: print outf
+Lexem 2 Current token='s' value='line' Tokenstr |fss| translated: print outf line
+
+Line:   16 TokenStr: =|fss|= @ValPy: print outf line
+Generated partial line print(
+print3(0) handle=outf, k=2, end_pos=2
+
+expression(2, 2, 0) =|fss|= say $outf $line
+
+Generated partial line print(line
+expression returns 3
+Generated partial line print(line,file=outf
+Generated partial line print(line,file=outf)
+  16 | 1 |   |    print(line,file=outf)                                                               #PL: say $outf $line;
+
+Tokens: fss ValPy: 
+Main loop, line=}
+
+
+ === Line 17 Perl source:}===
+
+
+Line:   17 TokenStr: =|}|= @ValPy: }
+Main loop, line=close $outf;
+
+
+ === Line 18 Perl source:close $outf;===
+
+Lexem 0 Current token='f' value='.close()' Tokenstr |f| translated: .close()
+Lexem 1 Current token='s' value='outf' Tokenstr |fs| translated: .close() outf
+
+Line:   18 TokenStr: =|fs|= @ValPy: .close() outf
+Generated partial line outf.close()
+  18 | 0 |   |outf.close()                                                                            #PL: close $outf;
+
+Tokens: fs ValPy: 
+  19 | 0 |   |
+Main loop, line=open(my $fh, "<", "$fn") or die;
+
+
+ === Line 20 Perl source:open(my $fh, "<", "$fn") or die;===
+
+Lexem 0 Current token='f' value='open' Tokenstr |f| translated: open
+Lexem 1 Current token='(' value='(' Tokenstr |f(| translated: open (
+Lexem 2 Current token='s' value='fh' Tokenstr |f(s| translated: open ( fh
+Lexem 3 Current token=',' value=',' Tokenstr |f(s,| translated: open ( fh ,
+Lexem 4 Current token='"' value=''<'' Tokenstr |f(s,"| translated: open ( fh , '<'
+Lexem 5 Current token=',' value=',' Tokenstr |f(s,",| translated: open ( fh , '<' ,
+Lexem 6 Current token='"' value='f"{fn}"' Tokenstr |f(s,","| translated: open ( fh , '<' , f"{fn}"
+Lexem 7 Current token=')' value=')' Tokenstr |f(s,",")| translated: open ( fh , '<' , f"{fn}" )
+bash_style_or_and_fix(2) is_or=1
+After bash_style_or_and_fix(2): =|c(!(f(s,",")))|=
+
+Line:   20 TokenStr: =|c(!(f(s,",")))|= @ValPy: if (  not  ( open ( fh , '<' , f"{fn}" ) ) )
+control(0) =|c(!(f(s,",")))|= if ( not ( open ( $fh , < , $fn ) ) )
+
+control-parens removed, begin=0 start=1 =|c!(f(s,","))|= if not ( open ( $fh , < , $fn ) )
+
+Generated partial line if
+expression(1, 11, 0) =|c!(f(s,","))|= if not ( open ( $fh , < , $fn ) )
+
+Generated partial line if not 
+Generated partial line if not (
+expression(3, 10, 0) =|c!(f(s,","))|= if not ( open ( $fh , < , $fn ) )
+
+function(3, 10) =|c!(f(s,","))|= if not ( open ( $fh , < , $fn ) )
+
+function start=5, end_pos=9, bracketed=1
+Generated partial line if not ((fh:=perl_open(f"{fn}",'r'))
+expression returns 11
+Generated partial line if not ((fh:=perl_open(f"{fn}",'r')))
+expression returns 12
+Generated partial line if not ((fh:=perl_open(f"{fn}",'r'))):
+  20 | 0 |   |if  not ((fh:=perl_open(f"{fn}",'r'))):                                                 #PL: open(my $fh, "<", "$fn") or die;
+
+Tokens: c!(f(s,",")) ValPy: 
+Main loop, line={
+
+
+ === Line 20 Perl source:{===
+
+
+Line:   20 TokenStr: =|{|= @ValPy: {
+Main loop, line=die;
+
+
+ === Line 20 Perl source:die;===
+
+Lexem 0 Current token='f' value='raise Die' Tokenstr |f| translated: raise Die
+
+Line:   20 TokenStr: =|f|= @ValPy: raise Die
+function(0, 0) =|f|= die
+
+function start=1, end_pos=0, bracketed=-1
+Generated partial line raise Die
+Generated partial line raise Die()
+  20 | 1 |   |    raise Die()                                                                         #PL: die;
+
+Tokens: f ValPy: 
+Main loop, line=}
+
+
+ === Line 20 Perl source:}===
+
+
+Line:   20 TokenStr: =|}|= @ValPy: }
+Main loop, line=my @upper = ();
+
+
+ === Line 21 Perl source:my @upper = ();===
+
+Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='a' value='upper' Tokenstr |ta| translated:  upper
+Lexem 2 Current token='=' value='=' Tokenstr |ta=| translated:  upper =
+Lexem 3 Current token='(' value='(' Tokenstr |ta=(| translated:  upper = (
+Lexem 4 Current token=')' value=')' Tokenstr |ta=()| translated:  upper = ( )
+
+Line:   21 TokenStr: =|ta=()|= @ValPy:  upper = ( )
+Generated partial line upper = [
+Generated partial line upper = []
+  21 | 0 |   |upper = []                                                                              #PL: my @upper = ();
+
+Tokens: a=() ValPy: 
+Main loop, line=while (<$fh>)
+
+
+ === Line 22 Perl source:while (<$fh>)===
+
+Lexem 0 Current token='c' value='while' Tokenstr |c| translated: while
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: while (
+Lexem 3 Current token='i' value='next(_dia, None)' Tokenstr |Wc(i| translated: with fileinput.input("<fh>",openhook=lambda _,__:fh) as _dia: while ( next(_dia, None)
+Lexem 4 Current token=')' value=')' Tokenstr |Wc(i)| translated: with fileinput.input("<fh>",openhook=lambda _,__:fh) as _dia: while ( next(_dia, None) )
+
+Line:   23 TokenStr: =|Wc(i)|= @ValPy: with fileinput.input("<fh>",openhook=lambda _,__:fh) as _dia: while ( next(_dia, None) )
+Setting context_manager_nest = 0
+  23 | 0 |   |with fileinput.input("<fh>",openhook=lambda _,__:fh) as _dia:                           #PL: while (<$fh>)
+
+Tokens: Wc(i) ValPy: 
+control(0) =|c(i)|= while ( <$fh> )
+
+control-parens removed, begin=0 start=1 =|ci|= while <$fh>
+
+Generated partial line while (_d:=next(_dia, None))
+Generated partial line while (_d:=next(_dia, None)):
+  23 | 1 |   |    while (_d:=next(_dia, None)):                                                       #PL: while (<$fh>)
+
+Tokens: ci ValPy: 
+Main loop, line={
+
+
+ === Line 23 Perl source:{===
+
+
+Line:   23 TokenStr: =|{|= @ValPy: {
+Main loop, line=chomp;
+
+
+ === Line 24 Perl source:chomp;===
+
+Lexem 0 Current token='f' value='.rstrip("\n")' Tokenstr |f| translated: .rstrip("\n")
+
+Line:   24 TokenStr: =|f|= @ValPy: .rstrip("\n")
+Generated partial line _d=_d.rstrip("\n")
+  24 | 2 |   |        _d=_d.rstrip("\n")                                                              #PL: chomp;
+
+Tokens: f ValPy: 
+Main loop, line=s,\b(\D),uc $1,ge;
+
+
+ === Line 25 Perl source:s,\b(\D),uc $1,ge;===
+
+Lexem 0 Current token='f' value='re.sub(re.compile(r'\b(\D)',re.G|re.E),r'uc \g<1>',_d)' Tokenstr |f| translated: re.sub(re.compile(r'\b(\D)',re.G|re.E),r'uc \g<1>',_d)
+
+Line:   25 TokenStr: =|f|= @ValPy: re.sub(re.compile(r'\b(\D)',re.G|re.E),r'uc \g<1>',_d)
+function(0, 0) =|f|= re
+
+function start=1, end_pos=0, bracketed=-1
+Generated partial line re.sub(re.compile(r'\b(\D)',re.G|re.E),r'uc \g<1>',_d)
+Generated partial line re.sub(re.compile(r'\b(\D)',re.G|re.E),r'uc \g<1>',_d)()
+  25 | 2 |   |        re.sub(re.compile(r'\b(\D)',re.G|re.E),r'uc \g<1>',_d)()                        #PL: s,\b(\D),uc $1,ge;
+
+Tokens: f ValPy: 
+  26 | 2 |   |        #print;
+Main loop, line=push @upper, $_;
+
+
+ === Line 27 Perl source:push @upper, $_;===
+
+Lexem 0 Current token='f' value='.extend(' Tokenstr |f| translated: .extend(
+Lexem 1 Current token='a' value='upper' Tokenstr |fa| translated: .extend( upper
+Lexem 2 Current token=',' value=',' Tokenstr |fa,| translated: .extend( upper ,
+Lexem 3 Current token='s' value='_d' Tokenstr |fa,s| translated: .extend( upper , _d
+
+Line:   27 TokenStr: =|fa,s|= @ValPy: .extend( upper , _d
+function(0, 3) =|fa,s|= push , $_; , $_
+
+function start=1, end_pos=3, bracketed=0
+push s
+
+Generated partial line upper.append(
+expression(3, 3, 0) =|fa,s|= push , $_; , $_
+
+Generated partial line upper.append(_d
+expression returns 4
+Generated partial line upper.append(_d)
+  27 | 2 |   |        upper.append(_d)                                                                #PL: push @upper, $_;
+
+Tokens: fa,s ValPy: 
+Main loop, line=}
+
+
+ === Line 28 Perl source:}===
+
+
+Line:   28 TokenStr: =|}|= @ValPy: }
+Resetting context manager nest
+Main loop, line=close $fh;
+
+
+ === Line 29 Perl source:close $fh;===
+
+Lexem 0 Current token='f' value='.close()' Tokenstr |f| translated: .close()
+Lexem 1 Current token='s' value='fh' Tokenstr |fs| translated: .close() fh
+
+Line:   29 TokenStr: =|fs|= @ValPy: .close() fh
+Generated partial line fh.close()
+  29 | 0 |   |fh.close()                                                                              #PL: close $fh;
+
+Tokens: fs ValPy: 
+  30 | 0 |   |
+Main loop, line=assert(scalar(@upper) == scalar(@ulines));
+
+
+ === Line 31 Perl source:assert(scalar(@upper) == scalar(@ulines));===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='f' value='len' Tokenstr |c(f| translated: assert ( len
+Lexem 3 Current token='(' value='(' Tokenstr |c(f(| translated: assert ( len (
+Lexem 4 Current token='a' value='upper' Tokenstr |c(f(a| translated: assert ( len ( upper
+Lexem 5 Current token=')' value=')' Tokenstr |c(f(a)| translated: assert ( len ( upper )
+Lexem 6 Current token='>' value='==' Tokenstr |c(f(a)>| translated: assert ( len ( upper ) ==
+Lexem 7 Current token='f' value='len' Tokenstr |c(f(a)>f| translated: assert ( len ( upper ) == len
+Lexem 8 Current token='(' value='(' Tokenstr |c(f(a)>f(| translated: assert ( len ( upper ) == len (
+Lexem 9 Current token='a' value='ulines' Tokenstr |c(f(a)>f(a| translated: assert ( len ( upper ) == len ( ulines
+Lexem 10 Current token=')' value=')' Tokenstr |c(f(a)>f(a)| translated: assert ( len ( upper ) == len ( ulines )
+Lexem 11 Current token=')' value=')' Tokenstr |c(f(a)>f(a))| translated: assert ( len ( upper ) == len ( ulines ) )
+
+Line:   31 TokenStr: =|c(f(a)>f(a))|= @ValPy: assert ( len ( upper ) == len ( ulines ) )
+control(0) =|c(f(a)>f(a))|= assert ( scalar ( ) == scalar(@ulines)); ) == scalar ( )); ) )
+
+control-parens removed, begin=0 start=1 =|cf(a)>f(a)|= assert scalar ( ) == scalar(@ulines)); ) == scalar ( )); )
+
+Generated partial line assert
+expression(1, 9, 0) =|cf(a)>f(a)|= assert scalar ( ) == scalar(@ulines)); ) == scalar ( )); )
+
+function(1, 9) =|cf(a)>f(a)|= assert scalar ( ) == scalar(@ulines)); ) == scalar ( )); )
+
+function start=3, end_pos=3, bracketed=1
+Generated partial line assertlen
+Generated partial line assertlen(
+expression(3, 3, 0) =|cf(a)>f(a)|= assert scalar ( ) == scalar(@ulines)); ) == scalar ( )); )
+
+Generated partial line assertlen(upper
+expression returns 4
+Generated partial line assertlen(upper)
+Generated partial line assertlen(upper)==
+function(6, 9) =|cf(a)>f(a)|= assert scalar ( ) == scalar(@ulines)); ) == scalar ( )); )
+
+function start=8, end_pos=8, bracketed=1
+Generated partial line assertlen(upper)==len
+Generated partial line assertlen(upper)==len(
+expression(8, 8, 0) =|cf(a)>f(a)|= assert scalar ( ) == scalar(@ulines)); ) == scalar ( )); )
+
+Generated partial line assertlen(upper)==len(ulines
+expression returns 9
+Generated partial line assertlen(upper)==len(ulines)
+expression returns 10
+  31 | 0 |   |assert len(upper)==len(ulines)                                                          #PL: assert(scalar(@upper) == scalar(@ulines));
+
+Tokens: cf(a)>f(a) ValPy: 
+Main loop, line=for(my $i = 0; $i < scalar(@ulines); $i++) {
+
+
+ === Line 32 Perl source:for(my $i = 0; $i < scalar(@ulines); $i++) {===
+
+Lexem 0 Current token='c' value='for ' Tokenstr |c| translated: for 
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: for  (
+Lexem 2 Current token='s' value='i' Tokenstr |c(s| translated: for  ( i
+Lexem 3 Current token='=' value=':=' Tokenstr |c(s=| translated: for  ( i :=
+Lexem 4 Current token='d' value='0' Tokenstr |c(s=d| translated: for  ( i := 0
+Lexem 5 Current token=';' value=';' Tokenstr |c(s=d;| translated: for  ( i := 0 ;
+Lexem 6 Current token='s' value='i' Tokenstr |c(s=d;s| translated: for  ( i := 0 ; i
+Lexem 7 Current token='>' value='<' Tokenstr |c(s=d;s>| translated: for  ( i := 0 ; i <
+Lexem 8 Current token='f' value='len' Tokenstr |c(s=d;s>f| translated: for  ( i := 0 ; i < len
+Lexem 9 Current token='(' value='(' Tokenstr |c(s=d;s>f(| translated: for  ( i := 0 ; i < len (
+Lexem 10 Current token='a' value='ulines' Tokenstr |c(s=d;s>f(a| translated: for  ( i := 0 ; i < len ( ulines
+Lexem 11 Current token=')' value=')' Tokenstr |c(s=d;s>f(a)| translated: for  ( i := 0 ; i < len ( ulines )
+Lexem 12 Current token=';' value=';' Tokenstr |c(s=d;s>f(a);| translated: for  ( i := 0 ; i < len ( ulines ) ;
+Lexem 13 Current token='s' value='i' Tokenstr |c(s=d;s>f(a);s| translated: for  ( i := 0 ; i < len ( ulines ) ; i
+Lexem 14 Current token='^' value='+=1' Tokenstr |c(s=d;s>f(a);s^| translated: for  ( i := 0 ; i < len ( ulines ) ; i +=1
+Lexem 15 Current token=')' value=')' Tokenstr |c(s=d;s>f(a);s^)| translated: for  ( i := 0 ; i < len ( ulines ) ; i +=1 )
+
+Line:   32 TokenStr: =|c(s=d;s>f(a);s^)|= @ValPy: for  ( i := 0 ; i < len ( ulines ) ; i +=1 )
+handle_incr_decr(0, 14, 15) with ++, pre_op=0, lvalue_start=13, lvalue_end=13 = 9
+control(0) =|c(s=d;s>f(a);((s=s+d)-d))|= for ( $i = 0 ; $i < scalar ( ); $i++) { ) ; ( ( $i = $i + 1 ) - 1 ) )
+
+control-parens removed, begin=0 start=1 =|cs=d;s>f(a);((s=s+d)-d)|= for $i = 0 ; $i < scalar ( ); $i++) { ) ; ( ( $i = $i + 1 ) - 1 )
+
+Generated partial line for 
+Generated partial line for i
+Generated partial line for iin range(
+Generated partial line for iin range(0
+Generated partial line for iin range(0,
+expression(7, 10, 0) =|cs=d;s>f(a);((s=s+d)-d)|= for $i = 0 ; $i < scalar ( ); $i++) { ) ; ( ( $i = $i + 1 ) - 1 )
+
+function(7, 10) =|cs=d;s>f(a);((s=s+d)-d)|= for $i = 0 ; $i < scalar ( ); $i++) { ) ; ( ( $i = $i + 1 ) - 1 )
+
+function start=9, end_pos=9, bracketed=1
+Generated partial line for iin range(0,len
+Generated partial line for iin range(0,len(
+expression(9, 9, 0) =|cs=d;s>f(a);((s=s+d)-d)|= for $i = 0 ; $i < scalar ( ); $i++) { ) ; ( ( $i = $i + 1 ) - 1 )
+
+Generated partial line for iin range(0,len(ulines
+expression returns 10
+Generated partial line for iin range(0,len(ulines)
+expression returns 11
+Generated partial line for iin range(0,len(ulines)):
+  32 | 0 |   |for i in range(0,len(ulines)):                                                          #PL: for(my $i = 0; $i < scalar(@ulines); $i++) {
+
+Tokens: cs=d;s>f(a);((s=s+d)-d) ValPy: 
+Main loop, line={
+
+
+ === Line 32 Perl source:{===
+
+
+Line:   32 TokenStr: =|{|= @ValPy: {
+Main loop, line=assert($upper[$i] eq $ulines[$i]);
+
+
+ === Line 33 Perl source:assert($upper[$i] eq $ulines[$i]);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='upper' Tokenstr |c(s| translated: assert ( upper
+Lexem 3 Current token='(' value='[' Tokenstr |c(s(| translated: assert ( upper [
+Lexem 4 Current token='s' value='i' Tokenstr |c(s(s| translated: assert ( upper [ i
+Lexem 5 Current token=')' value=']' Tokenstr |c(s(s)| translated: assert ( upper [ i ]
+Lexem 6 Current token='>' value='==' Tokenstr |c(s(s)>| translated: assert ( upper [ i ] ==
+Lexem 7 Current token='s' value='ulines' Tokenstr |c(s(s)>s| translated: assert ( upper [ i ] == ulines
+Lexem 8 Current token='(' value='[' Tokenstr |c(s(s)>s(| translated: assert ( upper [ i ] == ulines [
+Lexem 9 Current token='s' value='i' Tokenstr |c(s(s)>s(s| translated: assert ( upper [ i ] == ulines [ i
+Lexem 10 Current token=')' value=']' Tokenstr |c(s(s)>s(s)| translated: assert ( upper [ i ] == ulines [ i ]
+Lexem 11 Current token=')' value=')' Tokenstr |c(s(s)>s(s))| translated: assert ( upper [ i ] == ulines [ i ] )
+
+Line:   33 TokenStr: =|c(s(s)>s(s))|= @ValPy: assert ( upper [ i ] == ulines [ i ] )
+control(0) =|c(s(s)>s(s))|= assert ( $upper [ $i ] eq $ulines [ $i ] )
+
+control-parens removed, begin=0 start=1 =|cs(s)>s(s)|= assert $upper [ $i ] eq $ulines [ $i ]
+
+Generated partial line assert
+expression(1, 9, 0) =|cs(s)>s(s)|= assert $upper [ $i ] eq $ulines [ $i ]
+
+Generated partial line assertupper
+Generated partial line assertupper[
+expression(3, 3, 0) =|cs(s)>s(s)|= assert $upper [ $i ] eq $ulines [ $i ]
+
+Generated partial line assertupper[i
+expression returns 4
+Generated partial line assertupper[i]
+Generated partial line assertupper[i]==
+Generated partial line assertupper[i]==ulines
+Generated partial line assertupper[i]==ulines[
+expression(8, 8, 0) =|cs(s)>s(s)|= assert $upper [ $i ] eq $ulines [ $i ]
+
+Generated partial line assertupper[i]==ulines[i
+expression returns 9
+Generated partial line assertupper[i]==ulines[i]
+expression returns 10
+  33 | 1 |   |    assert upper[i]==ulines[i]                                                          #PL: assert($upper[$i] eq $ulines[$i]);
+
+Tokens: cs(s)>s(s) ValPy: 
+Main loop, line=}
+
+
+ === Line 34 Perl source:}===
+
+
+Line:   34 TokenStr: =|}|= @ValPy: }
+  35 | 0 |   |
+Main loop, line=print "$0 - test passed!\n";
+
+
+ === Line 36 Perl source:print "$0 - test passed!\n";===
+
+Lexem 0 Current token='f' value='print' Tokenstr |f| translated: print
+Lexem 1 Current token='"' value='f"{__file__} - test passed!\n"' Tokenstr |f"| translated: print f"{__file__} - test passed!\n"
+
+Line:   36 TokenStr: =|f"|= @ValPy: print f"{__file__} - test passed!\n"
+Generated partial line print(
+print3(0) handle=, k=1, end_pos=1
+
+expression(1, 1, 0) =|f"|= print $0 - test passed!\n
+
+Generated partial line print(f"{__file__} - test passed!\n"
+expression returns 2
+Generated partial line print(f"{__file__} - test passed!")
+  36 | 0 |   |print(f"{__file__} - test passed!")                                                     #PL: print "$0 - test passed!\n";
+
+Tokens: f" ValPy: 
+ERROR STATISTICS:  W: 1
+
+
+ [Softpano-W317]:  Debug flag is set to 5
+
+

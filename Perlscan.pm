@@ -70,7 +70,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 #
 
    %SPECIAL_VAR=(';'=>'PERL_SUBSCRIPT_SEPARATOR','>'=>'os.geteuid()','<'=>'os.getuid()','('=>'os.getgid()',')'=>'os.getegid()',
-                '?'=>'subprocess_rc',
+                '?'=>"$SUBPROCESS_RC",
 		#SNOOPYJC '!'=>'unix_diag_message',
 		'!'=>'sys.last_value',		# SNOOPYJC
                 # SNOOPYJC '$'=>'process_number',
@@ -146,6 +146,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'tie'=>'NoTrans!',
 		'time'=>'_time',		# SNOOPYJC
                 'uc'=>'.upper()', 'ucfirst'=>'.capitalize()', 'undef'=>'Null', 'unless'=>'if not ', 'unlink'=>'os.unlink',
+                'umask'=>'os.umask',            # SNOOPYJC
                    'unshift'=>'.insert(0,',
 		   'use'=>'NoTrans!', 'until'=>'while not ','untie'=>'NoTrans!',
                  'warn'=>'print',
@@ -232,6 +233,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'values'=>'f',
                   'warn'=>'f', 'when'=>'C', 'while'=>'c',
                   'undef'=>'f', 'unless'=>'c', 'unshift'=>'f','until'=>'c','uc'=>'f', 'ucfirst'=>'f','use'=>'c','untie'=>'f',
+                  'umask'=>'f'                  # SNOOPYJC
                   );
 #
 # one to one translation of digramms. most are directly translatatble.
@@ -390,7 +392,8 @@ my ($l,$m);
          $ValPy[$tno]='[';
          $cut=1;
       # issue 17 }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,k]/ || $ValPerl[$tno-1] eq 'split') ){
-      }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,kc=0!]/ || $ValPerl[$tno-1] eq 'split') ){	# issue 17, 32, 66
+      }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,kc=0!]/ || $ValPerl[$tno-1] eq 'split' ||
+          $ValPerl[$tno-1] eq 'grep') ){	# issue 17, 32, 66, 60
            # typical cases: if(/abc/ ){0}; $a=~/abc/; /abc/; split(/,/,$text)  split /,/,$text REALLY CRAZY STAFF
            $ValClass[$tno]='q';
            $cut=single_quoted_literal($s,1);
@@ -487,9 +490,13 @@ my ($l,$m);
          $cut=length($w);
          $ValClass[$tno]='i';
          $ValPy[$tno]=$w;
+         $ValPy[$tno]=~tr/:/./s;                # SNOOPYJC
          if( exists($keyword_tr{$w}) ){
             $ValPy[$tno]=$keyword_tr{$w};
          }
+         if( exists($CONSTANT_MAP{$w}) ) {      # SNOOPYJC
+             $ValPy[$tno] = $CONSTANT_MAP{$w};  # SNOOPYJC
+         }                                      # SNOOPYJC
          if( exists($TokenType{$w}) ){
             $class=$TokenType{$w};
             if($class eq 'f' && $w eq 'delete' && $tno != 0 && $ValPerl[$tno-1] eq '{') {        # issue delete in a $hash{delete}
@@ -509,9 +516,9 @@ my ($l,$m);
 	       @BufferValType=@ValType;	# issue 37
                @ValClass=@ValCom=@ValPerl=@ValPy=();
 	       @ValType=();	# issue 37
-               $TokenStr = '';  # issue 37
                $tno=0;
                $ValClass[$tno]=$class;
+               $TokenStr = $class;      # issue 37
                $ValPy[$tno]=$w;
                if( exists($keyword_tr{$w}) ){
                   $ValPy[$tno]=$keyword_tr{$w};
@@ -520,7 +527,7 @@ my ($l,$m);
                $ValType[$tno]='P';
             }elsif ( $class eq '0' ){	# and/or
                   $balance=(join('',@ValClass)=~tr/()//);
-                  if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && join('',@ValClass) !~ /^t?[ahs]=/ ){
+                  if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && join('',@ValClass) !~ /^t?[ahs]=/ ){
                      # postfix conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020,Oct 12, 2020 --NNB
                      bash_style_or_and_fix($cut);
                      last;
@@ -603,7 +610,7 @@ my ($l,$m);
                            # explisit s
                             $ValPy[$tno]='re.sub('.$quoted_regex.','.put_regex_in_quotes($arg2).','; #  double quotes neeed to be escaped just in case
                         }else{
-                            $ValPy[$tno]=put_regex_in_quotes("re.match($quoted_regex,$DEFAULT_VAR)");	# issue 32
+                            $ValPy[$tno]="re.sub($quoted_regex".','.put_regex_in_quotes($arg2).",$DEFAULT_VAR)";	# issue 32, 78
                         }
                      }else{
                         # this is string replace operation coded in Perl as regex substitution
@@ -761,6 +768,23 @@ my ($l,$m);
          }else{
            $cut=1;
          }
+      }elsif( $s eq '&' && ($ch = substr($source,1,1)) ne '&' && $ch ne '='){  # old perl for a sub name, not && or &=
+         # the problem here is that &2 can be in i=k&2, so we need to exclude digits from regex  -- NNB Sept 3, 2020
+         if( substr($source,1)=~/^(\:?\:?[_a-zA-Z]\w*(\:\:[_a-zA-Z]\w*)*)/ ){
+            $cut=length($1)+1;
+            $ValClass[$tno]='i'; # bareword
+            $ValPerl[$tno]=$1;
+            $ValPy[$tno]=$1;
+            $ValPy[$tno]=~tr/:/./s;
+	    $ValPy[$tno] = escape_keywords($ValPy[$tno]);
+            if( substr($ValPy[$tno],0,1) eq '.' ){
+               $ValCom[$tno]='X';
+               $ValPy[$tno]='__main__'.$ValPy[$tno];
+            }
+            $Pythonizer::LocalSub{$ValPerl[$tno]} = 1;
+         }else{
+           $cut=1;
+         }
       }elsif( $s eq '[' || $s eq '(' ){
          if($tno != 0 && $ValClass[$tno-1] eq '.' && $ValPerl[$tno-1] eq '->') {	# issue 50
 	    pop @ValClass; pop @ValPerl; pop @ValPy; pop @ValType; # issue 50
@@ -790,7 +814,7 @@ my ($l,$m);
             $ValPerl[$tno]=$digram;
             if($ValClass[$tno] eq '0'){		# && or ||
                $balance=(join('',@ValClass)=~tr/()//);
-               if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c'  && join('',@ValClass) !~ /^t?[ahs]=/ ){
+               if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && join('',@ValClass) !~ /^t?[ahs]=/ ){  # SNOOPYJC
                   # postfix conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020,Oct 12, 2020 --NNB
                   bash_style_or_and_fix(3);
                   last;
@@ -823,10 +847,10 @@ my ($l,$m);
             $cut=1;
          }elsif( $s eq '-'  ){
            $s2=substr($source,1,1);
-           if( ($k=index('fdlzes',$s2))>-1 && substr($source,2,1)=~/\s/  ){
+           if( ($k=index('fdlzesACM',$s2))>-1 && substr($source,2,1)=~/\s/  ){
               $ValClass[$tno]='f';
               $ValPerl[$tno]=$digram;
-              $ValPy[$tno]=('os.path.isfile','os.path.isdir','os.path.islink','not os.path.getsize','os.path.exists','os.path.getsize')[$k];
+              $ValPy[$tno]=('os.path.isfile','os.path.isdir','os.path.islink','not os.path.getsize','os.path.exists','os.path.getsize','_getA', '_getC', '_getM')[$k];          # SNOOPYJC
               $cut=2;
            }else{
               $cut=1; # regular minus operator
@@ -992,6 +1016,9 @@ sub bash_style_or_and_fix
 my $split=$_[0];
    # bash-style conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020 --NNB
    $is_or = ($ValPy[-1] =~ /or/);	# issue 12
+   if($::debug >= 3) {
+       say STDERR "bash_style_or_and_fix($split) is_or=$is_or";
+   }
    Pythonizer::getline('{');
    $delayed_block_closure=1;
    if( $split<length($source) ){
@@ -1011,6 +1038,9 @@ my $split=$_[0];
       append(')',')',')');		# issue 12
    }					# issue 12
    insert(0,'c','if','if');
+   if($::debug >= 3) {
+       say STDERR "After bash_style_or_and_fix($split): =|$TokenStr|=";
+   }
    $cut=0;
 }
 sub decode_scalar
@@ -1334,7 +1364,8 @@ my  $outer_delim;
 
     if (index($quote,'"')==-1){
        $outer_delim='"'
-    }elsif(index($quote,"'")==-1){
+    # issue 53: we use single quotes in our 'bareword' so we can't use them here if we have {...}
+    }elsif(index($quote,"'")==-1 && index($quote,'{')==-1){     # issue 53
       $outer_delim="'";
     }else{
       $outer_delim='"""';
@@ -1406,11 +1437,15 @@ my  $outer_delim;
    $k=index($quote,'@');                # issue 47
    while( $k > -1  ){
       if( $k > 0 ){
-         if( substr($quote,$k-1,1) eq '\\' ){
+         $pc = substr($quote,$k-1,1);
+         if( $pc eq '\\' ){
             # escaped $
             # issue 51 $k=index($quote,'$',$k+1);
             substr($quote,$k-1,1) = '';         # issue 51 - eat the escape
             $k=index($quote,'@',$k);            # issue 51
+            next;
+         }elsif( $pc =~ /\w/ ) {        # Probable email address xyz@abc.com - don't interpret the '@'
+            $k = index($quote,'@',$k+1);
             next;
          }else{
             # we have the first literal string  before varible
@@ -1587,7 +1622,8 @@ sub put_regex_in_quotes
 my $string=$_[0];
    $string =~ s/\$\&/\\g<0>/g;	# issue 11
    $string =~ s/\$(\d)/\\g<$1>/g; # issue 11
-   if( $string =~/\$\w+/ ){
+   # SNOOPYJC if( $string =~/\$\w+/ ){
+   if( $string =~/^\$\w+/ ){    # SNOOPYJC: FIXME: We have to interpolate all $vars inside!! e.g. /DC_$year$month/ gen rf"..."
       return substr($string,1); # this case of /$regex/ we return the variable.
    }
    # SNOOPYJC return 'r'.escape_quotes($string);

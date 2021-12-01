@@ -38,7 +38,7 @@ $line = <$fh>;
 assert($line eq '$var = abc$arr[$ndx] = 1'."\n");
 $line = <$fh>;
 chomp $line;
-assert($line =~ /^[A-Z][a-z][a-z] [A-Z][a-z][a-z] \d+ \d+:\d+:\d+ \d\d\d\d$/);
+assert($line =~ /^[A-Z][a-z][a-z] [A-Z][a-z][a-z]\s+\d+ \d+:\d+:\d+ \d\d\d\d$/);
 $line = <$fh>;
 assert(!$line);
 close $fh;
