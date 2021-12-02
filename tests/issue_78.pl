@@ -22,6 +22,8 @@ my @upper = ();
 while (<$fh>)
 {
     chomp;
+    # With the global modifier, s///g will search and replace all occurrences of the regex in the string (else it only does 1)
+    # The evaluation modifier s///e wraps an eval{...} around the replacement string and the evaluated result is substituted for the matched substring.
     s,\b(\D),uc $1,ge;
     #print;
     push @upper, $_;

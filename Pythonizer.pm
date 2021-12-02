@@ -171,6 +171,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
 my %VarSubMap=(); # matrix  var/sub that allows to create list of global for each sub
    $CurSubName='main';
    $LocalSub{'main'}=1;
+   $VarSubMap{LIST_SEPARATOR}{$CurSubName}='+';         # SNOOPYJC
+   $VarSubMap{OS_ERROR}{$CurSubName}='+';               # SNOOPYJC
    while(1){
       if( scalar(@Perlscan::BufferValClass)==0 ){
          $line=getline(); # get the first meaningful line, skipping commenets and  POD

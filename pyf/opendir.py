@@ -1,10 +1,12 @@
 
 def opendir(DIR):
-    """Replacement for perl built-in directory function"""
+    """Replacement for perl built-in directory functions"""
+    global OS_ERROR
     try:
         return [list(os.listdir(DIR)), 0]
-    except Exception:
-        return None    # sys.last_value will be set
+    except Exception as _e:
+        OS_ERROR = str(_e)
+        return None
 
 def readdir(DIR):
     try:
