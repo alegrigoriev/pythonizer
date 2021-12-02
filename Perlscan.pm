@@ -742,11 +742,24 @@ my ($l,$m);
                   say STDERR "decode_scalar SIG source=$source";
                }
                if($tno == 0) {                  # at start of line like $SIG{ALRM} = sub { die "timeout"; };
-                   # Change to signal.signal(SIG, RHS);
-                   $ValPy[$tno] = 'signal.signal';
-                   $source =~ s/=\s*['"]DEFAULT['"]/=_DFL/;
-                   $source =~ s/=\s*['"]IGNORE['"]/=_IGN/;
-                   $source =~ s/\{([A-Z_]+)\}\s*=\s*(.*);/($1, $2);/;
+                   # Special case for __DIE__ - just set a flag
+                   if($source =~ /\{\s*__DIE__/) {
+                       $ValClass[$tno] = 's';
+                       if($source =~ /Carp::confess/) {
+                           $ValPy[$tno] = $DIE_TRACEBACK;
+                           $source =~ s/\{\s*__DIE__\s*\}\s*=.*$/=1;/;
+                       } else {
+                           $ValPy[$tno] = $DIE_TRACEBACK;
+                           $source =~ s/\{\s*__DIE__\s*\}\s*=.*$/=0;/;
+                       }
+                   } else {
+                       # Change to signal.signal(SIG, RHS);
+                       $ValPy[$tno] = 'signal.signal';
+                       $source =~ s/=\s*['"]DEFAULT['"]/=_DFL/;
+                       $source =~ s/=\s*['"]IGNORE['"]/=_IGN/;
+                       $source =~ s/\{\s*([A-Z_]+)\s*\}\s*=\s*(.*);/($1, $2);/;
+                       $source =~ s/Carp::confess\(\s*\@_\s*\)/traceback::print_stack(\$f)/;
+                   }
                 } else {
                    #$ValPy[$tno] = '_getsignal';        # Not sure to use this or that based on what the user's gonna do!
                    $ValPy[$tno] = 'signal.getsignal';   # This choice allows the user to save/restore the value but not compare it to 'DEFAULT' or 'IGNORE'

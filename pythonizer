@@ -100,6 +100,7 @@
 # 0.912  2021/11/29  SNOOPYJC  Fix coding error in perl_open (encoding)
 # 0.913  2021/11/30  SNOOPYJC  issue 79, addl fix for issue 53, addl fix for foreach, addl fix for ++/--, add constants for open and flock
 # 0.914  2021/12/01  SNOOPYJC  Fix missing _time, add _flock, fix references to $!, issue 81
+# 0.915  2021/12/02  SNOOPYJC  Additional issue 81 fixes, add -A for autodie and -T for traceback, fix issue with globals on sub's with ()
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -127,7 +128,7 @@
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar);
 
-   $VERSION='0.914';
+   $VERSION='0.915';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -139,6 +140,8 @@
               # 3 -- provides tracing during the second pass (useful for users for trableshooing infinite loops)
               # 4 -- stop at Perlscan.pm
               # 5 -- stop at particular error message.
+   $traceback=0;                        # SNOOPYJC
+   $autodie=0;                          # SNOOPYJC
    $HOME=$ENV{'HOME'}; # the directory used for autobackup (only if debug>0)
    if( $^O eq 'cygwin' ){
       # $^O is built-in Perl Variable that contains OS name
@@ -182,14 +185,27 @@
       $line=getline(); # rescan it to have full proper processing
    }
    # issue flock foreach $l ('import sys,os,re','import fileinput,subprocess,inspect'){
-   foreach $l ('import sys,os,re,fcntl,math,fileinput,subprocess,inspect,collections.abc,argparse,glob,warnings,inspect,functools,signal,traceback',    # NOTE: This line gets rewritten!
-	   'import time as tm_py', 
-           "$SCRIPT_START = tm_py.time()",              # SNOOPYJC
-           "LIST_SEPARATOR = ' '",                      # NOTE: When adding global vars here, add them to %VarSubMap in Pythonizer.pm
-           "OS_ERROR = ''",
-           "class Die(Exception):\n    pass", 
-           "class $EVAL_RETURN_EXCEPTION(Exception):\n    pass", 
-           "$PERL_ARG_ARRAY = sys.argv[1:]"){	# issue flock, localtime, 24, 32
+   $Die = "class Die(Exception):
+    pass";
+   $Die = "class Die(Exception):
+    def __init(self, arg):
+        traceback.print_stack()" if($traceback);
+   # NOTE: This import line gets rewritten in Pythonizer.pm!
+   my @headers = ('import sys,os,re,fcntl,math,fileinput,subprocess,inspect,collections.abc,argparse,glob,warnings,inspect,functools,signal,traceback',
+	   'import time as tm_py');             # SNOOPYJC
+   foreach my $g (keys %GLOBALS) {              # SNOOPYJC
+       if($g eq 'TRACEBACK' && $traceback) {
+           push @headers, "$g = 1";
+       } elsif($g eq 'AUTODIE' && $autodie) {
+           push @headers, "$g = 1";
+       } else {
+           push @headers, "$g = $GLOBALS{$g}";
+       }
+   }
+   my @more_headers = ("$Die", "class $EVAL_RETURN_EXCEPTION(Exception):\n    pass", 
+           "$PERL_ARG_ARRAY = sys.argv[1:]");           # SNOOPYJC
+   push @headers, @more_headers;                # SNOOPYJC
+   foreach $l (@headers) {              # SNOOPYJC
        output_line('',$l); # to block reproducing the first source line
    }
    #while($l=<DATA>){
@@ -984,6 +1000,7 @@ sub finish
         gen_statement('except Exception as _e:');               # issue 42
         correct_nest(1,1);                                      # issue 42
         gen_statement('EVAL_ERROR = _exc(_e)');                 # issue 42
+        output_line('traceback.print_exc()') if($traceback);    # SNOOPYJC
         $Pyf{"_exc"} = 1;                       		# issue 42
         correct_nest(-1,-1);                                    # issue 42
         if(exists $eval_stack[-1]->{assignment}) {              # issue 42
@@ -1401,6 +1418,7 @@ sub gen_eval                    # issue 42
         gen_statement('except Exception as _e:');               # issue 42
         correct_nest(1,1);                                      # issue 42
         gen_statement('EVAL_ERROR = _exc(_e)');                 # issue 42
+        output_line('traceback.print_exc()') if($traceback);    # SNOOPYJC
         $Pyf{"_exc"} = 1;                       		# issue 42
         correct_nest(-1,-1);                                    # issue 42
         pop @eval_stack;                                        # issue 42
@@ -2771,7 +2789,7 @@ my($k,$myline, $target,$open_mode,$handle);
      # SNOOPYJC logme('E',"In case of error open function in Python raises the FileNotFoundError exception. The code should be revised");
      $Pyf{"_perl_open"} = 1;	# SNOOPYJC
      # SNOOPYJC gen_chunk("($handle:=open($target,'$open_mode'))");
-     gen_chunk("($handle:=_perl_open($target,'$open_mode'))");	# SNOOPYJC
+     gen_chunk("($handle:=_perl_open($target, '$open_mode'))");	# SNOOPYJC
      # issue paren return $k+1 if ($ValClass[$k+1] eq ')');
      return $k+1 if ($ValPerl[$start+1] eq '(');
      # issue paren return $k+1;
@@ -2780,23 +2798,27 @@ my($k,$myline, $target,$open_mode,$handle);
       $k+=2;
       output_line('try:');
       correct_nest(1,1);
-      output_line("$handle=open($target,'$open_mode')");
+      output_line("$handle=open($target, '$open_mode')");
       correct_nest(-1,-1);
       output_line('except OSError as _e:');     # issue 71
       correct_nest(1,1);
       # issue 71 output_line('sys.exit()');
       output_line('global OS_ERROR') if($CurSub ne 'main');     # issue 71
       output_line('OS_ERROR = str(_e)');      # issue 71 perl does nothing if open fails
+      output_line('traceback.print_exc()') if($traceback);    # SNOOPYJC
+      output_line('raise') if($autodie);      # SNOOPYJC
       correct_nest(-1,-1);
    }elsif( $mode eq 'c' ){
       output_line('try:');
       correct_nest(1,1);
-      output_line("$handle=open($target,'$open_mode')"); # Open statement generation from collected info -- $handle, $target and $open_mode
+      output_line("$handle=open($target, '$open_mode')"); # Open statement generation from collected info -- $handle, $target and $open_mode
       correct_nest(-1,-1);
       gen_chunk('except OSError as _e:');
       correct_nest(1,1);
       output_line('global OS_ERROR') if($CurSub ne 'main');     # issue 71
       output_line('OS_ERROR = str(_e)');      # issue 71
+      output_line('traceback.print_exc()') if($traceback);    # SNOOPYJC
+      output_line('raise') if($autodie);      # SNOOPYJC
       correct_nest(-1,-1);
    } #if ValPerl
    return $#ValClass;
@@ -2841,6 +2863,8 @@ my($k,$myline, $target,$open_mode,$handle);
       correct_nest(1,1);
       output_line('global OS_ERROR') if($CurSub ne 'main');
       output_line('OS_ERROR = str(_e)');
+      output_line('traceback.print_exc()') if($traceback);
+      output_line('raise') if($autodie);
       correct_nest(-1,-1);
    }elsif( $mode eq 'c' ){
       output_line('try:');
@@ -2851,6 +2875,8 @@ my($k,$myline, $target,$open_mode,$handle);
       correct_nest(1,1);
       output_line('global OS_ERROR') if($CurSub ne 'main');
       output_line('OS_ERROR = str(_e)');
+      output_line('traceback.print_exc()') if($traceback);
+      output_line('raise') if($autodie);
       correct_nest(-1,-1);
    } #if ValPerl
    return $#ValClass;
@@ -3027,7 +3053,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos);
               ($ValClass[$cur_pos-1] eq 'f' && $ValPy[$cur_pos-1] eq 'print'))) {       # issue unary +
           $cur_pos++;                           # skip it
       }elsif($ValClass[$cur_pos] eq 'k' && $ValPerl[$cur_pos] eq 'sub') {               # issue 81: sub in expression
-          gen_chunk('lambda:');
+          gen_chunk('lambda s,f:');             # issue 81 - assume it's a signal handler
           my $walrus = 0;
           for(my $i = $cur_pos+1; $i <= $limit; $i++) {
               if($ValClass[$i] eq 'f' && $ValPerl[$i] eq 'die') {
