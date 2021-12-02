@@ -188,3 +188,63 @@ next if not flock(CACHE_LOCK, LOCK_SH|LOCK_NB);
 open(TM_LOCK,">$lockfile") or die("cannot open $lockfile");
 next if not flock(TM_LOCK,LOCK_EX|LOCK_NB);
 
+sub ddd { die "not_timeout"; }
+
+$s = $SIG{ALRM};
+$my_flag = 0;
+$SIG{ALRM} = sub { $my_flag = 1; };
+$SIG{ALRM} = sub { $my_flag++; };
+$SIG{ALRM} = $s;
+$SIG{ALRM} = 'WHO KNOWS';
+$SIG{ALRM} = 'IGNORE';
+$SIG{ALRM} = 'DEFAULT';
+$SIG{ALRM} = sub { die "timeout"; };
+
+$retval = 0;
+
+eval
+{
+ alarm($TIME);
+
+ # to test the failure condition, uncomment the following sleep command...
+
+ #sleep $TIME;
+
+# system ("ssh -l $user $system date >/dev/null 2>/dev/null");
+
+if ($interfacev eq "v1.0a") {
+  $rc = system ("ssh -l $user $system date >/dev/null 2>/dev/null"); 
+}
+else{
+  $rc = system ("echo vdate | ssh -l $user $system >/dev/null 2>/dev/null");
+}
+$retval = 1 if ($rc > 0); 
+
+ alarm(0);
+
+};
+
+if ($@)
+{
+ if ($@ =~ /timeout/)
+ {
+  # timed out
+
+  $retval = 1;
+ }
+ else
+ {
+  alarm (0);
+
+  die;
+ }
+
+}
+
+exit($retval);
+
+sub test_os_error_in_sub
+{
+    open(FH, "<", "file");
+    print "$!\n";
+}

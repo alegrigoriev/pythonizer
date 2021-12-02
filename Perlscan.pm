@@ -72,7 +72,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
    %SPECIAL_VAR=(';'=>'PERL_SUBSCRIPT_SEPARATOR','>'=>'os.geteuid()','<'=>'os.getuid()','('=>'os.getgid()',')'=>'os.getegid()',
                 '?'=>"$SUBPROCESS_RC",
 		#SNOOPYJC '!'=>'unix_diag_message',
-		'!'=>'sys.last_value',		# SNOOPYJC
+		'!'=>'OS_ERROR',		# SNOOPYJC
                 # SNOOPYJC '$'=>'process_number',
 		'$'=>'os.getpid()',             # SNOOPYJC
                 ';'=>'subscript_separator,',
@@ -96,6 +96,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'and'=>'and','or'=>'or','not'=>'not',
                 'x'=>' * ',
                 'abs'=>'abs',                           # SNOOPYJC
+                'alarm'=>'signal.alarm',                # issue 81
 		'assert'=>'assert',			# SNOOPYJC
 		'atan2'=>'math.atan2',			# SNOOPYJC
 		'basename'=>'os.path.basename',		# SNOOPYJC
@@ -115,7 +116,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 # issue 42 'eval'=>'NoTrans!', 
                 'eval'=>'try',  # issue 42
                 'exit'=>'sys.exit','exists'=> 'in', # if  key in dictionary 'exists'=>'.has_key'
-		'flock'=>'fcntl.flock',			# issue flock
+		'flock'=>'_flock',			# issue flock
 		'glob'=>'glob.glob',			# SNOOPYJC
                 'if'=>'if ', 'index'=>'.find',
 		'int'=>'int',				# issue int
@@ -196,6 +197,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'wr'=>'q','qx'=>'q','m'=>'q','s'=>'q','tr'=>'q',
                   'and'=>'0',
 		  'abs'=>'f',	        # SNOOPYJC
+                  'alarm'=>'f',         # issue 81
 		  'assert'=>'c',	# SNOOPYJC
 		  'atan2'=>'f',		# SNOOPYJC
 		  'basename'=>'f',	# SNOOPYJC
@@ -511,7 +513,7 @@ my ($l,$m);
                # Note you can't use both getline buffer and token buffer, so you can't add '{' to the end of if statement
                # You need to jump thoou the hoops in Pythonizer to inject '{' and '}' into the stream
                pop(@ValClass); pop(@ValCom); pop(@ValPerl); pop(@ValPy);
-	       pop(@ValType);	# issue 37
+               # issue 37 - we don't pop ValType since we haven't set it
                @BufferValClass=@ValClass; @BufferValCom=@ValCom; @BufferValPerl=@ValPerl; @BufferValPy=@ValPy;
 	       @BufferValType=@ValType;	# issue 37
                @ValClass=@ValCom=@ValPerl=@ValPy=();
@@ -525,6 +527,23 @@ my ($l,$m);
                }
                $ValPerl[$tno]=$w;
                $ValType[$tno]='P';
+#           } elsif( $class eq 'k' && $w eq 'sub' && $tno > 0 && $Pythonizer::PassNo ){	# issue 81: anonymous sub
+#               $ValClass[$tno] = 'i';
+#               $ValPy[$tno] = $ValPerl[$tno] = "$ANONYMOUS_SUB$.";
+#               #$Pythonizer::LocalSub{$ValPerl[$tno]} = 1;
+#               @BufferValClass=@ValClass; @BufferValCom=@ValCom; @BufferValPerl=@ValPerl; @BufferValPy=@ValPy;
+#	       @BufferValType=@ValType;	# issue 37
+#               @ValClass=@ValCom=@ValPerl=@ValPy=();
+#	       @ValType=();	# issue 37
+#               $tno=0;
+#               $ValClass[$tno]=$class;
+#               $TokenStr = $class;      # issue 37
+#               $ValPy[$tno]=$w;
+#               $ValPerl[$tno]=$w;
+#               $tno++;
+#               $ValClass[$tno] = 'i';
+#               $ValPy[$tno] = $ValPerl[$tno] = "$ANONYMOUS_SUB$.";
+#               #$ValType[$tno]='P';
             }elsif ( $class eq '0' ){	# and/or
                   $balance=(join('',@ValClass)=~tr/()//);
                   if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && join('',@ValClass) !~ /^t?[ahs]=/ ){
@@ -717,6 +736,26 @@ my ($l,$m);
                 $source = '$'.substr($source,2);	# issue 43: eat the '{'. At this point, $end_br points after the '}'
             }
             decode_scalar($source,1);
+            if( $ValPy[$tno] eq 'SIG' ) {              # issue 81 - implement signals
+               $ValClass[$tno] = 'f';
+               if($::debug >= 3) {
+                  say STDERR "decode_scalar SIG source=$source";
+               }
+               if($tno == 0) {                  # at start of line like $SIG{ALRM} = sub { die "timeout"; };
+                   # Change to signal.signal(SIG, RHS);
+                   $ValPy[$tno] = 'signal.signal';
+                   $source =~ s/=\s*['"]DEFAULT['"]/=_DFL/;
+                   $source =~ s/=\s*['"]IGNORE['"]/=_IGN/;
+                   $source =~ s/\{([A-Z_]+)\}\s*=\s*(.*);/($1, $2);/;
+                } else {
+                   #$ValPy[$tno] = '_getsignal';        # Not sure to use this or that based on what the user's gonna do!
+                   $ValPy[$tno] = 'signal.getsignal';   # This choice allows the user to save/restore the value but not compare it to 'DEFAULT' or 'IGNORE'
+                   $source =~ tr/{}/()/;
+                }
+                if($::debug >= 3) {
+                   say STDERR "decode_scalar SIG source=$source";
+                }
+            }
             if($end_br) {                               # issue 43
                 $cut = $end_br;                         # issue 43
                 $ValPerl[$tno] = '{'.$ValPerl[$tno].'}'; # issue 43: remember we had ${var} for where we care (like <${var}>)
@@ -1033,7 +1072,7 @@ my $split=$_[0];
       insert(0,'(','(','(');
    }
    if($is_or) {				# issue 12
-      insert(0,'!','not',' not ');	# issue 12
+      insert(0,'!','not','not');	# issue 12
       insert(0,'(','(','(');		# issue 12
       append(')',')',')');		# issue 12
    }					# issue 12
@@ -1703,6 +1742,8 @@ my $line='';
             $line.=' '.$PythonCode[$i];                         # SNOOPYJC e.g. ...)or => ...) or
          } elsif( exists $SpaceBoth{$PythonCode[$i]} && defined($line) && substr($line,-1,1) ne ' ' ) {        # SNOOPYJC
             $line.=' '.$PythonCode[$i].' ';                     # SNOOPYJC e.g. a=b => a = b
+         } elsif($PythonCode[$i] eq ',') {              # SNOOPYJC  Space after ','
+             $line.=$PythonCode[$i].' ';
          }else{
             #no space befor delimiter
             $line.=$PythonCode[$i];
