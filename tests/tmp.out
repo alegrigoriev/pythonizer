@@ -1,9 +1,9 @@
  [Softpano-W317]:  Debug flag is set to 5
 
 
-PYTHONIZER: Fuzzy translator of Python to Perl. Version 0.914 (mtime 211202_0044) Started at 21/12/02 00:46
+PYTHONIZER: Fuzzy translator of Python to Perl. Version 0.915 (mtime 211202_1245) Started at 21/12/02 12:50
 
-Logs are at /tmp/Pythonizer/pythonizer.211202_0046.log. Type -h for help.
+Logs are at /tmp/Pythonizer/pythonizer.211202_1250.log. Type -h for help.
 =============================================================================================================
 Results of transcription are written to the file  issue_cmt.py
 =========================================================================================================================
@@ -671,6 +671,34 @@ Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
 Lexem 1 Current token='i' value='ddd' Tokenstr |ki| translated: def ddd
 Lexem 0 Current token='f' value='raise Die' Tokenstr |f| translated: raise Die
 Lexem 1 Current token='"' value=''not_timeout'' Tokenstr |f"| translated: raise Die 'not_timeout'
+decode_scalar SIG source=$SIG{ __DIE__ } = sub { Carp::confess( @_ ) };	# SNOOPYJC
+decode_scalar SIG source=$SIG=1;
+Lexem 0 Current token='s' value='TRACEBACK' Tokenstr |s| translated: TRACEBACK
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: TRACEBACK =
+Lexem 2 Current token='d' value='1' Tokenstr |s=d| translated: TRACEBACK = 1
+decode_scalar SIG source=$SIG{ INT } = sub { Carp::confess( @_ ) };		# SNOOPYJC
+decode_scalar SIG source=$SIG(INT, sub { traceback::print_stack($f) });		# SNOOPYJC
+Lexem 0 Current token='f' value='signal.signal' Tokenstr |f| translated: signal.signal
+Lexem 1 Current token='(' value='(' Tokenstr |f(| translated: signal.signal (
+Lexem 2 Current token='i' value='signal.SIGINT' Tokenstr |f(i| translated: signal.signal ( signal.SIGINT
+Lexem 3 Current token=',' value=',' Tokenstr |f(i,| translated: signal.signal ( signal.SIGINT ,
+Lexem 4 Current token='k' value='def' Tokenstr |f(i,k| translated: signal.signal ( signal.SIGINT , def
+Lexem 5 Current token='(' value='[' Tokenstr |f(i,k(| translated: signal.signal ( signal.SIGINT , def [
+Lexem 6 Current token='i' value='traceback.print_stack' Tokenstr |f(i,k(i| translated: signal.signal ( signal.SIGINT , def [ traceback.print_stack
+Lexem 7 Current token='(' value='(' Tokenstr |f(i,k(i(| translated: signal.signal ( signal.SIGINT , def [ traceback.print_stack (
+Lexem 8 Current token='s' value='f' Tokenstr |f(i,k(i(s| translated: signal.signal ( signal.SIGINT , def [ traceback.print_stack ( f
+Lexem 9 Current token=')' value=')' Tokenstr |f(i,k(i(s)| translated: signal.signal ( signal.SIGINT , def [ traceback.print_stack ( f )
+Lexem 10 Current token=')' value=']' Tokenstr |f(i,k(i(s))| translated: signal.signal ( signal.SIGINT , def [ traceback.print_stack ( f ) ]
+Lexem 11 Current token=')' value=')' Tokenstr |f(i,k(i(s)))| translated: signal.signal ( signal.SIGINT , def [ traceback.print_stack ( f ) ] )
+Lexem 0 Current token='s' value='' Tokenstr |s| translated: 
+Lexem 1 Current token='|' value='|' Tokenstr |s|| translated:  |
+Lexem 2 Current token='=' value='=' Tokenstr |s|=| translated:  | =
+Lexem 3 Current token='d' value='1' Tokenstr |s|=d| translated:  | = 1
+decode_scalar SIG source=$SIG{ __DIE__ } = 'DEFAULT';
+decode_scalar SIG source=$SIG=0;
+Lexem 0 Current token='s' value='TRACEBACK' Tokenstr |s| translated: TRACEBACK
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: TRACEBACK =
+Lexem 2 Current token='d' value='0' Tokenstr |s=d| translated: TRACEBACK = 0
 Lexem 0 Current token='s' value='s' Tokenstr |s| translated: s
 Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: s =
 decode_scalar SIG source=$SIG{ALRM};
@@ -829,29 +857,223 @@ Lexem 6 Current token='"' value=''file'' Tokenstr |f(i,","| translated: open ( F
 Lexem 7 Current token=')' value=')' Tokenstr |f(i,",")| translated: open ( FH , '<' , 'file' )
 Lexem 0 Current token='f' value='print' Tokenstr |f| translated: print
 Lexem 1 Current token='"' value='f"{OS_ERROR}\n"' Tokenstr |f"| translated: print f"{OS_ERROR}\n"
+VarSubMap = $VAR1 = {
+  'ZClli' => {
+    'main' => '+'
+  },
+  'estimated_fdmd' => {
+    'main' => '+'
+  },
+  'currentfile' => {
+    'main' => '+'
+  },
+  'f' => {
+    'main' => '+'
+  },
+  'line' => {
+    'main' => '+'
+  },
+  'status' => {
+    'main' => '+'
+  },
+  'routespans' => {
+    'main' => '+'
+  },
+  'in_' => {
+    'process_file' => '+'
+  },
+  'OS_ERROR' => {
+    'main' => '+'
+  },
+  'nfdmd' => {
+    'main' => '+'
+  },
+  'LIST_SEPARATOR' => {
+    'main' => '+'
+  },
+  'fh' => {
+    'main' => '+'
+  },
+  'd' => {
+    'main' => '+'
+  },
+  'rt' => {
+    'main' => '+'
+  },
+  'bidsinterface' => {
+    'main' => '+'
+  },
+  'interfacev' => {
+    'main' => '+'
+  },
+  'file' => {
+    'deletefiles' => '+'
+  },
+  'vrf2rt' => {
+    'main' => '+'
+  },
+  'locdat' => {
+    'make_location_header' => '+'
+  },
+  'hour' => {
+    'main' => '+'
+  },
+  'num' => {
+    'main' => '+'
+  },
+  'estimated_dmd' => {
+    'main' => '+'
+  },
+  'vci' => {
+    'main' => '+'
+  },
+  'action' => {
+    'main' => '+'
+  },
+  'cttmembers' => {
+    'main' => '+'
+  },
+  'otherfile' => {
+    'main' => '+'
+  },
+  'colNames' => {
+    'main' => '+'
+  },
+  'static' => {
+    'main' => '+'
+  },
+  'interfaces' => {
+    'main' => '+'
+  },
+  'rc' => {
+    'main' => '+'
+  },
+  'vrf' => {
+    'main' => '+'
+  },
+  'TRACEBACK' => {
+    'main' => '+'
+  },
+  'p' => {
+    'main' => '+'
+  },
+  'bundles' => {
+    'main' => '+'
+  },
+  '_script_start' => {
+    'main' => '+'
+  },
+  'ip' => {
+    'main' => '+'
+  },
+  'AClli' => {
+    'main' => '+'
+  },
+  'i' => {
+    'process_file' => '+',
+    'main' => '+'
+  },
+  '' => {
+    'main' => '+'
+  },
+  'files' => {
+    'main' => '+'
+  },
+  'retVal' => {
+    'main' => '+'
+  },
+  'TIME' => {
+    'main' => '+'
+  },
+  'dir' => {
+    'main' => '+'
+  },
+  'r' => {
+    'main' => '+'
+  },
+  'vpi' => {
+    'main' => '+'
+  },
+  'dirfiles' => {
+    'test' => '+'
+  },
+  'gravity' => {
+    'main' => '+'
+  },
+  'retval' => {
+    'main' => '+'
+  },
+  'PROPERTIES_ln' => {
+    'main' => '+'
+  },
+  'my_flag' => {
+    'main' => '+'
+  },
+  'key' => {
+    'main' => '+'
+  },
+  'n' => {
+    'main' => '+'
+  },
+  't' => {
+    'deletefiles' => '+'
+  },
+  'commented_timestamp' => {
+    'main' => '+'
+  },
+  'options' => {
+    'main' => '+',
+    'deletefiles' => '+'
+  },
+  'rin' => {
+    'main' => '+'
+  },
+  'name' => {
+    'main' => '+'
+  },
+  's' => {
+    'main' => '+'
+  },
+  'atm' => {
+    'main' => '+'
+  },
+  'circuitRow' => {
+    'main' => '+'
+  },
+  'node' => {
+    'main' => '+'
+  },
+  'AUTODIE' => {
+    'main' => '+'
+  }
+};
+
 
 DETECTED GLOBAL VARIABLES:
-	main: global options
 	deletefiles: global options
+	main: global options
 
 List of local subroutines:
-test deletefiles DCinfo make_location_header main ddd getTmpFileName DCerror test_os_error_in_sub process_file makebytes
+main DCerror test test_os_error_in_sub getTmpFileName make_location_header DCinfo deletefiles ddd makebytes process_file
 mkdir: cannot create directory ‘/c/Users/Joe’: File exists
 cp: target 'Orost/Archive/pythonizer' is not a directory
 cp: target 'Orost/Archive/Softpano.pm' is not a directory
 cp: target 'Orost/Archive/Perlscan.pm' is not a directory
 cp: target 'Orost/Archive/Pythonizer.pm' is not a directory
    1 | 0 |   |#!/usr/bin/python3 -u
-   1 | 0 |   |# Generated by pythonizer 0.914 run by Joe Orost on Thu Dec  2 00:46:15 2021
+   1 | 0 |   |# Generated by pythonizer 0.915 run by Joe Orost on Thu Dec  2 12:50:55 2021
    1 | 0 |   |# lines from cmt that generate syntax errors
    2 | 0 |   |
    3 | 0 |   |import sys,os,re,fcntl,math,fileinput,subprocess,inspect,collections.abc,argparse,glob,warnings,inspect,functools,signal,traceback
    3 | 0 |   |import time as tm_py
+   3 | 0 |   |TRACEBACK = 1
    3 | 0 |   |_script_start = tm_py.time()
+   3 | 0 |   |AUTODIE = 1
    3 | 0 |   |LIST_SEPARATOR = ' '
    3 | 0 |   |OS_ERROR = ''
    3 | 0 |   |class Die(Exception):
-    pass
+    def __init(self, arg):
+        traceback.print_stack()
    3 | 0 |   |class EvalReturn(Exception):
     pass
    3 | 0 |   |_args = sys.argv[1:]
@@ -1020,23 +1242,23 @@ expression(2, 9, 0) =|f(i,k(f";))|= $SIG ( ALRM , sub { die timeout ; } )
 
 Generated partial line signal.signal(signal.SIGALRM
 Generated partial line signal.signal(signal.SIGALRM,
-Generated partial line signal.signal(signal.SIGALRM,lambda:
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:
 expression(6, 7, 0) =|f(i,k(f";))|= $SIG ( ALRM , sub { die timeout ; } )
 
 function(6, 7) =|f(i,k(f";))|= $SIG ( ALRM , sub { die timeout ; } )
 
 function start=7, end_pos=7, bracketed=0
-Generated partial line signal.signal(signal.SIGALRM,lambda:_die
-Generated partial line signal.signal(signal.SIGALRM,lambda:_die(
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:_die
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:_die(
 expression(7, 7, 0) =|f(i,k(f";))|= $SIG ( ALRM , sub { die timeout ; } )
 
-Generated partial line signal.signal(signal.SIGALRM,lambda:_die('timeout'
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:_die('timeout'
 expression returns 8
-Generated partial line signal.signal(signal.SIGALRM,lambda:_die('timeout')
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:_die('timeout')
 expression returns 8
 expression returns 10
-Generated partial line signal.signal(signal.SIGALRM,lambda:_die('timeout'))
-  10 | 0 |   |signal.signal(signal.SIGALRM, lambda:_die('timeout'))                                   #PL: $SIG{ALRM} = sub { die "timeout"; };
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:_die('timeout'))
+  10 | 0 |   |signal.signal(signal.SIGALRM, lambda s,f:_die('timeout'))                               #PL: $SIG{ALRM} = sub { die "timeout"; };
 
 Tokens: f(i,k(f";)) ValPy: 
   11 | 0 |   |
@@ -1063,7 +1285,7 @@ function(2, 5) =|s=f(")|= $s = sprintf ( $_\n )
 
 function start=4, end_pos=4, bracketed=1
 Generated partial line s=f"{_d}\n" % ( 
-Use of uninitialized value within @ValClass in string eq at ../pythonizer line 2897, <> line 12.
+Use of uninitialized value within @ValClass in string eq at ../pythonizer line 2923, <> line 12.
 expression(6, 4, 0) =|s=f(")|= $s = sprintf ( $_\n )
 
 expression returns 5
@@ -1093,7 +1315,7 @@ function(2, 3) =|s=f"|= $s = sprintf $_\n
 
 function start=3, end_pos=3, bracketed=0
 Generated partial line s=f"{_d}\n" % ( 
-Use of uninitialized value within @ValClass in string eq at ../pythonizer line 2897, <> line 13.
+Use of uninitialized value within @ValClass in string eq at ../pythonizer line 2923, <> line 13.
 expression(5, 3, 0) =|s=f"|= $s = sprintf $_\n
 
 Generated partial line s=f"{_d}\n" % ( f"{_d}\n"
@@ -1890,7 +2112,7 @@ expression(0, 5, 0) =|s.i(d)|= $fh -> autoflush ( 1 )
 Generated partial line fh
 Generated partial line fh.
 Generated partial line fh.autoflush
-LINE 44 [main-W3001]:  Function autoflush is neither internal not built-in function. Please check the correspondence of arguments
+LINE 44 [main-W3027]:  Function autoflush is neither internal not built-in function. Please check the correspondence of arguments
 expression(3, 5, 1) =|s.i(d)|= $fh -> autoflush ( 1 )
 
 Generated partial line fh.autoflush(
@@ -2500,7 +2722,7 @@ Main loop, line=}
 
 
 Line:   81 TokenStr: =|}|= @ValPy: }
-LINE 81 [Pythonizer-S517]:  Attempt to set the next nesting level below zero ignored
+LINE 81 [Pythonizer-S535]:  Attempt to set the next nesting level below zero ignored
   82 | 0 |   |
   83 | 0 |   |'''
   83 | 0 |   |goto SKIP_THIS_STUFF;
@@ -3374,7 +3596,7 @@ expression(1, 31, 0) =|cs-i(d,d,d,s,s-d,s-d)>s(")*d*d*d|= if $t - timegm ( 0 , 0
 Generated partial line if t
 Generated partial line if t-
 Generated partial line if t-timegm
-LINE 132 [main-W3001]:  Function timegm is neither internal not built-in function. Please check the correspondence of arguments
+LINE 132 [main-W3027]:  Function timegm is neither internal not built-in function. Please check the correspondence of arguments
 expression(4, 20, 1) =|cs-i(d,d,d,s,s-d,s-d)>s(")*d*d*d|= if $t - timegm ( 0 , 0 , 0 , 3 , 2 - 1 , 1 - 1900 ) > $options { maxage } * 24 * 60 * 60
 
 Generated partial line if t-timegm(
@@ -3742,8 +3964,8 @@ Lexem 2 Current token='.' value=' + ' Tokenstr |ks.| translated: return locdat  
 Line:  152 TokenStr: =|ks.|= @ValPy: return locdat  + 
 fix_string_catentation1 i=2, j=-1
 
-Use of uninitialized value within @ValClass in string eq at ../pythonizer line 836, <> line 152.
-Use of uninitialized value within @ValClass in string eq at ../pythonizer line 836, <> line 152.
+Use of uninitialized value within @ValClass in string eq at ../pythonizer line 852, <> line 152.
+Use of uninitialized value within @ValClass in string eq at ../pythonizer line 852, <> line 152.
 fix_string_catentation2 i=5, j=6
 
 function(0, 8) =|f(ks).f()|= str ( return $locdat ) . str ( )
@@ -3915,12 +4137,12 @@ expression(3, 10, 0) =|c!(f(i,","))|= if not ( open ( LOG , < , myfile.f ) )
 function(3, 10) =|c!(f(i,","))|= if not ( open ( LOG , < , myfile.f ) )
 
 function start=5, end_pos=9, bracketed=1
-Generated partial line ifnot((LOG:=_perl_open('myfile.f','r'))
+Generated partial line ifnot((LOG:=_perl_open('myfile.f', 'r'))
 expression returns 11
-Generated partial line ifnot((LOG:=_perl_open('myfile.f','r')))
+Generated partial line ifnot((LOG:=_perl_open('myfile.f', 'r')))
 expression returns 12
-Generated partial line ifnot((LOG:=_perl_open('myfile.f','r'))):
- 172 | 1 |   |    if not ((LOG:=_perl_open('myfile.f','r'))):                                         #PL: open(LOG, '<', 'myfile.f') or die("Can't open myfile.f");
+Generated partial line ifnot((LOG:=_perl_open('myfile.f', 'r'))):
+ 172 | 1 |   |    if not ((LOG:=_perl_open('myfile.f', 'r'))):                                        #PL: open(LOG, '<', 'myfile.f') or die("Can't open myfile.f");
 
 Tokens: c!(f(i,",")) ValPy: 
 Main loop, line={
@@ -4022,7 +4244,7 @@ expression(2, 5, -1) =|i(s=i()|= do { $fileName = POSIX::tmpnam ( )
 Generated partial line ([fileName
 Generated partial line ([fileName=
 Generated partial line ([fileName=POSIX.tmpnam
-LINE 177 [main-W3001]:  Function POSIX.tmpnam is neither internal not built-in function. Please check the correspondence of arguments
+LINE 177 [main-W3027]:  Function POSIX.tmpnam is neither internal not built-in function. Please check the correspondence of arguments
 expression(5, 6, 1) =|i(s=i()|= do { $fileName = POSIX::tmpnam ( )
 
 Generated partial line ([fileName=POSIX.tmpnam(
@@ -4104,7 +4326,7 @@ Generated partial line while not fh:=
 Generated partial line while not fh:=IO.File
 Generated partial line while not fh:=IO.File.
 Generated partial line while not fh:=IO.File.new
-LINE 178 [main-W3001]:  Function new is neither internal not built-in function. Please check the correspondence of arguments
+LINE 178 [main-W3027]:  Function new is neither internal not built-in function. Please check the correspondence of arguments
 expression(6, 14, 1) =|cs=i.i(s,i|i|i)|= until $fh = IO::File -> new ( $fileName , O_RDWR | O_CREAT | O_EXCL )
 
 Generated partial line while not fh:=IO.File.new(
@@ -4170,9 +4392,11 @@ Lexem 7 Current token=')' value=')' Tokenstr |c!f(i,")| translated: if  not open
 
 Line:  185 TokenStr: =|c!f(i,")|= @ValPy: if  not open ( CACHE_LOCK , f"<{cachelock}" )
  185 | 0 |   |try:                                                                                    #PL: next if not open(CACHE_LOCK,"<$cachelock");
- 185 | 1 |   |    CACHE_LOCK=open(f"{cachelock}",'r')                                                 #PL: next if not open(CACHE_LOCK,"<$cachelock");
+ 185 | 1 |   |    CACHE_LOCK=open(f"{cachelock}", 'r')                                                #PL: next if not open(CACHE_LOCK,"<$cachelock");
 Generated partial line except OSError as _e:
  185 | 1 |   |    OS_ERROR = str(_e)                                                                  #PL: next if not open(CACHE_LOCK,"<$cachelock");
+ 185 | 1 |   |    traceback.print_exc()                                                               #PL: next if not open(CACHE_LOCK,"<$cachelock");
+ 185 | 1 |   |    raise                                                                               #PL: next if not open(CACHE_LOCK,"<$cachelock");
  185 | 0 |   |except OSError as _e:                                                                   #PL: next if not open(CACHE_LOCK,"<$cachelock");
 
 Tokens: c(!f(i,")) ValPy: 
@@ -4265,12 +4489,12 @@ expression(3, 8, 0) =|c!(f(i,"))|= if not ( open ( TM_LOCK , >$lockfile ) )
 function(3, 8) =|c!(f(i,"))|= if not ( open ( TM_LOCK , >$lockfile ) )
 
 function start=5, end_pos=7, bracketed=1
-Generated partial line ifnot((TM_LOCK:=_perl_open(f"{lockfile}",'w'))
+Generated partial line ifnot((TM_LOCK:=_perl_open(f"{lockfile}", 'w'))
 expression returns 9
-Generated partial line ifnot((TM_LOCK:=_perl_open(f"{lockfile}",'w')))
+Generated partial line ifnot((TM_LOCK:=_perl_open(f"{lockfile}", 'w')))
 expression returns 10
-Generated partial line ifnot((TM_LOCK:=_perl_open(f"{lockfile}",'w'))):
- 188 | 0 |   |if not ((TM_LOCK:=_perl_open(f"{lockfile}",'w'))):                                      #PL: open(TM_LOCK,">$lockfile") or die("cannot open $lockfile");
+Generated partial line ifnot((TM_LOCK:=_perl_open(f"{lockfile}", 'w'))):
+ 188 | 0 |   |if not ((TM_LOCK:=_perl_open(f"{lockfile}", 'w'))):                                     #PL: open(TM_LOCK,">$lockfile") or die("cannot open $lockfile");
 
 Tokens: c!(f(i,")) ValPy: 
 Main loop, line={
@@ -4416,10 +4640,132 @@ Main loop, line=}
 
 Line:  191 TokenStr: =|}|= @ValPy: }
  192 | 0 |   |
+Main loop, line=$SIG{ __DIE__ } = sub { Carp::confess( @_ ) };	# SNOOPYJC
+
+
+ === Line 193 Perl source:$SIG{ __DIE__ } = sub { Carp::confess( @_ ) };	# SNOOPYJC===
+
+decode_scalar SIG source=$SIG{ __DIE__ } = sub { Carp::confess( @_ ) };	# SNOOPYJC
+decode_scalar SIG source=$SIG=1;
+Lexem 0 Current token='s' value='TRACEBACK' Tokenstr |s| translated: TRACEBACK
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: TRACEBACK =
+Lexem 2 Current token='d' value='1' Tokenstr |s=d| translated: TRACEBACK = 1
+
+Line:  193 TokenStr: =|s=d|= @ValPy: TRACEBACK = 1
+assignment(0, 2) =|s=d|= $SIG = 1
+
+Generated partial line TRACEBACK
+Generated partial line TRACEBACK=
+assign, ValClass[limit] = d, ValPy=1, ValPerl=1
+
+Generated partial line TRACEBACK=1
+ 193 | 0 |   |TRACEBACK = 1                                                                           #PL: $SIG{ __DIE__ } = sub { Carp::confess( @_ ) };	# SNOOPYJC
+
+Tokens: s=d ValPy: 
+Main loop, line=$SIG{ INT } = sub { Carp::confess( @_ ) };		# SNOOPYJC
+
+
+ === Line 194 Perl source:$SIG{ INT } = sub { Carp::confess( @_ ) };		# SNOOPYJC===
+
+decode_scalar SIG source=$SIG{ INT } = sub { Carp::confess( @_ ) };		# SNOOPYJC
+decode_scalar SIG source=$SIG(INT, sub { traceback::print_stack($f) });		# SNOOPYJC
+Lexem 0 Current token='f' value='signal.signal' Tokenstr |f| translated: signal.signal
+Lexem 1 Current token='(' value='(' Tokenstr |f(| translated: signal.signal (
+Lexem 2 Current token='i' value='signal.SIGINT' Tokenstr |f(i| translated: signal.signal ( signal.SIGINT
+Lexem 3 Current token=',' value=',' Tokenstr |f(i,| translated: signal.signal ( signal.SIGINT ,
+Lexem 4 Current token='k' value='def' Tokenstr |f(i,k| translated: signal.signal ( signal.SIGINT , def
+Lexem 5 Current token='(' value='[' Tokenstr |f(i,k(| translated: signal.signal ( signal.SIGINT , def [
+Lexem 6 Current token='i' value='traceback.print_stack' Tokenstr |f(i,k(i| translated: signal.signal ( signal.SIGINT , def [ traceback.print_stack
+Lexem 7 Current token='(' value='(' Tokenstr |f(i,k(i(| translated: signal.signal ( signal.SIGINT , def [ traceback.print_stack (
+Lexem 8 Current token='s' value='f' Tokenstr |f(i,k(i(s| translated: signal.signal ( signal.SIGINT , def [ traceback.print_stack ( f
+Lexem 9 Current token=')' value=')' Tokenstr |f(i,k(i(s)| translated: signal.signal ( signal.SIGINT , def [ traceback.print_stack ( f )
+Lexem 10 Current token=')' value=']' Tokenstr |f(i,k(i(s))| translated: signal.signal ( signal.SIGINT , def [ traceback.print_stack ( f ) ]
+Lexem 11 Current token=')' value=')' Tokenstr |f(i,k(i(s)))| translated: signal.signal ( signal.SIGINT , def [ traceback.print_stack ( f ) ] )
+
+Line:  194 TokenStr: =|f(i,k(i(s)))|= @ValPy: signal.signal ( signal.SIGINT , def [ traceback.print_stack ( f ) ] )
+function(0, 11) =|f(i,k(i(s)))|= $SIG ( INT , sub { traceback::print_stack ( $f ) } )
+
+function start=2, end_pos=10, bracketed=1
+Generated partial line signal.signal
+Generated partial line signal.signal(
+expression(2, 10, 0) =|f(i,k(i(s)))|= $SIG ( INT , sub { traceback::print_stack ( $f ) } )
+
+Generated partial line signal.signal(signal.SIGINT
+Generated partial line signal.signal(signal.SIGINT,
+Generated partial line signal.signal(signal.SIGINT,lambda s,f:
+expression(6, 9, 0) =|f(i,k(i(s)))|= $SIG ( INT , sub { traceback::print_stack ( $f ) } )
+
+Generated partial line signal.signal(signal.SIGINT,lambda s,f:traceback.print_stack
+LINE 194 [main-W3027]:  Function traceback.print_stack is neither internal not built-in function. Please check the correspondence of arguments
+expression(7, 9, 1) =|f(i,k(i(s)))|= $SIG ( INT , sub { traceback::print_stack ( $f ) } )
+
+Generated partial line signal.signal(signal.SIGINT,lambda s,f:traceback.print_stack(
+expression(8, 8, 0) =|f(i,k(i(s)))|= $SIG ( INT , sub { traceback::print_stack ( $f ) } )
+
+Generated partial line signal.signal(signal.SIGINT,lambda s,f:traceback.print_stack(f
+expression returns 9
+Generated partial line signal.signal(signal.SIGINT,lambda s,f:traceback.print_stack(f)
+expression returns 10
+expression returns 10
+expression returns 11
+Generated partial line signal.signal(signal.SIGINT,lambda s,f:traceback.print_stack(f))
+ 194 | 0 |   |signal.signal(signal.SIGINT, lambda s,f:traceback.print_stack(f)) # SNOOPYJC
+                                                                                                      #PL: $SIG{ INT } = sub { Carp::confess( @_ ) };
+
+Tokens: f(i,k(i(s))) ValPy: 
+Main loop, line=$| = 1;                                              # SNOOPYJC - unbuffer STDOUT
+
+
+ === Line 195 Perl source:$| = 1;                                              # SNOOPYJC - unbuffer STDOUT===
+
+Lexem 0 Current token='s' value='' Tokenstr |s| translated: 
+Lexem 1 Current token='|' value='|' Tokenstr |s|| translated:  |
+Lexem 2 Current token='=' value='=' Tokenstr |s|=| translated:  | =
+Lexem 3 Current token='d' value='1' Tokenstr |s|=d| translated:  | = 1
+
+Line:  195 TokenStr: =|s|=d|= @ValPy:  | = 1
+assignment(0, 3) =|s|=d|= $ | = 1
+
+expression(0, 1, 0) =|s|=d|= $ | = 1
+
+Generated partial line 
+Generated partial line |
+expression returns 2
+Generated partial line |=
+assign, ValClass[limit] = d, ValPy=1, ValPerl=1
+
+Generated partial line |=1
+ 195 | 0 |   || = 1 # SNOOPYJC - unbuffer STDOUT
+                                                                                                      #PL: $| = 1;
+
+Tokens: s|=d ValPy: 
+Main loop, line=$SIG{ __DIE__ } = 'DEFAULT';
+
+
+ === Line 196 Perl source:$SIG{ __DIE__ } = 'DEFAULT';===
+
+decode_scalar SIG source=$SIG{ __DIE__ } = 'DEFAULT';
+decode_scalar SIG source=$SIG=0;
+Lexem 0 Current token='s' value='TRACEBACK' Tokenstr |s| translated: TRACEBACK
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: TRACEBACK =
+Lexem 2 Current token='d' value='0' Tokenstr |s=d| translated: TRACEBACK = 0
+
+Line:  196 TokenStr: =|s=d|= @ValPy: TRACEBACK = 0
+assignment(0, 2) =|s=d|= $SIG = 0
+
+Generated partial line TRACEBACK
+Generated partial line TRACEBACK=
+assign, ValClass[limit] = d, ValPy=0, ValPerl=0
+
+Generated partial line TRACEBACK=0
+ 196 | 0 |   |TRACEBACK = 0                                                                           #PL: $SIG{ __DIE__ } = 'DEFAULT';
+
+Tokens: s=d ValPy: 
+ 197 | 0 |   |
 Main loop, line=$s = $SIG{ALRM};
 
 
- === Line 193 Perl source:$s = $SIG{ALRM};===
+ === Line 198 Perl source:$s = $SIG{ALRM};===
 
 Lexem 0 Current token='s' value='s' Tokenstr |s| translated: s
 Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: s =
@@ -4430,7 +4776,7 @@ Lexem 3 Current token='(' value='(' Tokenstr |s=f(| translated: s = signal.getsi
 Lexem 4 Current token='i' value='signal.SIGALRM' Tokenstr |s=f(i| translated: s = signal.getsignal ( signal.SIGALRM
 Lexem 5 Current token=')' value=')' Tokenstr |s=f(i)| translated: s = signal.getsignal ( signal.SIGALRM )
 
-Line:  193 TokenStr: =|s=f(i)|= @ValPy: s = signal.getsignal ( signal.SIGALRM )
+Line:  198 TokenStr: =|s=f(i)|= @ValPy: s = signal.getsignal ( signal.SIGALRM )
 assignment(0, 5) =|s=f(i)|= $s = $SIG ( ALRM )
 
 Generated partial line s
@@ -4448,19 +4794,19 @@ Generated partial line s=signal.getsignal(signal.SIGALRM
 expression returns 5
 Generated partial line s=signal.getsignal(signal.SIGALRM)
 expression returns 6
- 193 | 0 |   |s = signal.getsignal(signal.SIGALRM)                                                    #PL: $s = $SIG{ALRM};
+ 198 | 0 |   |s = signal.getsignal(signal.SIGALRM)                                                    #PL: $s = $SIG{ALRM};
 
 Tokens: s=f(i) ValPy: 
 Main loop, line=$my_flag = 0;
 
 
- === Line 194 Perl source:$my_flag = 0;===
+ === Line 199 Perl source:$my_flag = 0;===
 
 Lexem 0 Current token='s' value='my_flag' Tokenstr |s| translated: my_flag
 Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: my_flag =
 Lexem 2 Current token='d' value='0' Tokenstr |s=d| translated: my_flag = 0
 
-Line:  194 TokenStr: =|s=d|= @ValPy: my_flag = 0
+Line:  199 TokenStr: =|s=d|= @ValPy: my_flag = 0
 assignment(0, 2) =|s=d|= $my_flag = 0
 
 Generated partial line my_flag
@@ -4468,13 +4814,13 @@ Generated partial line my_flag=
 assign, ValClass[limit] = d, ValPy=0, ValPerl=0
 
 Generated partial line my_flag=0
- 194 | 0 |   |my_flag = 0                                                                             #PL: $my_flag = 0;
+ 199 | 0 |   |my_flag = 0                                                                             #PL: $my_flag = 0;
 
 Tokens: s=d ValPy: 
 Main loop, line=$SIG{ALRM} = sub { $my_flag = 1; };
 
 
- === Line 195 Perl source:$SIG{ALRM} = sub { $my_flag = 1; };===
+ === Line 200 Perl source:$SIG{ALRM} = sub { $my_flag = 1; };===
 
 decode_scalar SIG source=$SIG{ALRM} = sub { $my_flag = 1; };
 decode_scalar SIG source=$SIG(ALRM, sub { $my_flag = 1; });
@@ -4491,7 +4837,7 @@ Lexem 9 Current token=';' value=';' Tokenstr |f(i,k(s=d;| translated: signal.sig
 Lexem 10 Current token=')' value=']' Tokenstr |f(i,k(s=d;)| translated: signal.signal ( signal.SIGALRM , def [ my_flag = 1 ; ]
 Lexem 11 Current token=')' value=')' Tokenstr |f(i,k(s=d;))| translated: signal.signal ( signal.SIGALRM , def [ my_flag = 1 ; ] )
 
-Line:  195 TokenStr: =|f(i,k(s=d;))|= @ValPy: signal.signal ( signal.SIGALRM , def [ my_flag = 1 ; ] )
+Line:  200 TokenStr: =|f(i,k(s=d;))|= @ValPy: signal.signal ( signal.SIGALRM , def [ my_flag = 1 ; ] )
 function(0, 11) =|f(i,k(s=d;))|= $SIG ( ALRM , sub { $my_flag = 1 ; } )
 
 function start=2, end_pos=10, bracketed=1
@@ -4501,24 +4847,24 @@ expression(2, 10, 0) =|f(i,k(s=d;))|= $SIG ( ALRM , sub { $my_flag = 1 ; } )
 
 Generated partial line signal.signal(signal.SIGALRM
 Generated partial line signal.signal(signal.SIGALRM,
-Generated partial line signal.signal(signal.SIGALRM,lambda:
-Generated partial line signal.signal(signal.SIGALRM,lambda:(
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(
 expression(6, 8, 0) =|f(i,k(s=d;))|= $SIG ( ALRM , sub { $my_flag = 1 ; } )
 
-Generated partial line signal.signal(signal.SIGALRM,lambda:(my_flag
-Generated partial line signal.signal(signal.SIGALRM,lambda:(my_flag:=
-Generated partial line signal.signal(signal.SIGALRM,lambda:(my_flag:=1
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(my_flag
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(my_flag:=
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(my_flag:=1
 expression returns 9
-Generated partial line signal.signal(signal.SIGALRM,lambda:(my_flag:=1)
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(my_flag:=1)
 expression returns 11
-Generated partial line signal.signal(signal.SIGALRM,lambda:(my_flag:=1))
- 195 | 0 |   |signal.signal(signal.SIGALRM, lambda:(my_flag:=1))                                      #PL: $SIG{ALRM} = sub { $my_flag = 1; };
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(my_flag:=1))
+ 200 | 0 |   |signal.signal(signal.SIGALRM, lambda s,f:(my_flag:=1))                                  #PL: $SIG{ALRM} = sub { $my_flag = 1; };
 
 Tokens: f(i,k(s=d;)) ValPy: 
 Main loop, line=$SIG{ALRM} = sub { $my_flag++; };
 
 
- === Line 196 Perl source:$SIG{ALRM} = sub { $my_flag++; };===
+ === Line 201 Perl source:$SIG{ALRM} = sub { $my_flag++; };===
 
 decode_scalar SIG source=$SIG{ALRM} = sub { $my_flag++; };
 decode_scalar SIG source=$SIG(ALRM, sub { $my_flag++; });
@@ -4534,7 +4880,7 @@ Lexem 8 Current token=';' value=';' Tokenstr |f(i,k(s^;| translated: signal.sign
 Lexem 9 Current token=')' value=']' Tokenstr |f(i,k(s^;)| translated: signal.signal ( signal.SIGALRM , def [ my_flag +=1 ; ]
 Lexem 10 Current token=')' value=')' Tokenstr |f(i,k(s^;))| translated: signal.signal ( signal.SIGALRM , def [ my_flag +=1 ; ] )
 
-Line:  196 TokenStr: =|f(i,k(s^;))|= @ValPy: signal.signal ( signal.SIGALRM , def [ my_flag +=1 ; ] )
+Line:  201 TokenStr: =|f(i,k(s^;))|= @ValPy: signal.signal ( signal.SIGALRM , def [ my_flag +=1 ; ] )
 handle_incr_decr(0, 7, 10) with ++, pre_op=0, lvalue_start=6, lvalue_end=6 = 9
 function(0, 19) =|f(i,k(((s=s+d)-d);))|= $SIG ( ALRM , sub { ( ( $my_flag = $my_flag + 1 ) - 1 ) ; } )
 
@@ -4545,38 +4891,38 @@ expression(2, 18, 0) =|f(i,k(((s=s+d)-d);))|= $SIG ( ALRM , sub { ( ( $my_flag =
 
 Generated partial line signal.signal(signal.SIGALRM
 Generated partial line signal.signal(signal.SIGALRM,
-Generated partial line signal.signal(signal.SIGALRM,lambda:
-Generated partial line signal.signal(signal.SIGALRM,lambda:(
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(
 expression(6, 16, 0) =|f(i,k(((s=s+d)-d);))|= $SIG ( ALRM , sub { ( ( $my_flag = $my_flag + 1 ) - 1 ) ; } )
 
-Generated partial line signal.signal(signal.SIGALRM,lambda:((
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:((
 expression(7, 15, 0) =|f(i,k(((s=s+d)-d);))|= $SIG ( ALRM , sub { ( ( $my_flag = $my_flag + 1 ) - 1 ) ; } )
 
-Generated partial line signal.signal(signal.SIGALRM,lambda:(((
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(((
 expression(8, 12, 0) =|f(i,k(((s=s+d)-d);))|= $SIG ( ALRM , sub { ( ( $my_flag = $my_flag + 1 ) - 1 ) ; } )
 
-Generated partial line signal.signal(signal.SIGALRM,lambda:(((my_flag
-Generated partial line signal.signal(signal.SIGALRM,lambda:(((my_flag:=
-Generated partial line signal.signal(signal.SIGALRM,lambda:(((my_flag:=my_flag
-Generated partial line signal.signal(signal.SIGALRM,lambda:(((my_flag:=my_flag+
-Generated partial line signal.signal(signal.SIGALRM,lambda:(((my_flag:=my_flag+1
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(((my_flag
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(((my_flag:=
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(((my_flag:=my_flag
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(((my_flag:=my_flag+
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(((my_flag:=my_flag+1
 expression returns 13
-Generated partial line signal.signal(signal.SIGALRM,lambda:(((my_flag:=my_flag+1)
-Generated partial line signal.signal(signal.SIGALRM,lambda:(((my_flag:=my_flag+1)-
-Generated partial line signal.signal(signal.SIGALRM,lambda:(((my_flag:=my_flag+1)-1
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(((my_flag:=my_flag+1)
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(((my_flag:=my_flag+1)-
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(((my_flag:=my_flag+1)-1
 expression returns 16
-Generated partial line signal.signal(signal.SIGALRM,lambda:(((my_flag:=my_flag+1)-1)
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(((my_flag:=my_flag+1)-1)
 expression returns 17
-Generated partial line signal.signal(signal.SIGALRM,lambda:(((my_flag:=my_flag+1)-1))
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(((my_flag:=my_flag+1)-1))
 expression returns 19
-Generated partial line signal.signal(signal.SIGALRM,lambda:(((my_flag:=my_flag+1)-1)))
- 196 | 0 |   |signal.signal(signal.SIGALRM, lambda:(((my_flag:=my_flag+1)-1)))                        #PL: $SIG{ALRM} = sub { $my_flag++; };
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:(((my_flag:=my_flag+1)-1)))
+ 201 | 0 |   |signal.signal(signal.SIGALRM, lambda s,f:(((my_flag:=my_flag+1)-1)))                    #PL: $SIG{ALRM} = sub { $my_flag++; };
 
 Tokens: f(i,k(((s=s+d)-d);)) ValPy: 
 Main loop, line=$SIG{ALRM} = $s;
 
 
- === Line 197 Perl source:$SIG{ALRM} = $s;===
+ === Line 202 Perl source:$SIG{ALRM} = $s;===
 
 decode_scalar SIG source=$SIG{ALRM} = $s;
 decode_scalar SIG source=$SIG(ALRM, $s);
@@ -4587,7 +4933,7 @@ Lexem 3 Current token=',' value=',' Tokenstr |f(i,| translated: signal.signal ( 
 Lexem 4 Current token='s' value='s' Tokenstr |f(i,s| translated: signal.signal ( signal.SIGALRM , s
 Lexem 5 Current token=')' value=')' Tokenstr |f(i,s)| translated: signal.signal ( signal.SIGALRM , s )
 
-Line:  197 TokenStr: =|f(i,s)|= @ValPy: signal.signal ( signal.SIGALRM , s )
+Line:  202 TokenStr: =|f(i,s)|= @ValPy: signal.signal ( signal.SIGALRM , s )
 function(0, 5) =|f(i,s)|= $SIG ( ALRM , $s )
 
 function start=2, end_pos=4, bracketed=1
@@ -4600,13 +4946,13 @@ Generated partial line signal.signal(signal.SIGALRM,
 Generated partial line signal.signal(signal.SIGALRM,s
 expression returns 5
 Generated partial line signal.signal(signal.SIGALRM,s)
- 197 | 0 |   |signal.signal(signal.SIGALRM, s)                                                        #PL: $SIG{ALRM} = $s;
+ 202 | 0 |   |signal.signal(signal.SIGALRM, s)                                                        #PL: $SIG{ALRM} = $s;
 
 Tokens: f(i,s) ValPy: 
 Main loop, line=$SIG{ALRM} = 'WHO KNOWS';
 
 
- === Line 198 Perl source:$SIG{ALRM} = 'WHO KNOWS';===
+ === Line 203 Perl source:$SIG{ALRM} = 'WHO KNOWS';===
 
 decode_scalar SIG source=$SIG{ALRM} = 'WHO KNOWS';
 decode_scalar SIG source=$SIG(ALRM, 'WHO KNOWS');
@@ -4617,7 +4963,7 @@ Lexem 3 Current token=',' value=',' Tokenstr |f(i,| translated: signal.signal ( 
 Lexem 4 Current token='"' value=''WHO KNOWS'' Tokenstr |f(i,"| translated: signal.signal ( signal.SIGALRM , 'WHO KNOWS'
 Lexem 5 Current token=')' value=')' Tokenstr |f(i,")| translated: signal.signal ( signal.SIGALRM , 'WHO KNOWS' )
 
-Line:  198 TokenStr: =|f(i,")|= @ValPy: signal.signal ( signal.SIGALRM , 'WHO KNOWS' )
+Line:  203 TokenStr: =|f(i,")|= @ValPy: signal.signal ( signal.SIGALRM , 'WHO KNOWS' )
 function(0, 5) =|f(i,")|= $SIG ( ALRM , WHO KNOWS )
 
 function start=2, end_pos=4, bracketed=1
@@ -4630,13 +4976,13 @@ Generated partial line signal.signal(signal.SIGALRM,
 Generated partial line signal.signal(signal.SIGALRM,'WHO KNOWS'
 expression returns 5
 Generated partial line signal.signal(signal.SIGALRM,'WHO KNOWS')
- 198 | 0 |   |signal.signal(signal.SIGALRM, 'WHO KNOWS')                                              #PL: $SIG{ALRM} = 'WHO KNOWS';
+ 203 | 0 |   |signal.signal(signal.SIGALRM, 'WHO KNOWS')                                              #PL: $SIG{ALRM} = 'WHO KNOWS';
 
 Tokens: f(i,") ValPy: 
 Main loop, line=$SIG{ALRM} = 'IGNORE';
 
 
- === Line 199 Perl source:$SIG{ALRM} = 'IGNORE';===
+ === Line 204 Perl source:$SIG{ALRM} = 'IGNORE';===
 
 decode_scalar SIG source=$SIG{ALRM} = 'IGNORE';
 decode_scalar SIG source=$SIG(ALRM, _IGN);
@@ -4647,7 +4993,7 @@ Lexem 3 Current token=',' value=',' Tokenstr |f(i,| translated: signal.signal ( 
 Lexem 4 Current token='i' value='signal.SIG_IGN' Tokenstr |f(i,i| translated: signal.signal ( signal.SIGALRM , signal.SIG_IGN
 Lexem 5 Current token=')' value=')' Tokenstr |f(i,i)| translated: signal.signal ( signal.SIGALRM , signal.SIG_IGN )
 
-Line:  199 TokenStr: =|f(i,i)|= @ValPy: signal.signal ( signal.SIGALRM , signal.SIG_IGN )
+Line:  204 TokenStr: =|f(i,i)|= @ValPy: signal.signal ( signal.SIGALRM , signal.SIG_IGN )
 function(0, 5) =|f(i,i)|= $SIG ( ALRM , _IGN )
 
 function start=2, end_pos=4, bracketed=1
@@ -4660,13 +5006,13 @@ Generated partial line signal.signal(signal.SIGALRM,
 Generated partial line signal.signal(signal.SIGALRM,signal.SIG_IGN
 expression returns 5
 Generated partial line signal.signal(signal.SIGALRM,signal.SIG_IGN)
- 199 | 0 |   |signal.signal(signal.SIGALRM, signal.SIG_IGN)                                           #PL: $SIG{ALRM} = 'IGNORE';
+ 204 | 0 |   |signal.signal(signal.SIGALRM, signal.SIG_IGN)                                           #PL: $SIG{ALRM} = 'IGNORE';
 
 Tokens: f(i,i) ValPy: 
 Main loop, line=$SIG{ALRM} = 'DEFAULT';
 
 
- === Line 200 Perl source:$SIG{ALRM} = 'DEFAULT';===
+ === Line 205 Perl source:$SIG{ALRM} = 'DEFAULT';===
 
 decode_scalar SIG source=$SIG{ALRM} = 'DEFAULT';
 decode_scalar SIG source=$SIG(ALRM, _DFL);
@@ -4677,7 +5023,7 @@ Lexem 3 Current token=',' value=',' Tokenstr |f(i,| translated: signal.signal ( 
 Lexem 4 Current token='i' value='signal.SIG_DFL' Tokenstr |f(i,i| translated: signal.signal ( signal.SIGALRM , signal.SIG_DFL
 Lexem 5 Current token=')' value=')' Tokenstr |f(i,i)| translated: signal.signal ( signal.SIGALRM , signal.SIG_DFL )
 
-Line:  200 TokenStr: =|f(i,i)|= @ValPy: signal.signal ( signal.SIGALRM , signal.SIG_DFL )
+Line:  205 TokenStr: =|f(i,i)|= @ValPy: signal.signal ( signal.SIGALRM , signal.SIG_DFL )
 function(0, 5) =|f(i,i)|= $SIG ( ALRM , _DFL )
 
 function start=2, end_pos=4, bracketed=1
@@ -4690,13 +5036,13 @@ Generated partial line signal.signal(signal.SIGALRM,
 Generated partial line signal.signal(signal.SIGALRM,signal.SIG_DFL
 expression returns 5
 Generated partial line signal.signal(signal.SIGALRM,signal.SIG_DFL)
- 200 | 0 |   |signal.signal(signal.SIGALRM, signal.SIG_DFL)                                           #PL: $SIG{ALRM} = 'DEFAULT';
+ 205 | 0 |   |signal.signal(signal.SIGALRM, signal.SIG_DFL)                                           #PL: $SIG{ALRM} = 'DEFAULT';
 
 Tokens: f(i,i) ValPy: 
 Main loop, line=$SIG{ALRM} = sub { die "timeout"; };
 
 
- === Line 201 Perl source:$SIG{ALRM} = sub { die "timeout"; };===
+ === Line 206 Perl source:$SIG{ALRM} = sub { die "timeout"; };===
 
 decode_scalar SIG source=$SIG{ALRM} = sub { die "timeout"; };
 decode_scalar SIG source=$SIG(ALRM, sub { die "timeout"; });
@@ -4712,7 +5058,7 @@ Lexem 8 Current token=';' value=';' Tokenstr |f(i,k(f";| translated: signal.sign
 Lexem 9 Current token=')' value=']' Tokenstr |f(i,k(f";)| translated: signal.signal ( signal.SIGALRM , def [ raise Die 'timeout' ; ]
 Lexem 10 Current token=')' value=')' Tokenstr |f(i,k(f";))| translated: signal.signal ( signal.SIGALRM , def [ raise Die 'timeout' ; ] )
 
-Line:  201 TokenStr: =|f(i,k(f";))|= @ValPy: signal.signal ( signal.SIGALRM , def [ raise Die 'timeout' ; ] )
+Line:  206 TokenStr: =|f(i,k(f";))|= @ValPy: signal.signal ( signal.SIGALRM , def [ raise Die 'timeout' ; ] )
 function(0, 10) =|f(i,k(f";))|= $SIG ( ALRM , sub { die timeout ; } )
 
 function start=2, end_pos=9, bracketed=1
@@ -4722,36 +5068,36 @@ expression(2, 9, 0) =|f(i,k(f";))|= $SIG ( ALRM , sub { die timeout ; } )
 
 Generated partial line signal.signal(signal.SIGALRM
 Generated partial line signal.signal(signal.SIGALRM,
-Generated partial line signal.signal(signal.SIGALRM,lambda:
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:
 expression(6, 7, 0) =|f(i,k(f";))|= $SIG ( ALRM , sub { die timeout ; } )
 
 function(6, 7) =|f(i,k(f";))|= $SIG ( ALRM , sub { die timeout ; } )
 
 function start=7, end_pos=7, bracketed=0
-Generated partial line signal.signal(signal.SIGALRM,lambda:_die
-Generated partial line signal.signal(signal.SIGALRM,lambda:_die(
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:_die
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:_die(
 expression(7, 7, 0) =|f(i,k(f";))|= $SIG ( ALRM , sub { die timeout ; } )
 
-Generated partial line signal.signal(signal.SIGALRM,lambda:_die('timeout'
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:_die('timeout'
 expression returns 8
-Generated partial line signal.signal(signal.SIGALRM,lambda:_die('timeout')
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:_die('timeout')
 expression returns 8
 expression returns 10
-Generated partial line signal.signal(signal.SIGALRM,lambda:_die('timeout'))
- 201 | 0 |   |signal.signal(signal.SIGALRM, lambda:_die('timeout'))                                   #PL: $SIG{ALRM} = sub { die "timeout"; };
+Generated partial line signal.signal(signal.SIGALRM,lambda s,f:_die('timeout'))
+ 206 | 0 |   |signal.signal(signal.SIGALRM, lambda s,f:_die('timeout'))                               #PL: $SIG{ALRM} = sub { die "timeout"; };
 
 Tokens: f(i,k(f";)) ValPy: 
- 202 | 0 |   |
+ 207 | 0 |   |
 Main loop, line=$retval = 0;
 
 
- === Line 203 Perl source:$retval = 0;===
+ === Line 208 Perl source:$retval = 0;===
 
 Lexem 0 Current token='s' value='retval' Tokenstr |s| translated: retval
 Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: retval =
 Lexem 2 Current token='d' value='0' Tokenstr |s=d| translated: retval = 0
 
-Line:  203 TokenStr: =|s=d|= @ValPy: retval = 0
+Line:  208 TokenStr: =|s=d|= @ValPy: retval = 0
 assignment(0, 2) =|s=d|= $retval = 0
 
 Generated partial line retval
@@ -4759,41 +5105,41 @@ Generated partial line retval=
 assign, ValClass[limit] = d, ValPy=0, ValPerl=0
 
 Generated partial line retval=0
- 203 | 0 |   |retval = 0                                                                              #PL: $retval = 0;
+ 208 | 0 |   |retval = 0                                                                              #PL: $retval = 0;
 
 Tokens: s=d ValPy: 
- 204 | 0 |   |
+ 209 | 0 |   |
 Main loop, line=eval
 
 
- === Line 205 Perl source:eval===
+ === Line 210 Perl source:eval===
 
 Lexem 0 Current token='C' value='try' Tokenstr |C| translated: try
 
-Line:  206 TokenStr: =|C|= @ValPy: try
- 206 | 0 |   |try:                                                                                    #PL: eval
+Line:  211 TokenStr: =|C|= @ValPy: try
+ 211 | 0 |   |try:                                                                                    #PL: eval
 
 Tokens: C ValPy: 
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line={
 
 
- === Line 206 Perl source:{===
+ === Line 211 Perl source:{===
 
 
-Line:  206 TokenStr: =|{|= @ValPy: {
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+Line:  211 TokenStr: =|{|= @ValPy: {
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line=alarm($TIME);
 
 
- === Line 207 Perl source:alarm($TIME);===
+ === Line 212 Perl source:alarm($TIME);===
 
 Lexem 0 Current token='f' value='signal.alarm' Tokenstr |f| translated: signal.alarm
 Lexem 1 Current token='(' value='(' Tokenstr |f(| translated: signal.alarm (
 Lexem 2 Current token='s' value='TIME' Tokenstr |f(s| translated: signal.alarm ( TIME
 Lexem 3 Current token=')' value=')' Tokenstr |f(s)| translated: signal.alarm ( TIME )
 
-Line:  207 TokenStr: =|f(s)|= @ValPy: signal.alarm ( TIME )
+Line:  212 TokenStr: =|f(s)|= @ValPy: signal.alarm ( TIME )
 function(0, 3) =|f(s)|= alarm ( $TIME )
 
 function start=2, end_pos=2, bracketed=1
@@ -4804,21 +5150,21 @@ expression(2, 2, 0) =|f(s)|= alarm ( $TIME )
 Generated partial line signal.alarm(TIME
 expression returns 3
 Generated partial line signal.alarm(TIME)
- 207 | 1 |   |    signal.alarm(TIME)                                                                  #PL: alarm($TIME);
+ 212 | 1 |   |    signal.alarm(TIME)                                                                  #PL: alarm($TIME);
 
 Tokens: f(s) ValPy: 
- 208 | 1 |   |
- 209 | 1 |   |    # to test the failure condition, uncomment the following sleep command...
- 210 | 1 |   |
- 211 | 1 |   |    #sleep $TIME;
- 212 | 1 |   |
- 213 | 1 |   |    # system ("ssh -l $user $system date >/dev/null 2>/dev/null");
- 214 | 1 |   |
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+ 213 | 1 |   |
+ 214 | 1 |   |    # to test the failure condition, uncomment the following sleep command...
+ 215 | 1 |   |
+ 216 | 1 |   |    #sleep $TIME;
+ 217 | 1 |   |
+ 218 | 1 |   |    # system ("ssh -l $user $system date >/dev/null 2>/dev/null");
+ 219 | 1 |   |
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line=if ($interfacev eq "v1.0a") {
 
 
- === Line 215 Perl source:if ($interfacev eq "v1.0a") {===
+ === Line 220 Perl source:if ($interfacev eq "v1.0a") {===
 
 Lexem 0 Current token='c' value='if ' Tokenstr |c| translated: if 
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: if  (
@@ -4827,7 +5173,7 @@ Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: if  ( interface
 Lexem 4 Current token='"' value=''v1.0a'' Tokenstr |c(s>"| translated: if  ( interfacev == 'v1.0a'
 Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: if  ( interfacev == 'v1.0a' )
 
-Line:  215 TokenStr: =|c(s>")|= @ValPy: if  ( interfacev == 'v1.0a' )
+Line:  220 TokenStr: =|c(s>")|= @ValPy: if  ( interfacev == 'v1.0a' )
 control(0) =|c(s>")|= if ( $interfacev eq v1.0a )
 
 control-parens removed, begin=0 start=1 =|cs>"|= if $interfacev eq v1.0a
@@ -4840,22 +5186,22 @@ Generated partial line if interfacev==
 Generated partial line if interfacev=='v1.0a'
 expression returns 4
 Generated partial line if interfacev=='v1.0a':
- 215 | 1 |   |    if interfacev=='v1.0a':                                                             #PL: if ($interfacev eq "v1.0a") {
+ 220 | 1 |   |    if interfacev=='v1.0a':                                                             #PL: if ($interfacev eq "v1.0a") {
 
 Tokens: cs>" ValPy: 
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line={
 
 
- === Line 215 Perl source:{===
+ === Line 220 Perl source:{===
 
 
-Line:  215 TokenStr: =|{|= @ValPy: {
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+Line:  220 TokenStr: =|{|= @ValPy: {
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line=$rc = system ("ssh -l $user $system date >/dev/null 2>/dev/null");
 
 
- === Line 216 Perl source:$rc = system ("ssh -l $user $system date >/dev/null 2>/dev/null");===
+ === Line 221 Perl source:$rc = system ("ssh -l $user $system date >/dev/null 2>/dev/null");===
 
 Lexem 0 Current token='s' value='rc' Tokenstr |s| translated: rc
 Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: rc =
@@ -4864,7 +5210,7 @@ Lexem 3 Current token='(' value='(' Tokenstr |s=f(| translated: rc = os.system (
 Lexem 4 Current token='"' value='f"ssh -l {user} {system} date >/dev/null 2>/dev/null"' Tokenstr |s=f("| translated: rc = os.system ( f"ssh -l {user} {system} date >/dev/null 2>/dev/null"
 Lexem 5 Current token=')' value=')' Tokenstr |s=f(")| translated: rc = os.system ( f"ssh -l {user} {system} date >/dev/null 2>/dev/null" )
 
-Line:  216 TokenStr: =|s=f(")|= @ValPy: rc = os.system ( f"ssh -l {user} {system} date >/dev/null 2>/dev/null" )
+Line:  221 TokenStr: =|s=f(")|= @ValPy: rc = os.system ( f"ssh -l {user} {system} date >/dev/null 2>/dev/null" )
 assignment(0, 5) =|s=f(")|= $rc = system ( ssh -l $user $system date >/dev/null 2>/dev/null )
 
 Generated partial line rc
@@ -4882,43 +5228,43 @@ Generated partial line rc=os.system(f"ssh -l {user} {system} date >/dev/null 2>/
 expression returns 5
 Generated partial line rc=os.system(f"ssh -l {user} {system} date >/dev/null 2>/dev/null")
 expression returns 6
- 216 | 2 |   |        rc = os.system(f"ssh -l {user} {system} date >/dev/null 2>/dev/null")           #PL: $rc = system ("ssh -l $user $system date >/dev/null 2>/dev/null");
+ 221 | 2 |   |        rc = os.system(f"ssh -l {user} {system} date >/dev/null 2>/dev/null")           #PL: $rc = system ("ssh -l $user $system date >/dev/null 2>/dev/null");
 
 Tokens: s=f(") ValPy: 
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line=}
 
 
- === Line 217 Perl source:}===
+ === Line 222 Perl source:}===
 
 
-Line:  217 TokenStr: =|}|= @ValPy: }
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+Line:  222 TokenStr: =|}|= @ValPy: }
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line=else{
 
 
- === Line 218 Perl source:else{===
+ === Line 223 Perl source:else{===
 
 Lexem 0 Current token='C' value='else: ' Tokenstr |C| translated: else: 
 
-Line:  218 TokenStr: =|C|= @ValPy: else: 
+Line:  223 TokenStr: =|C|= @ValPy: else: 
 Generated partial line else:
- 218 | 1 |   |    else:                                                                               #PL: else{
+ 223 | 1 |   |    else:                                                                               #PL: else{
 
 Tokens: C ValPy: 
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line={
 
 
- === Line 218 Perl source:{===
+ === Line 223 Perl source:{===
 
 
-Line:  218 TokenStr: =|{|= @ValPy: {
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+Line:  223 TokenStr: =|{|= @ValPy: {
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line=$rc = system ("echo vdate | ssh -l $user $system >/dev/null 2>/dev/null");
 
 
- === Line 219 Perl source:$rc = system ("echo vdate | ssh -l $user $system >/dev/null 2>/dev/null");===
+ === Line 224 Perl source:$rc = system ("echo vdate | ssh -l $user $system >/dev/null 2>/dev/null");===
 
 Lexem 0 Current token='s' value='rc' Tokenstr |s| translated: rc
 Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: rc =
@@ -4927,7 +5273,7 @@ Lexem 3 Current token='(' value='(' Tokenstr |s=f(| translated: rc = os.system (
 Lexem 4 Current token='"' value='f"echo vdate | ssh -l {user} {system} >/dev/null 2>/dev/null"' Tokenstr |s=f("| translated: rc = os.system ( f"echo vdate | ssh -l {user} {system} >/dev/null 2>/dev/null"
 Lexem 5 Current token=')' value=')' Tokenstr |s=f(")| translated: rc = os.system ( f"echo vdate | ssh -l {user} {system} >/dev/null 2>/dev/null" )
 
-Line:  219 TokenStr: =|s=f(")|= @ValPy: rc = os.system ( f"echo vdate | ssh -l {user} {system} >/dev/null 2>/dev/null" )
+Line:  224 TokenStr: =|s=f(")|= @ValPy: rc = os.system ( f"echo vdate | ssh -l {user} {system} >/dev/null 2>/dev/null" )
 assignment(0, 5) =|s=f(")|= $rc = system ( echo vdate | ssh -l $user $system >/dev/null 2>/dev/null )
 
 Generated partial line rc
@@ -4945,22 +5291,22 @@ Generated partial line rc=os.system(f"echo vdate | ssh -l {user} {system} >/dev/
 expression returns 5
 Generated partial line rc=os.system(f"echo vdate | ssh -l {user} {system} >/dev/null 2>/dev/null")
 expression returns 6
- 219 | 2 |   |        rc = os.system(f"echo vdate | ssh -l {user} {system} >/dev/null 2>/dev/null")   #PL: $rc = system ("echo vdate | ssh -l $user $system >/dev/null 2>/dev/null");
+ 224 | 2 |   |        rc = os.system(f"echo vdate | ssh -l {user} {system} >/dev/null 2>/dev/null")   #PL: $rc = system ("echo vdate | ssh -l $user $system >/dev/null 2>/dev/null");
 
 Tokens: s=f(") ValPy: 
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line=}
 
 
- === Line 220 Perl source:}===
+ === Line 225 Perl source:}===
 
 
-Line:  220 TokenStr: =|}|= @ValPy: }
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+Line:  225 TokenStr: =|}|= @ValPy: }
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line=$retval = 1 if ($rc > 0);
 
 
- === Line 221 Perl source:$retval = 1 if ($rc > 0);===
+ === Line 226 Perl source:$retval = 1 if ($rc > 0);===
 
 Lexem 0 Current token='s' value='retval' Tokenstr |s| translated: retval
 Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: retval =
@@ -4972,7 +5318,7 @@ Lexem 3 Current token='>' value='>' Tokenstr |c(s>| translated: if  ( rc >
 Lexem 4 Current token='d' value='0' Tokenstr |c(s>d| translated: if  ( rc > 0
 Lexem 5 Current token=')' value=')' Tokenstr |c(s>d)| translated: if  ( rc > 0 )
 
-Line:  221 TokenStr: =|c(s>d)|= @ValPy: if  ( rc > 0 )
+Line:  226 TokenStr: =|c(s>d)|= @ValPy: if  ( rc > 0 )
 control(0) =|c(s>d)|= if ( $rc > 0 )
 
 control-parens removed, begin=0 start=1 =|cs>d|= if $rc > 0
@@ -4985,12 +5331,12 @@ Generated partial line if rc>
 Generated partial line if rc>0
 expression returns 4
 Generated partial line if rc>0:
- 221 | 1 |   |    if rc>0:                                                                            #PL: $retval = 1 if ($rc > 0);
+ 226 | 1 |   |    if rc>0:                                                                            #PL: $retval = 1 if ($rc > 0);
 
 Tokens: cs>d ValPy: 
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line=$retval = 1 if ($rc > 0);
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line=$retval = 1 if ($rc > 0);
 assignment(0, 2) =|s=d|= $retval = 1
 
@@ -4999,24 +5345,24 @@ Generated partial line retval=
 assign, ValClass[limit] = d, ValPy=1, ValPerl=1
 
 Generated partial line retval=1
- 221 | 2 |   |        retval = 1                                                                      #PL: $retval = 1 if ($rc > 0);
+ 226 | 2 |   |        retval = 1                                                                      #PL: $retval = 1 if ($rc > 0);
 
 Tokens: s=d ValPy: 
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line=$retval = 1 if ($rc > 0);
- 222 | 1 |   |
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+ 227 | 1 |   |
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line=alarm(0);
 
 
- === Line 223 Perl source:alarm(0);===
+ === Line 228 Perl source:alarm(0);===
 
 Lexem 0 Current token='f' value='signal.alarm' Tokenstr |f| translated: signal.alarm
 Lexem 1 Current token='(' value='(' Tokenstr |f(| translated: signal.alarm (
 Lexem 2 Current token='d' value='0' Tokenstr |f(d| translated: signal.alarm ( 0
 Lexem 3 Current token=')' value=')' Tokenstr |f(d)| translated: signal.alarm ( 0 )
 
-Line:  223 TokenStr: =|f(d)|= @ValPy: signal.alarm ( 0 )
+Line:  228 TokenStr: =|f(d)|= @ValPy: signal.alarm ( 0 )
 function(0, 3) =|f(d)|= alarm ( 0 )
 
 function start=2, end_pos=2, bracketed=1
@@ -5027,52 +5373,53 @@ expression(2, 2, 0) =|f(d)|= alarm ( 0 )
 Generated partial line signal.alarm(0
 expression returns 3
 Generated partial line signal.alarm(0)
- 223 | 1 |   |    signal.alarm(0)                                                                     #PL: alarm(0);
+ 228 | 1 |   |    signal.alarm(0)                                                                     #PL: alarm(0);
 
 Tokens: f(d) ValPy: 
- 224 | 1 |   |
+ 229 | 1 |   |
 finish: prev_line=alarm(0);, PythonCode=
 finish: Resetting line to };
-eval_stack=HASH(0x8005aeef8), eval_nest=0
+eval_stack=HASH(0x800651fc8), eval_nest=0
 Main loop, line=};
 
 
- === Line 225 Perl source:};===
+ === Line 230 Perl source:};===
 
 
-Line:  225 TokenStr: =|}|= @ValPy: }
-eval_stack=HASH(0x8005aeef8), eval_nest=0
- 225 | 1 |   |    EVAL_ERROR = None                                                                   #PL: ;
-
-Tokens: } ValPy: 
- 225 | 0 |   |except Exception as _e:                                                                 #PL: ;
+Line:  230 TokenStr: =|}|= @ValPy: }
+eval_stack=HASH(0x800651fc8), eval_nest=0
+ 230 | 1 |   |    EVAL_ERROR = None                                                                   #PL: ;
 
 Tokens: } ValPy: 
- 225 | 1 |   |    EVAL_ERROR = _exc(_e)                                                               #PL: ;
+ 230 | 0 |   |except Exception as _e:                                                                 #PL: ;
 
 Tokens: } ValPy: 
+ 230 | 1 |   |    EVAL_ERROR = _exc(_e)                                                               #PL: ;
+
+Tokens: } ValPy: 
+ 230 | 1 |   |    traceback.print_exc()                                                               #PL: ;
 Main loop, line=;
 
 
- === Line 225 Perl source:;===
+ === Line 230 Perl source:;===
 
 
-Line:  225 TokenStr: =||= @ValPy: 
- 225 | 0 |   |pass                                                                                    #PL: ;
+Line:  230 TokenStr: =||= @ValPy: 
+ 230 | 0 |   |pass                                                                                    #PL: ;
 
 Tokens:  ValPy: 
- 226 | 0 |   |
+ 231 | 0 |   |
 Main loop, line=if ($@)
 
 
- === Line 227 Perl source:if ($@)===
+ === Line 232 Perl source:if ($@)===
 
 Lexem 0 Current token='c' value='if ' Tokenstr |c| translated: if 
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: if  (
 Lexem 2 Current token='s' value='EVAL_ERROR' Tokenstr |c(s| translated: if  ( EVAL_ERROR
 Lexem 3 Current token=')' value=')' Tokenstr |c(s)| translated: if  ( EVAL_ERROR )
 
-Line:  228 TokenStr: =|c(s)|= @ValPy: if  ( EVAL_ERROR )
+Line:  233 TokenStr: =|c(s)|= @ValPy: if  ( EVAL_ERROR )
 control(0) =|c(s)|= if ( $ )
 
 control-parens removed, begin=0 start=1 =|cs|= if $
@@ -5083,20 +5430,20 @@ expression(1, 1, 0) =|cs|= if $
 Generated partial line if EVAL_ERROR
 expression returns 2
 Generated partial line if EVAL_ERROR:
- 228 | 0 |   |if EVAL_ERROR:                                                                          #PL: if ($@)
+ 233 | 0 |   |if EVAL_ERROR:                                                                          #PL: if ($@)
 
 Tokens: cs ValPy: 
 Main loop, line={
 
 
- === Line 228 Perl source:{===
+ === Line 233 Perl source:{===
 
 
-Line:  228 TokenStr: =|{|= @ValPy: {
+Line:  233 TokenStr: =|{|= @ValPy: {
 Main loop, line=if ($@ =~ /timeout/)
 
 
- === Line 229 Perl source:if ($@ =~ /timeout/)===
+ === Line 234 Perl source:if ($@ =~ /timeout/)===
 
 Lexem 0 Current token='c' value='if ' Tokenstr |c| translated: if 
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: if  (
@@ -5105,7 +5452,7 @@ Lexem 3 Current token='~' value='' Tokenstr |c(s~| translated: if  ( EVAL_ERROR
 Lexem 4 Current token='q' value='re.search(r'timeout',' Tokenstr |c(s~q| translated: if  ( EVAL_ERROR  re.search(r'timeout',
 Lexem 5 Current token=')' value=')' Tokenstr |c(s~q)| translated: if  ( EVAL_ERROR  re.search(r'timeout', )
 
-Line:  230 TokenStr: =|c(s~q)|= @ValPy: if  ( EVAL_ERROR  re.search(r'timeout', )
+Line:  235 TokenStr: =|c(s~q)|= @ValPy: if  ( EVAL_ERROR  re.search(r'timeout', )
 control(0) =|c(s~q)|= if ( $ =~ timeout )
 
 control-parens removed, begin=0 start=1 =|cs~q|= if $ =~ timeout
@@ -5121,28 +5468,28 @@ expression returns 2
 Generated partial line if re.search(r'timeout',EVAL_ERROR)
 expression returns 4
 Generated partial line if re.search(r'timeout',EVAL_ERROR):
- 230 | 1 |   |    if re.search(r'timeout',EVAL_ERROR):                                                #PL: if ($@ =~ /timeout/)
+ 235 | 1 |   |    if re.search(r'timeout',EVAL_ERROR):                                                #PL: if ($@ =~ /timeout/)
 
 Tokens: cs~q ValPy: 
 Main loop, line={
 
 
- === Line 230 Perl source:{===
+ === Line 235 Perl source:{===
 
 
-Line:  230 TokenStr: =|{|= @ValPy: {
- 231 | 2 |   |        # timed out
- 232 | 2 |   |
+Line:  235 TokenStr: =|{|= @ValPy: {
+ 236 | 2 |   |        # timed out
+ 237 | 2 |   |
 Main loop, line=$retval = 1;
 
 
- === Line 233 Perl source:$retval = 1;===
+ === Line 238 Perl source:$retval = 1;===
 
 Lexem 0 Current token='s' value='retval' Tokenstr |s| translated: retval
 Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: retval =
 Lexem 2 Current token='d' value='1' Tokenstr |s=d| translated: retval = 1
 
-Line:  233 TokenStr: =|s=d|= @ValPy: retval = 1
+Line:  238 TokenStr: =|s=d|= @ValPy: retval = 1
 assignment(0, 2) =|s=d|= $retval = 1
 
 Generated partial line retval
@@ -5150,46 +5497,46 @@ Generated partial line retval=
 assign, ValClass[limit] = d, ValPy=1, ValPerl=1
 
 Generated partial line retval=1
- 233 | 2 |   |        retval = 1                                                                      #PL: $retval = 1;
+ 238 | 2 |   |        retval = 1                                                                      #PL: $retval = 1;
 
 Tokens: s=d ValPy: 
 Main loop, line=}
 
 
- === Line 234 Perl source:}===
+ === Line 239 Perl source:}===
 
 
-Line:  234 TokenStr: =|}|= @ValPy: }
+Line:  239 TokenStr: =|}|= @ValPy: }
 Main loop, line=else
 
 
- === Line 235 Perl source:else===
+ === Line 240 Perl source:else===
 
 Lexem 0 Current token='C' value='else: ' Tokenstr |C| translated: else: 
 
-Line:  236 TokenStr: =|C|= @ValPy: else: 
+Line:  241 TokenStr: =|C|= @ValPy: else: 
 Generated partial line else:
- 236 | 1 |   |    else:                                                                               #PL: else
+ 241 | 1 |   |    else:                                                                               #PL: else
 
 Tokens: C ValPy: 
 Main loop, line={
 
 
- === Line 236 Perl source:{===
+ === Line 241 Perl source:{===
 
 
-Line:  236 TokenStr: =|{|= @ValPy: {
+Line:  241 TokenStr: =|{|= @ValPy: {
 Main loop, line=alarm (0);
 
 
- === Line 237 Perl source:alarm (0);===
+ === Line 242 Perl source:alarm (0);===
 
 Lexem 0 Current token='f' value='signal.alarm' Tokenstr |f| translated: signal.alarm
 Lexem 1 Current token='(' value='(' Tokenstr |f(| translated: signal.alarm (
 Lexem 2 Current token='d' value='0' Tokenstr |f(d| translated: signal.alarm ( 0
 Lexem 3 Current token=')' value=')' Tokenstr |f(d)| translated: signal.alarm ( 0 )
 
-Line:  237 TokenStr: =|f(d)|= @ValPy: signal.alarm ( 0 )
+Line:  242 TokenStr: =|f(d)|= @ValPy: signal.alarm ( 0 )
 function(0, 3) =|f(d)|= alarm ( 0 )
 
 function start=2, end_pos=2, bracketed=1
@@ -5200,53 +5547,53 @@ expression(2, 2, 0) =|f(d)|= alarm ( 0 )
 Generated partial line signal.alarm(0
 expression returns 3
 Generated partial line signal.alarm(0)
- 237 | 2 |   |        signal.alarm(0)                                                                 #PL: alarm (0);
+ 242 | 2 |   |        signal.alarm(0)                                                                 #PL: alarm (0);
 
 Tokens: f(d) ValPy: 
- 238 | 2 |   |
+ 243 | 2 |   |
 Main loop, line=die;
 
 
- === Line 239 Perl source:die;===
+ === Line 244 Perl source:die;===
 
 Lexem 0 Current token='f' value='raise Die' Tokenstr |f| translated: raise Die
 
-Line:  239 TokenStr: =|f|= @ValPy: raise Die
+Line:  244 TokenStr: =|f|= @ValPy: raise Die
 function(0, 0) =|f|= die
 
 function start=1, end_pos=0, bracketed=-1
 Generated partial line raise Die
 Generated partial line raise Die()
- 239 | 2 |   |        raise Die()                                                                     #PL: die;
+ 244 | 2 |   |        raise Die()                                                                     #PL: die;
 
 Tokens: f ValPy: 
 Main loop, line=}
 
 
- === Line 240 Perl source:}===
+ === Line 245 Perl source:}===
 
 
-Line:  240 TokenStr: =|}|= @ValPy: }
- 241 | 1 |   |
+Line:  245 TokenStr: =|}|= @ValPy: }
+ 246 | 1 |   |
 Main loop, line=}
 
 
- === Line 242 Perl source:}===
+ === Line 247 Perl source:}===
 
 
-Line:  242 TokenStr: =|}|= @ValPy: }
- 243 | 0 |   |
+Line:  247 TokenStr: =|}|= @ValPy: }
+ 248 | 0 |   |
 Main loop, line=exit($retval);
 
 
- === Line 244 Perl source:exit($retval);===
+ === Line 249 Perl source:exit($retval);===
 
 Lexem 0 Current token='f' value='sys.exit' Tokenstr |f| translated: sys.exit
 Lexem 1 Current token='(' value='(' Tokenstr |f(| translated: sys.exit (
 Lexem 2 Current token='s' value='retval' Tokenstr |f(s| translated: sys.exit ( retval
 Lexem 3 Current token=')' value=')' Tokenstr |f(s)| translated: sys.exit ( retval )
 
-Line:  244 TokenStr: =|f(s)|= @ValPy: sys.exit ( retval )
+Line:  249 TokenStr: =|f(s)|= @ValPy: sys.exit ( retval )
 function(0, 3) =|f(s)|= exit ( $retval )
 
 function start=2, end_pos=2, bracketed=1
@@ -5257,34 +5604,34 @@ expression(2, 2, 0) =|f(s)|= exit ( $retval )
 Generated partial line sys.exit(retval
 expression returns 3
 Generated partial line sys.exit(retval)
- 244 | 0 |   |sys.exit(retval)                                                                        #PL: exit($retval);
+ 249 | 0 |   |sys.exit(retval)                                                                        #PL: exit($retval);
 
 Tokens: f(s) ValPy: 
- 245 | 0 |   |
+ 250 | 0 |   |
 Main loop, line=sub test_os_error_in_sub
 
 
- === Line 246 Perl source:sub test_os_error_in_sub===
+ === Line 251 Perl source:sub test_os_error_in_sub===
 
 Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
 Lexem 1 Current token='i' value='test_os_error_in_sub' Tokenstr |ki| translated: def test_os_error_in_sub
 
-Line:  247 TokenStr: =|ki|= @ValPy: def test_os_error_in_sub
+Line:  252 TokenStr: =|ki|= @ValPy: def test_os_error_in_sub
 Generated partial line deftest_os_error_in_sub(_args):
- 247 | 0 |   |def test_os_error_in_sub(_args):                                                        #PL: sub test_os_error_in_sub
+ 252 | 0 |   |def test_os_error_in_sub(_args):                                                        #PL: sub test_os_error_in_sub
 
 Tokens: ki ValPy: 
 Main loop, line={
 
 
- === Line 247 Perl source:{===
+ === Line 252 Perl source:{===
 
 
-Line:  247 TokenStr: =|{|= @ValPy: {
+Line:  252 TokenStr: =|{|= @ValPy: {
 Main loop, line=open(FH, "<", "file");
 
 
- === Line 248 Perl source:open(FH, "<", "file");===
+ === Line 253 Perl source:open(FH, "<", "file");===
 
 Lexem 0 Current token='f' value='open' Tokenstr |f| translated: open
 Lexem 1 Current token='(' value='(' Tokenstr |f(| translated: open (
@@ -5295,21 +5642,23 @@ Lexem 5 Current token=',' value=',' Tokenstr |f(i,",| translated: open ( FH , '<
 Lexem 6 Current token='"' value=''file'' Tokenstr |f(i,","| translated: open ( FH , '<' , 'file'
 Lexem 7 Current token=')' value=')' Tokenstr |f(i,",")| translated: open ( FH , '<' , 'file' )
 
-Line:  248 TokenStr: =|f(i,",")|= @ValPy: open ( FH , '<' , 'file' )
- 248 | 1 |   |    try:                                                                                #PL: open(FH, "<", "file");
- 248 | 2 |   |        FH=open('file','r')                                                             #PL: open(FH, "<", "file");
- 248 | 1 |   |    except OSError as _e:                                                               #PL: open(FH, "<", "file");
- 248 | 2 |   |        global OS_ERROR                                                                 #PL: open(FH, "<", "file");
- 248 | 2 |   |        OS_ERROR = str(_e)                                                              #PL: open(FH, "<", "file");
+Line:  253 TokenStr: =|f(i,",")|= @ValPy: open ( FH , '<' , 'file' )
+ 253 | 1 |   |    try:                                                                                #PL: open(FH, "<", "file");
+ 253 | 2 |   |        FH=open('file', 'r')                                                            #PL: open(FH, "<", "file");
+ 253 | 1 |   |    except OSError as _e:                                                               #PL: open(FH, "<", "file");
+ 253 | 2 |   |        global OS_ERROR                                                                 #PL: open(FH, "<", "file");
+ 253 | 2 |   |        OS_ERROR = str(_e)                                                              #PL: open(FH, "<", "file");
+ 253 | 2 |   |        traceback.print_exc()                                                           #PL: open(FH, "<", "file");
+ 253 | 2 |   |        raise                                                                           #PL: open(FH, "<", "file");
 Main loop, line=print "$!\n";
 
 
- === Line 249 Perl source:print "$!\n";===
+ === Line 254 Perl source:print "$!\n";===
 
 Lexem 0 Current token='f' value='print' Tokenstr |f| translated: print
 Lexem 1 Current token='"' value='f"{OS_ERROR}\n"' Tokenstr |f"| translated: print f"{OS_ERROR}\n"
 
-Line:  249 TokenStr: =|f"|= @ValPy: print f"{OS_ERROR}\n"
+Line:  254 TokenStr: =|f"|= @ValPy: print f"{OS_ERROR}\n"
 Generated partial line print(
 print3(0) handle=, k=1, end_pos=1
 
@@ -5318,7 +5667,7 @@ expression(1, 1, 0) =|f"|= print $!\n
 Generated partial line print(f"{OS_ERROR}\n"
 expression returns 2
 Generated partial line print(f"{OS_ERROR}")
- 249 | 1 |   |    print(f"{OS_ERROR}")                                                                #PL: print "$!\n";
+ 254 | 1 |   |    print(f"{OS_ERROR}")                                                                #PL: print "$!\n";
 
 Tokens: f" ValPy: 
 finish: prev_line=print "$!\n";, PythonCode=
@@ -5326,27 +5675,29 @@ finish: Resetting line to }
 Main loop, line=}
 
 
- === Line 250 Perl source:}===
+ === Line 255 Perl source:}===
 
 
-Line:  250 TokenStr: =|}|= @ValPy: }
-ERROR STATISTICS:  W: 5 S: 1
+Line:  255 TokenStr: =|}|= @ValPy: }
+ERROR STATISTICS:  W: 6 S: 1
 
 
-LINE 81 [Pythonizer-S517]:  Attempt to set the next nesting level below zero ignored
+LINE 81 [Pythonizer-S535]:  Attempt to set the next nesting level below zero ignored
 
 
 
 
  [Softpano-W317]:  Debug flag is set to 5
 
-LINE 44 [main-W3001]:  Function autoflush is neither internal not built-in function. Please check the correspondence of arguments
+LINE 44 [main-W3027]:  Function autoflush is neither internal not built-in function. Please check the correspondence of arguments
 
-LINE 132 [main-W3001]:  Function timegm is neither internal not built-in function. Please check the correspondence of arguments
+LINE 132 [main-W3027]:  Function timegm is neither internal not built-in function. Please check the correspondence of arguments
 
-LINE 177 [main-W3001]:  Function POSIX.tmpnam is neither internal not built-in function. Please check the correspondence of arguments
+LINE 177 [main-W3027]:  Function POSIX.tmpnam is neither internal not built-in function. Please check the correspondence of arguments
 
-LINE 178 [main-W3001]:  Function new is neither internal not built-in function. Please check the correspondence of arguments
+LINE 178 [main-W3027]:  Function new is neither internal not built-in function. Please check the correspondence of arguments
+
+LINE 194 [main-W3027]:  Function traceback.print_stack is neither internal not built-in function. Please check the correspondence of arguments
 
 
 

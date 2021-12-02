@@ -27,6 +27,7 @@ use feature 'state';
 use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType);
 use Softpano qw(abend logme out getopts standard_options);
 use config;				# issue 32
+use Data::Dumper;       # SNOOPYJC
 require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
@@ -56,7 +57,8 @@ sub prolog
       my $script_name = shift;                  # issue 64
       my $banner_msg = shift;                   # issue 64
       my $log_retention = shift;                # issue 64
-      getopts("hd:v:r:b:t:l:",\%options);
+      # SNOOPYJC getopts("AThd:v:r:b:t:l:",\%options);
+      getopts("AThd:v:r:b:t:l:",\%options);     # SNOOPYJC
 #
 # Three standard otpiotn -h, -v and -d
 #
@@ -85,7 +87,7 @@ sub prolog
 
       if(   exists $options{'b'}  ){
         unless ($options{'b'}){
-          logme('S',"Option -b should have a numberic value. There is no default.");
+          logme('S',"Option -b should have a numeric value. There is no default.");
           exit 255;
         }
         if(  $options{'b'}>0  && $options{'b'}<9000 ){
@@ -115,6 +117,14 @@ sub prolog
             logme('S',"Incorrect value for length of the line in protocol of tranlation: $options{'w'}\n Minimum  is 100. Max is 256. Default value 188 is assumned \n");
          }
       }#
+
+      # SNOOPYJC - add more options
+      if( exists $options{'T'} ) {
+          $::traceback = 1;
+      }
+      if( exists $options{'A'} ) {
+          $::autodie = 1;
+      }
 #
 # Application arguments
 #
@@ -171,8 +181,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
 my %VarSubMap=(); # matrix  var/sub that allows to create list of global for each sub
    $CurSubName='main';
    $LocalSub{'main'}=1;
-   $VarSubMap{LIST_SEPARATOR}{$CurSubName}='+';         # SNOOPYJC
-   $VarSubMap{OS_ERROR}{$CurSubName}='+';               # SNOOPYJC
+   foreach my $g (keys %GLOBALS) {             # SNOOPYJC
+      $VarSubMap{$g}{$CurSubName}='+';         # SNOOPYJC
+   }                                           # SNOOPYJC
    while(1){
       if( scalar(@Perlscan::BufferValClass)==0 ){
          $line=getline(); # get the first meaningful line, skipping commenets and  POD
@@ -209,7 +220,8 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
                }
             } # for
          }
-      }elsif(  $ValPerl[0] eq 'sub' && $#ValClass==1 ){
+      # SNOOPYJC }elsif(  $ValPerl[0] eq 'sub' && $#ValClass==1 ){
+      }elsif(  $ValPerl[0] eq 'sub' && $#ValClass >= 1) {         # SNOOPYJC: handle sub xxx() (with parens)
          $CurSubName=$ValPy[1];
          $LocalSub{$CurSubName}=1;
          %DeclaredVarH=(); # this is the list of my varible for given sub; does not needed for any other sub
@@ -234,6 +246,12 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
           } # for
       } # statements
    } # while
+
+   if($::debug == 5) {
+       print STDERR "VarSubMap = ";
+       $Data::Dumper::Indent=1;
+       say STDERR Dumper(\%VarSubMap);
+   }
 
    foreach $varname (keys %VarSubMap ){
       next if(  $varname=~/[\(\[]/ );
@@ -759,7 +777,8 @@ sub cleanup_imports
         }
         if($die_def_lno && !$die_referenced) {
             $line_ref->[$die_def_lno-1] = '';   # class Die(Exception):
-            $line_ref->[$die_def_lno] = '';     #     pass
+            $line_ref->[$die_def_lno] = '';     #     pass or def __init__(...):
+            $line_ref->[$die_def_lno+1] = '' if($::traceback);     #     traceback
         }
         if($eval_return_lno && !$eval_referenced) {
             $line_ref->[$eval_return_lno-1] = '';   # class $EVAL_RETURN_EXCEPTION(Exception):

@@ -190,6 +190,11 @@ next if not flock(TM_LOCK,LOCK_EX|LOCK_NB);
 
 sub ddd { die "not_timeout"; }
 
+   $SIG{ __DIE__ } = sub { Carp::confess( @_ ) };	# SNOOPYJC
+   $SIG{ INT } = sub { Carp::confess( @_ ) };		# SNOOPYJC
+   $| = 1;                                              # SNOOPYJC - unbuffer STDOUT
+   $SIG{ __DIE__ } = 'DEFAULT';
+
 $s = $SIG{ALRM};
 $my_flag = 0;
 $SIG{ALRM} = sub { $my_flag = 1; };
