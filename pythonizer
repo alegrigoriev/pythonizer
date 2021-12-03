@@ -101,6 +101,7 @@
 # 0.913  2021/11/30  SNOOPYJC  issue 79, addl fix for issue 53, addl fix for foreach, addl fix for ++/--, add constants for open and flock
 # 0.914  2021/12/01  SNOOPYJC  Fix missing _time, add _flock, fix references to $!, issue 81
 # 0.915  2021/12/02  SNOOPYJC  Additional issue 81 fixes, add -A for autodie and -T for traceback, fix issue with globals on sub's with ()
+# 0.916  2021/12/03  SNOOPYJC  issue 60: implement grep and map
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -128,7 +129,7 @@
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar);
 
-   $VERSION='0.915';
+   $VERSION='0.916';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -140,8 +141,8 @@
               # 3 -- provides tracing during the second pass (useful for users for trableshooing infinite loops)
               # 4 -- stop at Perlscan.pm
               # 5 -- stop at particular error message.
-   $traceback=0;                        # SNOOPYJC
-   $autodie=0;                          # SNOOPYJC
+   $traceback=0;                        # SNOOPYJC -T option
+   $autodie=0;                          # SNOOPYJC -A option
    $HOME=$ENV{'HOME'}; # the directory used for autobackup (only if debug>0)
    if( $^O eq 'cygwin' ){
       # $^O is built-in Perl Variable that contains OS name
@@ -831,7 +832,8 @@ sub fix_string_catenation                       # issue 36
                 }
                 $j--;
             }
-            if(!($ValClass[$j+1] eq '"' || ($ValClass[$j+1] eq 'f' && $ValPerl[$j+1] eq 'str'))) {
+            $j-- if($ValClass[$j] eq 'f' && $ValPerl[$j] ne 'print');
+            if(!($ValClass[$j+1] eq '"' || ($ValClass[$j+1] eq 'f' && ($ValPerl[$j+1] eq 'str' || $ValPerl[$j+1] eq 'substr')))) {
                 if($debug > 3) {
                    say STDERR "fix_string_catentation1 i=$i, j=$j\n";
                 }
@@ -1107,7 +1109,7 @@ my $end_pos;                                            # issue 10
           # issue 59 gen_chunk(')');
           gen_chunk("$DEFAULT_VAR$end)");           # issue 59
       }
-      return;
+      return 0;
    }
    if ($ValPerl[$start] eq 'print' && $ValClass[-1] eq '"' ){
       if( $Perlscan::PythonCode[-1]=~qr[\\n["']$] ){
@@ -1959,8 +1961,10 @@ my $bracketed=0;  # nessesary for the proper call of expression.
   # issue 16 }elsif( ($k=index($TokenStr,'0'))>=1 ){
   }elsif( ($k=index($TokenStr,'0',$begin+1))>=1 ){	# issue 16
       $end_pos=$limit=$k-1; # if we have && that function should end before it
+      $bracketed=-1 if($end_pos < $start);              # issue 59
   }elsif( ($k=index($TokenStr,'>',$begin+1))>=1 ){	# issue 16
       $end_pos=$limit=$k-1; # if we have <,==,<=,>,>= that function should end before it
+      $bracketed=-1 if($end_pos < $start);              # issue 59
   }elsif(scalar(@_)<2 && $begin != 0 && $ValClass[$begin-1] eq '(') {	# issue paren, issue 81
     # if the entire function call w/parameters is parenthesized, then the function ends
     # at the next right paren
@@ -2298,12 +2302,12 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       $bracketed=-1 if($bracketed!=-1 && index('>0+-*/',$ValClass[$start]) >= 0); # issue 28: pop has no arg if the next thing is an operator
       if( $bracketed==-1 ){
 	  # issue 28 gen_chunk("perl_arg_array$py_name");
-          gen_chunk("$PERL_ARG_ARRAY$py_name if $PERL_ARG_ARRAY else None");	# issue 28, issue 32
+          gen_chunk("($PERL_ARG_ARRAY$py_name if $PERL_ARG_ARRAY else None)");	# issue 28, issue 32
           return $start;                       # issue 28
       # issue 28 }elsif( $end_pos==$start ){
       } else {          # issue 28
 	 # issue 28 gen_chunk($ValPy[$start],$py_name);
-         gen_chunk($ValPy[$start],$py_name," if ",$ValPy[$start]," else None");	# issue 28
+         gen_chunk('(',$ValPy[$start],$py_name,"if",$ValPy[$start],"else", "None)");	# issue 28
          return $start+1;                       # issue 28
       # issue 28 }else{
       # issue 28    return -255;
@@ -2318,7 +2322,64 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       return -255 if $k<0;
       gen_chunk(')');
       return $limit+1;
-   #}elsif($perl_name eq 'grep' || $perl_name eq 'map') {        # issue 60
+   }elsif($perl_name eq 'grep' || $perl_name eq 'map') {        # issue 60
+       # grep expr, @arr
+       # grep /pat/, @arr
+       # grep(expr, @arr)
+       # grep(/pat/, @arr)
+       # map f, @arr 
+       # map(f, @arr)
+       # map{block} @arr (or list)
+       # grep{block} @arr (or list)
+       $k=$start;
+       gen_chunk('list(', $py_name);             # filter or map, convert to list so we can use len and subscript
+       $need_lambda = 1;
+       if($perl_name eq 'map') {
+           # See if we have an equiv python function that's like "chr", and not like ".lower()".
+           if(($bracketed == 0 || $ValPerl[$begin+1] eq '(') && $ValClass[$start] eq 'f' && substr($ValPy[$start],0,1) ne '.') {
+               gen_chunk('(', $ValPy[$start]);
+               $need_lambda = 0;
+            }
+       }
+       $comma = $end_pos+1;
+       if($need_lambda) {
+            gen_chunk("(lambda $DEFAULT_VAR:");
+            $comma = next_same_level_token(',', $start, $end_pos);
+            $comma = $end_pos+1 if $comma<0;
+            if($start == $comma-1 && $perl_name eq 'grep') {    # singleton
+                if(index('sd"', $ValClass[$start]) >= 0) {   # scalar, digits, or string
+                    gen_chunk($DEFAULT_VAR,'==', $ValPy[$start]);
+                } elsif($ValClass[$start] eq 'q') {      # pattern
+                    if(substr($ValPy[$start],0,3) eq 're.') {
+                        gen_chunk($ValPy[$start]);      # it's ready to go!
+                    } else {
+                        gen_chunk('re.search(', $ValPy[$start], ',', $DEFAULT_VAR, ')');
+                    }
+                } else {
+                    return -255;
+                }
+            } elsif($start == $comma-1 && $ValClass[$start] eq 'f' && substr($ValPy[$start],0,1) eq '.') {      # function like ".lower()"
+                  gen_chunk($DEFAULT_VAR, $ValPy[$start]);
+            } elsif($start == $comma-1 && $ValClass[$start] eq 'i' && $LocalSub{$ValPy[$start]} && $perl_name eq 'map') {
+                  gen_chunk(escape_keywords($ValPy[$k])."([$DEFAULT_VAR])");
+            } else {
+                $k = expression($start, $comma-1, 0);
+                return -255 if $k<0;
+            }
+       } elsif($bracketed == 1 && $ValPerl[$begin+1] eq '(') {
+            $comma = next_same_level_token(',', $start, $end_pos);
+       }
+       gen_chunk(',');
+       if($bracketed == 1 && $ValPerl[$begin+1] eq '{') {
+           # We chopped our limit to the matching '}', so put it back!
+           $limit = $#ValClass;
+           $limit = $_[1] if(scalar(@_)>1);
+           $k = expression($end_pos+2, $limit, 0);
+       } else {
+           $k = expression($comma+1, $limit, 0);
+       }
+       gen_chunk(')') if($ValClass[$limit] ne ')');
+       gen_chunk(')')   # close list(...)
 
    }elsif( $perl_name eq 'push' ){
       $k=$start;

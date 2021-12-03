@@ -1,5 +1,6 @@
 # issue 32 - let user define the variable translations
 use Carp::Assert;
+$python = $0 =~ /\.py$/;
 $a = 1;
 $b = 2;
 assert($a+1 == $b);
@@ -15,18 +16,21 @@ assert($_ eq 'abc');
 chop;
 assert($_ eq 'ab');
 assert($line = /b/);
-assert($line == 1);
+assert($line);
 $_ = 'a';
 $i = ord;
 assert($i == 97);
 assert(ord == 97);
 assert(ord $_ == 97);
 assert(ord($_) == 97);
-assert(ord chr == 'a');
+$_ = 97;
+assert(ord chr == 97);
 open(FH,'>_test.tmp');
+$_ = 'i';
 print;
+$_ = 'a';
 print FH;
-say;
+#say;           # Doesn't say anything in perl
 assert($_ eq 'a');
 say FH;
 close FH;
@@ -55,8 +59,16 @@ assert(scalar(@doubles) == 3 && $doubles[0] == 2 && $doubles[1] == 4 && $doubles
 my @numbers = (65, 66);
 my @chars = map(chr, @numbers);
 assert($chars[0] eq 'A' && $chars[1] eq 'B');
+sub myF {
+    return(lc shift) if($python);       # in perl it doesn't pass the arg!
+    return(lc $_);
+}
+my @lc = map(myF, @chars);
+assert($lc[0] eq 'a' && $lc[1] eq 'b');
+@lc2 = map(lc, @chars);
+assert($lc2[0] eq 'a' && $lc2[1] eq 'b');
 
-@numbers = qw(8 2 5 3 1 7);
+@numbers = (8, 2, 5, 3, 1, 7);
 my @big_numbers = grep { $_ > 4 } @numbers;
 assert(scalar(@big_numbers) == 3);
 
@@ -68,7 +80,11 @@ my @foo = grep($_ eq 'Foo', @names);
 assert(scalar(@foo) == 1 && $foo[0] eq 'Foo');
 my @bs = grep(/B/, @names);
 assert(scalar(@bs) == 2);
+my @bs = grep /b/i, @names;
+assert(scalar(@bs) == 2);
 assert(grep('Baz', @names));
+@bz = qw/Baz/;
+assert(grep($bz[0], @names));
 
 my $string = "the quick brown fox jumped over the lazy dog";
 my $count_the_fox = $string =~ /\s+([a-z][a-z]x)\s+/;	# 1
@@ -87,4 +103,4 @@ sub my_add {
 	$op1 + $op2;		# implicitly return the sum
 }
 
-print "$0 - test passed!\n";
+print substr($0,1)." - test passed!\n";
