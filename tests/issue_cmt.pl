@@ -253,3 +253,17 @@ sub test_os_error_in_sub
     open(FH, "<", "file");
     print "$!\n";
 }
+
+sub bynum
+{
+   $a <=> $b;
+}   
+
+my @sequence = sort bynum keys %{$routespans{$rin}};
+
+foreach $seq (reverse sort {$a<=>$b} keys %{$rinspans{$rin}})
+{
+    ;
+}
+
+
