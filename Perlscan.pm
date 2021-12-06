@@ -81,6 +81,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'&'=>"$DEFAULT_MATCH.group(0)",	# SNOOPYJC, issue 32
                 '@'=>'EVAL_ERROR',              # SNOOPYC
 		'"'=>'LIST_SEPARATOR',		# issue 46
+                '|'=>'OUTPUT_AUTOFLUSH',        # SNOOPYJC
 		'`'=>'string_preceeeding_last_match',"'"=>'post_last_match_string',
                 '+'=>'last_capture_group','/'=>'lines_separator',','=>'output_field_separator','\\'=>'unknown_perl_special_var',
                 );
@@ -100,7 +101,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'assert'=>'assert',			# SNOOPYJC
 		'atan2'=>'math.atan2',			# SNOOPYJC
 		'basename'=>'os.path.basename',		# SNOOPYJC
-                'bless'=>'NoTrans!','BEGIN'=>'def begin():',
+                'binmode'=>'_dup',                      # SNOOPYJC
+                'bless'=>'NoTrans!','BEGIN'=>'if True:',        # SNOOPYJC
                 'caller'=>q(['implementable_via_inspect',__file__,sys._getframe().f_lineno]),
 		# issue 54 'chdir'=>'.os.chdir','chmod'=>'.os.chmod',
 		'chdir'=>'os.chdir','chmod'=>'os.chmod',	# issue 54
@@ -111,6 +113,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 # issue 42 'die'=>'sys.exit', 
                 'die'=>'raise Die',     # issue 42
                 'defined'=>'unknown', 'do'=>'','delete'=>'.pop(','defined'=>'perl_defined',
+                'END'=>'_END_',                      # SNOOPYJC
                 'for'=>'for ','foreach'=>'for ',
                 'else'=>'else: ','elsif'=>'elif ',
                 # issue 42 'eval'=>'NoTrans!', 
@@ -131,6 +134,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'map'=>'map', 'mkdir'=>'os.mkdir', 'my'=>'',
                 'next'=>'continue ', 'no'=>'NoTrans!',
                 'own'=>'global', 'oct'=>'oct', 'ord'=>'ord',
+                'our'=>'',                      # SNOOPYJC
                 'package'=>'NoTrans!', 'pop'=>'.pop()', 'push'=>'.extend(',
                 'say'=>'print','scalar'=>'len', 'shift'=>'.pop(0)', 'split'=>'re.split', 
 		# issue 34 'sort'=>'sort', 
@@ -143,10 +147,13 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                    'sysseek'=>'perl_sysseek',
                    'STDERR'=>'sys.stderr','STDIN'=>'sys.stdin', '__LINE__' =>'sys._getframe().f_lineno',
                 'reverse'=>'[::-1]',            # issue 65
-                'rindex'=>'.rfind', 'ref'=>'type', 'require'=>'NoTrans!', 'return'=>'return', 'rmdir'=>'os.rmdir',
+                'rindex'=>'.rfind', 
+                # SNOOPYJC 'ref'=>'type', 
+                'ref'=>'_ref',                  # SNOOPYJC
+                'require'=>'NoTrans!', 'return'=>'return', 'rmdir'=>'os.rmdir',
                 'tie'=>'NoTrans!',
 		'time'=>'_time',		# SNOOPYJC
-                'uc'=>'.upper()', 'ucfirst'=>'.capitalize()', 'undef'=>'Null', 'unless'=>'if not ', 'unlink'=>'os.unlink',
+                'uc'=>'.upper()', 'ucfirst'=>'.capitalize()', 'undef'=>'_', 'unless'=>'if not ', 'unlink'=>'os.unlink',
                 'umask'=>'os.umask',            # SNOOPYJC
                    'unshift'=>'.insert(0,',
 		   'use'=>'NoTrans!', 'until'=>'while not ','untie'=>'NoTrans!',
@@ -201,6 +208,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'assert'=>'c',	# SNOOPYJC
 		  'atan2'=>'f',		# SNOOPYJC
 		  'basename'=>'f',	# SNOOPYJC
+		  'binmode'=>'f',	# SNOOPYJC
                   'caller'=>'f','chdir'=>'f','chomp'=>'f', 'chop'=>'f', 'chmod'=>'f','chr'=>'f','close'=>'f',
                   'cmp'=>'<',           # SNOOPYJC: comparison
                   'delete'=>'f',        # issue delete
@@ -219,6 +227,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'last'=>'k', 'lc'=>'f', 'length'=>'f', 'local'=>'t', 'localtime'=>'f',
                   'my'=>'t', 'map'=>'f', 'mkdir'=>'f',
                   'next'=>'k','not'=>'!',
+                  'our'=>'t',                   # SNOOPYJC
                   'or'=>'0', 'own'=>'t', 'oct'=>'f', 'ord'=>'f', 'open'=>'f',
 		  'opendir'=>'f', 'closedir'=>'f', 'readdir'=>'f', 'seekdir'=>'f', 'telldir'=>'f', 'rewinddir'=>'f',	# SNOOPYJC
                   'push'=>'f', 'pop'=>'f', 'print'=>'f', 'package'=>'c',
@@ -236,6 +245,20 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'warn'=>'f', 'when'=>'C', 'while'=>'c',
                   'undef'=>'f', 'unless'=>'c', 'unshift'=>'f','until'=>'c','uc'=>'f', 'ucfirst'=>'f','use'=>'c','untie'=>'f',
                   'umask'=>'f'                  # SNOOPYJC
+                  );
+       %FuncType=(              # a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, u=Unknown, f=function, H=FileHandle, ?=Optional
+		  'abs'=>'N:N', 'alarm'=>'N:N', 'atan2'=>'NN:F', 'basename'=>'S:S',
+		  'binmode'=>'HS?:u',
+                  'caller'=>'I?:a','chdir'=>'S:I','chomp'=>'S:u', 'chop'=>'S:u', 'chmod'=>'Ia:u','chr'=>'I?:S','close'=>'H:I',
+                  'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:u', 'exists'=>'u:I', 'exit'=>'S:u',
+		  'flock'=>'HI:I', 'glob'=>'S:a of S', 'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S',
+                  'keys'=>'h:a of S', 'lc'=>'S:S', 'length'=>'S:I', 'localtime'=>'I?:a of I',
+                  'map'=>'fa:a', 'mkdir'=>'S:I', 'oct'=>'s:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
+		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:u',
+                  'push'=>'aa:I', 'pop'=>'a:s', 'print'=>'H?a:I', 'rindex'=>'SSI?:I','read'=>'HsII?:I', 'reverse'=>'a:a',
+		  'ref'=>'u:S', 'say'=>'H?a:I','scalar'=>'a:I','shift'=>'a?:s', 'split'=>'SSI?:a of s', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
+                  'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timelocal'=>'IIIIII:I',
+		  'unlink'=>'a?:I', 'values'=>'h:a', 'warn'=>'a', 'undef'=>'u', 'unshift'=>'aa', 'uc'=>'S:S', 'ucfirst'=>'S:S', 'umask'=>'I?:I'
                   );
 #
 # one to one translation of digramms. most are directly translatatble.
@@ -283,8 +306,9 @@ my ($l,$m);
       if( $s eq '#'  ){
          # plain vanilla tail comment
          if( $tno > 0  ){
-            $tno--;
-            $ValCom[$tno]=$source;
+             # issue 82 $tno--;
+             # issue 82 $ValCom[$tno]=$source;
+            $ValCom[$tno-1]=$source;                    # issue 82
          }else{
              Pythonizer::output_line('',$source); # to block reproducing the first source line
          }
@@ -366,26 +390,29 @@ my ($l,$m);
          $cut=1;
 
       }elsif( $s eq '{' ){
+          #say STDERR "got {, tno=$tno, source=$source, ValPerl=@ValPerl";
          # we treat '{' as the beginning of the block if it is the first or the last symbol on the line or is preceeded by ')' -- Aug 7, 2020
           if( $tno==0 ){
              if( length($source)>1  ){
                 Pythonizer::getline(substr($source,1)); # save tail
              }
              last; # artificially truncating the line making it one-symbol line
-          }elsif( length($source)==1 ){
+             # issue 82 }elsif( length($source)==1 ){
+          }elsif( length($source)==1 && $ValClass[$tno-1] ne '='){      # issue 82
              # $tno>0 but line may came from buffer.
              # We recognize end of statemt only if previous token eq ')' to avod collision with #h{$s}
              Pythonizer::getline('{'); # make $tno==0 on the next iteration
              popup(); # eliminate '{' as it does not have tno==0
              last;
 	  # issue 35 }elsif( $ValClass[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1){
-          }elsif( $ValPerl[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1 || ($tno == 2 && $ValPerl[0] eq 'sub')){	# issue 35, 45
+          }elsif( $ValClass[$tno-1] ne '=' &&                   # issue 82
+                 ($ValPerl[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1 || ($tno == 2 && $ValPerl[0] eq 'sub'))){	# issue 35, 45
              # $tno>0 this is the case when curvy bracket has comments'
              Pythonizer::getline('{',substr($source,1)); # make it a new line to be proceeed later
              popup(); # eliminate '{' as it does not have tno==0
              last;
           }elsif($ValClass[$tno-1] eq '.' && $ValPerl[$tno-1] eq '->') {	# issue 50
-	    pop @ValClass; pop @ValPerl; pop @ValPy;pop @ValType if($#ValType > $#ValClass); # issue 50, 37
+	    popup();                            # issue 50, 37
             $TokenStr=join('',@ValClass);       # issue 50
 	    $tno--;				# issue 50 - no need to keep arrow operator in python
       	    $ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
@@ -416,18 +443,18 @@ my ($l,$m);
          $ValPerl[$tno]=substr($source,1,$cut-2);
          # issue 51 - we leave the \' in place because we use a single quote deliminator below
          # NO GOOD!!  $ValPerl[$tno]=remove_escaped_delimiters($s, substr($source,1,$cut-2));       # issue 51
-         if( $tno>0 && $ValPerl[$tno-1] eq '<<'  ){
+         if( ($tno>0 && $ValPerl[$tno-1] eq '<<') ||
+             ($tno>1 && $ValPerl[$tno-1] eq '~' && $ValPerl[$tno-2] eq '<<')  ){
             # my $here_str = <<'END'; -- added Dec 20, 2019
+            my $has_squiggle = ($ValPerl[$tno-1] eq '~');
             $tno--; # overwrite previous token; Dec 20, 2019 --NNB
+            $tno-- if($has_squiggle);
 	    # issue 39 $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno]);
 	    $ValClass[$tno]='"';
-            $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno+1]);	# issue 39
-	    pop @ValClass;			# issue 39
-	    pop @ValPerl;			# issue 39
-	    pop @ValPy;				# issue 39
-	    pop @ValCom;			# issue 39
-	    pop @ValType if($#ValType > $#ValClass);	# issue 39, 37
-	    $TokenStr=join('',@ValClass);       # issue 39
+            $ValPerl[$tno]=substr($source,1,$cut-2);
+            $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno], $has_squiggle);	# issue 39
+	    popup();                            # issue 39
+            popup() if($has_squiggle);
             # issue 39 $cut=length($source);
 	 }elsif(index($ValPerl[$tno], "\n") >= 0) {		# issue 39 - multi-line string
             $ValPy[$tno]="'''".escape_backslash($ValPerl[$tno])."'''"; # only \n \t \r, etc needs to be  escaped # issue 39
@@ -438,25 +465,26 @@ my ($l,$m);
       }elsif( $s eq '"'  ){
          $ValClass[$tno]='"';
          $cut=double_quoted_literal('"',1); # side affect populates $ValPy[$tno] and $ValPerl[$tno]
-         if( $tno>0 && $ValPerl[$tno-1] eq '<<' ){
+         if( ($tno>0 && $ValPerl[$tno-1] eq '<<') ||
+             ($tno>1 && $ValPerl[$tno-1] eq '~' && $ValPerl[$tno-2] eq '<<')  ){
             # my $here_str = <<'END'; -- added Dec 20, 2019
+            my $has_squiggle = ($ValPerl[$tno-1] eq '~');
             $tno--; # overwrite previous token; Dec 20, 2019 --NNB
+            $tno-- if($has_squiggle);
 	    # issue 39 $ValClass[$tno]="'";
             $ValClass[$tno]='"';		# issue 39
             $ValPerl[$tno]=substr($source,1,$cut-2); # FIXME: we do not allow variables is here string.
 	    # issue 39 $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno]);
-            $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno+1]);	# issue 39
-	    pop @ValClass;			# issue 39
-	    pop @ValPerl;			# issue 39
-	    pop @ValPy;				# issue 39
-	    pop @ValCom;			# issue 39
-	    pop @ValType;			# issue 39, 37
+            $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno], $has_squiggle);	# issue 39
+            popup();                            # issue 39
+            popup() if($has_squiggle);
 	    $TokenStr=join('',@ValClass);       # issue 39
 	    # issue 39 $cut=length($source);
 	 }elsif(index($ValPy[$tno], "\n") >= 0) {		# issue 39 - multi-line string
             $ValPy[$tno] =~ s/^f"/f"""/;			# issue 39
 	    $ValPy[$tno] .= '""';				# issue 39
          }
+         $ValPerl[$tno]=substr($source,1,$cut-2);
       }elsif( $s eq '`'  ){
           $ValClass[$tno]='x';
           $cut=double_quoted_literal('`',1);
@@ -474,6 +502,9 @@ my ($l,$m);
             #$ValType[$tno]='b';
          }elsif( $source=~/(^\d+(?:[.]\d*)?(?:e[+-]?\d+)?)/  ){	# issue 23
              $val=$1;
+             if(substr($val,-1,1) eq '.' && substr($source,length($val),1) eq '.') { # issue range: change 0.. to 0
+                 substr($val, -1, 1) = '';              # issue range
+             }                                          # issue range
              #$ValType[$tno]='e';
          }elsif(  $source=~/(\d+)/  ){
              $val=$1;
@@ -488,8 +519,15 @@ my ($l,$m);
      }elsif( $s=~/\w/  ){
          $source=~/^(\w+(\:\:\w+)*)/;
          $w=$1;
-         $ValPerl[$tno]=$w;
          $cut=length($w);
+         if($tno == 0 && $w eq 'END') {         # SNOOPYJC: END block
+             $ValClass[$tno]='k';
+             $ValPerl[$tno]='sub';
+             $ValPy[$tno]='def';
+             $tno++;
+             $w = "__END__$.";                  # SNOOPYJC: Special name checked in pythonizer
+         }
+         $ValPerl[$tno]=$w;
          $ValClass[$tno]='i';
          $ValPy[$tno]=$w;
          $ValPy[$tno]=~tr/:/./s;                # SNOOPYJC
@@ -570,6 +608,7 @@ my ($l,$m);
                      last;
                   }
                   # issue 51 $ValPerl[$tno]=substr($source,length($w)+1,$cut-length($w)-2);
+                  #say STDERR "after single_quoted_literal, cut=$cut, length(\$w)=".length($w).", length(\$source)=".length($source);
                   $ValPerl[$tno]=remove_escaped_delimiters($delim, substr($source,length($w)+1,$cut-length($w)-2));      # issue 51
                   $w=escape_backslash($ValPerl[$tno]);
                   $ValPy[$tno]=escape_quotes($w,2);
@@ -635,6 +674,9 @@ my ($l,$m);
                         # this is string replace operation coded in Perl as regex substitution
                         $ValPy[$tno]='str.replace('.$quoted_regex.','.$quoted_regex.',1)';
                      }
+                  } elsif( $w eq 'qr' ) {               # SNOOPYJC: qr in other context
+                     ($modifier,$groups_are_present)=is_regex($myregex);
+                     $ValPy[$tno]='re.compile('.put_regex_in_quotes($myregex).$modifier.')';
                   }else{
                      abend("Internal error while analysing $w in line $. : $_[0]");
                   }
@@ -704,16 +746,16 @@ my ($l,$m);
                    }
                }
             }
-	 } elsif( $tno>1 && $ValPerl[$tno-1] eq '<<' && index('sd)', $ValClass[$tno-2]) < 0) {	# issue 39 - bare HereIs (and not a shift)
+	 } elsif( ($tno>1 && $ValPerl[$tno-1] eq '<<' && index('sd)', $ValClass[$tno-2]) < 0) || # issue 39 - bare HereIs (and not a shift)
+	          ( $tno>2 && $ValPerl[$tno-1] eq '~' && $ValPerl[$tno-2] eq '<<' && index('sd)', $ValClass[$tno-3]) < 0)) {	# issue 39 - bare HereIs (and not a shift)
+            $has_squiggle = ($ValPerl[$tno-1] eq '~');
             $tno--; # overwrite previous token; Dec 20, 2019 --NNB
+            $tno-- if($has_squiggle);           # overwrite that one too!
             $ValClass[$tno]='"';		# issue 39
-            $ValPerl[$tno]=substr($source,1,$cut-2); # FIXME: we do not allow variables is here string.
-            $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno+1]);	# issue 39
-	    pop @ValClass;			# issue 39
-	    pop @ValPerl;			# issue 39
-	    pop @ValPy;				# issue 39
-	    pop @ValCom;			# issue 39
-	    pop @ValType;			# issue 39, 37
+            $ValPerl[$tno]=substr($source,0,$cut); # FIXME: we do not allow variables is here string.
+            $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno], $has_squiggle);	# issue 39
+	    popup();                                                                            # issue 39
+	    popup() if($has_squiggle);
          }
       }elsif( $s eq '$'  ){
          if( substr($source,0,length('$DB::single')) eq '$DB::single' ){
@@ -726,7 +768,7 @@ my ($l,$m);
          }else{
 	    if($tno != 0 && ($ValClass[$tno-1] eq '@' || ($ValClass[$tno-1] eq '%' && !$had_space))) {	# issue 50
                # Change @$xxx to $xxx and %$yyy to $yyy but NOT % $yyy as that's a MOD operator!
-	       pop @ValClass; pop @ValPerl; pop @ValPy;	pop @ValType; # issue 50
+	       popup();                         # issue 50
 	       $tno--;				# issue 50 - no need to change hashref to hash or arrayref to array in python
       	       $ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
 	    }
@@ -839,7 +881,7 @@ my ($l,$m);
          }
       }elsif( $s eq '[' || $s eq '(' ){
          if($tno != 0 && $ValClass[$tno-1] eq '.' && $ValPerl[$tno-1] eq '->') {	# issue 50
-	    pop @ValClass; pop @ValPerl; pop @ValPy; pop @ValType; # issue 50
+	    popup();                            # issue 50
 	    $tno--;				# issue 50 - no need to keep arrow operator in python
       	    $ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
 	 }
@@ -1004,7 +1046,7 @@ my ($l,$m);
 	          $ValClass[$tno] = 'd';			# issue 23
 		  $ValPy[$tno] = $ValPerl[$tno] = $1;		# issue 23
 		  $cut=length($1);				# issue 23
-	       } elsif( $source =~ /[.][.]/ ) {			# issue range
+	       } elsif( $source =~ /^[.][.]/ ) {		# issue range
 		  $ValClass[$tno] = 'r';			# issue range
 		  $ValPerl[$tno] = '..';			# issue range
 		  $ValPy[$tno] = '..';				# issue range - not quite right but we have to handle specially
@@ -1109,7 +1151,7 @@ my $rc=-1;
    if ( $update  ){
       $ValClass[$tno]='s'; # we do not need to set it if we are analysing double wuoted literal
    }
-   my $specials = q(!?<>()!;]&`'+"@$);                  # issue 50
+   my $specials = q(!?<>()!;]&`'+"@$|,\\);              # issue 50
    if($s2 eq '$' && substr($source,2,1) =~ /[\w:]/) {   # issue 50
        $specials = '!';
    }
@@ -1150,12 +1192,18 @@ my $rc=-1;
        }
        $cut=length($1)+1;
    }elsif( $s2 eq '#' ){
-      $source=~/^..(\w+)/;
+      if(!($source=~/^..(\w+)/)) {
+          $source=~/^...(\w+)/;                # SNOOPYJC: Handle $#$arr_ref
+      }
       $ValType[$tno]="X";
       if( $update ){
          $ValPerl[$tno]=$1;
       }
-      $ValPy[$tno]='(len('.$1.')-1)';
+      if( $1 eq 'ARGV'  ){                      # SNOOPYJC: Generate proper code for $#ARGV
+          $ValPy[$tno] ='(len(sys.argv)-2)';    # SNOOPYJC
+      } else {                                  # SNOOPYJC
+          $ValPy[$tno]='(len('.$1.')-1)';       # SNOOPYJC
+      }
       $cut=length($1)+2;
   }elsif( $source=~/^.(\w*(\:\:\w+)*)/ ){
       $cut=length($1)+1;
@@ -1321,6 +1369,7 @@ sub popup
 # Remove the last item from stack
 #
 {
+    #say STDERR "popup ValClass=@ValClass";
    return unless ($#ValClass>0);
    pop(@ValClass);
    pop(@ValPerl);
@@ -1345,24 +1394,33 @@ my ($m,$sym);
       if(index('{[(<',$closing_delim)>-1){
          $closing_delim=~tr/{[(</}])>/;
       }
+      $opening_delim = undef;                   # issue 83
+      if(index('}])>',$closing_delim)>-1) {     # issue 83
+        $opening_delim = $closing_delim;        # issue 83
+        $opening_delim =~ tr/}])>/{[(</;        # issue 83
+      }                                         # issue 83
+      my $nest = 0;                             # issue 83: Need to count nested brackets if they match the delim
       $start_line = $.;			# issue 39
       while (1) {			# issue 39
       	# only backlashes are allowed
-        #say STDERR "single_quoted_literal($source, $closing_delim, $offset)";
+        #say STDERR "single_quoted_literal($source, $closing_delim, $offset), opening_delim=$opening_delim, nest=$nest";
       	for($m=$offset; $m<=length($source); $m++ ){
             #say STDERR "sym = $sym";
            $sym=substr($source,$m,1);
 	   # issue 39 last if( $sym eq $closing_delim && substr($source,$m-1,1) ne '\\' );
-           if( $sym eq $closing_delim ) {			# issue 39
-	       if(substr($source,$m-1,1) eq '\\' ) {		# issue 39
-		   # handle "...\\" - the second '"' IS the end of the string!	# issue 39
-		   if($m-2 >= 0 && substr($source,$m-2,1) eq '\\') {	# issue 39
-		       return $m+1;				# issue 39
-		   }						# issue 39
-	       } else {						# issue 39
-      	       	   return $m+1; # this is first symbol after closing quote		# issue 39
-	       }
-	       
+           if( $sym eq "\\") {              # issue 39: Properly skip escaped things like \\ and \'
+               $m++;
+               next;
+           }
+           if( defined $opening_delim && $sym eq $opening_delim ) {   # issue 83
+               $nest++;                         # issue 83
+               next;                            # issue 83
+           }                                    # issue 83
+           if( $sym eq $closing_delim ) {			# issue 39, issue 83
+               if($nest <= 0) {                 # issue 83
+                   return $m+1; # this is first symbol after closing quote		# issue 39
+               }                                # issue 83
+               $nest--;                         # issue 83
 	   }										# issue 39
       	}
 	# issue 39: if we get here, we ran out of road - grab the next line and keep going!
@@ -1414,10 +1472,10 @@ my  $outer_delim;
     $quote = escape_curly_braces($quote);        # issue 51
     $k=index($quote,'$');                        # issue 51 - recompute in case it moved
 
-    if (index($quote,'"')==-1){
+    if (index($quote,'"')==-1 && index($quote, "\n")==-1){      # issue multi-line here
        $outer_delim='"'
     # issue 53: we use single quotes in our 'bareword' so we can't use them here if we have {...}
-    }elsif(index($quote,"'")==-1 && index($quote,'{')==-1){     # issue 53
+    }elsif(index($quote,"'")==-1 && index($quote,'{')==-1 && index($quote,"\n")==-1){     # issue 53, multi-line here
       $outer_delim="'";
     }else{
       $outer_delim='"""';
@@ -1535,6 +1593,9 @@ my  $outer_delim;
        #the last part
        $result.=$quote;
    }
+   if($outer_delim eq '"""' && substr($result,-1,1) eq '"') {    # SNOOPYJC: oops - we have to fix this!
+       $result = substr($result,0,length($result)-1)."\\".'"';
+   }
    $result.=$outer_delim;
    $ValPy[$tno]=$result;
    return $close_pos;
@@ -1546,6 +1607,7 @@ sub escape_curly_braces                 # issue 51
 # Also don't mess with $hash{...} or $arrhash[...]{...} or $hashhash{...}{...}
 {
     my $str = shift;
+    #say STDERR "escape_curly_braces($str)";
 
     my $in_id = 0;
     for(my $k = 0; $k < length($str); $k++) {
@@ -1554,12 +1616,16 @@ sub escape_curly_braces                 # issue 51
             $k += length($1);
             if($k+1 < length($str)) {
                 my $d = substr($str,$k+1,1);
-                $k = matching_curly_br($str,$k+1) if ($d eq '{');
-                $k = matching_square_br($str,$k+1) if ($d eq '[');
+                my $m = -1;
+                $m = matching_curly_br($str,$k+1) if ($d eq '{');
+                $m = matching_square_br($str,$k+1) if ($d eq '[');
+                $k = $m if($m >= 0);
                 if($k+1 < length($str)) {
                     my $d = substr($str,$k+1,1);
-                    $k = matching_curly_br($str,$k+1) if ($d eq '{');
-                    $k = matching_square_br($str,$k+1) if ($d eq '[');
+                    $m = -1;
+                    $m = matching_curly_br($str,$k+1) if ($d eq '{');
+                    $m = matching_square_br($str,$k+1) if ($d eq '[');
+                    $k = $m if($m >= 0);
                 }
             }
         }
@@ -1568,7 +1634,8 @@ sub escape_curly_braces                 # issue 51
                 substr($str,$k,0) = '{';
                 $k++;
             } else {
-                $k = matching_curly_br($str, $k);
+                my $m = matching_curly_br($str, $k);
+                $k = $m if($m >= 0);
             }
         } elsif($c eq '}') {
             substr($str,$k,0) = '}';
@@ -1661,12 +1728,20 @@ sub escape_quotes
 my $string=$_[0];
 my $result;
 
-   return qq(""").$string.qq(""") if(index($string,"\n") >= 0);	# issue 39 - need to escape newlines
+   if(index($string,"\n") >= 0) {	# issue 39 - need to escape newlines
+      if(substr($string,-1,1) eq '"') {    # SNOOPYJC: oops - we have to fix this!
+          return qq(""").substr($string,0,length($string)-1).qq(\"""");
+      }
+      return qq(""").$string.qq(""") 
+   }
    return qq(').$string.qq(') if(index($string,"'")==-1 ); # no need to escape any quotes.
    return q(").$string.qq(") if( index($string,'"')==-1 ); # no need to scape any quotes.
 #
 # We need to escape quotes
 #
+   if(substr($string,-1,1) eq '"') {    # SNOOPYJC: oops - we have to fix this!
+       return qq(""").substr($string,0,length($string)-1).qq(\"""");
+   }
    return qq(""").$string.qq(""");
 }
 sub put_regex_in_quotes
@@ -1939,7 +2014,7 @@ my $balance=(scalar(@_)>2) ? $_[2] : 0; # case where opening bracket is missing 
      }
   } # for
   return $#str;
-} # matching_br
+} # matching_curly_br
 
 sub matching_square_br			# issue 43
 # Find matching square bracket, aka closing square bracket, if found.
@@ -1962,7 +2037,7 @@ my $balance=(scalar(@_)>2) ? $_[2] : 0; # case where opening bracket is missing 
      }
   } # for
   return $#str;
-} # matching_br
+} # matching_square_br
 
 sub escape_keywords		# issue 41
 # Accepts a name and escapes any python keywords in it by appending underscores.  The name can

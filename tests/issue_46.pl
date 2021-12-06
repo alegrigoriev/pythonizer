@@ -1,4 +1,4 @@
 use Carp::Assert;
 undef $";
-assert(!defined $");
+assert(!$");
 print "$0 - test passed!\n";

@@ -1,6 +1,5 @@
 # issue 32 - let user define the variable translations
 use Carp::Assert;
-$python = $0 =~ /\.py$/;
 $a = 1;
 $b = 2;
 assert($a+1 == $b);
@@ -60,7 +59,6 @@ my @numbers = (65, 66);
 my @chars = map(chr, @numbers);
 assert($chars[0] eq 'A' && $chars[1] eq 'B');
 sub myF {
-    return(lc shift) if($python);       # in perl it doesn't pass the arg!
     return(lc $_);
 }
 my @lc = map(myF, @chars);

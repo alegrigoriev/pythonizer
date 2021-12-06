@@ -266,4 +266,9 @@ foreach $seq (reverse sort {$a<=>$b} keys %{$rinspans{$rin}})
     ;
 }
 
-
+sub threeargs($$$) {
+    $arg1 = shift;
+    $arg2 = shift;
+    $arg3 = shift;
+    return $arg1+$arg2-$arg3;
+}
