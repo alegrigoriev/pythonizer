@@ -9,7 +9,7 @@ package config;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %PYTHON_KEYWORD_SET );
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET );
 
 # use Readonly;		# Readonly is not installed by default so skip it!
 
@@ -51,7 +51,10 @@ my %sigs = map { $_ => "signal.SIG$_" } @signals;
 our %CONSTANT_MAP = (%flocks, %os_opens, %sigs);
 
 # SNOOPYJC: Globals to be generated in the code header
-our %GLOBALS = ($SCRIPT_START=>'tm_py.time()', LIST_SEPARATOR=>"' '", OS_ERROR=>"''", AUTODIE=>0, TRACEBACK=>0);
+my $open_mode_map = "{'<': 'r', '>': 'w', '+<': 'r+', '+>': 'w+', '>>': 'a', '+>>': 'a+'}";
+my $dup_map = "dict(STDIN=0, STDOUT=1, STDERR=2)";
+our %GLOBALS = ($SCRIPT_START=>'tm_py.time()', LIST_SEPARATOR=>"' '", OS_ERROR=>"''", AUTODIE=>0, TRACEBACK=>0, _OPEN_MODE_MAP=>$open_mode_map, _DUP_MAP=>$dup_map);
+our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', OS_ERROR=>'S');
 # issue 41
 our @PYTHON_KEYWORDS = qw(False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise try while with yield);
 our %PYTHON_KEYWORD_SET = map { $_ => 1 } @PYTHON_KEYWORDS;

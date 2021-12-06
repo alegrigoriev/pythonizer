@@ -32,7 +32,7 @@ require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %GlobalVar);
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %GlobalVar %InitVar %VarType init_val); # SNOOPYJC
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line);
    # issue 32 $::TabSize=3;
    $::TabSize=$TABSIZE;         # issue 32
@@ -45,6 +45,7 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line);
    $InLineNo=0; # counter, pointing to the current like in InputTextA during the first pass
    %LocalSub=(); # list of local subs
    %GlobalVar=(); # generated "external" declaration with the list of global variables.
+   %InitVar=(); # SNOOPYJC: generated initialization
    # issue 32 $maxlinelen=188;
    $maxlinelen=$MAXLINELEN;
 #
@@ -165,6 +166,24 @@ sub prolog
       open(SYSOUT,'>',$output_file) || die("Can't open $output_file for writing");
       return;
 } # prolog
+
+%VarType = ('sys.argv'=>{main=>'a of S'},
+            'os.name'=>{main=>'S'},
+            EVAL_ERROR=>{main=>'S'},
+            'os.environ'=>{main=>'h of S'}); # SNOOPYJC: {varname}{sub} = type (a, h, s, I, S, F, N, u, m)
+%NeedsInitializing = ();        # SNOOPYJC: {sub}{varname} = type
+# SNOOPYJC: initialized means it is set before it's being used
+%initialized = (main=>{'sys.argv'=>'a of S',
+                       'os.name'=>'S',
+                       EVAL_ERROR=>'S',
+                       'os.environ'=>'h of S'});       # {sub}{varname} = type
+
+for my $g (keys %GLOBAL_TYPES) {                # SNOOPYJC
+    my $t = $GLOBAL_TYPES{$g};
+    $initialized{main}{$g} = $t;
+    $VarType{$g}{main} = $t;
+}
+
 sub get_globals
 #
 # This suroutine creates two hashes
@@ -208,12 +227,14 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
          for($i=1; $i<=$#ValClass; $i++ ){
             last if( $ValClass[$i] eq '=' );
             if( $ValClass[$i] =~/[sah]/ ){
+               check_ref($CurSubName, $i);              # SNOOPYJC
                $DeclaredVarH{$ValPy[$i]}=1; # this hash is need only for particular sub
             }
          }
          if( $i<$#ValClass ){
             for( $k=$i+1; $k<@ValClass; $k++ ){
                if( $ValClass[$k]=~/[sah]/ ){
+                  check_ref($CurSubName, $k);           # SNOOPYJC
                   next if exists($DeclaredVarH{$ValPy[$k]});
                   next if( defined($ValType[$k]) && $ValType[$k] eq 'X');
                   $VarSubMap{$ValPy[$k]}{$CurSubName}='+';
@@ -226,7 +247,7 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
          $LocalSub{$CurSubName}=1;
          %DeclaredVarH=(); # this is the list of my varible for given sub; does not needed for any other sub
 	 $we_are_in_sub_body=1;			# issue 45
-      }elsif( $ValClass[0] eq '}' ) {		# issue 45
+      }elsif( $ValClass[0] eq '}' && $#ValClass == 0) {	# issue 45
 	 if($we_are_in_sub_body && $NextNest == 0) {	# issue 45
 	     $we_are_in_sub_body = 0;		# issue 45
 	     $CurSubName='main';		# issue 45
@@ -234,8 +255,10 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
       }else{
          for( $k=0; $k<@ValClass; $k++ ){
              if(  $ValClass[$k]=~/[sah]/ ){
+                check_ref($CurSubName, $k);                  # SNOOPYJC
                 next if exists($DeclaredVarH{$ValPy[$k]});
                 next if(  defined($ValType[$k]) && $ValType[$k] eq 'X');
+                next if($ValPy[$k] eq '');      # Undefined special var
                 $VarSubMap{$ValPy[$k]}{$CurSubName}='+';
                 if( $ValPy[$k] =~/[\[\(]/){
                    $InLineNo = $.;
@@ -251,53 +274,468 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
        print STDERR "VarSubMap = ";
        $Data::Dumper::Indent=1;
        say STDERR Dumper(\%VarSubMap);
+       print STDERR "VarType = ";
+       say STDERR Dumper(\%VarType);
+       print STDERR "initialized = ";
+       say STDERR Dumper(\%initialized);
+       print STDERR "NeedsInitializing = ";
+       $Data::Dumper::Indent=1;
+       say STDERR Dumper(\%NeedsInitializing);
    }
 
    foreach $varname (keys %VarSubMap ){
       next if(  $varname=~/[\(\[]/ );
-      next if(  length($varname)==1 );
+      # SNOOPYJC next if(  length($varname)==1 );
+      next if($varname !~ /^[A-Za-z_][A-Za-z0-9_]*$/);   # SNOOPYJC: has to be a valid python var name
       $var_usage_in_subs=scalar(keys %{$VarSubMap{$varname}} );
-      if(  $var_usage_in_subs>1){
+      # SNOOPYJC if(  $var_usage_in_subs>1){
          # Varible that is present in multiple subs assumed to be global
          foreach $subname (keys %{$VarSubMap{$varname}} ){
-            $GlobalVar{$subname}.=','.$varname;
+            if($var_usage_in_subs>1 || exists $NeedsInitializing{$subname}{$varname}) { # SNOOPYJC
+                $GlobalVar{$subname}.=','.$varname;
+                # SNOOPYJC: Since this var exists in $VarSubMap, it's not a "my" variable and if
+                # it needs initializing, we need to do it in the top-level scope, not in the sub
+                if($subname ne 'main' && exists $NeedsInitializing{$subname}{$varname}) {     # SNOOPYJC
+                    $VarType{$varname}{main} = merge_types($varname, $subname, $NeedsInitializing{$subname}{$varname});        # SNOOPYJC
+                    $VarSubMap{$varname}{main} = '+';                   # SNOOPYJC
+                    $NeedsInitializing{main}{$varname} = $NeedsInitializing{$subname}{$varname};        # SNOOPYJC
+                    delete $NeedsInitializing{$subname}{$varname};      # SNOOPYJC
+                }                                                       # SNOOPYJC
+            }
          }
-      }
+      # SNOOPYJC }
    }
+   foreach $subname (keys %NeedsInitializing) {         # SNOOPYJC
+       foreach $varname (keys %{$NeedsInitializing{$subname}}) {
+           next if($varname !~ /^[A-Za-z_][A-Za-z0-9_]*$/);   # Has to be a valid python var name
+           next if(!exists $VarSubMap{$varname}{$subname});   # if it's not in VarSubMap, then it's a "my" variable, which is handled in pythonizer
+           $InitVar{$subname} .= "\n$varname = ".init_val($NeedsInitializing{$subname}{$varname});
+        }
+    }
+
    ($::debug) && out("\nDETECTED GLOBAL VARIABLES:");
    foreach $subname (keys %GlobalVar ){
       $GlobalVar{$subname}='global '.substr($GlobalVar{$subname},1);
       ($::debug) && out "\t$subname: $GlobalVar{$subname}";
+   }
+   ($::debug) && out("\nAUTO-INITIALIZED VARIABLES:");
+   foreach $subname (keys %InitVar ){
+      ($::debug) && out "\t$subname: $InitVar{$subname}";
+      $InitVar{$subname}.="\n";         # Add a blank line at the end
    }
    ($::debug) && out("\nList of local subroutines:");
    ($::debug) && out(join(' ', keys %LocalSub));
    #here we have already populated array Sub2name with the list of subs and $global_list with the list of global variables
 }
 
+sub init_val            # SNOOPYJC: Get the initializer value for the var, given the type
+{
+   $type = shift;
+
+   my $val = 'None';
+   $val = '0' if($type =~ /[IN]/);      # Integer or Number
+   $val = '0.0' if($type eq 'F');       # Float
+   $val = "''" if($type eq 'S');        # String
+   $val = '[]' if($type eq 'a');        # array
+   $val = '{}' if($type eq 'h');        # hash 
+   return $val;
+}
+
+sub check_ref           # SNOOPYJC: Check references to variables so we can type them or later initialize them
+{
+    my $CurSub = shift;
+    my $k = shift;      # Points to a scalar, hash, or array name
+
+    my $name = $ValPy[$k];
+    my $class;
+    my $type = undef;
+    $class = $ValClass[$k];
+    if($::debug >= 3) {
+        say STDERR "check_ref($CurSub, $name) at $k";
+    }
+
+    if($k > 0 && $ValClass[$k-1] eq '^') {      # pre ++ or --
+        $type = 'I';
+        $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
+    }
+
+    return if(!$name);
+
+    if($k+1 <= $#ValClass) {
+        if($ValClass[$k+1] eq '=') {
+            $type = expr_type($k+2, $#ValClass, $CurSub);
+            my $op = $ValPerl[$k+1];
+            if($op eq '=') {     # e.g. not +=
+                $initialized{$CurSub}{$name} = $type;
+            } elsif($op eq '.=') {
+                $type = 'S';
+                $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
+            } else {                # +=, -=, *=, /=, |=, &=
+                $type = 'N' unless($type eq 'I' || $type eq 'F');        # numeric
+                $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
+            }
+        } elsif($ValClass[$k+1] eq '^') {   # ++ or --
+            $type = 'I';
+            $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
+        } elsif(!defined $type) {
+            $m = next_same_level_tokens(')', $k, $#ValClass); 
+            #say STDERR "m = $m";
+            if($m != -1 && $m < $#ValClass && $ValClass[$m+1] eq '=') {        # like ($v1, $v2) = RHS;
+                $rhs_type = expr_type($m+2, $#ValClass, $CurSub);
+                if($rhs_type =~ /^a of (.*)$/) {            # like a of S
+                    $type = $1;
+                    $initialized{$CurSub}{$name} = $type;
+                }
+            }
+        }
+    }
+    if($k == 1 && $ValClass[0] eq 'c' && $ValPy[0] eq 'for') {  # Var in a foreach loop is initialized
+        $type = expr_type($k+1, $#ValClass, $CurSub);
+        $type =~ s/^a of //;
+        $initialized{$CurSub}{$name} = $type;
+    } elsif(($k >=1 && $ValClass[$k-1] eq 'f' && ($ValPerl[$k-1] eq 'open' || $ValPerl[$k-1] eq 'opendir')) ||  # open $fh
+           ($k >=2 && $ValClass[$k-1] eq '(' && $ValClass[$k-2] eq 'f' && ($ValPerl[$k-2] eq 'open' || $ValPerl[$k-2] eq 'opendir'))  ||  # open($fh
+           ($k >=3 && $ValClass[$k-1] eq 't' && $ValClass[$k-2] eq '(' && $ValClass[$k-3] eq 'f' && ($ValPerl[$k-3] eq 'open' || $ValPerl[$k-3] eq 'opendir'))) { # open(my $fh
+        $type = 'H';
+        $initialized{$CurSub}{$name} = $type;
+    }
+
+    if(defined $type) {
+        $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
+    }
+    if($class eq 's' && $k+1 <= $#ValClass && $ValClass[$k+1] eq '(' && $ValPerl[$k+1] ne '(') {     # Being subscripted
+        $class = (($ValPerl[$k+1] eq '{') ? 'h' : 'a');
+        $NeedsInitializing{$CurSub}{$name} = $class if(!exists $initialized{$CurSub}{$name});
+        my $rhs_type = undef;
+        if(defined $type) {
+            $rhs_type = $type;
+        }
+        $type = undef;
+        $p = $k+1;
+        while($ValClass[$p] eq '(') {
+            $class = (($ValPerl[$p] eq '{') ? 'h' : 'a');
+            if(defined $type) {
+                $type .= " of $class";
+            } else {
+                $type = $class;
+            }
+            my $q = matching_br($p);
+            last if $q < 0;
+            $p = $q+1;
+            last if($p > $#ValClass);
+        }
+        if($p <= $#ValClass) {
+            if($ValClass[$p] eq '=') {
+                $rhs_type = expr_type($p+1, $#ValClass, $CurSub);
+            } elsif($ValClass[$p] eq '^') {
+                $rhs_type = 'I';
+            }
+        }
+        if(defined $rhs_type) {
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of $rhs_type");
+        } else {
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of u");
+        }
+    }
+}
+
+sub merge_types         # SNOOPYJC: Merge type of object when we get new info
+{
+    my $name = shift;
+    my $CurSub = shift;
+    my $type = shift;
+
+    if($::debug >= 3) {
+        say STDERR "merge_types($name, $CurSub, $type)";
+    }
+
+    if(!exists $VarType{$name}{$CurSub}) {
+        return $type;
+    }
+    $otype = $VarType{$name}{$CurSub};
+    if($::debug >= 3) {
+        say STDERR "merge_types: otype=$otype";
+    }
+    return $type if($type eq $otype);   # Same type
+    if(($otype eq 'a' || $otype eq 'h') && $type =~ /$otype of/) {
+        return $type;           # we have more specific info
+    }
+    if(($type eq 'a' || $type eq 'h') && $otype =~ /$type of/) {
+        return $otype;           # we have less specific info
+    }
+    if(($otype =~ /[ah] of/) && ($type =~ /[ah] of/)) {
+        @olist = split / of /,$otype;
+        @list = split / of /,$type;
+        my $len = (scalar(@olist) >= scalar(@list) ? scalar(@list) : scalar(@olist));
+        for(my $i = 0; $i < $len; $i++) {
+            if($list[$i] ne $olist[$i]) {
+                if($list[$i] eq 'u') {          # Was undef, now defined
+                    return join(' of ', @olist);
+                } elsif($olist[$i] eq 'u') {
+                    return join(' of ', @list);
+                }
+                $list[$i] = 'm';                # mixed type
+                $#list = $i;                    # chop it there
+                return join(' of ', @list);
+            }
+        }
+        if(scalar(@olist) > scalar(@list)) {
+            return join(' of ', @olist);        # we knew more before
+        }
+        return join(' of ', @list);
+    } elsif($otype =~ /[ah] of/) {
+        return 'm';                 # mixed type
+    } elsif($type =~ /[ah] of/) {
+        return 'm';                 # mixed type
+    } elsif(($otype eq 's' || $otype eq 'u') && ($type =~ /[NIFSH]/)) {        # more specific type
+        return $type;
+    } elsif($otype eq 'N' && ($type =~ /[IF]/)) {   # Numeric -> Int or Float
+        return $type;
+    } elsif($type eq 'N' && ($otype =~ /[IF]/)) {   # Numeric -> Int or Float
+        return $otype;
+    } elsif(($type =~ /[IF]/) && ($otype =~ /[IF]/)) {  # int vs float
+        return 'F';             # Float wins
+    } elsif($otype eq 'u' && $type eq 's') {
+        return $type;
+    }
+    return 'm';         # Mixed
+}
+
+sub expr_type           # Attempt to determine the type of the expression
+{
+    my $k = shift;
+    my $e = shift;
+    my $CurSub = shift;
+
+    my $class = $ValClass[$k];
+    if($::debug >= 3) {
+        say STDERR "expr_type($k, $e, $CurSub)";
+    }
+    # FIXME: Try to get the type of our functions, not just built-ins if possible
+    if($class eq 'f') {         # built-in function call
+        return func_type($ValPerl[$k]);
+    } elsif($k == $#ValClass) {      # we have one thing
+        if($class eq 'd') {             # Digits
+            if($ValPy[$k] =~ /^(?:0[xbo])?\d+$/) {
+                return 'I';             # Integer
+            }
+            return 'F';                 # Float
+        } elsif($class eq 's') {        # Scalar
+            return $VarType{$ValPy[$k]}{$CurSub} if(exists $VarType{$ValPy[$k]}{$CurSub});
+            return 's';                 # scalar
+        } elsif($class eq '"' || $class eq 'x') {       # string or `exec`
+            return 'S';                 # string
+        }
+        return 'u';
+    } elsif($class ne '(') {            # Non-parenthesized expression
+        $m = next_same_level_tokens('>+-*/%0.', $k, $#ValClass);
+        if($m != -1) {
+            if($ValClass[$m] eq '.') {
+                if($ValPerl[$m] eq '.') {       # String concat
+                    return 'S';
+                } else {
+                    return 'u';                 # unknown
+                }
+            } elsif($ValClass[$m] eq '>') {     # could be like < or like lt
+                return 'S' if($ValPerl[$m] =~ /^[a-z][a-z]$/);
+                return 'I';     # boolean is an Int in perl
+            }
+            return 'N';         # Numeric
+        } elsif($class eq 's' && $ValClass[$k+1] eq '(') {    # An array with possible subscript or hash with key
+            $name = $ValPy[$k];
+            if(exists $VarType{$name}{$CurSub} && index(' of ', $VarType{$name}{$CurSub}) > 0) {
+                $typ = $VarType{$name}{$CurSub};
+                $p = $k+1;
+                while($ValClass[$p] eq '(') {
+                    $q = matching_br($p);
+                    last if($q < 0);
+                    $typ =~ s/^. of //;
+                    $p = $q+1;
+                }
+                return $typ if($typ);
+            }
+        }
+        return 'u';
+    } else {                    # '('
+        # Check for list first
+        $m = next_same_level_tokens(',', $k+1, $#ValClass-1);
+        if($m != -1) {
+            $n = next_same_level_tokens(':', $k+1, $m-1);       # Look for =>
+            my $t;
+            if($n != -1 && $ValPerl[$n] eq '=>') {      # Like {key1=>val1, key2=>val2}
+                $t = expr_type($n+1, $m-1, $CurSub);
+                while($t ne 'm') {
+                    $o = next_same_level_tokens(',', $m+1, $#ValClass-1);
+                    last if($o < 0);
+                    $n = next_same_level_tokens(':', $m+1, $o-1);       # Look for =>
+                    last if($n < 0 || $ValPerl[$n] ne '=>');
+                    my $u = expr_type($n+1, $o-1, $CurSub);
+                    $t = common_type($t, $u);
+                    $m = $o;
+                }
+                return "h of $t";
+            } else {                                    # like (1, 2, 3)
+                $t = expr_type($k+1, $m-1, $CurSub);
+                while($t ne 'm') {
+                    $o = next_same_level_tokens(',', $m+1, $#ValClass-1);
+                    last if($o < 0);
+                    my $u = expr_type($m+1, $o-1, $CurSub);
+                    $t = common_type($t, $u);
+                    $m = $o;
+                }
+            }
+            return "a of $t";
+        } else {        # Not a list, just a parenthesized expression
+            return expr_type($k+1, $#ValClass-1, $CurSub);           # Just get the type of the expression in the (...)
+        }
+    }
+}
+
+sub common_type         # Create a common type from 2 types
+{
+    my $t1 = shift;
+    my $t2 = shift;
+
+    return $t1 if($t1 eq $t2);          # That was easy!
+    return $t2 if($t1 eq 'u');          # u = undefined
+    return $t1 if($t2 eq 'u');
+    if(index('IF', $t1) >= 0 && index('IF', $t2) >= 0) {
+        return 'F';             # Int mixed with Float => Float
+    } elsif($t1 eq 'N' && index('IF', $t2) >= 0) {
+        return 'N';             # Numeric
+    } elsif($t2 eq 'N' && index('IF', $t1) >= 0) {
+        return 'N';             # Numeric
+    } elsif($t1 eq 's' && index('IFN', $t2) >= 0) {
+        return 's';              # Scalar
+    } elsif($t2 eq 's' && index('IFN', $t1) >= 0) {
+        return 's';              # Scalar
+    }
+    my $lcp = lcp($t1, $t2);
+    if($lcp != 0) {                  # handle both being like a of I or a of a of N, etc
+        return substr($t1,0,$lcp) . common_type(substr($t1,$lcp), substr($t2,$lcp));
+    }
+    return 'm';
+}
+
+sub lcp {               # Longest common prefix - LOL don't ask me how it works!
+    (join("\0", @_) =~ /^ ([^\0]*) [^\0]* (?:\0 \1 [^\0]*)* $/sx)[0];
+}
+
+sub func_type                   # Get the result type of this built-in function
+{
+    my $fname = shift;
+
+    return 'u' if(!exists $Perlscan::FuncType{$fname});
+    my $type = $Perlscan::FuncType{$fname};
+    $type =~ s/^.*://;
+    return $type;
+}
+
+sub matching_br
+# Find matching bracket, arase closeing braket, if found.
+# Arg1 - starting position for scan
+# Arg2 - (optional) -- balance from whichto start (allows to skip opening brace)
+{
+my $scan_start=$_[0];
+my $balance=(scalar(@_)>1) ? $_[1] : 0; # case where opening bracket is missing for some reason or was skipped.
+   for( my $k=$scan_start; $k<length($TokenStr); $k++ ){
+     $s=substr($TokenStr,$k,1);
+     if( $s eq '(' ){
+        $balance++;
+     }elsif( $s eq ')' ){
+        $balance--;
+        if( $balance==0  ){
+           return $k;
+        }
+     }
+  } # for
+  return $#TokenStr;
+} # matching_br
+
+sub reverse_matching_br
+# Find matching bracket, opening braket, if found.
+# Arg1 - starting position for scan
+# Arg2 - (optional) -- balance from whichto start (allows to skip closing brace)
+{
+my $scan_start=$_[0];
+my $balance=(scalar(@_)>1) ? $_[1] : 0; # case where opening bracket is missing for some reason or was skipped.
+   for( my $k=$scan_start; $k>=0; $k-- ){
+     $s=substr($TokenStr,$k,1);
+     if( $s eq ')' ){
+        $balance++;
+     }elsif( $s eq '(' ){
+        $balance--;
+        if( $balance==0  ){
+           return $k;
+        }
+     }
+  } # for
+  return 0;
+} # reverse_matching_br
+
+sub next_same_level_tokens
+# get the next token on the same nesting level matching any given by first arg.
+{
+my $toks=$_[0];
+my $scan_start=$_[1];
+my $scan_end=$_[2];
+my $balance=0;
+    # issue 74 for( my $k=$scan_start; $k<$scan_end; $k++ ){      # issue 74
+    for( my $k=$scan_start; $k<=$scan_end; $k++ ){      # issue 74
+      $s=substr($TokenStr,$k,1);
+      if( $s eq '(' ){
+         $balance++;
+      }elsif( $s eq ')' ){
+         $balance--;
+      }
+      if( index($toks, $s) >= 0 && $balance<=0  ){
+          return $k;
+      }
+   } # for
+   return -1; # not found
+} # next_same_level_tokens
+
 sub get_here
 #
 #Extract here string with delimiter specified as the first argument
+#The second argument, if true, means to remove leading whitespace from the result like <<~ does
 #
 {
-my $here_str;
-   $line=getline();		# issue 39
+my $here_str='';        # issue 39
+my $line=<>;		# issue 39
+   $line =~ s/[\r\n]+//sg;        # issue 39
    if($::debug > 2) {
-      say STDERR "get_here($_[0]): line=$line\n";
+      say STDERR "get_here($_[0], $_[1]): line=$line, lno=$.";
    }
-   if(!$line) {
+   if(!defined $line) {
       logme('S', "Unclosed here string - terminiator '$_[0]' not found");
+      return '""""""';
    }
-   while (substr($line,0,length($_[0])) ne $_[0] ){
+   $line =~ /^(\s*)/;
+   my $spaces = length($1);
+   my $len_eof = length($_[0]);         # SNOOPYJC
+   while (!((substr($line,0,length($_[0])) eq $_[0] && length($line) == $len_eof) || 
+           ($_[1] && substr($line,$spaces,length($_[0])) eq $_[0] && length($line) == $spaces+$len_eof) )){
       # issue 39 $here_str.=$line;
       $here_str.=$line."\n";
-      $line=getline();
-      if($::debug > 2) {
-   	say STDERR "get_here:line=$line\n";
-      }
-      if(!$line) {
+      $line=<>;                 # issue 39
+      if(!defined $line) {
          logme('S', "Unclosed here string - terminiator '$_[0]' not found");
 	 last;
       }
+      $line =~ s/[\r\n]//sg;        # issue 39
+      if($::debug > 2) {
+   	say STDERR "get_here:line=$line, lno=$., len_eof=$len_eof, length(line)=".length($line).", spaces=$spaces, defined line=".defined $line;
+      }
+   }
+   if($_[1]) {                  # Have the <<~ ?
+       if($::debug > 2) {
+   	   say STDERR "get_here:here_str=$here_str (before strip)";
+       }
+       $here_str =~ s/^\s{$spaces}//gm;
+   }
+   if($::debug > 2) {
+   	say STDERR "get_here:here_str=$here_str";
    }
    # issue 39 return '""""'."\n".$here_str."\n".'"""""'."\n";
    return '"""'.$here_str.'"""';	# issue 39
@@ -600,7 +1038,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
             $in_def = 1 if($line =~ /^def /);
             #say STDERR "in_def on $line" if($in_def);
         }
-        next if($in_def);               # Refs inside of defs don't matter
+        ### YES THEY DO!!  next if($in_def);               # Refs inside of defs don't matter
         next if($line =~ /^\s*#/);      # ignore comments
         my @found = grep { $line =~ /\b$_\b/ } @words;
         foreach $f (@found) {
@@ -666,6 +1104,17 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         }
         %to_move = ();
         next if(exists $moved_lines{$lno});
+        if($multiline_string_sep) {
+            say $sysout $line;
+            $multiline_string_sep = '' if(index($line, $multiline_string_sep) >= 0);
+            next;
+        } elsif(($line =~ /"""/ || $line =~ /'''/) && $line !~ /^\s*#/) {
+            $ndx = index($line, '"""');
+            $ndx = index($line, "'''") if $ndx < 0;
+            $multiline_string_sep = substr($line,$ndx,3);
+            # if the string terminates on the same line, then it's not a multiline string
+            $multiline_string_sep = '' if(index($line, $multiline_string_sep, $ndx+3) >= 0);
+        }
         pep8($sysout, $line);
     }
     close $sysout;
@@ -697,6 +1146,8 @@ sub pep8                # Generate blank lines where they should be, and elimina
     } elsif($this_indent < $last_indent && !$this_is_blank && $line !~ /^\s*except / &&
             $line !~ /^\s*else:/ && $line !~ /^\s*elif /) {
         say $out "";    # generate a blank line
+    } elsif($this_indent == 0 && !$this_is_blank && $line =~ /^def / && !$last_was_blank) {
+        say $out "";    # generate a blank line
     }
     say $out $line;
     $last_was_blank = $this_is_blank;
@@ -717,14 +1168,19 @@ sub cleanup_imports
     my $as_what = '';
     my @imports = ();
     my %referenced_imports = ();
+    my @globals = keys %GLOBALS;
+    my %global_lnos = ();
+    my %referenced_globals = ();
     my $import_as_referenced = 0;
     my $die_referenced = 0;
     my $eval_return_lno = 0;            # class $EVAL_RETURN_EXCEPTION(
     my $eval_referenced = 0;
-    my $list_sep_lno = 0;
-    my $list_sep_referenced = 0;
-    my $script_start_lno = 0;
-    my $script_start_referenced = 0;
+    my $import_as_global = '';
+    my @gl;
+    #my $list_sep_lno = 0;
+    #my $list_sep_referenced = 0;
+    #my $script_start_lno = 0;
+    #my $script_start_referenced = 0;
     for my $line (@$line_ref) {
         $lno++;
         if($line =~ /^import /) {
@@ -740,27 +1196,40 @@ sub cleanup_imports
             $die_def_lno = $lno;
         } elsif($line =~ /^class $EVAL_RETURN_EXCEPTION\(/) {
             $eval_return_lno = $lno;
-        } elsif($line =~ /^LIST_SEPARATOR = /) {
-            $list_sep_lno = $lno;
-        } elsif($line =~ /^$SCRIPT_START = /) {
-            $script_start_lno = $lno;   # doesn't count for $import_as_referenced
+            #} elsif($line =~ /^LIST_SEPARATOR = /) {
+            #$list_sep_lno = $lno;
+            #} elsif($line =~ /^$SCRIPT_START = /) {
+            #$script_start_lno = $lno;   # doesn't count for $import_as_referenced
+        } elsif((@gl = grep { $line =~ /^$_ = / } @globals)) {
+            $g = $gl[0];
+            $global_lnos{$g} = $lno;
+            if($line =~ /\b$as_what\./) {
+                $import_as_global = $g;
+            }
         } elsif($import_lno) {
             my @found = grep { $line =~ /\b$_\./ } @imports;
-            foreach $f (@found) {
+            foreach my $f (@found) {
                 $referenced_imports{$f} = 1;
+            }
+            my @gl = grep { $line =~ /\b$_\b/ } @globals;
+            foreach my $g (@gl) {
+                $referenced_globals{$g} = 1;
+                if($g eq $import_as_global) {   # this one references our import as
+                    $import_as_referenced = 1;
+                }
             }
             if($line =~ /\b$as_what\./) {
                 $import_as_referenced = 1;
                 #say STDERR $line;
-            } elsif($line =~ /\bLIST_SEPARATOR\b/) {
-                $list_sep_referenced = 1;
+                #} elsif($line =~ /\bLIST_SEPARATOR\b/) {
+                #$list_sep_referenced = 1;
             } elsif($line =~ /\bDie\b/) {
                 $die_referenced = 1;
             } elsif($line =~ /\b$EVAL_RETURN_EXCEPTION\b/) {
                 $eval_referenced = 1;
-            } elsif($line =~ /\b$SCRIPT_START\b/ || $line =~ /\b_get[ACM]\b/) {
-                $script_start_referenced = 1;
-                $import_as_referenced = 1;      # yes, this references that!
+                #} elsif($line =~ /\b$SCRIPT_START\b/ || $line =~ /\b_get[ACM]\b/) {
+                #$script_start_referenced = 1;
+                #$import_as_referenced = 1;      # yes, this references that!
             }
         }
     }
@@ -784,11 +1253,16 @@ sub cleanup_imports
             $line_ref->[$eval_return_lno-1] = '';   # class $EVAL_RETURN_EXCEPTION(Exception):
             $line_ref->[$eval_return_lno] = '';     #     pass
         }
-        if($list_sep_lno && !$list_sep_referenced) {
-            $line_ref->[$list_sep_lno-1] = '';
-        }
-        if($script_start_lno && !$script_start_referenced) {
-            $line_ref->[$script_start_lno-1] = '';
+        #if($list_sep_lno && !$list_sep_referenced) {
+        #$line_ref->[$list_sep_lno-1] = '';
+        #}
+        #if($script_start_lno && !$script_start_referenced) {
+        #$line_ref->[$script_start_lno-1] = '';
+        #}
+        foreach my $g (keys %global_lnos) {
+            if(!exists $referenced_globals{$g}) {
+                $line_ref->[$global_lnos{$g}-1] = '';
+            }
         }
         return 1;
     }
