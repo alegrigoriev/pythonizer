@@ -119,6 +119,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 # issue 42 'eval'=>'NoTrans!', 
                 'eval'=>'try',  # issue 42
                 'exit'=>'sys.exit','exists'=> 'in', # if  key in dictionary 'exists'=>'.has_key'
+                'fc'=>'.casefold()',                    # SNOOPYJC
 		'flock'=>'_flock',			# issue flock
 		'glob'=>'glob.glob',			# SNOOPYJC
                 'if'=>'if ', 'index'=>'.find',
@@ -138,6 +139,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'package'=>'NoTrans!', 'pop'=>'.pop()', 'push'=>'.extend(',
                 'say'=>'print','scalar'=>'len', 'shift'=>'.pop(0)', 'split'=>'re.split', 
 		# issue 34 'sort'=>'sort', 
+		'sqrt'=>'math.sqrt',			# SNOOPYJC
 		'sort'=>'sorted', 		# issue 34
 		'state'=>'global',
                 'read'=>'.read',                # issue 10
@@ -153,7 +155,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'require'=>'NoTrans!', 'return'=>'return', 'rmdir'=>'os.rmdir',
                 'tie'=>'NoTrans!',
 		'time'=>'_time',		# SNOOPYJC
-                'uc'=>'.upper()', 'ucfirst'=>'.capitalize()', 'undef'=>'_', 'unless'=>'if not ', 'unlink'=>'os.unlink',
+                'uc'=>'.upper()', 'ucfirst'=>'.capitalize()', 'undef'=>'None', 'unless'=>'if not ', 'unlink'=>'os.unlink',
                 'umask'=>'os.umask',            # SNOOPYJC
                    'unshift'=>'.insert(0,',
 		   'use'=>'NoTrans!', 'until'=>'while not ','untie'=>'NoTrans!',
@@ -210,11 +212,12 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'basename'=>'f',	# SNOOPYJC
 		  'binmode'=>'f',	# SNOOPYJC
                   'caller'=>'f','chdir'=>'f','chomp'=>'f', 'chop'=>'f', 'chmod'=>'f','chr'=>'f','close'=>'f',
-                  'cmp'=>'<',           # SNOOPYJC: comparison
+                  'cmp'=>'>',           # SNOOPYJC: comparison
                   'delete'=>'f',        # issue delete
                   'default'=>'C','defined'=>'f','die'=>'f',
                   'else'=>'C', 'elsif'=>'C', 'exists'=>'f', 'exit'=>'f', 'export'=>'f',
                   'eval'=>'C',          # issue 42
+                  'fc'=>'f',            # SNOOPYJC
 		  'flock'=>'f',		# issue flock
 		  'glob'=>'f',		# SNOOPYJC
                   'if'=>'c',  'index'=>'f',
@@ -237,6 +240,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'reverse'=>'f',               # issue 65
 		  'ref'=>'f',
                   'say'=>'f','scalar'=>'f','shift'=>'f', 'split'=>'f', 'sprintf'=>'f', 'sort'=>'f','system'=>'f', 'state'=>'t',
+		  'sqrt'=>'f',		# SNOOPYJC
                   'stat'=>'t','sub'=>'k','substr'=>'f','sysread'=>'f',  'sysseek'=>'f',
                   'tie'=>'f',
 		  'time'=>'f', 'gmtime'=>'f', 'timelocal'=>'f',	# SNOOPYJC
@@ -246,19 +250,19 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'undef'=>'f', 'unless'=>'c', 'unshift'=>'f','until'=>'c','uc'=>'f', 'ucfirst'=>'f','use'=>'c','untie'=>'f',
                   'umask'=>'f'                  # SNOOPYJC
                   );
-       %FuncType=(              # a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, u=Unknown, f=function, H=FileHandle, ?=Optional
+       %FuncType=(    # a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, S=String, u=Unknown, f=function, H=FileHandle, ?=Optional, m=mixed
 		  'abs'=>'N:N', 'alarm'=>'N:N', 'atan2'=>'NN:F', 'basename'=>'S:S',
 		  'binmode'=>'HS?:u',
                   'caller'=>'I?:a','chdir'=>'S:I','chomp'=>'S:u', 'chop'=>'S:u', 'chmod'=>'Ia:u','chr'=>'I?:S','close'=>'H:I',
-                  'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:u', 'exists'=>'u:I', 'exit'=>'S:u',
-		  'flock'=>'HI:I', 'glob'=>'S:a of S', 'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S',
-                  'keys'=>'h:a of S', 'lc'=>'S:S', 'length'=>'S:I', 'localtime'=>'I?:a of I',
-                  'map'=>'fa:a', 'mkdir'=>'S:I', 'oct'=>'s:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
+                  'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:u', 'exists'=>'u:I', 'exit'=>'S:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'glob'=>'S:a of S',
+                  'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 'lc'=>'S:S',
+                  'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'S:I', 'oct'=>'s:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
 		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:u',
-                  'push'=>'aa:I', 'pop'=>'a:s', 'print'=>'H?a:I', 'rindex'=>'SSI?:I','read'=>'HsII?:I', 'reverse'=>'a:a',
-		  'ref'=>'u:S', 'say'=>'H?a:I','scalar'=>'a:I','shift'=>'a?:s', 'split'=>'SSI?:a of s', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
-                  'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timelocal'=>'IIIIII:I',
-		  'unlink'=>'a?:I', 'values'=>'h:a', 'warn'=>'a', 'undef'=>'u', 'unshift'=>'aa', 'uc'=>'S:S', 'ucfirst'=>'S:S', 'umask'=>'I?:I'
+                  'push'=>'aa:I', 'pop'=>'a:s', 'print'=>'H?a:I', 'rindex'=>'SSI?:I','read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
+                  'say'=>'H?a:I','scalar'=>'a:I','shift'=>'a?:s', 'split'=>'SSI?:a of s', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
+                  'sqrt'=>'N:F', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 
+                  'timelocal'=>'IIIIII:I', 'unlink'=>'a?:I', 'values'=>'h:a', 'warn'=>'a', 'undef'=>'u', 'unshift'=>'aa', 'uc'=>'S:S',
+                  'ucfirst'=>'S:S', 'umask'=>'I?:I'
                   );
 #
 # one to one translation of digramms. most are directly translatatble.
@@ -276,6 +280,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
    %SpaceBefore=(in=>1, is=>1, an=>1, or=>1);                  # SNOOPYJC - always generate a space before these 2-letter output words
 
    %SpaceBoth=('='=>1, '+='=>1, '-='=>1, '*='=>1, '/='=>1, '%='=>1,
+               '>'=>1, '>='=>1, '<'=>1, '<='=>1, '=='=>1, '!='=>1,
                '|='=>1, '&='=>1, '^='=>1, '>>='=>1, '<<='=>1, '**='=>1, '//='=>1); # SNOOPYJC - always generate a space before and after these
 
 my ($source,$cut,$tno)=('',0,0);
@@ -339,9 +344,11 @@ my ($l,$m);
             if( $tno>0 && $ValPerl[0] eq 'sub' ){
                $ValPy[0]='#NoTrans!'; # this is a subroutne prototype, ignore it.
             }
-            if( $delayed_block_closure ){
+            # issue 86 if( $delayed_block_closure ){
+            while( $delayed_block_closure ){
                Pythonizer::getline('}');
-               $delayed_block_closure=0;
+               # issue 86 $delayed_block_closure=0;
+               $delayed_block_closure--;        # issue 86
             }
             last if( length($source) == 1); # we got full statement; semicolon needs to be ignored.
             if( $source !~/^;\s*#/  ){
@@ -364,9 +371,10 @@ my ($l,$m);
       $ValCom[$tno]='';
       if( $s eq '}' ){
          # we treat '}' as a separate "dummy" statement -- eauvant to ';' plus change of nest -- Aug 7, 2020
+         #say STDERR "Got }, tno=$tno, source=$source";
          if( $tno==0  ){
               # we recognize it as the end of the block if '}' is the first symbol
-             if( length($source)>1 ){
+             if( length($source)>=1 ){
                 Pythonizer::getline(substr($source,1)); # save tail
                 $source=$s; # this was we artifically create line with one symbol on it;
              }
@@ -375,10 +383,19 @@ my ($l,$m);
              # NOTE: here $tno>0 and we reached the last symbol of the line
              # we recognize it as the end of the block
              #curvy bracket as the last symbol of the line
-             # issue 45 Pythonizer::getline('}'); # make it a separate statement
-             Pythonizer::getline($source); # make it a separate statement # issue 45
-             popup(); # kill the last symbol
-             last; # we truncate '}' and will process it as the next line
+             
+             # issue 85 - recognize a couple of different cases and handle them properly.
+             # Case 1: sub abc { ... }  <- need to recognize end of block
+             # Case 2: $i = $h{v}       <- need to NOT recognize end of block
+             #say STDERR "Got }, tno=$tno, ValClass=@ValClass, source=$source";
+             # The way we tell is to look at the tokens and if there are unbalanced (), then this is NOT a block end
+             
+             if(parens_are_balanced()) {                # issue 85
+                # issue 45 Pythonizer::getline('}'); # make it a separate statement
+                Pythonizer::getline($source); # make it a separate statement # issue 45
+                popup(); # kill the last symbol
+                last; # we truncate '}' and will process it as the next line
+             }
          }
          # this is closing bracket of hash element
 	 if( $tno > 2 && $ValClass[$tno-1] eq 'i' and $ValPerl[$tno-2] eq '{' ) {	# issue 13
@@ -480,7 +497,7 @@ my ($l,$m);
             popup() if($has_squiggle);
 	    $TokenStr=join('',@ValClass);       # issue 39
 	    # issue 39 $cut=length($source);
-	 }elsif(index($ValPy[$tno], "\n") >= 0) {		# issue 39 - multi-line string
+	 }elsif(index($ValPy[$tno], "\n") >= 0 && $ValPy[$tno] !~ /^f"""/) {	# issue 39 - multi-line string
             $ValPy[$tno] =~ s/^f"/f"""/;			# issue 39
 	    $ValPy[$tno] .= '""';				# issue 39
          }
@@ -524,6 +541,7 @@ my ($l,$m);
              $ValClass[$tno]='k';
              $ValPerl[$tno]='sub';
              $ValPy[$tno]='def';
+             $ValCom[$tno]='';
              $tno++;
              $w = "__END__$.";                  # SNOOPYJC: Special name checked in pythonizer
          }
@@ -531,6 +549,7 @@ my ($l,$m);
          $ValClass[$tno]='i';
          $ValPy[$tno]=$w;
          $ValPy[$tno]=~tr/:/./s;                # SNOOPYJC
+         $ValCom[$tno]='';                      # SNOOPYJC
          if( exists($keyword_tr{$w}) ){
             $ValPy[$tno]=$keyword_tr{$w};
          }
@@ -1114,7 +1133,8 @@ my $split=$_[0];
        say STDERR "bash_style_or_and_fix($split) is_or=$is_or";
    }
    Pythonizer::getline('{');
-   $delayed_block_closure=1;
+   # issue 86 $delayed_block_closure=1;
+   $delayed_block_closure++;            # issue 86
    if( $split<length($source) ){
       Pythonizer::getline(substr($source,$split)); # at this point processing contines untill th eend of the statement
    }
@@ -1597,6 +1617,7 @@ my  $outer_delim;
        $result = substr($result,0,length($result)-1)."\\".'"';
    }
    $result.=$outer_delim;
+   #say STDERR "double_quoted_literal: result=$result";
    $ValPy[$tno]=$result;
    return $close_pos;
 }
@@ -2054,4 +2075,15 @@ sub escape_keywords		# issue 41
 	}
 	return join('.', @result);
 }
+
+sub parens_are_balanced         # issue 85 - return 1 if the parens are balanced in the token stream
+{
+    my $balance = 0;
+    for(my $i = 0; $i <= $#ValClass; $i++) {
+        $balance++ if($ValClass[$i] eq '(');
+        $balance-- if($ValClass[$i] eq ')');
+    }
+    return ($balance == 0);
+}
 1;
+

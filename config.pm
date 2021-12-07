@@ -51,7 +51,7 @@ my %sigs = map { $_ => "signal.SIG$_" } @signals;
 our %CONSTANT_MAP = (%flocks, %os_opens, %sigs);
 
 # SNOOPYJC: Globals to be generated in the code header
-my $open_mode_map = "{'<': 'r', '>': 'w', '+<': 'r+', '+>': 'w+', '>>': 'a', '+>>': 'a+'}";
+my $open_mode_map = "{'<': 'r', '>': 'w', '+<': 'r+', '+>': 'w+', '>>': 'a', '+>>': 'a+', '|': '|-'}";
 my $dup_map = "dict(STDIN=0, STDOUT=1, STDERR=2)";
 our %GLOBALS = ($SCRIPT_START=>'tm_py.time()', LIST_SEPARATOR=>"' '", OS_ERROR=>"''", AUTODIE=>0, TRACEBACK=>0, _OPEN_MODE_MAP=>$open_mode_map, _DUP_MAP=>$dup_map);
 our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', OS_ERROR=>'S');

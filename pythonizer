@@ -103,6 +103,7 @@
 # 0.915  2021/12/02  SNOOPYJC  Additional issue 81 fixes, add -A for autodie and -T for traceback, fix issue with globals on sub's with ()
 # 0.916  2021/12/03  SNOOPYJC  issue 60: implement grep and map
 # 0.917  2021/12/04  SNOOPYJC  Addl fix for issue 60 - map with user functions, fix ref, generate proper code for $#ARGV, generate no code for labels and warn on label refs, fix .. range if preceded by a digit, use _open for all open calls, implement binmode, fix extra paren on split, add type computation and init variables appropriately, fix state vars, change undef to use type appropriate assignment, issue 82
+# 0.918  2021/12/06  SNOOPYJC addl issue 39 fix, compute types of user subs, add sqrt, fix _flock typo, more type analysis, issue 85, fix undef, fix | open, issue 86
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -130,7 +131,7 @@
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar %VarType %InitVar init_val); # SNOOPYJC
 
-   $VERSION='0.917';
+   $VERSION='0.918';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -153,7 +154,7 @@
    # Local dictionaries
    #
    # SNOOPYJC %PyOpen=('<'=>'r', '>'=>'w', '>>'=>'a', '+<'=>'+');
-   %PyOpen=('<'=>'r', '>'=>'w', '>>'=>'a', '+<'=>'r+', '+>'=>'w+', '+>>'=>'a+', '->'=>'->', '<-'=>'<-', '-|'=>'-|', '|-'=>'|-');        # SNOOPYJC
+   %PyOpen=('<'=>'r', '>'=>'w', '>>'=>'a', '+<'=>'r+', '+>'=>'w+', '+>>'=>'a+', '->'=>'->', '<-'=>'<-', '-|'=>'-|', '|-'=>'|-', '|'=>'|-');   # SNOOPYJC
 
    $LOG_DIR='/tmp/'.ucfirst($SCRIPT_NAME);
    # issue 64    banner($LOG_DIR,$SCRIPT_NAME,"Fuzzy translator of Python to Perl. Version $VERSION",30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
@@ -1041,7 +1042,8 @@ sub finish
         if($debug >= 5) {                                       # issue 45
             say STDERR "finish: prev_line=$prev_line, PythonCode=@Perlscan::PythonCode";               # issue 45
         }                                                       # issue 45
-        if($generated_code == 0 && index('"(dsahf-', $ValClass[0]) >= 0) {   # issue 45
+        if($generated_code == 0 && index('fds"(-', $ValClass[0]) >= 0) {   # issue 45
+            $prev_line =~ s/\s+#.*$//;                          # issue 45: remove comments
             $last_c = substr($prev_line,-1,1);                  # issue 45
             if($last_c eq '}' && $ValClass[-1] ne ')') {        # issue 45
                 chop $prev_line;                                # issue 45
@@ -1307,14 +1309,22 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
 	  #
           gen_chunk('[');
           $k++;
-          gen_chunk($ValPy[$k]); # first in the cascading assignement
+          if($ValClass[$k] eq 'f' && $ValPerl[$k] eq 'undef') { # issue 63
+              gen_chunk('_');        # issue 63
+          } else {
+              gen_chunk($ValPy[$k]); # first in the cascading assignement
+          }
           $number_of_elements++;                # issue 56
           $k++;
           while($k<$split ){
              # this was we skip delimiters
              # issue 63 if( substr($TokenStr,$k,1)=~/^[sha]/ ){
              if( substr($TokenStr,$k,1)=~/^[shaf]/ ){   # issue 63: handle multiple undef in lhs list
-                gen_chunk(','.$ValPy[$k]);
+                if($ValClass[$k] eq 'f' && $ValPerl[$k] eq 'undef') {   # issue 63
+                    gen_chunk(',_');                                    # issue 63
+                } else {
+                    gen_chunk(','.$ValPy[$k]);
+                }
                 $number_of_elements++;          # issue 56
              }
              $k++;
@@ -2020,7 +2030,7 @@ my $balance=0;
       }elsif( $s eq ')' ){
          $balance--;
       }
-      if( $s eq $t && $balance==0  ){
+      if( $s eq $t && $balance<=0  ){
           return $k;
       }
    } # for
@@ -2576,7 +2586,8 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
              return $start;
          }
          # SNOOPYJC: If we know the type of the var, then init it to that value instead
-         # This will break calls to "defined" but who even uses that?
+         # If the var is used in a "defined" function, then the type is set to 'm' for mixed so
+         # we init it to None.
          my @undefs = ($ValPy[$start]);                 # SNOOPYJC: new code
          for(my $i=$start+1; $i<$end_pos; $i+=2 ){
             last if ($ValClass[$i] ne ','); # check if the list endeded
@@ -3011,7 +3022,7 @@ my($k,$myline, $target,$open_mode,$handle);
       # SNOOPYJC if( $ValPy[$k]=~/^(f?['"])([<->])+/ ){
       if( $ValPy[$k]=~/^(f?['"]+)\s*([<>+|-]*)([&]?)\s*(.*?)\s*([|]?)\s*(['"]+)$/) {        # SNOOPYJC
          $str_open=$1;          # SNOOPYJC
-         $open_mode=$2;
+         $open_mode=$2;         # SNOOPYJC
          $dup=$3;               # SNOOPYJC
          $file=$4;              # SNOOPYJC
          $pipe=$5;              # SNOOPYJC
@@ -3373,6 +3384,9 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos);
           gen_chunk(')') if($walrus);
           if($k < 0) { $TrStatus=-1; return -255; }
           $cur_pos = $end_pos+1;
+      }elsif($ValClass[$cur_pos] eq '=' && $ValPy[$cur_pos] eq '=' && inParens($cur_pos)) {           # issue assign in expr
+          gen_chunk(':=');
+          $cur_pos++;
       }else{
          gen_chunk($ValPy[$cur_pos]);
          $cur_pos++;
@@ -3407,6 +3421,18 @@ sub inDotOp				# issue 13 - check to see if this bare word is involved in a "->"
     if($pos != $#ValClass) {
 	return 1 if($ValClass[$pos+1] eq '.');
     }
+    return 0;
+}
+
+sub inParens                            # is this '=' operator in a parenthesized expression?
+{
+    my $pos = shift;
+
+    my $close_p = next_same_level_token(')', $pos+1, $#ValClass);
+    return 0 if($close_p < 0);
+    my $open_p = reverse_matching_br($close_p);
+    return 0 if($open_p < 0);
+    return 1 if($open_p < $pos);
     return 0;
 }
 

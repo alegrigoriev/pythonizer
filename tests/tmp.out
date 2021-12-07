@@ -1,335 +1,689 @@
  [Softpano-W317]:  Debug flag is set to 5
 
 
-PYTHONIZER: Fuzzy translator of Python to Perl. Version 0.917 (mtime 211206_0308) Started at 21/12/06 03:16
+PYTHONIZER: Fuzzy translator of Python to Perl. Version 0.918 (mtime 211207_0017) Started at 21/12/07 00:17
 
-Logs are at /tmp/Pythonizer/pythonizer.211206_0316.log. Type -h for help.
+Logs are at /tmp/Pythonizer/pythonizer.211207_0017.log. Type -h for help.
 =============================================================================================================
-Results of transcription are written to the file  issue_39.py
+Results of transcription are written to the file  issue_41.py
 =========================================================================================================================
 
 Lexem 0 Current token='c' value='NoTrans!' Tokenstr |c| translated: NoTrans!
 Lexem 1 Current token='i' value='Carp.Assert' Tokenstr |ci| translated: NoTrans! Carp.Assert
-Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
-Lexem 1 Current token='s' value='f' Tokenstr |ts| translated:  f
-Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  f =
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 3.
-single_quoted_literal('line1, ', 1), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 4.
-single_quoted_literal('line1
-line2, ', 7), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 5.
-single_quoted_literal('line1
-line2
-line3, ', 13), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 6.
-single_quoted_literal('line1
-line2
-line3
-';, ', 19), opening_delim=, nest=0
-Lexem 3 Current token='"' value=''''line1
-line2
-line3
-'''' Tokenstr |ts="| translated:  f = '''line1
-line2
-line3
-'''
-check_ref(main, f) at 1
-expr_type(3, 3, main)
-merge_types(f, main, S)
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='False' Tokenstr |ki| translated: def False
+expr_type(1, 1, False)
+Lexem 0 Current token='d' value='0' Tokenstr |d| translated: 0
+expr_type(0, 0, False)
+merge_types(False, main, I)
 Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
-Lexem 2 Current token='s' value='f' Tokenstr |c(s| translated: assert ( f
-Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( f ==
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 7.
-single_quoted_literal("line1\nline2\nline3\n");, ", 1), opening_delim=, nest=0
-Lexem 4 Current token='"' value=''line1\nline2\nline3\n'' Tokenstr |c(s>"| translated: assert ( f == 'line1\nline2\nline3\n'
-Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( f == 'line1\nline2\nline3\n' )
-check_ref(main, f) at 2
-Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
-Lexem 1 Current token='s' value='g' Tokenstr |ts| translated:  g
-Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  g =
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 10.
-single_quoted_literal("line1, ", 1), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 11.
-single_quoted_literal("line1
-$f, ", 7), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 12.
-single_quoted_literal("line1
-$f
-line3, ", 10), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 13.
-single_quoted_literal("line1
-$f
-line3
-";, ", 16), opening_delim=, nest=0
-Lexem 3 Current token='"' value='f"""""line1
-{f}
-line3
-"""""' Tokenstr |ts="| translated:  g = f"""""line1
-{f}
-line3
-"""""
-check_ref(main, g) at 1
-expr_type(3, 3, main)
-merge_types(g, main, S)
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='i' value='False' Tokenstr |c(!i| translated: assert ( not False
+Lexem 4 Current token=')' value=')' Tokenstr |c(!i)| translated: assert ( not False )
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='True' Tokenstr |ki| translated: def True
+expr_type(1, 1, True)
+Lexem 0 Current token='d' value='1' Tokenstr |d| translated: 1
+expr_type(0, 0, True)
+merge_types(True, main, I)
 Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
-Lexem 2 Current token='s' value='g' Tokenstr |c(s| translated: assert ( g
-Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( g ==
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 14.
-single_quoted_literal("line1\nline1\nline2\nline3\n\nline3\n");, ", 1), opening_delim=, nest=0
-Lexem 4 Current token='"' value=''line1\nline1\nline2\nline3\n\nline3\n'' Tokenstr |c(s>"| translated: assert ( g == 'line1\nline1\nline2\nline3\n\nline3\n'
-Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( g == 'line1\nline1\nline2\nline3\n\nline3\n' )
-check_ref(main, g) at 2
-Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
-Lexem 1 Current token='s' value='h' Tokenstr |ts| translated:  h
-Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  h =
-Lexem 3 Current token='H' value='<<' Tokenstr |ts=H| translated:  h = <<
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 19.
-single_quoted_literal('END_TXT';, ', 1), opening_delim=, nest=0
-get_here(END_TXT, ): line=line1, lno=20
-get_here:line=line2, lno=21, len_eof=7, length(line)=5, spaces=0, defined line=1
-get_here:line=line3, lno=22, len_eof=7, length(line)=5, spaces=0, defined line=1
-get_here:line=END_TXT, lno=23, len_eof=7, length(line)=7, spaces=0, defined line=1
-get_here:here_str=line1
-line2
-line3
-
-Lexem 3 Current token='"' value='"""line1
-line2
-line3
-"""' Tokenstr |ts="| translated:  h = """line1
-line2
-line3
-"""
-check_ref(main, h) at 1
-expr_type(3, 3, main)
-merge_types(h, main, S)
+Lexem 2 Current token='i' value='True' Tokenstr |c(i| translated: assert ( True
+Lexem 3 Current token=')' value=')' Tokenstr |c(i)| translated: assert ( True )
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='None' Tokenstr |ki| translated: def None
+expr_type(1, 1, None)
+Lexem 0 Current token='f' value='None' Tokenstr |f| translated: None
+expr_type(0, 0, None)
+merge_types(None, main, u)
 Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
-Lexem 2 Current token='s' value='h' Tokenstr |c(s| translated: assert ( h
-Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( h ==
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 24.
-single_quoted_literal("line1\nline2\nline3\n");, ", 1), opening_delim=, nest=0
-Lexem 4 Current token='"' value=''line1\nline2\nline3\n'' Tokenstr |c(s>"| translated: assert ( h == 'line1\nline2\nline3\n'
-Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( h == 'line1\nline2\nline3\n' )
-check_ref(main, h) at 2
-Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
-Lexem 1 Current token='s' value='i' Tokenstr |ts| translated:  i
-Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  i =
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 29.
-single_quoted_literal(q/line1, /, 2), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 30.
-single_quoted_literal(q/line1
-line2, /, 8), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 31.
-single_quoted_literal(q/line1
-line2
-line3, /, 14), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 32.
-single_quoted_literal(q/line1
-line2
-line3
-/;, /, 20), opening_delim=, nest=0
-Lexem 3 Current token='"' value='"""line1
-line2
-line3
-"""' Tokenstr |ts="| translated:  i = """line1
-line2
-line3
-"""
-check_ref(main, i) at 1
-expr_type(3, 3, main)
-merge_types(i, main, S)
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='f' value='perl_defined' Tokenstr |c(!f| translated: assert ( not perl_defined
+Lexem 4 Current token='i' value='None' Tokenstr |c(!fi| translated: assert ( not perl_defined None
+Lexem 5 Current token=')' value=')' Tokenstr |c(!fi)| translated: assert ( not perl_defined None )
+Lexem 0 Current token='s' value='and_' Tokenstr |s| translated: and_
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: and_ =
+Lexem 2 Current token='"' value=''and'' Tokenstr |s="| translated: and_ = 'and'
+check_ref(main, and_) at 0
+expr_type(2, 2, main)
+merge_types(and_, main, S)
+expr_type(0, 2, main)
 Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
-Lexem 2 Current token='s' value='i' Tokenstr |c(s| translated: assert ( i
-Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( i ==
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 33.
-single_quoted_literal("line1\nline2\nline3\n");, ", 1), opening_delim=, nest=0
-Lexem 4 Current token='"' value=''line1\nline2\nline3\n'' Tokenstr |c(s>"| translated: assert ( i == 'line1\nline2\nline3\n'
-Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( i == 'line1\nline2\nline3\n' )
-check_ref(main, i) at 2
-Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
-Lexem 1 Current token='s' value='i' Tokenstr |ts| translated:  i
-Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  i =
-single_quoted_literal(qq{line1, }, 3), opening_delim={, nest=0
-single_quoted_literal(qq{line1
-$f, }, 9), opening_delim={, nest=0
-single_quoted_literal(qq{line1
-$f
-line3, }, 12), opening_delim={, nest=0
-single_quoted_literal(qq{line1
-$f
-line3
-};, }, 18), opening_delim={, nest=0
-Lexem 3 Current token='"' value='f"""""line1
-{f}
-line3
-"""""' Tokenstr |ts="| translated:  i = f"""""line1
-{f}
-line3
-"""""
-check_ref(main, i) at 1
+Lexem 2 Current token='s' value='and_' Tokenstr |c(s| translated: assert ( and_
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( and_ ==
+Lexem 4 Current token='"' value=''and'' Tokenstr |c(s>"| translated: assert ( and_ == 'and'
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( and_ == 'and' )
+check_ref(main, and_) at 2
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='as' Tokenstr |ki| translated: def as
+expr_type(1, 1, as)
+Lexem 0 Current token='"' value=''as'' Tokenstr |"| translated: 'as'
+expr_type(0, 0, as)
+merge_types(as, main, S)
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='i' value='as' Tokenstr |c(i| translated: assert ( as
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( as ==
+Lexem 4 Current token='"' value=''as'' Tokenstr |c(i>"| translated: assert ( as == 'as'
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>")| translated: assert ( as == 'as' )
+Lexem 0 Current token='a' value='assert_' Tokenstr |a| translated: assert_
+Lexem 1 Current token='=' value='=' Tokenstr |a=| translated: assert_ =
+Lexem 2 Current token='(' value='(' Tokenstr |a=(| translated: assert_ = (
+Lexem 3 Current token='"' value=''assert'' Tokenstr |a=("| translated: assert_ = ( 'assert'
+Lexem 4 Current token=')' value=')' Tokenstr |a=(")| translated: assert_ = ( 'assert' )
+check_ref(main, assert_) at 0
+expr_type(2, 4, main)
 expr_type(3, 3, main)
-merge_types(i, main, S)
+merge_types(assert_, main, u)
+expr_type(0, 4, main)
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='assert_' Tokenstr |c(s| translated: assert ( assert_
+Lexem 3 Current token='(' value='[' Tokenstr |c(s(| translated: assert ( assert_ [
+Lexem 4 Current token='d' value='0' Tokenstr |c(s(d| translated: assert ( assert_ [ 0
+Lexem 5 Current token=')' value=']' Tokenstr |c(s(d)| translated: assert ( assert_ [ 0 ]
+Lexem 6 Current token='>' value='==' Tokenstr |c(s(d)>| translated: assert ( assert_ [ 0 ] ==
+Lexem 7 Current token='"' value=''assert'' Tokenstr |c(s(d)>"| translated: assert ( assert_ [ 0 ] == 'assert'
+Lexem 8 Current token=')' value=')' Tokenstr |c(s(d)>")| translated: assert ( assert_ [ 0 ] == 'assert' )
+check_ref(main, assert_) at 2
+merge_types(assert_, main, a of u)
+merge_types: otype=u
+Lexem 0 Current token='s' value='async_' Tokenstr |s| translated: async_
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: async_ =
+Lexem 2 Current token='i' value='True' Tokenstr |s=i| translated: async_ = True
+check_ref(main, async_) at 0
+expr_type(2, 2, main)
+merge_types(async_, main, u)
+expr_type(0, 2, main)
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='async_' Tokenstr |c(s| translated: assert ( async_
+Lexem 3 Current token=')' value=')' Tokenstr |c(s)| translated: assert ( async_ )
+check_ref(main, async_) at 2
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='await' Tokenstr |ki| translated: def await
+expr_type(1, 1, await)
+Lexem 0 Current token='"' value=''await'' Tokenstr |"| translated: 'await'
+expr_type(0, 0, await)
+merge_types(await, main, S)
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='i' value='await' Tokenstr |c(i| translated: assert ( await
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( await ==
+Lexem 4 Current token='"' value=''await'' Tokenstr |c(i>"| translated: assert ( await == 'await'
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>")| translated: assert ( await == 'await' )
+Lexem 0 Current token='s' value='break_' Tokenstr |s| translated: break_
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: break_ =
+Lexem 2 Current token='"' value=''break'' Tokenstr |s="| translated: break_ = 'break'
+check_ref(main, break_) at 0
+expr_type(2, 2, main)
+merge_types(break_, main, S)
+expr_type(0, 2, main)
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='break_' Tokenstr |c(s| translated: assert ( break_
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( break_ ==
+Lexem 4 Current token='"' value=''break'' Tokenstr |c(s>"| translated: assert ( break_ == 'break'
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( break_ == 'break' )
+check_ref(main, break_) at 2
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='class' Tokenstr |ki| translated: def class
+expr_type(1, 1, class)
+Lexem 0 Current token='"' value=''class'' Tokenstr |"| translated: 'class'
+expr_type(0, 0, class)
+merge_types(class, main, S)
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='i' value='class' Tokenstr |c(i| translated: assert ( class
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( class ==
+Lexem 4 Current token='"' value=''class'' Tokenstr |c(i>"| translated: assert ( class == 'class'
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>")| translated: assert ( class == 'class' )
+Lexem 0 Current token='h' value='continue_' Tokenstr |h| translated: continue_
+Lexem 1 Current token='=' value='=' Tokenstr |h=| translated: continue_ =
+Lexem 2 Current token='(' value='(' Tokenstr |h=(| translated: continue_ = (
+Lexem 3 Current token='i' value='con' Tokenstr |h=(i| translated: continue_ = ( con
+Lexem 4 Current token=':' value=': ' Tokenstr |h=(i:| translated: continue_ = ( con : 
+Lexem 5 Current token='"' value=''tinue'' Tokenstr |h=(i:"| translated: continue_ = ( con :  'tinue'
+Lexem 6 Current token=')' value=')' Tokenstr |h=(i:")| translated: continue_ = ( con :  'tinue' )
+check_ref(main, continue_) at 0
+expr_type(2, 6, main)
+expr_type(3, 5, main)
+merge_types(continue_, main, S)
+expr_type(0, 6, main)
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='continue_' Tokenstr |c(s| translated: assert ( continue_
+Lexem 3 Current token='(' value='[' Tokenstr |c(s(| translated: assert ( continue_ [
+Lexem 4 Current token='i' value='con' Tokenstr |c(s(i| translated: assert ( continue_ [ con
+Lexem 5 Current token=')' value=']' Tokenstr |c(s(")| translated: assert ( continue_ [ 'con' ]
+Lexem 6 Current token='>' value='==' Tokenstr |c(s(")>| translated: assert ( continue_ [ 'con' ] ==
+Lexem 7 Current token='"' value=''tinue'' Tokenstr |c(s(")>"| translated: assert ( continue_ [ 'con' ] == 'tinue'
+Lexem 8 Current token=')' value=')' Tokenstr |c(s(")>")| translated: assert ( continue_ [ 'con' ] == 'tinue' )
+check_ref(main, continue_) at 2
+merge_types(continue_, main, h of u)
+merge_types: otype=S
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='def' Tokenstr |ki| translated: def def
+expr_type(1, 1, def)
+Lexem 0 Current token='"' value=''def'' Tokenstr |"| translated: 'def'
+expr_type(0, 0, def)
+merge_types(def, main, S)
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='i' value='def' Tokenstr |c(i| translated: assert ( def
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( def ==
+Lexem 4 Current token='"' value=''def'' Tokenstr |c(i>"| translated: assert ( def == 'def'
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>")| translated: assert ( def == 'def' )
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='del' Tokenstr |ki| translated: def del
+expr_type(1, 1, del)
+Lexem 0 Current token='d' value='1' Tokenstr |d| translated: 1
+expr_type(0, 0, del)
+merge_types(del, main, I)
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='i' value='del' Tokenstr |c(i| translated: assert ( del
+Lexem 3 Current token=')' value=')' Tokenstr |c(i)| translated: assert ( del )
+Lexem 0 Current token='(' value='(' Tokenstr |(| translated: (
+Lexem 1 Current token='s' value='elif_' Tokenstr |(s| translated: ( elif_
+Lexem 2 Current token=',' value=',' Tokenstr |(s,| translated: ( elif_ ,
+Lexem 3 Current token='s' value='else_' Tokenstr |(s,s| translated: ( elif_ , else_
+Lexem 4 Current token=',' value=',' Tokenstr |(s,s,| translated: ( elif_ , else_ ,
+Lexem 5 Current token='s' value='except_' Tokenstr |(s,s,s| translated: ( elif_ , else_ , except_
+Lexem 6 Current token=',' value=',' Tokenstr |(s,s,s,| translated: ( elif_ , else_ , except_ ,
+Lexem 7 Current token='s' value='finally_' Tokenstr |(s,s,s,s| translated: ( elif_ , else_ , except_ , finally_
+Lexem 8 Current token=',' value=',' Tokenstr |(s,s,s,s,| translated: ( elif_ , else_ , except_ , finally_ ,
+Lexem 9 Current token='s' value='for_' Tokenstr |(s,s,s,s,s| translated: ( elif_ , else_ , except_ , finally_ , for_
+Lexem 10 Current token=')' value=')' Tokenstr |(s,s,s,s,s)| translated: ( elif_ , else_ , except_ , finally_ , for_ )
+Lexem 11 Current token='=' value='=' Tokenstr |(s,s,s,s,s)=| translated: ( elif_ , else_ , except_ , finally_ , for_ ) =
+Lexem 12 Current token='(' value='(' Tokenstr |(s,s,s,s,s)=(| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = (
+Lexem 13 Current token='d' value='4' Tokenstr |(s,s,s,s,s)=(d| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4
+Lexem 14 Current token=',' value=',' Tokenstr |(s,s,s,s,s)=(d,| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 ,
+Lexem 15 Current token='d' value='5' Tokenstr |(s,s,s,s,s)=(d,d| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5
+Lexem 16 Current token=',' value=',' Tokenstr |(s,s,s,s,s)=(d,d,| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5 ,
+Lexem 17 Current token='d' value='6' Tokenstr |(s,s,s,s,s)=(d,d,d| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5 , 6
+Lexem 18 Current token=',' value=',' Tokenstr |(s,s,s,s,s)=(d,d,d,| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5 , 6 ,
+Lexem 19 Current token='d' value='7' Tokenstr |(s,s,s,s,s)=(d,d,d,d| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5 , 6 , 7
+Lexem 20 Current token=',' value=',' Tokenstr |(s,s,s,s,s)=(d,d,d,d,| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5 , 6 , 7 ,
+Lexem 21 Current token='d' value='8' Tokenstr |(s,s,s,s,s)=(d,d,d,d,d| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5 , 6 , 7 , 8
+Lexem 22 Current token=')' value=')' Tokenstr |(s,s,s,s,s)=(d,d,d,d,d)| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5 , 6 , 7 , 8 )
+check_ref(main, elif_) at 1
+expr_type(12, 22, main)
+expr_type(13, 13, main)
+merge_types(elif_, main, u)
+check_ref(main, else_) at 3
+expr_type(12, 22, main)
+expr_type(13, 13, main)
+merge_types(else_, main, u)
+check_ref(main, except_) at 5
+expr_type(12, 22, main)
+expr_type(13, 13, main)
+merge_types(except_, main, u)
+check_ref(main, finally_) at 7
+expr_type(12, 22, main)
+expr_type(13, 13, main)
+merge_types(finally_, main, u)
+check_ref(main, for_) at 9
+expr_type(12, 22, main)
+expr_type(13, 13, main)
+merge_types(for_, main, u)
+expr_type(0, 22, main)
+expr_type(1, 1, main)
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='elif_' Tokenstr |c(s| translated: assert ( elif_
+Lexem 3 Current token='+' value='+' Tokenstr |c(s+| translated: assert ( elif_ +
+Lexem 4 Current token='s' value='else_' Tokenstr |c(s+s| translated: assert ( elif_ + else_
+Lexem 5 Current token='+' value='+' Tokenstr |c(s+s+| translated: assert ( elif_ + else_ +
+Lexem 6 Current token='s' value='except_' Tokenstr |c(s+s+s| translated: assert ( elif_ + else_ + except_
+Lexem 7 Current token='+' value='+' Tokenstr |c(s+s+s+| translated: assert ( elif_ + else_ + except_ +
+Lexem 8 Current token='s' value='finally_' Tokenstr |c(s+s+s+s| translated: assert ( elif_ + else_ + except_ + finally_
+Lexem 9 Current token='+' value='+' Tokenstr |c(s+s+s+s+| translated: assert ( elif_ + else_ + except_ + finally_ +
+Lexem 10 Current token='s' value='for_' Tokenstr |c(s+s+s+s+s| translated: assert ( elif_ + else_ + except_ + finally_ + for_
+Lexem 11 Current token='>' value='==' Tokenstr |c(s+s+s+s+s>| translated: assert ( elif_ + else_ + except_ + finally_ + for_ ==
+Lexem 12 Current token='(' value='(' Tokenstr |c(s+s+s+s+s>(| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == (
+Lexem 13 Current token='d' value='4' Tokenstr |c(s+s+s+s+s>(d| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4
+Lexem 14 Current token='+' value='+' Tokenstr |c(s+s+s+s+s>(d+| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 +
+Lexem 15 Current token='d' value='5' Tokenstr |c(s+s+s+s+s>(d+d| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5
+Lexem 16 Current token='+' value='+' Tokenstr |c(s+s+s+s+s>(d+d+| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 +
+Lexem 17 Current token='d' value='6' Tokenstr |c(s+s+s+s+s>(d+d+d| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 + 6
+Lexem 18 Current token='+' value='+' Tokenstr |c(s+s+s+s+s>(d+d+d+| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 + 6 +
+Lexem 19 Current token='d' value='7' Tokenstr |c(s+s+s+s+s>(d+d+d+d| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 + 6 + 7
+Lexem 20 Current token='+' value='+' Tokenstr |c(s+s+s+s+s>(d+d+d+d+| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 + 6 + 7 +
+Lexem 21 Current token='d' value='8' Tokenstr |c(s+s+s+s+s>(d+d+d+d+d| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 + 6 + 7 + 8
+Lexem 22 Current token=')' value=')' Tokenstr |c(s+s+s+s+s>(d+d+d+d+d)| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 + 6 + 7 + 8 )
+Lexem 23 Current token=')' value=')' Tokenstr |c(s+s+s+s+s>(d+d+d+d+d))| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 + 6 + 7 + 8 ) )
+check_ref(main, elif_) at 2
+check_ref(main, else_) at 4
+check_ref(main, except_) at 6
+check_ref(main, finally_) at 8
+check_ref(main, for_) at 10
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='from' Tokenstr |ki| translated: def from
+expr_type(1, 1, from)
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='"' value=''from'' Tokenstr |k"| translated: return 'from'
+expr_type(1, 1, from)
+merge_types(from, main, S)
+expr_type(1, 1, from)
+merge_types(from, main, S)
 merge_types: otype=S
 Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
-Lexem 2 Current token='s' value='i' Tokenstr |c(s| translated: assert ( i
-Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( i ==
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 40.
-single_quoted_literal("line1\nline1\nline2\nline3\n\nline3\n");, ", 1), opening_delim=, nest=0
-Lexem 4 Current token='"' value=''line1\nline1\nline2\nline3\n\nline3\n'' Tokenstr |c(s>"| translated: assert ( i == 'line1\nline1\nline2\nline3\n\nline3\n'
-Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( i == 'line1\nline1\nline2\nline3\n\nline3\n' )
-check_ref(main, i) at 2
-Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
-Lexem 1 Current token='s' value='j' Tokenstr |ts| translated:  j
-Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  j =
-Lexem 3 Current token='H' value='<<' Tokenstr |ts=H| translated:  j = <<
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 43.
-single_quoted_literal("END_TXT";, ", 1), opening_delim=, nest=0
-get_here(END_TXT, ): line=line1, lno=44
-get_here:line=$f, lno=45, len_eof=7, length(line)=2, spaces=0, defined line=1
-get_here:line=line3, lno=46, len_eof=7, length(line)=5, spaces=0, defined line=1
-get_here:line=END_TXT, lno=47, len_eof=7, length(line)=7, spaces=0, defined line=1
-get_here:here_str=line1
-$f
-line3
-
-Lexem 3 Current token='"' value='"""line1
-$f
-line3
-"""' Tokenstr |ts="| translated:  j = """line1
-$f
-line3
-"""
-check_ref(main, j) at 1
-expr_type(3, 3, main)
-merge_types(j, main, S)
+Lexem 2 Current token='i' value='from' Tokenstr |c(i| translated: assert ( from
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( from ==
+Lexem 4 Current token='"' value=''from'' Tokenstr |c(i>"| translated: assert ( from == 'from'
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>")| translated: assert ( from == 'from' )
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='global' Tokenstr |ki| translated: def global
+expr_type(1, 1, global)
+Lexem 0 Current token='d' value='42' Tokenstr |d| translated: 42
+expr_type(0, 0, global)
+merge_types(global, main, I)
 Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
-Lexem 2 Current token='s' value='j' Tokenstr |c(s| translated: assert ( j
-Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( j ==
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 48.
-single_quoted_literal("line1\nline1\nline2\nline3\n\nline3\n");, ", 1), opening_delim=, nest=0
-Lexem 4 Current token='"' value=''line1\nline1\nline2\nline3\n\nline3\n'' Tokenstr |c(s>"| translated: assert ( j == 'line1\nline1\nline2\nline3\n\nline3\n'
-Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( j == 'line1\nline1\nline2\nline3\n\nline3\n' )
-check_ref(main, j) at 2
-Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
-Lexem 1 Current token='s' value='j' Tokenstr |ts| translated:  j
-Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  j =
-Lexem 3 Current token='H' value='<<' Tokenstr |ts=H| translated:  j = <<
-get_here(END_TXT, ): line=line1, lno=52
-get_here:line=$f, lno=53, len_eof=7, length(line)=2, spaces=0, defined line=1
-get_here:line=line3, lno=54, len_eof=7, length(line)=5, spaces=0, defined line=1
-get_here:line=END_TXT, lno=55, len_eof=7, length(line)=7, spaces=0, defined line=1
-get_here:here_str=line1
-$f
-line3
-
-Lexem 3 Current token='"' value='"""line1
-$f
-line3
-"""' Tokenstr |ts="| translated:  j = """line1
-$f
-line3
-"""
-check_ref(main, j) at 1
-expr_type(3, 3, main)
-merge_types(j, main, S)
+Lexem 2 Current token='i' value='global' Tokenstr |c(i| translated: assert ( global
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( global ==
+Lexem 4 Current token='d' value='42' Tokenstr |c(i>d| translated: assert ( global == 42
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>d)| translated: assert ( global == 42 )
+Lexem 0 Current token='(' value='(' Tokenstr |(| translated: (
+Lexem 1 Current token='s' value='if_' Tokenstr |(s| translated: ( if_
+Lexem 2 Current token=',' value=',' Tokenstr |(s,| translated: ( if_ ,
+Lexem 3 Current token='s' value='import_' Tokenstr |(s,s| translated: ( if_ , import_
+Lexem 4 Current token=',' value=',' Tokenstr |(s,s,| translated: ( if_ , import_ ,
+Lexem 5 Current token='s' value='in_' Tokenstr |(s,s,s| translated: ( if_ , import_ , in_
+Lexem 6 Current token=',' value=',' Tokenstr |(s,s,s,| translated: ( if_ , import_ , in_ ,
+Lexem 7 Current token='s' value='is_' Tokenstr |(s,s,s,s| translated: ( if_ , import_ , in_ , is_
+Lexem 8 Current token=',' value=',' Tokenstr |(s,s,s,s,| translated: ( if_ , import_ , in_ , is_ ,
+Lexem 9 Current token='s' value='lambda_' Tokenstr |(s,s,s,s,s| translated: ( if_ , import_ , in_ , is_ , lambda_
+Lexem 10 Current token=',' value=',' Tokenstr |(s,s,s,s,s,| translated: ( if_ , import_ , in_ , is_ , lambda_ ,
+Lexem 11 Current token='s' value='nonlocal_' Tokenstr |(s,s,s,s,s,s| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_
+Lexem 12 Current token=',' value=',' Tokenstr |(s,s,s,s,s,s,| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ ,
+Lexem 13 Current token='s' value='not_' Tokenstr |(s,s,s,s,s,s,s| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_
+Lexem 14 Current token=',' value=',' Tokenstr |(s,s,s,s,s,s,s,| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_ ,
+Lexem 15 Current token='s' value='or_' Tokenstr |(s,s,s,s,s,s,s,s| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_ , or_
+Lexem 16 Current token=',' value=',' Tokenstr |(s,s,s,s,s,s,s,s,| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_ , or_ ,
+Lexem 17 Current token='s' value='pass_' Tokenstr |(s,s,s,s,s,s,s,s,s| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_ , or_ , pass_
+Lexem 18 Current token=')' value=')' Tokenstr |(s,s,s,s,s,s,s,s,s)| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_ , or_ , pass_ )
+Lexem 19 Current token='=' value='=' Tokenstr |(s,s,s,s,s,s,s,s,s)=| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_ , or_ , pass_ ) =
+Lexem 20 Current token='q' value='"if import in is lambda nonlocal not or pass".split()' Tokenstr |(s,s,s,s,s,s,s,s,s)=q| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_ , or_ , pass_ ) = "if import in is lambda nonlocal not or pass".split()
+check_ref(main, if_) at 1
+expr_type(20, 20, main)
+check_ref(main, import_) at 3
+expr_type(20, 20, main)
+check_ref(main, in_) at 5
+expr_type(20, 20, main)
+check_ref(main, is_) at 7
+expr_type(20, 20, main)
+check_ref(main, lambda_) at 9
+expr_type(20, 20, main)
+check_ref(main, nonlocal_) at 11
+expr_type(20, 20, main)
+check_ref(main, not_) at 13
+expr_type(20, 20, main)
+check_ref(main, or_) at 15
+expr_type(20, 20, main)
+check_ref(main, pass_) at 17
+expr_type(20, 20, main)
+expr_type(0, 20, main)
+expr_type(1, 1, main)
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='if_' Tokenstr |c(s| translated: assert ( if_
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( if_ ==
+Lexem 4 Current token='"' value=''if'' Tokenstr |c(s>"| translated: assert ( if_ == 'if'
+Lexem 5 Current token='0' value=' and ' Tokenstr |c(s>"0| translated: assert ( if_ == 'if'  and 
+Lexem 6 Current token='s' value='import_' Tokenstr |c(s>"0s| translated: assert ( if_ == 'if'  and  import_
+Lexem 7 Current token='>' value='==' Tokenstr |c(s>"0s>| translated: assert ( if_ == 'if'  and  import_ ==
+Lexem 8 Current token='"' value=''import'' Tokenstr |c(s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'
+Lexem 9 Current token='0' value=' and ' Tokenstr |c(s>"0s>"0| translated: assert ( if_ == 'if'  and  import_ == 'import'  and 
+Lexem 10 Current token='s' value='in_' Tokenstr |c(s>"0s>"0s| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_
+Lexem 11 Current token='>' value='==' Tokenstr |c(s>"0s>"0s>| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ ==
+Lexem 12 Current token='"' value=''in'' Tokenstr |c(s>"0s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'
+Lexem 13 Current token='0' value=' and ' Tokenstr |c(s>"0s>"0s>"0| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and 
+Lexem 14 Current token='s' value='is_' Tokenstr |c(s>"0s>"0s>"0s| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_
+Lexem 15 Current token='>' value='==' Tokenstr |c(s>"0s>"0s>"0s>| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ ==
+Lexem 16 Current token='"' value=''is'' Tokenstr |c(s>"0s>"0s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'
+Lexem 17 Current token='0' value=' and ' Tokenstr |c(s>"0s>"0s>"0s>"0| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and 
+Lexem 18 Current token='s' value='lambda_' Tokenstr |c(s>"0s>"0s>"0s>"0s| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_
+Lexem 19 Current token='>' value='==' Tokenstr |c(s>"0s>"0s>"0s>"0s>| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ ==
+Lexem 20 Current token='"' value=''lambda'' Tokenstr |c(s>"0s>"0s>"0s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'
+Lexem 21 Current token='0' value=' and ' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and 
+Lexem 22 Current token='s' value='nonlocal_' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_
+Lexem 23 Current token='>' value='==' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ ==
+Lexem 24 Current token='"' value=''nonlocal'' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'
+Lexem 25 Current token='0' value=' and ' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and 
+Lexem 26 Current token='s' value='not_' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_
+Lexem 27 Current token='>' value='==' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ ==
+Lexem 28 Current token='"' value=''not'' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'
+Lexem 29 Current token='0' value=' and ' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and 
+Lexem 30 Current token='s' value='or_' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_
+Lexem 31 Current token='>' value='==' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_ ==
+Lexem 32 Current token='"' value=''or'' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_ == 'or'
+Lexem 33 Current token='0' value=' and ' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"0| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_ == 'or'  and 
+Lexem 34 Current token='s' value='pass_' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"0s| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_ == 'or'  and  pass_
+Lexem 35 Current token='>' value='==' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_ == 'or'  and  pass_ ==
+Lexem 36 Current token='"' value=''pass'' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_ == 'or'  and  pass_ == 'pass'
+Lexem 37 Current token=')' value=')' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>")| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_ == 'or'  and  pass_ == 'pass' )
+check_ref(main, if_) at 2
+check_ref(main, import_) at 6
+check_ref(main, in_) at 10
+check_ref(main, is_) at 14
+check_ref(main, lambda_) at 18
+check_ref(main, nonlocal_) at 22
+check_ref(main, not_) at 26
+check_ref(main, or_) at 30
+check_ref(main, pass_) at 34
+Lexem 0 Current token='h' value='raise_' Tokenstr |h| translated: raise_
+Lexem 1 Current token='=' value='=' Tokenstr |h=| translated: raise_ =
+Lexem 2 Current token='(' value='(' Tokenstr |h=(| translated: raise_ = (
+Lexem 3 Current token='i' value='raise' Tokenstr |h=(i| translated: raise_ = ( raise
+Lexem 4 Current token=':' value=': ' Tokenstr |h=(i:| translated: raise_ = ( raise : 
+Lexem 5 Current token='i' value='True' Tokenstr |h=(i:i| translated: raise_ = ( raise :  True
+Lexem 6 Current token=')' value=')' Tokenstr |h=(i:i)| translated: raise_ = ( raise :  True )
+check_ref(main, raise_) at 0
+expr_type(2, 6, main)
+expr_type(3, 5, main)
+merge_types(raise_, main, S)
+expr_type(0, 6, main)
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='raise_' Tokenstr |c(s| translated: assert ( raise_
+Lexem 3 Current token='(' value='[' Tokenstr |c(s(| translated: assert ( raise_ [
+Lexem 4 Current token='i' value='raise' Tokenstr |c(s(i| translated: assert ( raise_ [ raise
+Lexem 5 Current token=')' value=']' Tokenstr |c(s(")| translated: assert ( raise_ [ 'raise' ]
+Lexem 6 Current token=')' value=')' Tokenstr |c(s("))| translated: assert ( raise_ [ 'raise' ] )
+check_ref(main, raise_) at 2
+merge_types(raise_, main, h of u)
 merge_types: otype=S
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='try' Tokenstr |ki| translated: def try
+expr_type(1, 1, try)
+Lexem 0 Current token='"' value=''try'' Tokenstr |"| translated: 'try'
+expr_type(0, 0, try)
+merge_types(try, main, S)
 Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
-Lexem 2 Current token='s' value='j' Tokenstr |c(s| translated: assert ( j
-Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( j ==
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 56.
-single_quoted_literal("line1\nline1\nline2\nline3\n\nline3\n");, ", 1), opening_delim=, nest=0
-Lexem 4 Current token='"' value=''line1\nline1\nline2\nline3\n\nline3\n'' Tokenstr |c(s>"| translated: assert ( j == 'line1\nline1\nline2\nline3\n\nline3\n'
-Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( j == 'line1\nline1\nline2\nline3\n\nline3\n' )
-check_ref(main, j) at 2
+Lexem 2 Current token='i' value='try' Tokenstr |c(i| translated: assert ( try
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( try ==
+Lexem 4 Current token='"' value=''try'' Tokenstr |c(i>"| translated: assert ( try == 'try'
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>")| translated: assert ( try == 'try' )
+Lexem 0 Current token='a' value='while_' Tokenstr |a| translated: while_
+Lexem 1 Current token='=' value='=' Tokenstr |a=| translated: while_ =
+Lexem 2 Current token='(' value='(' Tokenstr |a=(| translated: while_ = (
+Lexem 3 Current token='"' value=''w'' Tokenstr |a=("| translated: while_ = ( 'w'
+Lexem 4 Current token=',' value=',' Tokenstr |a=(",| translated: while_ = ( 'w' ,
+Lexem 5 Current token='"' value=''h'' Tokenstr |a=(","| translated: while_ = ( 'w' , 'h'
+Lexem 6 Current token=',' value=',' Tokenstr |a=(",",| translated: while_ = ( 'w' , 'h' ,
+Lexem 7 Current token='"' value=''i'' Tokenstr |a=(",","| translated: while_ = ( 'w' , 'h' , 'i'
+Lexem 8 Current token=',' value=',' Tokenstr |a=(",",",| translated: while_ = ( 'w' , 'h' , 'i' ,
+Lexem 9 Current token='"' value=''l'' Tokenstr |a=(",",","| translated: while_ = ( 'w' , 'h' , 'i' , 'l'
+Lexem 10 Current token=',' value=',' Tokenstr |a=(",",",",| translated: while_ = ( 'w' , 'h' , 'i' , 'l' ,
+Lexem 11 Current token='"' value=''e'' Tokenstr |a=(",",",","| translated: while_ = ( 'w' , 'h' , 'i' , 'l' , 'e'
+Lexem 12 Current token=')' value=')' Tokenstr |a=(",",",",")| translated: while_ = ( 'w' , 'h' , 'i' , 'l' , 'e' )
+check_ref(main, while_) at 0
+expr_type(2, 12, main)
+expr_type(3, 3, main)
+merge_types(while_, main, a of u)
+expr_type(0, 12, main)
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='while_' Tokenstr |c(s| translated: assert ( while_
+Lexem 3 Current token='(' value='[' Tokenstr |c(s(| translated: assert ( while_ [
+Lexem 4 Current token='d' value='4' Tokenstr |c(s(d| translated: assert ( while_ [ 4
+Lexem 5 Current token=')' value=']' Tokenstr |c(s(d)| translated: assert ( while_ [ 4 ]
+Lexem 6 Current token='>' value='==' Tokenstr |c(s(d)>| translated: assert ( while_ [ 4 ] ==
+Lexem 7 Current token='"' value=''e'' Tokenstr |c(s(d)>"| translated: assert ( while_ [ 4 ] == 'e'
+Lexem 8 Current token=')' value=')' Tokenstr |c(s(d)>")| translated: assert ( while_ [ 4 ] == 'e' )
+check_ref(main, while_) at 2
+merge_types(while_, main, a of u)
+merge_types: otype=a of u
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='with' Tokenstr |ki| translated: def with
+expr_type(1, 1, with)
+Lexem 0 Current token='"' value=''with'' Tokenstr |"| translated: 'with'
+expr_type(0, 0, with)
+merge_types(with, main, S)
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='i' value='with' Tokenstr |c(i| translated: assert ( with
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( with ==
+Lexem 4 Current token='"' value=''with'' Tokenstr |c(i>"| translated: assert ( with == 'with'
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>")| translated: assert ( with == 'with' )
+Lexem 0 Current token='s' value='yield_' Tokenstr |s| translated: yield_
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: yield_ =
+Lexem 2 Current token='d' value='13' Tokenstr |s=d| translated: yield_ = 13
+check_ref(main, yield_) at 0
+expr_type(2, 2, main)
+merge_types(yield_, main, I)
+expr_type(0, 2, main)
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='yield_' Tokenstr |c(s| translated: assert ( yield_
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( yield_ ==
+Lexem 4 Current token='d' value='13' Tokenstr |c(s>d| translated: assert ( yield_ == 13
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>d)| translated: assert ( yield_ == 13 )
+check_ref(main, yield_) at 2
 Lexem 0 Current token='f' value='print' Tokenstr |f| translated: print
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 62.
-single_quoted_literal("$0: Test passed\n";, ", 1), opening_delim=, nest=0
-Lexem 1 Current token='"' value='f"{__file__}: Test passed\n"' Tokenstr |f"| translated: print f"{__file__}: Test passed\n"
+Lexem 1 Current token='"' value='f"{__file__} - passed!\n"' Tokenstr |f"| translated: print f"{__file__} - passed!\n"
+expr_type(0, 1, main)
 VarSubMap = $VAR1 = {
+  'OS_ERROR' => {
+    'main' => '+'
+  },
+  'nonlocal_' => {
+    'main' => '+'
+  },
+  'break_' => {
+    'main' => '+'
+  },
   'TRACEBACK' => {
     'main' => '+'
   },
-  '_OPEN_MODE_MAP' => {
+  'import_' => {
+    'main' => '+'
+  },
+  'in_' => {
+    'main' => '+'
+  },
+  'raise_' => {
+    'main' => '+'
+  },
+  'except_' => {
+    'main' => '+'
+  },
+  'or_' => {
+    'main' => '+'
+  },
+  'finally_' => {
+    'main' => '+'
+  },
+  'yield_' => {
+    'main' => '+'
+  },
+  'elif_' => {
     'main' => '+'
   },
   'AUTODIE' => {
     'main' => '+'
   },
-  '_script_start' => {
+  'while_' => {
+    'main' => '+'
+  },
+  'not_' => {
+    'main' => '+'
+  },
+  'and_' => {
+    'main' => '+'
+  },
+  'continue_' => {
+    'main' => '+'
+  },
+  'async_' => {
+    'main' => '+'
+  },
+  'if_' => {
+    'main' => '+'
+  },
+  'assert_' => {
+    'main' => '+'
+  },
+  'for_' => {
+    'main' => '+'
+  },
+  'pass_' => {
+    'main' => '+'
+  },
+  'else_' => {
     'main' => '+'
   },
   '_DUP_MAP' => {
     'main' => '+'
   },
+  'lambda_' => {
+    'main' => '+'
+  },
+  'is_' => {
+    'main' => '+'
+  },
+  '_OPEN_MODE_MAP' => {
+    'main' => '+'
+  },
   'LIST_SEPARATOR' => {
     'main' => '+'
   },
-  'OS_ERROR' => {
+  '_script_start' => {
     'main' => '+'
   }
 };
 
 VarType = $VAR1 = {
-  '_script_start' => {
+  'sys.argv' => {
+    'main' => 'a of S'
+  },
+  'with' => {
+    'main' => 'S'
+  },
+  'async_' => {
+    'main' => 'u'
+  },
+  'assert_' => {
+    'main' => 'a of u'
+  },
+  'for_' => {
+    'main' => 'u'
+  },
+  'del' => {
     'main' => 'I'
   },
-  'h' => {
+  'False' => {
+    'main' => 'I'
+  },
+  'continue_' => {
+    'main' => 'm'
+  },
+  'and_' => {
+    'main' => 'S'
+  },
+  'as' => {
     'main' => 'S'
   },
   'LIST_SEPARATOR' => {
     'main' => 'S'
   },
-  'sys.argv' => {
-    'main' => 'a of S'
+  '_script_start' => {
+    'main' => 'I'
   },
-  'f' => {
+  'raise' => {},
+  'main' => {},
+  'True' => {
+    'main' => 'I'
+  },
+  'None' => {
+    'main' => 'u'
+  },
+  'from' => {
     'main' => 'S'
   },
-  'os.environ' => {
-    'main' => 'h of S'
+  'con' => {},
+  'else_' => {
+    'main' => 'u'
   },
-  'OS_ERROR' => {
+  'def' => {
     'main' => 'S'
   },
   'os.name' => {
     'main' => 'S'
   },
-  'j' => {
+  'global' => {
+    'main' => 'I'
+  },
+  'except_' => {
+    'main' => 'u'
+  },
+  'raise_' => {
+    'main' => 'm'
+  },
+  'await' => {
     'main' => 'S'
+  },
+  'break_' => {
+    'main' => 'S'
+  },
+  'OS_ERROR' => {
+    'main' => 'S'
+  },
+  'class' => {
+    'main' => 'S'
+  },
+  'while_' => {
+    'main' => 'a of u'
+  },
+  'try' => {
+    'main' => 'S'
+  },
+  'elif_' => {
+    'main' => 'u'
+  },
+  'yield_' => {
+    'main' => 'I'
   },
   'EVAL_ERROR' => {
     'main' => 'S'
   },
-  'g' => {
-    'main' => 'S'
+  'os.environ' => {
+    'main' => 'h of S'
   },
-  'i' => {
-    'main' => 'S'
+  'finally_' => {
+    'main' => 'u'
   }
 };
 
 initialized = $VAR1 = {
   'main' => {
-    'OS_ERROR' => 'S',
-    'os.name' => 'S',
-    'j' => 'S',
-    'EVAL_ERROR' => 'S',
-    'g' => 'S',
-    'i' => 'S',
-    'sys.argv' => 'a of S',
-    'f' => 'S',
-    'os.environ' => 'h of S',
-    'h' => 'S',
+    'elif_' => 'u',
+    'yield_' => 'I',
     'LIST_SEPARATOR' => 'S',
-    '_script_start' => 'I'
+    '_script_start' => 'I',
+    'while_' => 'a of u',
+    'else_' => 'u',
+    'finally_' => 'u',
+    'os.environ' => 'h of S',
+    'EVAL_ERROR' => 'S',
+    'assert_' => 'u',
+    'raise_' => 'S',
+    'for_' => 'u',
+    'except_' => 'u',
+    'os.name' => 'S',
+    'async_' => 'u',
+    'sys.argv' => 'a of S',
+    'and_' => 'S',
+    'OS_ERROR' => 'S',
+    'break_' => 'S',
+    'continue_' => 'S'
   }
 };
 
@@ -341,534 +695,1766 @@ DETECTED GLOBAL VARIABLES:
 AUTO-INITIALIZED VARIABLES:
 
 List of local subroutines:
-main
+class def as False await True del main from None try with global
 mkdir: cannot create directory ‘/c/Users/Joe’: File exists
 cp: target 'Orost/Archive/pythonizer' is not a directory
 cp: target 'Orost/Archive/Softpano.pm' is not a directory
 cp: target 'Orost/Archive/Perlscan.pm' is not a directory
 cp: target 'Orost/Archive/Pythonizer.pm' is not a directory
    1 | 0 |   |#!/usr/bin/python3 -u
-   1 | 0 |   |# Generated by pythonizer 0.917 run by Joe Orost on Mon Dec  6 03:16:33 2021
-   1 | 0 |   |import sys,os,re,fcntl,math,fileinput,subprocess,inspect,collections.abc,argparse,glob,warnings,inspect,functools,signal,traceback,io,tempfile,atexit
-   1 | 0 |   |import time as tm_py
-   1 | 0 |   |TRACEBACK = 0
-   1 | 0 |   |_script_start = tm_py.time()
-   1 | 0 |   |_DUP_MAP = dict(STDIN=0, STDOUT=1, STDERR=2)
-   1 | 0 |   |_OPEN_MODE_MAP = {'<': 'r', '>': 'w', '+<': 'r+', '+>': 'w+', '>>': 'a', '+>>': 'a+'}
-   1 | 0 |   |AUTODIE = 0
-   1 | 0 |   |LIST_SEPARATOR = ' '
-   1 | 0 |   |OS_ERROR = ''
-   1 | 0 |   |class Die(Exception):
+   1 | 0 |   |# Generated by pythonizer 0.918 run by Joe Orost on Tue Dec  7 00:17:44 2021
+   1 | 0 |   |# If the perl variables happen to match python keywords, they should be escaped using a leading '_'. Here are the ones that need to be escaped: False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise try while with yield.
+   2 | 0 |   |import sys,os,re,fcntl,math,fileinput,subprocess,inspect,collections.abc,argparse,glob,warnings,inspect,functools,signal,traceback,io,tempfile,atexit
+   2 | 0 |   |import time as tm_py
+   2 | 0 |   |LIST_SEPARATOR = ' '
+   2 | 0 |   |_script_start = tm_py.time()
+   2 | 0 |   |_OPEN_MODE_MAP = {'<': 'r', '>': 'w', '+<': 'r+', '+>': 'w+', '>>': 'a', '+>>': 'a+', '|': '|-'}
+   2 | 0 |   |AUTODIE = 0
+   2 | 0 |   |TRACEBACK = 0
+   2 | 0 |   |OS_ERROR = ''
+   2 | 0 |   |_DUP_MAP = dict(STDIN=0, STDOUT=1, STDERR=2)
+   2 | 0 |   |class Die(Exception):
     pass
-   1 | 0 |   |class EvalReturn(Exception):
+   2 | 0 |   |class EvalReturn(Exception):
     pass
-   1 | 0 |   |_args = sys.argv[1:]
+   2 | 0 |   |_args = sys.argv[1:]
 Main loop, line=use Carp::Assert;
 
 
- === Line 1 Perl source:use Carp::Assert;===
+ === Line 2 Perl source:use Carp::Assert;===
 
 Lexem 0 Current token='c' value='NoTrans!' Tokenstr |c| translated: NoTrans!
 Lexem 1 Current token='i' value='Carp.Assert' Tokenstr |ci| translated: NoTrans! Carp.Assert
 
-Line:    1 TokenStr: =|ci|= @ValPy: NoTrans! Carp.Assert
-   1 | 0 |   |#SKIPPED: use Carp::Assert;
-   2 | 0 |   |# Non-interpolative
-Main loop, line=my $f = 'line1
+Line:    2 TokenStr: =|ci|= @ValPy: NoTrans! Carp.Assert
+   2 | 0 |   |#SKIPPED: use Carp::Assert;
+   3 | 0 |   |
+Main loop, line=sub False { 0; }
 
 
- === Line 3 Perl source:my $f = 'line1===
+ === Line 4 Perl source:sub False { 0; }===
 
-Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
-Lexem 1 Current token='s' value='f' Tokenstr |ts| translated:  f
-Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  f =
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 3.
-single_quoted_literal('line1, ', 1), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 4.
-single_quoted_literal('line1
-line2, ', 7), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 5.
-single_quoted_literal('line1
-line2
-line3, ', 13), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 6.
-single_quoted_literal('line1
-line2
-line3
-';, ', 19), opening_delim=, nest=0
-Lexem 3 Current token='"' value=''''line1
-line2
-line3
-'''' Tokenstr |ts="| translated:  f = '''line1
-line2
-line3
-'''
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='False' Tokenstr |ki| translated: def False
 
-Line:    6 TokenStr: =|ts="|= @ValPy:  f = '''line1
-line2
-line3
-'''
-   6 | 0 |   |f='''line1
-line2
-line3
-'''                                                              #PL: ';
-Main loop, line=assert($f eq "line1\nline2\nline3\n");
+Line:    4 TokenStr: =|ki|= @ValPy: def False
+Generated partial line defFalse_(_args):
+   4 | 0 |   |def False_(_args):                                                                      #PL: sub False { 0; }
+
+Tokens: ki ValPy: 
+Main loop, line={
 
 
- === Line 7 Perl source:assert($f eq "line1\nline2\nline3\n");===
+ === Line 4 Perl source:{===
+
+
+Line:    4 TokenStr: =|{|= @ValPy: {
+Main loop, line=0; }
+
+
+ === Line 4 Perl source:0; }===
+
+Lexem 0 Current token='d' value='0' Tokenstr |d| translated: 0
+
+Line:    4 TokenStr: =|d|= @ValPy: 0
+finish: prev_line=0; }, PythonCode=
+finish: Resetting line to return 0;
+Main loop, line=return 0;
+
+
+ === Line 4 Perl source:return 0;===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='d' value='0' Tokenstr |kd| translated: return 0
+
+Line:    4 TokenStr: =|kd|= @ValPy: return 0
+Generated partial line return
+expression(1, 1, 0) =|kd|= return 0
+
+Generated partial line return0
+expression returns 2
+   4 | 1 |   |    return 0                                                                            #PL: 
+
+Tokens: kd ValPy: 
+Main loop, line=}
+
+
+ === Line 4 Perl source:}===
+
+
+Line:    4 TokenStr: =|}|= @ValPy: }
+initialize_globals_for_state_vars: 
+   4 | 0 |   |
+Main loop, line=assert(!False);
+
+
+ === Line 5 Perl source:assert(!False);===
 
 Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
-Lexem 2 Current token='s' value='f' Tokenstr |c(s| translated: assert ( f
-Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( f ==
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 7.
-single_quoted_literal("line1\nline2\nline3\n");, ", 1), opening_delim=, nest=0
-Lexem 4 Current token='"' value=''line1\nline2\nline3\n'' Tokenstr |c(s>"| translated: assert ( f == 'line1\nline2\nline3\n'
-Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( f == 'line1\nline2\nline3\n' )
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='i' value='False' Tokenstr |c(!i| translated: assert ( not False
+Lexem 4 Current token=')' value=')' Tokenstr |c(!i)| translated: assert ( not False )
 
-Line:    7 TokenStr: =|c(s>")|= @ValPy: assert ( f == 'line1\nline2\nline3\n' )
-control(0) =|c(s>")|= assert ( $f eq line1\nline2\nline3\n )
+Line:    5 TokenStr: =|c(!i)|= @ValPy: assert ( not False )
+control(0) =|c(!i)|= assert ( ! False )
 
-control-parens removed, begin=0 start=1 =|cs>"|= assert $f eq line1\nline2\nline3\n
+control-parens removed, begin=0 start=1 =|c!i|= assert ! False
 
 Generated partial line assert
-expression(1, 3, 0) =|cs>"|= assert $f eq line1\nline2\nline3\n
+expression(1, 2, 0) =|c!i|= assert ! False
 
-Generated partial line assertf
-Generated partial line assertf==
-Generated partial line assertf=='line1\nline2\nline3\n'
-expression returns 4
-   7 | 0 |   |assert f=='line1\nline2\nline3\n'                                                       #PL: assert($f eq "line1\nline2\nline3\n");
+Generated partial line assertnot
+Generated partial line assertnotFalse_
+Generated partial line assertnotFalse_([
+Generated partial line assertnotFalse_([])
+expression returns 3
+   5 | 0 |   |assert not False_([])                                                                   #PL: assert(!False);
 
-Tokens: cs>" ValPy: 
+Tokens: c!i ValPy: 
+Main loop, line=sub True { 1; }
+
+
+ === Line 6 Perl source:sub True { 1; }===
+
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='True' Tokenstr |ki| translated: def True
+
+Line:    6 TokenStr: =|ki|= @ValPy: def True
+Generated partial line defTrue_(_args):
+   6 | 0 |   |def True_(_args):                                                                       #PL: sub True { 1; }
+
+Tokens: ki ValPy: 
+Main loop, line={
+
+
+ === Line 6 Perl source:{===
+
+
+Line:    6 TokenStr: =|{|= @ValPy: {
+Main loop, line=1; }
+
+
+ === Line 6 Perl source:1; }===
+
+Lexem 0 Current token='d' value='1' Tokenstr |d| translated: 1
+
+Line:    6 TokenStr: =|d|= @ValPy: 1
+finish: prev_line=1; }, PythonCode=
+finish: Resetting line to return 1;
+Main loop, line=return 1;
+
+
+ === Line 6 Perl source:return 1;===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='d' value='1' Tokenstr |kd| translated: return 1
+
+Line:    6 TokenStr: =|kd|= @ValPy: return 1
+Generated partial line return
+expression(1, 1, 0) =|kd|= return 1
+
+Generated partial line return1
+expression returns 2
+   6 | 1 |   |    return 1                                                                            #PL: 
+
+Tokens: kd ValPy: 
+Main loop, line=}
+
+
+ === Line 6 Perl source:}===
+
+
+Line:    6 TokenStr: =|}|= @ValPy: }
+initialize_globals_for_state_vars: 
+   6 | 0 |   |
+Main loop, line=assert(True);
+
+
+ === Line 7 Perl source:assert(True);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='i' value='True' Tokenstr |c(i| translated: assert ( True
+Lexem 3 Current token=')' value=')' Tokenstr |c(i)| translated: assert ( True )
+
+Line:    7 TokenStr: =|c(i)|= @ValPy: assert ( True )
+control(0) =|c(i)|= assert ( True )
+
+control-parens removed, begin=0 start=1 =|ci|= assert True
+
+Generated partial line assert
+expression(1, 1, 0) =|ci|= assert True
+
+Generated partial line assertTrue_
+Generated partial line assertTrue_([
+Generated partial line assertTrue_([])
+expression returns 2
+   7 | 0 |   |assert True_([])                                                                        #PL: assert(True);
+
+Tokens: ci ValPy: 
+Main loop, line=sub None { undef; }
+
+
+ === Line 8 Perl source:sub None { undef; }===
+
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='None' Tokenstr |ki| translated: def None
+
+Line:    8 TokenStr: =|ki|= @ValPy: def None
+Generated partial line defNone_(_args):
+   8 | 0 |   |def None_(_args):                                                                       #PL: sub None { undef; }
+
+Tokens: ki ValPy: 
+Main loop, line={
+
+
+ === Line 8 Perl source:{===
+
+
+Line:    8 TokenStr: =|{|= @ValPy: {
+Main loop, line=undef; }
+
+
+ === Line 8 Perl source:undef; }===
+
+Lexem 0 Current token='f' value='None' Tokenstr |f| translated: None
+
+Line:    8 TokenStr: =|f|= @ValPy: None
+function(0, 0) =|f|= undef
+
+function start=1, end_pos=0, bracketed=-1
+finish: prev_line=undef; }, PythonCode=
+finish: Resetting line to return undef;
+Main loop, line=return undef;
+
+
+ === Line 8 Perl source:return undef;===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='f' value='None' Tokenstr |kf| translated: return None
+
+Line:    8 TokenStr: =|kf|= @ValPy: return None
+Generated partial line return
+expression(1, 1, 0) =|kf|= return undef
+
+function(1, 1) =|kf|= return undef
+
+function start=2, end_pos=1, bracketed=-1
+Generated partial line returnNone
+expression returns 2
+   8 | 1 |   |    return None                                                                         #PL: 
+
+Tokens: kf ValPy: 
+Main loop, line=}
+
+
+ === Line 8 Perl source:}===
+
+
+Line:    8 TokenStr: =|}|= @ValPy: }
+initialize_globals_for_state_vars: 
    8 | 0 |   |
-   9 | 0 |   |# Interpolative
-Main loop, line=my $g = "line1
+Main loop, line=assert(!defined None);
 
 
- === Line 10 Perl source:my $g = "line1===
-
-Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
-Lexem 1 Current token='s' value='g' Tokenstr |ts| translated:  g
-Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  g =
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 10.
-single_quoted_literal("line1, ", 1), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 11.
-single_quoted_literal("line1
-$f, ", 7), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 12.
-single_quoted_literal("line1
-$f
-line3, ", 10), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 13.
-single_quoted_literal("line1
-$f
-line3
-";, ", 16), opening_delim=, nest=0
-Lexem 3 Current token='"' value='f"""""line1
-{f}
-line3
-"""""' Tokenstr |ts="| translated:  g = f"""""line1
-{f}
-line3
-"""""
-
-Line:   13 TokenStr: =|ts="|= @ValPy:  g = f"""""line1
-{f}
-line3
-"""""
-  13 | 0 |   |g=f"""""line1
-{f}
-line3
-"""""                                                           #PL: ";
-Main loop, line=assert($g eq "line1\nline1\nline2\nline3\n\nline3\n");
-
-
- === Line 14 Perl source:assert($g eq "line1\nline1\nline2\nline3\n\nline3\n");===
+ === Line 9 Perl source:assert(!defined None);===
 
 Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
-Lexem 2 Current token='s' value='g' Tokenstr |c(s| translated: assert ( g
-Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( g ==
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 14.
-single_quoted_literal("line1\nline1\nline2\nline3\n\nline3\n");, ", 1), opening_delim=, nest=0
-Lexem 4 Current token='"' value=''line1\nline1\nline2\nline3\n\nline3\n'' Tokenstr |c(s>"| translated: assert ( g == 'line1\nline1\nline2\nline3\n\nline3\n'
-Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( g == 'line1\nline1\nline2\nline3\n\nline3\n' )
+Lexem 2 Current token='!' value='not' Tokenstr |c(!| translated: assert ( not
+Lexem 3 Current token='f' value='perl_defined' Tokenstr |c(!f| translated: assert ( not perl_defined
+Lexem 4 Current token='i' value='None' Tokenstr |c(!fi| translated: assert ( not perl_defined None
+Lexem 5 Current token=')' value=')' Tokenstr |c(!fi)| translated: assert ( not perl_defined None )
 
-Line:   14 TokenStr: =|c(s>")|= @ValPy: assert ( g == 'line1\nline1\nline2\nline3\n\nline3\n' )
-control(0) =|c(s>")|= assert ( $g eq line1\nline1\nline2\nline3\n\nline3\n )
+Line:    9 TokenStr: =|c(!fi)|= @ValPy: assert ( not perl_defined None )
+control(0) =|c(!fi)|= assert ( ! defined None )
 
-control-parens removed, begin=0 start=1 =|cs>"|= assert $g eq line1\nline1\nline2\nline3\n\nline3\n
+control-parens removed, begin=0 start=1 =|c!fi|= assert ! defined None
 
 Generated partial line assert
-expression(1, 3, 0) =|cs>"|= assert $g eq line1\nline1\nline2\nline3\n\nline3\n
+expression(1, 3, 0) =|c!fi|= assert ! defined None
 
-Generated partial line assertg
-Generated partial line assertg==
-Generated partial line assertg=='line1\nline1\nline2\nline3\n\nline3\n'
+Generated partial line assertnot
+function(2, 3) =|c!fi|= assert ! defined None
+
+function start=3, end_pos=3, bracketed=0
+Generated partial line assertnotNone is not None
 expression returns 4
-  14 | 0 |   |assert g=='line1\nline1\nline2\nline3\n\nline3\n'                                       #PL: assert($g eq "line1\nline1\nline2\nline3\n\nline3\n");
+   9 | 0 |   |assert not None is not None                                                             #PL: assert(!defined None);
 
-Tokens: cs>" ValPy: 
-  15 | 0 |   |
-  16 | 0 |   |#Here-docs allow you to define any token as the end of a block of quoted text:
-  17 | 0 |   |
-  18 | 0 |   |# Non-interpolative
-Main loop, line=my $h = <<'END_TXT';
+Tokens: c!fi ValPy: 
+Main loop, line=$and = "and";
 
 
- === Line 19 Perl source:my $h = <<'END_TXT';===
+ === Line 10 Perl source:$and = "and";===
 
-Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
-Lexem 1 Current token='s' value='h' Tokenstr |ts| translated:  h
-Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  h =
-Lexem 3 Current token='H' value='<<' Tokenstr |ts=H| translated:  h = <<
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 19.
-single_quoted_literal('END_TXT';, ', 1), opening_delim=, nest=0
-get_here(END_TXT, ): line=line1, lno=20
-get_here:line=line2, lno=21, len_eof=7, length(line)=5, spaces=0, defined line=1
-get_here:line=line3, lno=22, len_eof=7, length(line)=5, spaces=0, defined line=1
-get_here:line=END_TXT, lno=23, len_eof=7, length(line)=7, spaces=0, defined line=1
-get_here:here_str=line1
-line2
-line3
+Lexem 0 Current token='s' value='and_' Tokenstr |s| translated: and_
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: and_ =
+Lexem 2 Current token='"' value=''and'' Tokenstr |s="| translated: and_ = 'and'
 
-Lexem 3 Current token='"' value='"""line1
-line2
-line3
-"""' Tokenstr |ts="| translated:  h = """line1
-line2
-line3
-"""
+Line:   10 TokenStr: =|s="|= @ValPy: and_ = 'and'
+assignment(0, 2) =|s="|= $and = and
 
-Line:   23 TokenStr: =|ts="|= @ValPy:  h = """line1
-line2
-line3
-"""
-  23 | 0 |   |h="""line1
-line2
-line3
-"""                                                              #PL: my $h = <<'END_TXT';
-Main loop, line=assert($h eq "line1\nline2\nline3\n");
+Generated partial line and_
+Generated partial line and_=
+assign, ValClass[limit] = ", ValPy='and', ValPerl=and
+
+Generated partial line and_='and'
+  10 | 0 |   |and_ = 'and'                                                                            #PL: $and = "and";
+
+Tokens: s=" ValPy: 
+Main loop, line=assert($and eq 'and');
 
 
- === Line 24 Perl source:assert($h eq "line1\nline2\nline3\n");===
+ === Line 11 Perl source:assert($and eq 'and');===
 
 Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
-Lexem 2 Current token='s' value='h' Tokenstr |c(s| translated: assert ( h
-Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( h ==
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 24.
-single_quoted_literal("line1\nline2\nline3\n");, ", 1), opening_delim=, nest=0
-Lexem 4 Current token='"' value=''line1\nline2\nline3\n'' Tokenstr |c(s>"| translated: assert ( h == 'line1\nline2\nline3\n'
-Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( h == 'line1\nline2\nline3\n' )
+Lexem 2 Current token='s' value='and_' Tokenstr |c(s| translated: assert ( and_
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( and_ ==
+Lexem 4 Current token='"' value=''and'' Tokenstr |c(s>"| translated: assert ( and_ == 'and'
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( and_ == 'and' )
 
-Line:   24 TokenStr: =|c(s>")|= @ValPy: assert ( h == 'line1\nline2\nline3\n' )
-control(0) =|c(s>")|= assert ( $h eq line1\nline2\nline3\n )
+Line:   11 TokenStr: =|c(s>")|= @ValPy: assert ( and_ == 'and' )
+control(0) =|c(s>")|= assert ( $and eq and )
 
-control-parens removed, begin=0 start=1 =|cs>"|= assert $h eq line1\nline2\nline3\n
+control-parens removed, begin=0 start=1 =|cs>"|= assert $and eq and
 
 Generated partial line assert
-expression(1, 3, 0) =|cs>"|= assert $h eq line1\nline2\nline3\n
+expression(1, 3, 0) =|cs>"|= assert $and eq and
 
-Generated partial line asserth
-Generated partial line asserth==
-Generated partial line asserth=='line1\nline2\nline3\n'
+Generated partial line assertand_
+Generated partial line assertand_==
+Generated partial line assertand_=='and'
 expression returns 4
-  24 | 0 |   |assert h=='line1\nline2\nline3\n'                                                       #PL: assert($h eq "line1\nline2\nline3\n");
+  11 | 0 |   |assert and_ == 'and'                                                                    #PL: assert($and eq 'and');
 
 Tokens: cs>" ValPy: 
-  25 | 0 |   |
-  26 | 0 |   |#Regex style quote operators let you use pretty much any character as the delimiter--in the same way a regex allows you to change delimiters.
-  27 | 0 |   |
-  28 | 0 |   |# Non-interpolative
-Main loop, line=my $i = q/line1
+Main loop, line=sub as { "as"; }
 
 
- === Line 29 Perl source:my $i = q/line1===
+ === Line 12 Perl source:sub as { "as"; }===
 
-Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
-Lexem 1 Current token='s' value='i' Tokenstr |ts| translated:  i
-Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  i =
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 29.
-single_quoted_literal(q/line1, /, 2), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 30.
-single_quoted_literal(q/line1
-line2, /, 8), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 31.
-single_quoted_literal(q/line1
-line2
-line3, /, 14), opening_delim=, nest=0
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 32.
-single_quoted_literal(q/line1
-line2
-line3
-/;, /, 20), opening_delim=, nest=0
-Lexem 3 Current token='"' value='"""line1
-line2
-line3
-"""' Tokenstr |ts="| translated:  i = """line1
-line2
-line3
-"""
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='as' Tokenstr |ki| translated: def as
 
-Line:   32 TokenStr: =|ts="|= @ValPy:  i = """line1
-line2
-line3
-"""
-  32 | 0 |   |i="""line1
-line2
-line3
-"""                                                              #PL: /;
-Main loop, line=assert($i eq "line1\nline2\nline3\n");
+Line:   12 TokenStr: =|ki|= @ValPy: def as
+Generated partial line defas_(_args):
+  12 | 0 |   |def as_(_args):                                                                         #PL: sub as { "as"; }
+
+Tokens: ki ValPy: 
+Main loop, line={
 
 
- === Line 33 Perl source:assert($i eq "line1\nline2\nline3\n");===
+ === Line 12 Perl source:{===
+
+
+Line:   12 TokenStr: =|{|= @ValPy: {
+Main loop, line="as"; }
+
+
+ === Line 12 Perl source:"as"; }===
+
+Lexem 0 Current token='"' value=''as'' Tokenstr |"| translated: 'as'
+
+Line:   12 TokenStr: =|"|= @ValPy: 'as'
+Main loop: Unknown statement (")
+finish: prev_line="as"; }, PythonCode=
+finish: Resetting line to return "as";
+Main loop, line=return "as";
+
+
+ === Line 12 Perl source:return "as";===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='"' value=''as'' Tokenstr |k"| translated: return 'as'
+
+Line:   12 TokenStr: =|k"|= @ValPy: return 'as'
+Generated partial line return
+expression(1, 1, 0) =|k"|= return as
+
+Generated partial line return'as'
+expression returns 2
+  12 | 1 |   |    return 'as'                                                                         #PL: 
+
+Tokens: k" ValPy: 
+Main loop, line=}
+
+
+ === Line 12 Perl source:}===
+
+
+Line:   12 TokenStr: =|}|= @ValPy: }
+initialize_globals_for_state_vars: 
+  12 | 0 |   |
+Main loop, line=assert(as eq 'as');
+
+
+ === Line 13 Perl source:assert(as eq 'as');===
 
 Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
-Lexem 2 Current token='s' value='i' Tokenstr |c(s| translated: assert ( i
-Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( i ==
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 33.
-single_quoted_literal("line1\nline2\nline3\n");, ", 1), opening_delim=, nest=0
-Lexem 4 Current token='"' value=''line1\nline2\nline3\n'' Tokenstr |c(s>"| translated: assert ( i == 'line1\nline2\nline3\n'
-Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( i == 'line1\nline2\nline3\n' )
+Lexem 2 Current token='i' value='as' Tokenstr |c(i| translated: assert ( as
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( as ==
+Lexem 4 Current token='"' value=''as'' Tokenstr |c(i>"| translated: assert ( as == 'as'
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>")| translated: assert ( as == 'as' )
 
-Line:   33 TokenStr: =|c(s>")|= @ValPy: assert ( i == 'line1\nline2\nline3\n' )
-control(0) =|c(s>")|= assert ( $i eq line1\nline2\nline3\n )
+Line:   13 TokenStr: =|c(i>")|= @ValPy: assert ( as == 'as' )
+control(0) =|c(i>")|= assert ( as eq as )
 
-control-parens removed, begin=0 start=1 =|cs>"|= assert $i eq line1\nline2\nline3\n
+control-parens removed, begin=0 start=1 =|ci>"|= assert as eq as
 
 Generated partial line assert
-expression(1, 3, 0) =|cs>"|= assert $i eq line1\nline2\nline3\n
+expression(1, 3, 0) =|ci>"|= assert as eq as
 
-Generated partial line asserti
-Generated partial line asserti==
-Generated partial line asserti=='line1\nline2\nline3\n'
+Generated partial line assertas_
+Generated partial line assertas_([
+Generated partial line assertas_([])
+Generated partial line assertas_([])==
+Generated partial line assertas_([])=='as'
 expression returns 4
-  33 | 0 |   |assert i=='line1\nline2\nline3\n'                                                       #PL: assert($i eq "line1\nline2\nline3\n");
+  13 | 0 |   |assert as_([]) == 'as'                                                                  #PL: assert(as eq 'as');
+
+Tokens: ci>" ValPy: 
+Main loop, line=@assert = ("assert");
+
+
+ === Line 14 Perl source:@assert = ("assert");===
+
+Lexem 0 Current token='a' value='assert_' Tokenstr |a| translated: assert_
+Lexem 1 Current token='=' value='=' Tokenstr |a=| translated: assert_ =
+Lexem 2 Current token='(' value='(' Tokenstr |a=(| translated: assert_ = (
+Lexem 3 Current token='"' value=''assert'' Tokenstr |a=("| translated: assert_ = ( 'assert'
+Lexem 4 Current token=')' value=')' Tokenstr |a=(")| translated: assert_ = ( 'assert' )
+
+Line:   14 TokenStr: =|a=(")|= @ValPy: assert_ = ( 'assert' )
+Generated partial line assert_ = [
+Generated partial line assert_ = ['assert'
+Generated partial line assert_ = ['assert']
+  14 | 0 |   |assert_ = ['assert']                                                                    #PL: @assert = ("assert");
+
+Tokens: a=(") ValPy: 
+Main loop, line=assert($assert[0] eq 'assert');
+
+
+ === Line 15 Perl source:assert($assert[0] eq 'assert');===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='assert_' Tokenstr |c(s| translated: assert ( assert_
+Lexem 3 Current token='(' value='[' Tokenstr |c(s(| translated: assert ( assert_ [
+Lexem 4 Current token='d' value='0' Tokenstr |c(s(d| translated: assert ( assert_ [ 0
+Lexem 5 Current token=')' value=']' Tokenstr |c(s(d)| translated: assert ( assert_ [ 0 ]
+Lexem 6 Current token='>' value='==' Tokenstr |c(s(d)>| translated: assert ( assert_ [ 0 ] ==
+Lexem 7 Current token='"' value=''assert'' Tokenstr |c(s(d)>"| translated: assert ( assert_ [ 0 ] == 'assert'
+Lexem 8 Current token=')' value=')' Tokenstr |c(s(d)>")| translated: assert ( assert_ [ 0 ] == 'assert' )
+
+Line:   15 TokenStr: =|c(s(d)>")|= @ValPy: assert ( assert_ [ 0 ] == 'assert' )
+control(0) =|c(s(d)>")|= assert ( $assert [ 0 ] eq assert )
+
+control-parens removed, begin=0 start=1 =|cs(d)>"|= assert $assert [ 0 ] eq assert
+
+Generated partial line assert
+expression(1, 6, 0) =|cs(d)>"|= assert $assert [ 0 ] eq assert
+
+Generated partial line assertassert_
+Generated partial line assertassert_[
+expression(3, 3, 0) =|cs(d)>"|= assert $assert [ 0 ] eq assert
+
+Generated partial line assertassert_[0
+expression returns 4
+Generated partial line assertassert_[0]
+Generated partial line assertassert_[0]==
+Generated partial line assertassert_[0]=='assert'
+expression returns 7
+  15 | 0 |   |assert assert_[0] == 'assert'                                                           #PL: assert($assert[0] eq 'assert');
+
+Tokens: cs(d)>" ValPy: 
+Main loop, line=$async = True;
+
+
+ === Line 16 Perl source:$async = True;===
+
+Lexem 0 Current token='s' value='async_' Tokenstr |s| translated: async_
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: async_ =
+Lexem 2 Current token='i' value='True' Tokenstr |s=i| translated: async_ = True
+
+Line:   16 TokenStr: =|s=i|= @ValPy: async_ = True
+assignment(0, 2) =|s=i|= $async = True
+
+Generated partial line async_
+Generated partial line async_=
+assign, ValClass[limit] = i, ValPy=True, ValPerl=True
+
+Generated partial line async_=True_
+Generated partial line async_=True_([])
+  16 | 0 |   |async_ = True_([])                                                                      #PL: $async = True;
+
+Tokens: s=i ValPy: 
+Main loop, line=assert($async);
+
+
+ === Line 17 Perl source:assert($async);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='async_' Tokenstr |c(s| translated: assert ( async_
+Lexem 3 Current token=')' value=')' Tokenstr |c(s)| translated: assert ( async_ )
+
+Line:   17 TokenStr: =|c(s)|= @ValPy: assert ( async_ )
+control(0) =|c(s)|= assert ( $async )
+
+control-parens removed, begin=0 start=1 =|cs|= assert $async
+
+Generated partial line assert
+expression(1, 1, 0) =|cs|= assert $async
+
+Generated partial line assertasync_
+expression returns 2
+  17 | 0 |   |assert async_                                                                           #PL: assert($async);
+
+Tokens: cs ValPy: 
+Main loop, line=sub await { "await"; }
+
+
+ === Line 18 Perl source:sub await { "await"; }===
+
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='await' Tokenstr |ki| translated: def await
+
+Line:   18 TokenStr: =|ki|= @ValPy: def await
+Generated partial line defawait_(_args):
+  18 | 0 |   |def await_(_args):                                                                      #PL: sub await { "await"; }
+
+Tokens: ki ValPy: 
+Main loop, line={
+
+
+ === Line 18 Perl source:{===
+
+
+Line:   18 TokenStr: =|{|= @ValPy: {
+Main loop, line="await"; }
+
+
+ === Line 18 Perl source:"await"; }===
+
+Lexem 0 Current token='"' value=''await'' Tokenstr |"| translated: 'await'
+
+Line:   18 TokenStr: =|"|= @ValPy: 'await'
+Main loop: Unknown statement (")
+finish: prev_line="await"; }, PythonCode=
+finish: Resetting line to return "await";
+Main loop, line=return "await";
+
+
+ === Line 18 Perl source:return "await";===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='"' value=''await'' Tokenstr |k"| translated: return 'await'
+
+Line:   18 TokenStr: =|k"|= @ValPy: return 'await'
+Generated partial line return
+expression(1, 1, 0) =|k"|= return await
+
+Generated partial line return'await'
+expression returns 2
+  18 | 1 |   |    return 'await'                                                                      #PL: 
+
+Tokens: k" ValPy: 
+Main loop, line=}
+
+
+ === Line 18 Perl source:}===
+
+
+Line:   18 TokenStr: =|}|= @ValPy: }
+initialize_globals_for_state_vars: 
+  18 | 0 |   |
+Main loop, line=assert(await eq 'await');
+
+
+ === Line 19 Perl source:assert(await eq 'await');===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='i' value='await' Tokenstr |c(i| translated: assert ( await
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( await ==
+Lexem 4 Current token='"' value=''await'' Tokenstr |c(i>"| translated: assert ( await == 'await'
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>")| translated: assert ( await == 'await' )
+
+Line:   19 TokenStr: =|c(i>")|= @ValPy: assert ( await == 'await' )
+control(0) =|c(i>")|= assert ( await eq await )
+
+control-parens removed, begin=0 start=1 =|ci>"|= assert await eq await
+
+Generated partial line assert
+expression(1, 3, 0) =|ci>"|= assert await eq await
+
+Generated partial line assertawait_
+Generated partial line assertawait_([
+Generated partial line assertawait_([])
+Generated partial line assertawait_([])==
+Generated partial line assertawait_([])=='await'
+expression returns 4
+  19 | 0 |   |assert await_([]) == 'await'                                                            #PL: assert(await eq 'await');
+
+Tokens: ci>" ValPy: 
+Main loop, line=$break = 'break';
+
+
+ === Line 20 Perl source:$break = 'break';===
+
+Lexem 0 Current token='s' value='break_' Tokenstr |s| translated: break_
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: break_ =
+Lexem 2 Current token='"' value=''break'' Tokenstr |s="| translated: break_ = 'break'
+
+Line:   20 TokenStr: =|s="|= @ValPy: break_ = 'break'
+assignment(0, 2) =|s="|= $break = break
+
+Generated partial line break_
+Generated partial line break_=
+assign, ValClass[limit] = ", ValPy='break', ValPerl=break
+
+Generated partial line break_='break'
+  20 | 0 |   |break_ = 'break'                                                                        #PL: $break = 'break';
+
+Tokens: s=" ValPy: 
+Main loop, line=assert($break eq 'break');
+
+
+ === Line 21 Perl source:assert($break eq 'break');===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='break_' Tokenstr |c(s| translated: assert ( break_
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( break_ ==
+Lexem 4 Current token='"' value=''break'' Tokenstr |c(s>"| translated: assert ( break_ == 'break'
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( break_ == 'break' )
+
+Line:   21 TokenStr: =|c(s>")|= @ValPy: assert ( break_ == 'break' )
+control(0) =|c(s>")|= assert ( $break eq break )
+
+control-parens removed, begin=0 start=1 =|cs>"|= assert $break eq break
+
+Generated partial line assert
+expression(1, 3, 0) =|cs>"|= assert $break eq break
+
+Generated partial line assertbreak_
+Generated partial line assertbreak_==
+Generated partial line assertbreak_=='break'
+expression returns 4
+  21 | 0 |   |assert break_ == 'break'                                                                #PL: assert($break eq 'break');
 
 Tokens: cs>" ValPy: 
+Main loop, line=sub class { "class"; }
+
+
+ === Line 22 Perl source:sub class { "class"; }===
+
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='class' Tokenstr |ki| translated: def class
+
+Line:   22 TokenStr: =|ki|= @ValPy: def class
+Generated partial line defclass_(_args):
+  22 | 0 |   |def class_(_args):                                                                      #PL: sub class { "class"; }
+
+Tokens: ki ValPy: 
+Main loop, line={
+
+
+ === Line 22 Perl source:{===
+
+
+Line:   22 TokenStr: =|{|= @ValPy: {
+Main loop, line="class"; }
+
+
+ === Line 22 Perl source:"class"; }===
+
+Lexem 0 Current token='"' value=''class'' Tokenstr |"| translated: 'class'
+
+Line:   22 TokenStr: =|"|= @ValPy: 'class'
+Main loop: Unknown statement (")
+finish: prev_line="class"; }, PythonCode=
+finish: Resetting line to return "class";
+Main loop, line=return "class";
+
+
+ === Line 22 Perl source:return "class";===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='"' value=''class'' Tokenstr |k"| translated: return 'class'
+
+Line:   22 TokenStr: =|k"|= @ValPy: return 'class'
+Generated partial line return
+expression(1, 1, 0) =|k"|= return class
+
+Generated partial line return'class'
+expression returns 2
+  22 | 1 |   |    return 'class'                                                                      #PL: 
+
+Tokens: k" ValPy: 
+Main loop, line=}
+
+
+ === Line 22 Perl source:}===
+
+
+Line:   22 TokenStr: =|}|= @ValPy: }
+initialize_globals_for_state_vars: 
+  22 | 0 |   |
+Main loop, line=assert(class eq 'class');
+
+
+ === Line 23 Perl source:assert(class eq 'class');===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='i' value='class' Tokenstr |c(i| translated: assert ( class
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( class ==
+Lexem 4 Current token='"' value=''class'' Tokenstr |c(i>"| translated: assert ( class == 'class'
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>")| translated: assert ( class == 'class' )
+
+Line:   23 TokenStr: =|c(i>")|= @ValPy: assert ( class == 'class' )
+control(0) =|c(i>")|= assert ( class eq class )
+
+control-parens removed, begin=0 start=1 =|ci>"|= assert class eq class
+
+Generated partial line assert
+expression(1, 3, 0) =|ci>"|= assert class eq class
+
+Generated partial line assertclass_
+Generated partial line assertclass_([
+Generated partial line assertclass_([])
+Generated partial line assertclass_([])==
+Generated partial line assertclass_([])=='class'
+expression returns 4
+  23 | 0 |   |assert class_([]) == 'class'                                                            #PL: assert(class eq 'class');
+
+Tokens: ci>" ValPy: 
+Main loop, line=%continue = (con=>'tinue');
+
+
+ === Line 24 Perl source:%continue = (con=>'tinue');===
+
+Lexem 0 Current token='h' value='continue_' Tokenstr |h| translated: continue_
+Lexem 1 Current token='=' value='=' Tokenstr |h=| translated: continue_ =
+Lexem 2 Current token='(' value='(' Tokenstr |h=(| translated: continue_ = (
+Lexem 3 Current token='i' value='con' Tokenstr |h=(i| translated: continue_ = ( con
+Lexem 4 Current token=':' value=': ' Tokenstr |h=(i:| translated: continue_ = ( con : 
+Lexem 5 Current token='"' value=''tinue'' Tokenstr |h=(i:"| translated: continue_ = ( con :  'tinue'
+Lexem 6 Current token=')' value=')' Tokenstr |h=(i:")| translated: continue_ = ( con :  'tinue' )
+
+Line:   24 TokenStr: =|h=(i:")|= @ValPy: continue_ = ( con :  'tinue' )
+Generated partial line continue_ = {
+Generated partial line continue_ = {'con'
+Generated partial line continue_ = {'con': 
+Generated partial line continue_ = {'con': 'tinue'
+Generated partial line continue_ = {'con': 'tinue'}
+  24 | 0 |   |continue_ = {'con': 'tinue'}                                                            #PL: %continue = (con=>'tinue');
+
+Tokens: h=(i:") ValPy: 
+Main loop, line=assert($continue{con} eq 'tinue');
+
+
+ === Line 25 Perl source:assert($continue{con} eq 'tinue');===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='continue_' Tokenstr |c(s| translated: assert ( continue_
+Lexem 3 Current token='(' value='[' Tokenstr |c(s(| translated: assert ( continue_ [
+Lexem 4 Current token='i' value='con' Tokenstr |c(s(i| translated: assert ( continue_ [ con
+Lexem 5 Current token=')' value=']' Tokenstr |c(s(")| translated: assert ( continue_ [ 'con' ]
+Lexem 6 Current token='>' value='==' Tokenstr |c(s(")>| translated: assert ( continue_ [ 'con' ] ==
+Lexem 7 Current token='"' value=''tinue'' Tokenstr |c(s(")>"| translated: assert ( continue_ [ 'con' ] == 'tinue'
+Lexem 8 Current token=')' value=')' Tokenstr |c(s(")>")| translated: assert ( continue_ [ 'con' ] == 'tinue' )
+
+Line:   25 TokenStr: =|c(s(")>")|= @ValPy: assert ( continue_ [ 'con' ] == 'tinue' )
+control(0) =|c(s(")>")|= assert ( $continue { con } eq tinue )
+
+control-parens removed, begin=0 start=1 =|cs(")>"|= assert $continue { con } eq tinue
+
+Generated partial line assert
+expression(1, 6, 0) =|cs(")>"|= assert $continue { con } eq tinue
+
+Generated partial line assertcontinue_
+Generated partial line assertcontinue_.get(
+expression(3, 3, 0) =|cs(")>"|= assert $continue { con } eq tinue
+
+Generated partial line assertcontinue_.get('con'
+expression returns 4
+Generated partial line assertcontinue_.get('con')
+Generated partial line assertcontinue_.get('con')==
+Generated partial line assertcontinue_.get('con')=='tinue'
+expression returns 7
+  25 | 0 |   |assert continue_.get('con') == 'tinue'                                                  #PL: assert($continue{con} eq 'tinue');
+
+Tokens: cs(")>" ValPy: 
+Main loop, line=sub def { "def"; }
+
+
+ === Line 26 Perl source:sub def { "def"; }===
+
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='def' Tokenstr |ki| translated: def def
+
+Line:   26 TokenStr: =|ki|= @ValPy: def def
+Generated partial line defdef_(_args):
+  26 | 0 |   |def def_(_args):                                                                        #PL: sub def { "def"; }
+
+Tokens: ki ValPy: 
+Main loop, line={
+
+
+ === Line 26 Perl source:{===
+
+
+Line:   26 TokenStr: =|{|= @ValPy: {
+Main loop, line="def"; }
+
+
+ === Line 26 Perl source:"def"; }===
+
+Lexem 0 Current token='"' value=''def'' Tokenstr |"| translated: 'def'
+
+Line:   26 TokenStr: =|"|= @ValPy: 'def'
+Main loop: Unknown statement (")
+finish: prev_line="def"; }, PythonCode=
+finish: Resetting line to return "def";
+Main loop, line=return "def";
+
+
+ === Line 26 Perl source:return "def";===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='"' value=''def'' Tokenstr |k"| translated: return 'def'
+
+Line:   26 TokenStr: =|k"|= @ValPy: return 'def'
+Generated partial line return
+expression(1, 1, 0) =|k"|= return def
+
+Generated partial line return'def'
+expression returns 2
+  26 | 1 |   |    return 'def'                                                                        #PL: 
+
+Tokens: k" ValPy: 
+Main loop, line=}
+
+
+ === Line 26 Perl source:}===
+
+
+Line:   26 TokenStr: =|}|= @ValPy: }
+initialize_globals_for_state_vars: 
+  26 | 0 |   |
+Main loop, line=assert(def eq 'def');
+
+
+ === Line 27 Perl source:assert(def eq 'def');===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='i' value='def' Tokenstr |c(i| translated: assert ( def
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( def ==
+Lexem 4 Current token='"' value=''def'' Tokenstr |c(i>"| translated: assert ( def == 'def'
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>")| translated: assert ( def == 'def' )
+
+Line:   27 TokenStr: =|c(i>")|= @ValPy: assert ( def == 'def' )
+control(0) =|c(i>")|= assert ( def eq def )
+
+control-parens removed, begin=0 start=1 =|ci>"|= assert def eq def
+
+Generated partial line assert
+expression(1, 3, 0) =|ci>"|= assert def eq def
+
+Generated partial line assertdef_
+Generated partial line assertdef_([
+Generated partial line assertdef_([])
+Generated partial line assertdef_([])==
+Generated partial line assertdef_([])=='def'
+expression returns 4
+  27 | 0 |   |assert def_([]) == 'def'                                                                #PL: assert(def eq 'def');
+
+Tokens: ci>" ValPy: 
+Main loop, line=sub del { 1; }
+
+
+ === Line 28 Perl source:sub del { 1; }===
+
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='del' Tokenstr |ki| translated: def del
+
+Line:   28 TokenStr: =|ki|= @ValPy: def del
+Generated partial line defdel_(_args):
+  28 | 0 |   |def del_(_args):                                                                        #PL: sub del { 1; }
+
+Tokens: ki ValPy: 
+Main loop, line={
+
+
+ === Line 28 Perl source:{===
+
+
+Line:   28 TokenStr: =|{|= @ValPy: {
+Main loop, line=1; }
+
+
+ === Line 28 Perl source:1; }===
+
+Lexem 0 Current token='d' value='1' Tokenstr |d| translated: 1
+
+Line:   28 TokenStr: =|d|= @ValPy: 1
+finish: prev_line=1; }, PythonCode=
+finish: Resetting line to return 1;
+Main loop, line=return 1;
+
+
+ === Line 28 Perl source:return 1;===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='d' value='1' Tokenstr |kd| translated: return 1
+
+Line:   28 TokenStr: =|kd|= @ValPy: return 1
+Generated partial line return
+expression(1, 1, 0) =|kd|= return 1
+
+Generated partial line return1
+expression returns 2
+  28 | 1 |   |    return 1                                                                            #PL: 
+
+Tokens: kd ValPy: 
+Main loop, line=}
+
+
+ === Line 28 Perl source:}===
+
+
+Line:   28 TokenStr: =|}|= @ValPy: }
+initialize_globals_for_state_vars: 
+  28 | 0 |   |
+Main loop, line=assert(del);
+
+
+ === Line 29 Perl source:assert(del);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='i' value='del' Tokenstr |c(i| translated: assert ( del
+Lexem 3 Current token=')' value=')' Tokenstr |c(i)| translated: assert ( del )
+
+Line:   29 TokenStr: =|c(i)|= @ValPy: assert ( del )
+control(0) =|c(i)|= assert ( del )
+
+control-parens removed, begin=0 start=1 =|ci|= assert del
+
+Generated partial line assert
+expression(1, 1, 0) =|ci|= assert del
+
+Generated partial line assertdel_
+Generated partial line assertdel_([
+Generated partial line assertdel_([])
+expression returns 2
+  29 | 0 |   |assert del_([])                                                                         #PL: assert(del);
+
+Tokens: ci ValPy: 
+Main loop, line=($elif, $else, $except, $finally, $for) = (4,5,6,7,8);
+
+
+ === Line 30 Perl source:($elif, $else, $except, $finally, $for) = (4,5,6,7,8);===
+
+Lexem 0 Current token='(' value='(' Tokenstr |(| translated: (
+Lexem 1 Current token='s' value='elif_' Tokenstr |(s| translated: ( elif_
+Lexem 2 Current token=',' value=',' Tokenstr |(s,| translated: ( elif_ ,
+Lexem 3 Current token='s' value='else_' Tokenstr |(s,s| translated: ( elif_ , else_
+Lexem 4 Current token=',' value=',' Tokenstr |(s,s,| translated: ( elif_ , else_ ,
+Lexem 5 Current token='s' value='except_' Tokenstr |(s,s,s| translated: ( elif_ , else_ , except_
+Lexem 6 Current token=',' value=',' Tokenstr |(s,s,s,| translated: ( elif_ , else_ , except_ ,
+Lexem 7 Current token='s' value='finally_' Tokenstr |(s,s,s,s| translated: ( elif_ , else_ , except_ , finally_
+Lexem 8 Current token=',' value=',' Tokenstr |(s,s,s,s,| translated: ( elif_ , else_ , except_ , finally_ ,
+Lexem 9 Current token='s' value='for_' Tokenstr |(s,s,s,s,s| translated: ( elif_ , else_ , except_ , finally_ , for_
+Lexem 10 Current token=')' value=')' Tokenstr |(s,s,s,s,s)| translated: ( elif_ , else_ , except_ , finally_ , for_ )
+Lexem 11 Current token='=' value='=' Tokenstr |(s,s,s,s,s)=| translated: ( elif_ , else_ , except_ , finally_ , for_ ) =
+Lexem 12 Current token='(' value='(' Tokenstr |(s,s,s,s,s)=(| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = (
+Lexem 13 Current token='d' value='4' Tokenstr |(s,s,s,s,s)=(d| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4
+Lexem 14 Current token=',' value=',' Tokenstr |(s,s,s,s,s)=(d,| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 ,
+Lexem 15 Current token='d' value='5' Tokenstr |(s,s,s,s,s)=(d,d| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5
+Lexem 16 Current token=',' value=',' Tokenstr |(s,s,s,s,s)=(d,d,| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5 ,
+Lexem 17 Current token='d' value='6' Tokenstr |(s,s,s,s,s)=(d,d,d| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5 , 6
+Lexem 18 Current token=',' value=',' Tokenstr |(s,s,s,s,s)=(d,d,d,| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5 , 6 ,
+Lexem 19 Current token='d' value='7' Tokenstr |(s,s,s,s,s)=(d,d,d,d| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5 , 6 , 7
+Lexem 20 Current token=',' value=',' Tokenstr |(s,s,s,s,s)=(d,d,d,d,| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5 , 6 , 7 ,
+Lexem 21 Current token='d' value='8' Tokenstr |(s,s,s,s,s)=(d,d,d,d,d| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5 , 6 , 7 , 8
+Lexem 22 Current token=')' value=')' Tokenstr |(s,s,s,s,s)=(d,d,d,d,d)| translated: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5 , 6 , 7 , 8 )
+
+Line:   30 TokenStr: =|(s,s,s,s,s)=(d,d,d,d,d)|= @ValPy: ( elif_ , else_ , except_ , finally_ , for_ ) = ( 4 , 5 , 6 , 7 , 8 )
+assignment(0, 22) =|(s,s,s,s,s)=(d,d,d,d,d)|= ( $elif , $else , $except , $finally , $for ) = ( 4 , 5 , 6 , 7 , 8 )
+
+Generated partial line [
+Generated partial line [elif_
+Generated partial line [elif_,else_
+Generated partial line [elif_,else_,except_
+Generated partial line [elif_,else_,except_,finally_
+Generated partial line [elif_,else_,except_,finally_,for_
+Generated partial line [elif_,else_,except_,finally_,for_]
+Generated partial line [elif_,else_,except_,finally_,for_]=
+Generated partial line [elif_,else_,except_,finally_,for_]=_list_of_n(
+expression(12, 22, 0) =|(s,s,s,s,s)=(d,d,d,d,d)|= ( $elif , $else , $except , $finally , $for ) = ( 4 , 5 , 6 , 7 , 8 )
+
+Generated partial line [elif_,else_,except_,finally_,for_]=_list_of_n((
+expression(13, 21, 0) =|(s,s,s,s,s)=(d,d,d,d,d)|= ( $elif , $else , $except , $finally , $for ) = ( 4 , 5 , 6 , 7 , 8 )
+
+Generated partial line [elif_,else_,except_,finally_,for_]=_list_of_n((4
+Generated partial line [elif_,else_,except_,finally_,for_]=_list_of_n((4,
+Generated partial line [elif_,else_,except_,finally_,for_]=_list_of_n((4,5
+Generated partial line [elif_,else_,except_,finally_,for_]=_list_of_n((4,5,
+Generated partial line [elif_,else_,except_,finally_,for_]=_list_of_n((4,5,6
+Generated partial line [elif_,else_,except_,finally_,for_]=_list_of_n((4,5,6,
+Generated partial line [elif_,else_,except_,finally_,for_]=_list_of_n((4,5,6,7
+Generated partial line [elif_,else_,except_,finally_,for_]=_list_of_n((4,5,6,7,
+Generated partial line [elif_,else_,except_,finally_,for_]=_list_of_n((4,5,6,7,8
+expression returns 22
+Generated partial line [elif_,else_,except_,finally_,for_]=_list_of_n((4,5,6,7,8)
+expression returns 23
+Generated partial line [elif_,else_,except_,finally_,for_]=_list_of_n((4,5,6,7,8), 5)
+  30 | 0 |   |[elif_,else_,except_,finally_,for_] = _list_of_n((4, 5, 6, 7, 8), 5)                    #PL: ($elif, $else, $except, $finally, $for) = (4,5,6,7,8);
+
+Tokens: (s,s,s,s,s)=(d,d,d,d,d) ValPy: 
+Main loop, line=assert($elif + $else + $except + $finally + $for == (4+5+6+7+8));
+
+
+ === Line 31 Perl source:assert($elif + $else + $except + $finally + $for == (4+5+6+7+8));===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='elif_' Tokenstr |c(s| translated: assert ( elif_
+Lexem 3 Current token='+' value='+' Tokenstr |c(s+| translated: assert ( elif_ +
+Lexem 4 Current token='s' value='else_' Tokenstr |c(s+s| translated: assert ( elif_ + else_
+Lexem 5 Current token='+' value='+' Tokenstr |c(s+s+| translated: assert ( elif_ + else_ +
+Lexem 6 Current token='s' value='except_' Tokenstr |c(s+s+s| translated: assert ( elif_ + else_ + except_
+Lexem 7 Current token='+' value='+' Tokenstr |c(s+s+s+| translated: assert ( elif_ + else_ + except_ +
+Lexem 8 Current token='s' value='finally_' Tokenstr |c(s+s+s+s| translated: assert ( elif_ + else_ + except_ + finally_
+Lexem 9 Current token='+' value='+' Tokenstr |c(s+s+s+s+| translated: assert ( elif_ + else_ + except_ + finally_ +
+Lexem 10 Current token='s' value='for_' Tokenstr |c(s+s+s+s+s| translated: assert ( elif_ + else_ + except_ + finally_ + for_
+Lexem 11 Current token='>' value='==' Tokenstr |c(s+s+s+s+s>| translated: assert ( elif_ + else_ + except_ + finally_ + for_ ==
+Lexem 12 Current token='(' value='(' Tokenstr |c(s+s+s+s+s>(| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == (
+Lexem 13 Current token='d' value='4' Tokenstr |c(s+s+s+s+s>(d| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4
+Lexem 14 Current token='+' value='+' Tokenstr |c(s+s+s+s+s>(d+| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 +
+Lexem 15 Current token='d' value='5' Tokenstr |c(s+s+s+s+s>(d+d| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5
+Lexem 16 Current token='+' value='+' Tokenstr |c(s+s+s+s+s>(d+d+| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 +
+Lexem 17 Current token='d' value='6' Tokenstr |c(s+s+s+s+s>(d+d+d| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 + 6
+Lexem 18 Current token='+' value='+' Tokenstr |c(s+s+s+s+s>(d+d+d+| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 + 6 +
+Lexem 19 Current token='d' value='7' Tokenstr |c(s+s+s+s+s>(d+d+d+d| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 + 6 + 7
+Lexem 20 Current token='+' value='+' Tokenstr |c(s+s+s+s+s>(d+d+d+d+| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 + 6 + 7 +
+Lexem 21 Current token='d' value='8' Tokenstr |c(s+s+s+s+s>(d+d+d+d+d| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 + 6 + 7 + 8
+Lexem 22 Current token=')' value=')' Tokenstr |c(s+s+s+s+s>(d+d+d+d+d)| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 + 6 + 7 + 8 )
+Lexem 23 Current token=')' value=')' Tokenstr |c(s+s+s+s+s>(d+d+d+d+d))| translated: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 + 6 + 7 + 8 ) )
+
+Line:   31 TokenStr: =|c(s+s+s+s+s>(d+d+d+d+d))|= @ValPy: assert ( elif_ + else_ + except_ + finally_ + for_ == ( 4 + 5 + 6 + 7 + 8 ) )
+control(0) =|c(s+s+s+s+s>(d+d+d+d+d))|= assert ( $elif + $else + $except + $finally + $for == ( 4 + 5 + 6 + 7 + 8 ) )
+
+control-parens removed, begin=0 start=1 =|cs+s+s+s+s>(d+d+d+d+d)|= assert $elif + $else + $except + $finally + $for == ( 4 + 5 + 6 + 7 + 8 )
+
+Generated partial line assert
+expression(1, 21, 0) =|cs+s+s+s+s>(d+d+d+d+d)|= assert $elif + $else + $except + $finally + $for == ( 4 + 5 + 6 + 7 + 8 )
+
+Generated partial line assertelif_
+Generated partial line assertelif_+
+Generated partial line assertelif_+else_
+Generated partial line assertelif_+else_+
+Generated partial line assertelif_+else_+except_
+Generated partial line assertelif_+else_+except_+
+Generated partial line assertelif_+else_+except_+finally_
+Generated partial line assertelif_+else_+except_+finally_+
+Generated partial line assertelif_+else_+except_+finally_+for_
+Generated partial line assertelif_+else_+except_+finally_+for_==
+Generated partial line assertelif_+else_+except_+finally_+for_==(
+expression(12, 20, 0) =|cs+s+s+s+s>(d+d+d+d+d)|= assert $elif + $else + $except + $finally + $for == ( 4 + 5 + 6 + 7 + 8 )
+
+Generated partial line assertelif_+else_+except_+finally_+for_==(4
+Generated partial line assertelif_+else_+except_+finally_+for_==(4+
+Generated partial line assertelif_+else_+except_+finally_+for_==(4+5
+Generated partial line assertelif_+else_+except_+finally_+for_==(4+5+
+Generated partial line assertelif_+else_+except_+finally_+for_==(4+5+6
+Generated partial line assertelif_+else_+except_+finally_+for_==(4+5+6+
+Generated partial line assertelif_+else_+except_+finally_+for_==(4+5+6+7
+Generated partial line assertelif_+else_+except_+finally_+for_==(4+5+6+7+
+Generated partial line assertelif_+else_+except_+finally_+for_==(4+5+6+7+8
+expression returns 21
+Generated partial line assertelif_+else_+except_+finally_+for_==(4+5+6+7+8)
+expression returns 22
+  31 | 0 |   |assert elif_+else_+except_+finally_+for_ == (4+5+6+7+8)                                 #PL: assert($elif + $else + $except + $finally + $for == (4+5+6+7+8));
+
+Tokens: cs+s+s+s+s>(d+d+d+d+d) ValPy: 
+Main loop, line=sub from { return "from"; }
+
+
+ === Line 32 Perl source:sub from { return "from"; }===
+
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='from' Tokenstr |ki| translated: def from
+
+Line:   32 TokenStr: =|ki|= @ValPy: def from
+Generated partial line deffrom_(_args):
+  32 | 0 |   |def from_(_args):                                                                       #PL: sub from { return "from"; }
+
+Tokens: ki ValPy: 
+Main loop, line={
+
+
+ === Line 32 Perl source:{===
+
+
+Line:   32 TokenStr: =|{|= @ValPy: {
+Main loop, line=return "from"; }
+
+
+ === Line 32 Perl source:return "from"; }===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='"' value=''from'' Tokenstr |k"| translated: return 'from'
+
+Line:   32 TokenStr: =|k"|= @ValPy: return 'from'
+Generated partial line return
+expression(1, 1, 0) =|k"|= return from
+
+Generated partial line return'from'
+expression returns 2
+  32 | 1 |   |    return 'from'                                                                       #PL: return "from"; }
+
+Tokens: k" ValPy: 
+Main loop, line=}
+
+
+ === Line 32 Perl source:}===
+
+
+Line:   32 TokenStr: =|}|= @ValPy: }
+initialize_globals_for_state_vars: 
+  32 | 0 |   |
+Main loop, line=assert(from eq "from");
+
+
+ === Line 33 Perl source:assert(from eq "from");===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='i' value='from' Tokenstr |c(i| translated: assert ( from
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( from ==
+Lexem 4 Current token='"' value=''from'' Tokenstr |c(i>"| translated: assert ( from == 'from'
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>")| translated: assert ( from == 'from' )
+
+Line:   33 TokenStr: =|c(i>")|= @ValPy: assert ( from == 'from' )
+control(0) =|c(i>")|= assert ( from eq from )
+
+control-parens removed, begin=0 start=1 =|ci>"|= assert from eq from
+
+Generated partial line assert
+expression(1, 3, 0) =|ci>"|= assert from eq from
+
+Generated partial line assertfrom_
+Generated partial line assertfrom_([
+Generated partial line assertfrom_([])
+Generated partial line assertfrom_([])==
+Generated partial line assertfrom_([])=='from'
+expression returns 4
+  33 | 0 |   |assert from_([]) == 'from'                                                              #PL: assert(from eq "from");
+
+Tokens: ci>" ValPy: 
+Main loop, line=sub global { 42; }
+
+
+ === Line 34 Perl source:sub global { 42; }===
+
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='global' Tokenstr |ki| translated: def global
+
+Line:   34 TokenStr: =|ki|= @ValPy: def global
+Generated partial line defglobal_(_args):
+  34 | 0 |   |def global_(_args):                                                                     #PL: sub global { 42; }
+
+Tokens: ki ValPy: 
+Main loop, line={
+
+
+ === Line 34 Perl source:{===
+
+
+Line:   34 TokenStr: =|{|= @ValPy: {
+Main loop, line=42; }
+
+
+ === Line 34 Perl source:42; }===
+
+Lexem 0 Current token='d' value='42' Tokenstr |d| translated: 42
+
+Line:   34 TokenStr: =|d|= @ValPy: 42
+finish: prev_line=42; }, PythonCode=
+finish: Resetting line to return 42;
+Main loop, line=return 42;
+
+
+ === Line 34 Perl source:return 42;===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='d' value='42' Tokenstr |kd| translated: return 42
+
+Line:   34 TokenStr: =|kd|= @ValPy: return 42
+Generated partial line return
+expression(1, 1, 0) =|kd|= return 42
+
+Generated partial line return42
+expression returns 2
+  34 | 1 |   |    return 42                                                                           #PL: 
+
+Tokens: kd ValPy: 
+Main loop, line=}
+
+
+ === Line 34 Perl source:}===
+
+
+Line:   34 TokenStr: =|}|= @ValPy: }
+initialize_globals_for_state_vars: 
   34 | 0 |   |
-  35 | 0 |   |# Interpolative
-Main loop, line=my $i = qq{line1
+Main loop, line=assert(global == 42);
 
 
- === Line 36 Perl source:my $i = qq{line1===
-
-Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
-Lexem 1 Current token='s' value='i' Tokenstr |ts| translated:  i
-Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  i =
-single_quoted_literal(qq{line1, }, 3), opening_delim={, nest=0
-single_quoted_literal(qq{line1
-$f, }, 9), opening_delim={, nest=0
-single_quoted_literal(qq{line1
-$f
-line3, }, 12), opening_delim={, nest=0
-single_quoted_literal(qq{line1
-$f
-line3
-};, }, 18), opening_delim={, nest=0
-Lexem 3 Current token='"' value='f"""""line1
-{f}
-line3
-"""""' Tokenstr |ts="| translated:  i = f"""""line1
-{f}
-line3
-"""""
-
-Line:   39 TokenStr: =|ts="|= @ValPy:  i = f"""""line1
-{f}
-line3
-"""""
-  39 | 0 |   |i=f"""""line1
-{f}
-line3
-"""""                                                           #PL: };
-Main loop, line=assert($i eq "line1\nline1\nline2\nline3\n\nline3\n");
-
-
- === Line 40 Perl source:assert($i eq "line1\nline1\nline2\nline3\n\nline3\n");===
+ === Line 35 Perl source:assert(global == 42);===
 
 Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
-Lexem 2 Current token='s' value='i' Tokenstr |c(s| translated: assert ( i
-Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( i ==
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 40.
-single_quoted_literal("line1\nline1\nline2\nline3\n\nline3\n");, ", 1), opening_delim=, nest=0
-Lexem 4 Current token='"' value=''line1\nline1\nline2\nline3\n\nline3\n'' Tokenstr |c(s>"| translated: assert ( i == 'line1\nline1\nline2\nline3\n\nline3\n'
-Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( i == 'line1\nline1\nline2\nline3\n\nline3\n' )
+Lexem 2 Current token='i' value='global' Tokenstr |c(i| translated: assert ( global
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( global ==
+Lexem 4 Current token='d' value='42' Tokenstr |c(i>d| translated: assert ( global == 42
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>d)| translated: assert ( global == 42 )
 
-Line:   40 TokenStr: =|c(s>")|= @ValPy: assert ( i == 'line1\nline1\nline2\nline3\n\nline3\n' )
-control(0) =|c(s>")|= assert ( $i eq line1\nline1\nline2\nline3\n\nline3\n )
+Line:   35 TokenStr: =|c(i>d)|= @ValPy: assert ( global == 42 )
+control(0) =|c(i>d)|= assert ( global == 42 )
 
-control-parens removed, begin=0 start=1 =|cs>"|= assert $i eq line1\nline1\nline2\nline3\n\nline3\n
+control-parens removed, begin=0 start=1 =|ci>d|= assert global == 42
 
 Generated partial line assert
-expression(1, 3, 0) =|cs>"|= assert $i eq line1\nline1\nline2\nline3\n\nline3\n
+expression(1, 3, 0) =|ci>d|= assert global == 42
 
-Generated partial line asserti
-Generated partial line asserti==
-Generated partial line asserti=='line1\nline1\nline2\nline3\n\nline3\n'
+Generated partial line assertglobal_
+Generated partial line assertglobal_([
+Generated partial line assertglobal_([])
+Generated partial line assertglobal_([])==
+Generated partial line assertglobal_([])==42
 expression returns 4
-  40 | 0 |   |assert i=='line1\nline1\nline2\nline3\n\nline3\n'                                       #PL: assert($i eq "line1\nline1\nline2\nline3\n\nline3\n");
+  35 | 0 |   |assert global_([]) == 42                                                                #PL: assert(global == 42);
 
-Tokens: cs>" ValPy: 
-  41 | 0 |   |
-  42 | 0 |   |# Interpolative (Not yet implemented!)
-Main loop, line=my $j = <<"END_TXT";
+Tokens: ci>d ValPy: 
+Main loop, line=($if, $import, $in, $is, $lambda, $nonlocal, $not, $or, $pass) = qw/if import in is lambda nonlocal not or pass/;
 
 
- === Line 43 Perl source:my $j = <<"END_TXT";===
+ === Line 36 Perl source:($if, $import, $in, $is, $lambda, $nonlocal, $not, $or, $pass) = qw/if import in is lambda nonlocal not or pass/;===
 
-Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
-Lexem 1 Current token='s' value='j' Tokenstr |ts| translated:  j
-Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  j =
-Lexem 3 Current token='H' value='<<' Tokenstr |ts=H| translated:  j = <<
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 43.
-single_quoted_literal("END_TXT";, ", 1), opening_delim=, nest=0
-get_here(END_TXT, ): line=line1, lno=44
-get_here:line=$f, lno=45, len_eof=7, length(line)=2, spaces=0, defined line=1
-get_here:line=line3, lno=46, len_eof=7, length(line)=5, spaces=0, defined line=1
-get_here:line=END_TXT, lno=47, len_eof=7, length(line)=7, spaces=0, defined line=1
-get_here:here_str=line1
-$f
-line3
+Lexem 0 Current token='(' value='(' Tokenstr |(| translated: (
+Lexem 1 Current token='s' value='if_' Tokenstr |(s| translated: ( if_
+Lexem 2 Current token=',' value=',' Tokenstr |(s,| translated: ( if_ ,
+Lexem 3 Current token='s' value='import_' Tokenstr |(s,s| translated: ( if_ , import_
+Lexem 4 Current token=',' value=',' Tokenstr |(s,s,| translated: ( if_ , import_ ,
+Lexem 5 Current token='s' value='in_' Tokenstr |(s,s,s| translated: ( if_ , import_ , in_
+Lexem 6 Current token=',' value=',' Tokenstr |(s,s,s,| translated: ( if_ , import_ , in_ ,
+Lexem 7 Current token='s' value='is_' Tokenstr |(s,s,s,s| translated: ( if_ , import_ , in_ , is_
+Lexem 8 Current token=',' value=',' Tokenstr |(s,s,s,s,| translated: ( if_ , import_ , in_ , is_ ,
+Lexem 9 Current token='s' value='lambda_' Tokenstr |(s,s,s,s,s| translated: ( if_ , import_ , in_ , is_ , lambda_
+Lexem 10 Current token=',' value=',' Tokenstr |(s,s,s,s,s,| translated: ( if_ , import_ , in_ , is_ , lambda_ ,
+Lexem 11 Current token='s' value='nonlocal_' Tokenstr |(s,s,s,s,s,s| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_
+Lexem 12 Current token=',' value=',' Tokenstr |(s,s,s,s,s,s,| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ ,
+Lexem 13 Current token='s' value='not_' Tokenstr |(s,s,s,s,s,s,s| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_
+Lexem 14 Current token=',' value=',' Tokenstr |(s,s,s,s,s,s,s,| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_ ,
+Lexem 15 Current token='s' value='or_' Tokenstr |(s,s,s,s,s,s,s,s| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_ , or_
+Lexem 16 Current token=',' value=',' Tokenstr |(s,s,s,s,s,s,s,s,| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_ , or_ ,
+Lexem 17 Current token='s' value='pass_' Tokenstr |(s,s,s,s,s,s,s,s,s| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_ , or_ , pass_
+Lexem 18 Current token=')' value=')' Tokenstr |(s,s,s,s,s,s,s,s,s)| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_ , or_ , pass_ )
+Lexem 19 Current token='=' value='=' Tokenstr |(s,s,s,s,s,s,s,s,s)=| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_ , or_ , pass_ ) =
+Lexem 20 Current token='q' value='"if import in is lambda nonlocal not or pass".split()' Tokenstr |(s,s,s,s,s,s,s,s,s)=q| translated: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_ , or_ , pass_ ) = "if import in is lambda nonlocal not or pass".split()
 
-Lexem 3 Current token='"' value='"""line1
-$f
-line3
-"""' Tokenstr |ts="| translated:  j = """line1
-$f
-line3
-"""
+Line:   36 TokenStr: =|(s,s,s,s,s,s,s,s,s)=q|= @ValPy: ( if_ , import_ , in_ , is_ , lambda_ , nonlocal_ , not_ , or_ , pass_ ) = "if import in is lambda nonlocal not or pass".split()
+assignment(0, 20) =|(s,s,s,s,s,s,s,s,s)=q|= ( $if , $import , $in , $is , $lambda , $nonlocal , $not , $or , $pass ) = if import in is lambda nonlocal not or pass
 
-Line:   47 TokenStr: =|ts="|= @ValPy:  j = """line1
-$f
-line3
-"""
-  47 | 0 |   |j="""line1
-$f
-line3
-"""                                                                 #PL: my $j = <<"END_TXT";
-Main loop, line=assert($j eq "line1\nline1\nline2\nline3\n\nline3\n");
+Generated partial line [
+Generated partial line [if_
+Generated partial line [if_,import_
+Generated partial line [if_,import_,in_
+Generated partial line [if_,import_,in_,is_
+Generated partial line [if_,import_,in_,is_,lambda_
+Generated partial line [if_,import_,in_,is_,lambda_,nonlocal_
+Generated partial line [if_,import_,in_,is_,lambda_,nonlocal_,not_
+Generated partial line [if_,import_,in_,is_,lambda_,nonlocal_,not_,or_
+Generated partial line [if_,import_,in_,is_,lambda_,nonlocal_,not_,or_,pass_
+Generated partial line [if_,import_,in_,is_,lambda_,nonlocal_,not_,or_,pass_]
+Generated partial line [if_,import_,in_,is_,lambda_,nonlocal_,not_,or_,pass_]=
+Generated partial line [if_,import_,in_,is_,lambda_,nonlocal_,not_,or_,pass_]=_list_of_n(
+assign, ValClass[limit] = q, ValPy="if import in is lambda nonlocal not or pass".split(), ValPerl=if import in is lambda nonlocal not or pass
+
+Generated partial line [if_,import_,in_,is_,lambda_,nonlocal_,not_,or_,pass_]=_list_of_n("if import in is lambda nonlocal not or pass".split()
+Generated partial line [if_,import_,in_,is_,lambda_,nonlocal_,not_,or_,pass_]=_list_of_n("if import in is lambda nonlocal not or pass".split(), 9)
+  36 | 0 |   |[if_,import_,in_,is_,lambda_,nonlocal_,not_,or_,pass_] = _list_of_n("if import in is lambda nonlocal not or pass".split(), 9)
+                                                                                                      #PL: ($if, $import, $in, $is, $lambda, $nonlocal, $not, $or, $pass) = qw/if import in is lam
+                                                                                                      #+ : bda nonlocal not or pass/;
+
+Tokens: (s,s,s,s,s,s,s,s,s)=q ValPy: 
+Main loop, line=assert($if eq 'if' && $import eq 'import' && $in eq 'in' && $is eq 'is' &&
 
 
- === Line 48 Perl source:assert($j eq "line1\nline1\nline2\nline3\n\nline3\n");===
+ === Line 37 Perl source:assert($if eq 'if' && $import eq 'import' && $in eq 'in' && $is eq 'is' &&===
 
 Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
-Lexem 2 Current token='s' value='j' Tokenstr |c(s| translated: assert ( j
-Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( j ==
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 48.
-single_quoted_literal("line1\nline1\nline2\nline3\n\nline3\n");, ", 1), opening_delim=, nest=0
-Lexem 4 Current token='"' value=''line1\nline1\nline2\nline3\n\nline3\n'' Tokenstr |c(s>"| translated: assert ( j == 'line1\nline1\nline2\nline3\n\nline3\n'
-Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( j == 'line1\nline1\nline2\nline3\n\nline3\n' )
+Lexem 2 Current token='s' value='if_' Tokenstr |c(s| translated: assert ( if_
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( if_ ==
+Lexem 4 Current token='"' value=''if'' Tokenstr |c(s>"| translated: assert ( if_ == 'if'
+Lexem 5 Current token='0' value=' and ' Tokenstr |c(s>"0| translated: assert ( if_ == 'if'  and 
+Lexem 6 Current token='s' value='import_' Tokenstr |c(s>"0s| translated: assert ( if_ == 'if'  and  import_
+Lexem 7 Current token='>' value='==' Tokenstr |c(s>"0s>| translated: assert ( if_ == 'if'  and  import_ ==
+Lexem 8 Current token='"' value=''import'' Tokenstr |c(s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'
+Lexem 9 Current token='0' value=' and ' Tokenstr |c(s>"0s>"0| translated: assert ( if_ == 'if'  and  import_ == 'import'  and 
+Lexem 10 Current token='s' value='in_' Tokenstr |c(s>"0s>"0s| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_
+Lexem 11 Current token='>' value='==' Tokenstr |c(s>"0s>"0s>| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ ==
+Lexem 12 Current token='"' value=''in'' Tokenstr |c(s>"0s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'
+Lexem 13 Current token='0' value=' and ' Tokenstr |c(s>"0s>"0s>"0| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and 
+Lexem 14 Current token='s' value='is_' Tokenstr |c(s>"0s>"0s>"0s| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_
+Lexem 15 Current token='>' value='==' Tokenstr |c(s>"0s>"0s>"0s>| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ ==
+Lexem 16 Current token='"' value=''is'' Tokenstr |c(s>"0s>"0s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'
+Lexem 17 Current token='0' value=' and ' Tokenstr |c(s>"0s>"0s>"0s>"0| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and 
+Lexem 18 Current token='s' value='lambda_' Tokenstr |c(s>"0s>"0s>"0s>"0s| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_
+Lexem 19 Current token='>' value='==' Tokenstr |c(s>"0s>"0s>"0s>"0s>| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ ==
+Lexem 20 Current token='"' value=''lambda'' Tokenstr |c(s>"0s>"0s>"0s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'
+Lexem 21 Current token='0' value=' and ' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and 
+Lexem 22 Current token='s' value='nonlocal_' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_
+Lexem 23 Current token='>' value='==' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ ==
+Lexem 24 Current token='"' value=''nonlocal'' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'
+Lexem 25 Current token='0' value=' and ' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and 
+Lexem 26 Current token='s' value='not_' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_
+Lexem 27 Current token='>' value='==' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ ==
+Lexem 28 Current token='"' value=''not'' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'
+Lexem 29 Current token='0' value=' and ' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and 
+Lexem 30 Current token='s' value='or_' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_
+Lexem 31 Current token='>' value='==' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_ ==
+Lexem 32 Current token='"' value=''or'' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_ == 'or'
+Lexem 33 Current token='0' value=' and ' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"0| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_ == 'or'  and 
+Lexem 34 Current token='s' value='pass_' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"0s| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_ == 'or'  and  pass_
+Lexem 35 Current token='>' value='==' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_ == 'or'  and  pass_ ==
+Lexem 36 Current token='"' value=''pass'' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_ == 'or'  and  pass_ == 'pass'
+Lexem 37 Current token=')' value=')' Tokenstr |c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>")| translated: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_ == 'or'  and  pass_ == 'pass' )
 
-Line:   48 TokenStr: =|c(s>")|= @ValPy: assert ( j == 'line1\nline1\nline2\nline3\n\nline3\n' )
-control(0) =|c(s>")|= assert ( $j eq line1\nline1\nline2\nline3\n\nline3\n )
+Line:   39 TokenStr: =|c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>")|= @ValPy: assert ( if_ == 'if'  and  import_ == 'import'  and  in_ == 'in'  and  is_ == 'is'  and  lambda_ == 'lambda'  and  nonlocal_ == 'nonlocal'  and  not_ == 'not'  and  or_ == 'or'  and  pass_ == 'pass' )
+control(0) =|c(s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>")|= assert ( $if eq if && $import eq import && $in eq in && $is eq is && $lambda eq lambda && $nonlocal eq nonlocal && $not eq not && $or eq or && $pass eq pass )
 
-control-parens removed, begin=0 start=1 =|cs>"|= assert $j eq line1\nline1\nline2\nline3\n\nline3\n
+control-parens removed, begin=0 start=1 =|cs>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"|= assert $if eq if && $import eq import && $in eq in && $is eq is && $lambda eq lambda && $nonlocal eq nonlocal && $not eq not && $or eq or && $pass eq pass
 
 Generated partial line assert
-expression(1, 3, 0) =|cs>"|= assert $j eq line1\nline1\nline2\nline3\n\nline3\n
+expression(1, 35, 0) =|cs>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"|= assert $if eq if && $import eq import && $in eq in && $is eq is && $lambda eq lambda && $nonlocal eq nonlocal && $not eq not && $or eq or && $pass eq pass
 
-Generated partial line assertj
-Generated partial line assertj==
-Generated partial line assertj=='line1\nline1\nline2\nline3\n\nline3\n'
-expression returns 4
-  48 | 0 |   |assert j=='line1\nline1\nline2\nline3\n\nline3\n'                                       #PL: assert($j eq "line1\nline1\nline2\nline3\n\nline3\n");
+Generated partial line assertif_
+Generated partial line assertif_==
+Generated partial line assertif_=='if'
+Generated partial line assertif_=='if' and 
+Generated partial line assertif_=='if' and import_
+Generated partial line assertif_=='if' and import_==
+Generated partial line assertif_=='if' and import_=='import'
+Generated partial line assertif_=='if' and import_=='import' and 
+Generated partial line assertif_=='if' and import_=='import' and in_
+Generated partial line assertif_=='if' and import_=='import' and in_==
+Generated partial line assertif_=='if' and import_=='import' and in_=='in'
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and 
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_==
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is'
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and 
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_==
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda'
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and 
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and nonlocal_
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and nonlocal_==
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and nonlocal_=='nonlocal'
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and nonlocal_=='nonlocal' and 
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and nonlocal_=='nonlocal' and not_
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and nonlocal_=='nonlocal' and not_==
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and nonlocal_=='nonlocal' and not_=='not'
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and nonlocal_=='nonlocal' and not_=='not' and 
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and nonlocal_=='nonlocal' and not_=='not' and or_
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and nonlocal_=='nonlocal' and not_=='not' and or_==
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and nonlocal_=='nonlocal' and not_=='not' and or_=='or'
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and nonlocal_=='nonlocal' and not_=='not' and or_=='or' and 
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and nonlocal_=='nonlocal' and not_=='not' and or_=='or' and pass_
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and nonlocal_=='nonlocal' and not_=='not' and or_=='or' and pass_==
+Generated partial line assertif_=='if' and import_=='import' and in_=='in' and is_=='is' and lambda_=='lambda' and nonlocal_=='nonlocal' and not_=='not' and or_=='or' and pass_=='pass'
+expression returns 36
+  39 | 0 |   |assert if_ == 'if' and import_ == 'import' and in_ == 'in' and is_ == 'is' and lambda_ == 'lambda' and nonlocal_ == 'nonlocal' and not_ == 'not' and or_ == 'or' and pass_ == 'pass'
+                                                                                                      #PL: assert($if eq 'if' && $import eq 'import' && $in eq 'in' && $is eq 'is' &&
+                                                                                                      #PL: $lambda eq 'lambda' && $nonlocal eq 'nonlocal' && $not eq 'not' &&
+                                                                                                      #PL: $or eq 'or' && $pass eq 'pass');
 
-Tokens: cs>" ValPy: 
-  49 | 0 |   |
-  50 | 0 |   |# Old style interpolative (Not yet implemented!)
-Main loop, line=my $j = <<END_TXT;
+Tokens: cs>"0s>"0s>"0s>"0s>"0s>"0s>"0s>"0s>" ValPy: 
+Main loop, line=%raise = (raise=>True);
 
 
- === Line 51 Perl source:my $j = <<END_TXT;===
+ === Line 40 Perl source:%raise = (raise=>True);===
 
-Lexem 0 Current token='t' value='' Tokenstr |t| translated: 
-Lexem 1 Current token='s' value='j' Tokenstr |ts| translated:  j
-Lexem 2 Current token='=' value='=' Tokenstr |ts=| translated:  j =
-Lexem 3 Current token='H' value='<<' Tokenstr |ts=H| translated:  j = <<
-get_here(END_TXT, ): line=line1, lno=52
-get_here:line=$f, lno=53, len_eof=7, length(line)=2, spaces=0, defined line=1
-get_here:line=line3, lno=54, len_eof=7, length(line)=5, spaces=0, defined line=1
-get_here:line=END_TXT, lno=55, len_eof=7, length(line)=7, spaces=0, defined line=1
-get_here:here_str=line1
-$f
-line3
+Lexem 0 Current token='h' value='raise_' Tokenstr |h| translated: raise_
+Lexem 1 Current token='=' value='=' Tokenstr |h=| translated: raise_ =
+Lexem 2 Current token='(' value='(' Tokenstr |h=(| translated: raise_ = (
+Lexem 3 Current token='i' value='raise' Tokenstr |h=(i| translated: raise_ = ( raise
+Lexem 4 Current token=':' value=': ' Tokenstr |h=(i:| translated: raise_ = ( raise : 
+Lexem 5 Current token='i' value='True' Tokenstr |h=(i:i| translated: raise_ = ( raise :  True
+Lexem 6 Current token=')' value=')' Tokenstr |h=(i:i)| translated: raise_ = ( raise :  True )
 
-Lexem 3 Current token='"' value='"""line1
-$f
-line3
-"""' Tokenstr |ts="| translated:  j = """line1
-$f
-line3
-"""
+Line:   40 TokenStr: =|h=(i:i)|= @ValPy: raise_ = ( raise :  True )
+Generated partial line raise_ = {
+Generated partial line raise_ = {'raise'
+Generated partial line raise_ = {'raise': 
+Generated partial line raise_ = {'raise': True_
+Generated partial line raise_ = {'raise': True_([])
+Generated partial line raise_ = {'raise': True_([])}
+  40 | 0 |   |raise_ = {'raise': True_([])}                                                           #PL: %raise = (raise=>True);
 
-Line:   55 TokenStr: =|ts="|= @ValPy:  j = """line1
-$f
-line3
-"""
-  55 | 0 |   |j="""line1
-$f
-line3
-"""                                                                 #PL: my $j = <<END_TXT;
-Main loop, line=assert($j eq "line1\nline1\nline2\nline3\n\nline3\n");
+Tokens: h=(i:i) ValPy: 
+Main loop, line=assert($raise{raise});
 
 
- === Line 56 Perl source:assert($j eq "line1\nline1\nline2\nline3\n\nline3\n");===
+ === Line 41 Perl source:assert($raise{raise});===
 
 Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
 Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
-Lexem 2 Current token='s' value='j' Tokenstr |c(s| translated: assert ( j
-Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( j ==
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 56.
-single_quoted_literal("line1\nline1\nline2\nline3\n\nline3\n");, ", 1), opening_delim=, nest=0
-Lexem 4 Current token='"' value=''line1\nline1\nline2\nline3\n\nline3\n'' Tokenstr |c(s>"| translated: assert ( j == 'line1\nline1\nline2\nline3\n\nline3\n'
-Lexem 5 Current token=')' value=')' Tokenstr |c(s>")| translated: assert ( j == 'line1\nline1\nline2\nline3\n\nline3\n' )
+Lexem 2 Current token='s' value='raise_' Tokenstr |c(s| translated: assert ( raise_
+Lexem 3 Current token='(' value='[' Tokenstr |c(s(| translated: assert ( raise_ [
+Lexem 4 Current token='i' value='raise' Tokenstr |c(s(i| translated: assert ( raise_ [ raise
+Lexem 5 Current token=')' value=']' Tokenstr |c(s(")| translated: assert ( raise_ [ 'raise' ]
+Lexem 6 Current token=')' value=')' Tokenstr |c(s("))| translated: assert ( raise_ [ 'raise' ] )
 
-Line:   56 TokenStr: =|c(s>")|= @ValPy: assert ( j == 'line1\nline1\nline2\nline3\n\nline3\n' )
-control(0) =|c(s>")|= assert ( $j eq line1\nline1\nline2\nline3\n\nline3\n )
+Line:   41 TokenStr: =|c(s("))|= @ValPy: assert ( raise_ [ 'raise' ] )
+control(0) =|c(s("))|= assert ( $raise { raise } )
 
-control-parens removed, begin=0 start=1 =|cs>"|= assert $j eq line1\nline1\nline2\nline3\n\nline3\n
+control-parens removed, begin=0 start=1 =|cs(")|= assert $raise { raise }
 
 Generated partial line assert
-expression(1, 3, 0) =|cs>"|= assert $j eq line1\nline1\nline2\nline3\n\nline3\n
+expression(1, 4, 0) =|cs(")|= assert $raise { raise }
 
-Generated partial line assertj
-Generated partial line assertj==
-Generated partial line assertj=='line1\nline1\nline2\nline3\n\nline3\n'
+Generated partial line assertraise_
+Generated partial line assertraise_.get(
+expression(3, 3, 0) =|cs(")|= assert $raise { raise }
+
+Generated partial line assertraise_.get('raise'
 expression returns 4
-  56 | 0 |   |assert j=='line1\nline1\nline2\nline3\n\nline3\n'                                       #PL: assert($j eq "line1\nline1\nline2\nline3\n\nline3\n");
+Generated partial line assertraise_.get('raise')
+expression returns 5
+  41 | 0 |   |assert raise_.get('raise')                                                              #PL: assert($raise{raise});
 
-Tokens: cs>" ValPy: 
-  57 | 0 |   |
-  58 | 0 |   |#use constant END_T => 4;
-  59 | 0 |   |#my $s = 1<<END_T;
-  60 | 0 |   |#assert($s == (1<<4));
-  61 | 0 |   |
-Main loop, line=print "$0: Test passed\n";
+Tokens: cs(") ValPy: 
+Main loop, line=sub try { "try"; }
 
 
- === Line 62 Perl source:print "$0: Test passed\n";===
+ === Line 42 Perl source:sub try { "try"; }===
+
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='try' Tokenstr |ki| translated: def try
+
+Line:   42 TokenStr: =|ki|= @ValPy: def try
+Generated partial line deftry_(_args):
+  42 | 0 |   |def try_(_args):                                                                        #PL: sub try { "try"; }
+
+Tokens: ki ValPy: 
+Main loop, line={
+
+
+ === Line 42 Perl source:{===
+
+
+Line:   42 TokenStr: =|{|= @ValPy: {
+Main loop, line="try"; }
+
+
+ === Line 42 Perl source:"try"; }===
+
+Lexem 0 Current token='"' value=''try'' Tokenstr |"| translated: 'try'
+
+Line:   42 TokenStr: =|"|= @ValPy: 'try'
+Main loop: Unknown statement (")
+finish: prev_line="try"; }, PythonCode=
+finish: Resetting line to return "try";
+Main loop, line=return "try";
+
+
+ === Line 42 Perl source:return "try";===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='"' value=''try'' Tokenstr |k"| translated: return 'try'
+
+Line:   42 TokenStr: =|k"|= @ValPy: return 'try'
+Generated partial line return
+expression(1, 1, 0) =|k"|= return try
+
+Generated partial line return'try'
+expression returns 2
+  42 | 1 |   |    return 'try'                                                                        #PL: 
+
+Tokens: k" ValPy: 
+Main loop, line=}
+
+
+ === Line 42 Perl source:}===
+
+
+Line:   42 TokenStr: =|}|= @ValPy: }
+initialize_globals_for_state_vars: 
+  42 | 0 |   |
+Main loop, line=assert(try eq 'try');
+
+
+ === Line 43 Perl source:assert(try eq 'try');===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='i' value='try' Tokenstr |c(i| translated: assert ( try
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( try ==
+Lexem 4 Current token='"' value=''try'' Tokenstr |c(i>"| translated: assert ( try == 'try'
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>")| translated: assert ( try == 'try' )
+
+Line:   43 TokenStr: =|c(i>")|= @ValPy: assert ( try == 'try' )
+control(0) =|c(i>")|= assert ( try eq try )
+
+control-parens removed, begin=0 start=1 =|ci>"|= assert try eq try
+
+Generated partial line assert
+expression(1, 3, 0) =|ci>"|= assert try eq try
+
+Generated partial line asserttry_
+Generated partial line asserttry_([
+Generated partial line asserttry_([])
+Generated partial line asserttry_([])==
+Generated partial line asserttry_([])=='try'
+expression returns 4
+  43 | 0 |   |assert try_([]) == 'try'                                                                #PL: assert(try eq 'try');
+
+Tokens: ci>" ValPy: 
+Main loop, line=@while = ('w', 'h', 'i', 'l', 'e');
+
+
+ === Line 44 Perl source:@while = ('w', 'h', 'i', 'l', 'e');===
+
+Lexem 0 Current token='a' value='while_' Tokenstr |a| translated: while_
+Lexem 1 Current token='=' value='=' Tokenstr |a=| translated: while_ =
+Lexem 2 Current token='(' value='(' Tokenstr |a=(| translated: while_ = (
+Lexem 3 Current token='"' value=''w'' Tokenstr |a=("| translated: while_ = ( 'w'
+Lexem 4 Current token=',' value=',' Tokenstr |a=(",| translated: while_ = ( 'w' ,
+Lexem 5 Current token='"' value=''h'' Tokenstr |a=(","| translated: while_ = ( 'w' , 'h'
+Lexem 6 Current token=',' value=',' Tokenstr |a=(",",| translated: while_ = ( 'w' , 'h' ,
+Lexem 7 Current token='"' value=''i'' Tokenstr |a=(",","| translated: while_ = ( 'w' , 'h' , 'i'
+Lexem 8 Current token=',' value=',' Tokenstr |a=(",",",| translated: while_ = ( 'w' , 'h' , 'i' ,
+Lexem 9 Current token='"' value=''l'' Tokenstr |a=(",",","| translated: while_ = ( 'w' , 'h' , 'i' , 'l'
+Lexem 10 Current token=',' value=',' Tokenstr |a=(",",",",| translated: while_ = ( 'w' , 'h' , 'i' , 'l' ,
+Lexem 11 Current token='"' value=''e'' Tokenstr |a=(",",",","| translated: while_ = ( 'w' , 'h' , 'i' , 'l' , 'e'
+Lexem 12 Current token=')' value=')' Tokenstr |a=(",",",",")| translated: while_ = ( 'w' , 'h' , 'i' , 'l' , 'e' )
+
+Line:   44 TokenStr: =|a=(",",",",")|= @ValPy: while_ = ( 'w' , 'h' , 'i' , 'l' , 'e' )
+Generated partial line while_ = [
+Generated partial line while_ = ['w'
+Generated partial line while_ = ['w',
+Generated partial line while_ = ['w','h'
+Generated partial line while_ = ['w','h',
+Generated partial line while_ = ['w','h','i'
+Generated partial line while_ = ['w','h','i',
+Generated partial line while_ = ['w','h','i','l'
+Generated partial line while_ = ['w','h','i','l',
+Generated partial line while_ = ['w','h','i','l','e'
+Generated partial line while_ = ['w','h','i','l','e']
+  44 | 0 |   |while_ = ['w', 'h', 'i', 'l', 'e']                                                      #PL: @while = ('w', 'h', 'i', 'l', 'e');
+
+Tokens: a=(",",",",") ValPy: 
+Main loop, line=assert($while[4] eq 'e');
+
+
+ === Line 45 Perl source:assert($while[4] eq 'e');===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='while_' Tokenstr |c(s| translated: assert ( while_
+Lexem 3 Current token='(' value='[' Tokenstr |c(s(| translated: assert ( while_ [
+Lexem 4 Current token='d' value='4' Tokenstr |c(s(d| translated: assert ( while_ [ 4
+Lexem 5 Current token=')' value=']' Tokenstr |c(s(d)| translated: assert ( while_ [ 4 ]
+Lexem 6 Current token='>' value='==' Tokenstr |c(s(d)>| translated: assert ( while_ [ 4 ] ==
+Lexem 7 Current token='"' value=''e'' Tokenstr |c(s(d)>"| translated: assert ( while_ [ 4 ] == 'e'
+Lexem 8 Current token=')' value=')' Tokenstr |c(s(d)>")| translated: assert ( while_ [ 4 ] == 'e' )
+
+Line:   45 TokenStr: =|c(s(d)>")|= @ValPy: assert ( while_ [ 4 ] == 'e' )
+control(0) =|c(s(d)>")|= assert ( $while [ 4 ] eq e )
+
+control-parens removed, begin=0 start=1 =|cs(d)>"|= assert $while [ 4 ] eq e
+
+Generated partial line assert
+expression(1, 6, 0) =|cs(d)>"|= assert $while [ 4 ] eq e
+
+Generated partial line assertwhile_
+Generated partial line assertwhile_[
+expression(3, 3, 0) =|cs(d)>"|= assert $while [ 4 ] eq e
+
+Generated partial line assertwhile_[4
+expression returns 4
+Generated partial line assertwhile_[4]
+Generated partial line assertwhile_[4]==
+Generated partial line assertwhile_[4]=='e'
+expression returns 7
+  45 | 0 |   |assert while_[4] == 'e'                                                                 #PL: assert($while[4] eq 'e');
+
+Tokens: cs(d)>" ValPy: 
+Main loop, line=sub with { "with"; }
+
+
+ === Line 46 Perl source:sub with { "with"; }===
+
+Lexem 0 Current token='k' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' value='with' Tokenstr |ki| translated: def with
+
+Line:   46 TokenStr: =|ki|= @ValPy: def with
+Generated partial line defwith_(_args):
+  46 | 0 |   |def with_(_args):                                                                       #PL: sub with { "with"; }
+
+Tokens: ki ValPy: 
+Main loop, line={
+
+
+ === Line 46 Perl source:{===
+
+
+Line:   46 TokenStr: =|{|= @ValPy: {
+Main loop, line="with"; }
+
+
+ === Line 46 Perl source:"with"; }===
+
+Lexem 0 Current token='"' value=''with'' Tokenstr |"| translated: 'with'
+
+Line:   46 TokenStr: =|"|= @ValPy: 'with'
+Main loop: Unknown statement (")
+finish: prev_line="with"; }, PythonCode=
+finish: Resetting line to return "with";
+Main loop, line=return "with";
+
+
+ === Line 46 Perl source:return "with";===
+
+Lexem 0 Current token='k' value='return' Tokenstr |k| translated: return
+Lexem 1 Current token='"' value=''with'' Tokenstr |k"| translated: return 'with'
+
+Line:   46 TokenStr: =|k"|= @ValPy: return 'with'
+Generated partial line return
+expression(1, 1, 0) =|k"|= return with
+
+Generated partial line return'with'
+expression returns 2
+  46 | 1 |   |    return 'with'                                                                       #PL: 
+
+Tokens: k" ValPy: 
+Main loop, line=}
+
+
+ === Line 46 Perl source:}===
+
+
+Line:   46 TokenStr: =|}|= @ValPy: }
+initialize_globals_for_state_vars: 
+  46 | 0 |   |
+Main loop, line=assert(with eq 'with');
+
+
+ === Line 47 Perl source:assert(with eq 'with');===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='i' value='with' Tokenstr |c(i| translated: assert ( with
+Lexem 3 Current token='>' value='==' Tokenstr |c(i>| translated: assert ( with ==
+Lexem 4 Current token='"' value=''with'' Tokenstr |c(i>"| translated: assert ( with == 'with'
+Lexem 5 Current token=')' value=')' Tokenstr |c(i>")| translated: assert ( with == 'with' )
+
+Line:   47 TokenStr: =|c(i>")|= @ValPy: assert ( with == 'with' )
+control(0) =|c(i>")|= assert ( with eq with )
+
+control-parens removed, begin=0 start=1 =|ci>"|= assert with eq with
+
+Generated partial line assert
+expression(1, 3, 0) =|ci>"|= assert with eq with
+
+Generated partial line assertwith_
+Generated partial line assertwith_([
+Generated partial line assertwith_([])
+Generated partial line assertwith_([])==
+Generated partial line assertwith_([])=='with'
+expression returns 4
+  47 | 0 |   |assert with_([]) == 'with'                                                              #PL: assert(with eq 'with');
+
+Tokens: ci>" ValPy: 
+Main loop, line=$yield = 13;
+
+
+ === Line 48 Perl source:$yield = 13;===
+
+Lexem 0 Current token='s' value='yield_' Tokenstr |s| translated: yield_
+Lexem 1 Current token='=' value='=' Tokenstr |s=| translated: yield_ =
+Lexem 2 Current token='d' value='13' Tokenstr |s=d| translated: yield_ = 13
+
+Line:   48 TokenStr: =|s=d|= @ValPy: yield_ = 13
+assignment(0, 2) =|s=d|= $yield = 13
+
+Generated partial line yield_
+Generated partial line yield_=
+assign, ValClass[limit] = d, ValPy=13, ValPerl=13
+
+Generated partial line yield_=13
+  48 | 0 |   |yield_ = 13                                                                             #PL: $yield = 13;
+
+Tokens: s=d ValPy: 
+Main loop, line=assert($yield == 13);
+
+
+ === Line 49 Perl source:assert($yield == 13);===
+
+Lexem 0 Current token='c' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='s' value='yield_' Tokenstr |c(s| translated: assert ( yield_
+Lexem 3 Current token='>' value='==' Tokenstr |c(s>| translated: assert ( yield_ ==
+Lexem 4 Current token='d' value='13' Tokenstr |c(s>d| translated: assert ( yield_ == 13
+Lexem 5 Current token=')' value=')' Tokenstr |c(s>d)| translated: assert ( yield_ == 13 )
+
+Line:   49 TokenStr: =|c(s>d)|= @ValPy: assert ( yield_ == 13 )
+control(0) =|c(s>d)|= assert ( $yield == 13 )
+
+control-parens removed, begin=0 start=1 =|cs>d|= assert $yield == 13
+
+Generated partial line assert
+expression(1, 3, 0) =|cs>d|= assert $yield == 13
+
+Generated partial line assertyield_
+Generated partial line assertyield_==
+Generated partial line assertyield_==13
+expression returns 4
+  49 | 0 |   |assert yield_ == 13                                                                     #PL: assert($yield == 13);
+
+Tokens: cs>d ValPy: 
+Main loop, line=print "$0 - passed!\n";
+
+
+ === Line 50 Perl source:print "$0 - passed!\n";===
 
 Lexem 0 Current token='f' value='print' Tokenstr |f| translated: print
-Use of uninitialized value $Perlscan::opening_delim in concatenation (.) or string at /d/pythonizer/pythonizer/Perlscan.pm line 1406, <> line 62.
-single_quoted_literal("$0: Test passed\n";, ", 1), opening_delim=, nest=0
-Lexem 1 Current token='"' value='f"{__file__}: Test passed\n"' Tokenstr |f"| translated: print f"{__file__}: Test passed\n"
+Lexem 1 Current token='"' value='f"{__file__} - passed!\n"' Tokenstr |f"| translated: print f"{__file__} - passed!\n"
 
-Line:   62 TokenStr: =|f"|= @ValPy: print f"{__file__}: Test passed\n"
+Line:   50 TokenStr: =|f"|= @ValPy: print f"{__file__} - passed!\n"
 Generated partial line print(
 print3(0) handle=, k=1, end_pos=1
 
-expression(1, 1, 0) =|f"|= print $0: Test passed\n
+expression(1, 1, 0) =|f"|= print $0 - passed!\n
 
-Generated partial line print(f"{__file__}: Test passed\n"
+Generated partial line print(f"{__file__} - passed!\n"
 expression returns 2
-Generated partial line print(f"{__file__}: Test passed")
-  62 | 0 |   |print(f"{__file__}: Test passed")                                                       #PL: print "$0: Test passed\n";
+Generated partial line print(f"{__file__} - passed!")
+  50 | 0 |   |print(f"{__file__} - passed!")                                                          #PL: print "$0 - passed!\n";
 
 Tokens: f" ValPy: 
 initialize_globals_for_state_vars: 
