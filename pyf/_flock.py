@@ -7,7 +7,7 @@ def _flock(fd, operation):
         fd.flush()
         fcntl.flock(fd, operation)
         return 1
-    except Exception as e:
+    except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:
             traceback.print_exc()

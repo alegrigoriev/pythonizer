@@ -184,6 +184,7 @@ for my $g (keys %GLOBAL_TYPES) {                # SNOOPYJC
     $VarType{$g}{main} = $t;
 }
 
+
 sub get_globals
 #
 # This suroutine creates two hashes
@@ -203,6 +204,7 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
    foreach my $g (keys %GLOBALS) {             # SNOOPYJC
       $VarSubMap{$g}{$CurSubName}='+';         # SNOOPYJC
    }                                           # SNOOPYJC
+   my $PriorExprType = undef;                  # SNOOPYJC: used to type the function result
    while(1){
       if( scalar(@Perlscan::BufferValClass)==0 ){
          $line=getline(); # get the first meaningful line, skipping commenets and  POD
@@ -247,8 +249,23 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
          $LocalSub{$CurSubName}=1;
          %DeclaredVarH=(); # this is the list of my varible for given sub; does not needed for any other sub
 	 $we_are_in_sub_body=1;			# issue 45
+         if($::debug > 3) {
+             say STDERR "get_globals: switching to '$CurSubName' at line $.";
+         }
+         correct_nest(0,0);                             # issue 45
+      }elsif( $ValClass[0] eq '{') {                    # issue 45
+          correct_nest(1);                              # issue 45
       }elsif( $ValClass[0] eq '}' && $#ValClass == 0) {	# issue 45
+         correct_nest(-1);                              # issue 45
 	 if($we_are_in_sub_body && $NextNest == 0) {	# issue 45
+             # SNOOPYJC: At the end of the function, if we are going to insert a "return N" statement
+             # in ::finish(), then set the type of the function, else set it to 'm' for mixed.
+             if($::debug > 3) {
+                 say STDERR "get_globals: switching back to 'main' at line $.";
+             }
+             my $typ = 'm';
+             $typ = $PriorExprType if(defined $PriorExprType);
+             $VarType{$CurSubName}{main} = merge_types($CurSubName, 'main', $typ);
 	     $we_are_in_sub_body = 0;		# issue 45
 	     $CurSubName='main';		# issue 45
 	 }					# issue 45
@@ -267,7 +284,32 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
                 }
               }
           } # for
+          if(scalar(@ValClass) > 0 && $ValClass[0] eq 'k' && $ValPerl[0] eq 'return') {         # SNOOPYJC: return statement
+              $typ = 'm';
+              if(scalar(@ValClass) > 1) {
+                  $typ = expr_type(1, $#ValClass, $CurSubName);
+              }
+              $VarType{$CurSubName}{main} = merge_types($CurSubName, 'main', $typ);
+          }
       } # statements
+      # SNOOPYJC: Capture the prior expr type in case of implicit function return (as done by pythonizer::finish())
+      # If we determine it's a mixed type ('m'), then stop checking
+      if(scalar(@ValClass) == 0) {                              # SNOOPYJC
+          $PriorExprType = 'm';                 # We couldn't have inserted a "return" here
+      } elsif(exists $VarType{$CurSubName}{main} && $VarType{$CurSubName}{main} eq 'm') {   # SNOOPYJC: not worth checking
+          $PriorExprType = 'm';
+      } else {
+         $typ = 'm';                    # mixed by default
+         if((index('"(dsahf-', $ValClass[0]) >= 0)) {           # Expression
+             $typ = expr_type(0, $#ValClass, $CurSubName);
+         } elsif(($p = index($TokenStr, '=')) > 0 &&  $ValClass[0] ne 't') {  # Assignment
+             $typ = expr_type($p+1, $#ValClass, $CurSubName);
+         } elsif($ValClass[0] eq 'k' && scalar(@ValClass) > 1) {      # Return value
+             $typ = expr_type(1, $#ValClass, $CurSubName);
+         }
+         $PriorExprType = $typ;               # SNOOPYJC
+      }
+      correct_nest();                           # issue 45
    } # while
 
    if($::debug == 5) {
@@ -354,9 +396,17 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
         say STDERR "check_ref($CurSub, $name) at $k";
     }
 
-    if($k > 0 && $ValClass[$k-1] eq '^') {      # pre ++ or --
-        $type = 'I';
-        $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
+    if($k > 0) {
+        if($ValClass[$k-1] eq '^') {      # pre ++ or --
+            $type = 'I';
+            $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
+        } elsif($ValClass[$k-1] eq 'f' && $ValPerl[$k-1] eq 'defined') {
+            # If they are checking if this var is defined, then we have to init it to "None" if
+            # we're called on to init it, so set the type to 'm' for "mixed".  This means we
+            # need to convert it using _num and _str each time we reference it so we don't get
+            # any NoneType exceptions.
+            $type = 'm';
+        }
     }
 
     return if(!$name);
@@ -402,6 +452,7 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
 
     if(defined $type) {
         $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
+        $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
     }
     if($class eq 's' && $k+1 <= $#ValClass && $ValClass[$k+1] eq '(' && $ValPerl[$k+1] ne '(') {     # Being subscripted
         $class = (($ValPerl[$k+1] eq '{') ? 'h' : 'a');
@@ -436,7 +487,133 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
         } else {
             $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of u");
         }
+    } elsif($class eq 'a' || $class eq 'h') {    # e.g. if(@arr) or if(%hash) or push @arr, ...
+        $NeedsInitializing{$CurSub}{$name} = $class if(!exists $initialized{$CurSub}{$name});
+   } elsif(!defined $type) {                            # Scalar reference - try to find what type it needs to be
+        $type = scalar_reference_type($k);
+        if($::debug >= 3) {
+            say STDERR "scalar_reference_type($k) = $type";
+        }
+        # Don't override an assigned type with a referenced type, since normally
+        # we will change references to use _num() or _str(), but if this var
+        # is not initialized, then we can set it's type here, e.g. if it's used as an array ref.
+        if(!exists $VarType{$name}{$CurSub} || $VarType{$name}{$CurSub} eq 'u') {
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
+        }
+        $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
     }
+}
+
+sub scalar_reference_type       # given a reference to a scalar, try to infer the type of the scalar
+{
+    my $k = shift;
+
+    $prev = '';
+    $next = '';
+    $prev = $ValClass[$k-1] if($k != 0);
+    $next = $ValClass[$k+1] if($k+1 <= $#ValClass);
+
+    # First see if this is a hash key or array subscript
+
+    if($prev eq '(' && $next eq ')') {
+        if($ValPerl[$k-1] eq '[') {
+            return 'I';
+        } elsif($ValPerl[$k-1] eq '{') {
+            return 'S';
+        }
+    }
+    
+    # Now see if this is a function argument which may not be in parens
+    for(my $i = $k-1; $i >= 0; $i--) {
+        if($ValClass[$i] eq ')') {
+            $i = reverse_matching_br($i);
+        } elsif($ValClass[$i] eq 'f') {
+            my $fname = $ValPerl[$i];
+            if($ValClass[$i+1] eq '(') {
+                my $q = matching_br($i+1);
+                last if($k > $q);               # not in the parens like f(...)..k..
+                $i++;
+            }
+            # Figure out which arg of the function this is: note some functions the first arg
+            # is not separated from the second arg with spaces
+            if($k == $i+1) {
+                $arg = 0;           # That was easy
+            } else {
+                $arg = 1;
+                for(my $j=$i+2; $j<=$k; $j++) {
+                    last if($k == $j);
+                    $arg++ if($ValClass[$j] eq ',');
+                    $j = matching_br($j) if($ValClass[$j] eq '(');
+                    return 'u' if($j < 0);
+                }
+            }
+            my $ty = arg_type($fname, $arg);
+            if($::debug > 3) {
+                say STDERR "arg_type($fname, $arg) = $ty";
+            }
+            return $ty if(defined $ty);
+            last;
+        }
+    }
+
+    $p = $k-1;
+    $n = $k+1;
+    $op = '';
+    if($k-2 >= 0 && $ValClass[$k-1] eq '(') {
+        $p--;
+        $prev = $ValClass[$p];
+    }
+    $op = $prev if(index(">+-*/%0.", $prev) >= 0);
+    $m = $p;
+    if($k+2 <= $#VarClass && $ValClass[$k+1] eq ')') {
+        $n++;
+        $next = $ValClass[$n];
+    }
+    if(index(">+-*/%0.", $next) >= 0) {
+        $op = $next;
+        $m = $n;
+    }
+    if($op eq '.') {
+        if($ValPerl[$m] eq '.') {       # String concat
+            return 'S';
+        } else {
+            return 'u';                 # unknown
+        }
+    } elsif($op eq '>') {     # could be like < or like lt
+        return 'S' if($ValPerl[$m] =~ /^[a-z][a-z]$/);  # like eq, gt, etc
+        return 'I';     # boolean is an Int in perl
+    } elsif($op ne '') {
+        return 'N';         # Numeric
+    }
+    return 'u';
+}
+
+sub arg_type            # Given the name of a built-in function, and the arg#, return the required type
+{
+    my $name = shift;
+    my $arg = shift;
+
+    return 'u' if(!exists $Perlscan::FuncType{$name});
+    my $ft = $Perlscan::FuncType{$name};
+    my $argc = 0;
+    for(my $i = 0; $i < length($ft); $i++) {
+        my $c = substr($ft,$i,1);
+        return 'u' if($c eq ':');       # We reached the end
+        if($c eq 'H' && substr($ft,$i+1,1) eq '?') {
+            $i++;
+            $argc++;
+            next;
+        }
+        next if($c eq '?');
+        if($argc == $arg) {
+            return $c;
+        }
+        if($c eq 'a') {
+            return 's';                 # unknown scalar
+        }
+        $argc++;
+    }
+    return undef;                 # probably not part of this function
 }
 
 sub merge_types         # SNOOPYJC: Merge type of object when we get new info
@@ -449,12 +626,21 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
         say STDERR "merge_types($name, $CurSub, $type)";
     }
 
+    if(!defined $type) {
+        $type = 'u';
+    }
     if(!exists $VarType{$name}{$CurSub}) {
         return $type;
     }
     $otype = $VarType{$name}{$CurSub};
     if($::debug >= 3) {
         say STDERR "merge_types: otype=$otype";
+    }
+    if($otype eq 'u') {         # unknown - treat like we have no info yet
+        return $type;
+    }
+    if($type eq 'u') {
+        return $otype;
     }
     return $type if($type eq $otype);   # Same type
     if(($otype eq 'a' || $otype eq 'h') && $type =~ /$otype of/) {
@@ -511,7 +697,6 @@ sub expr_type           # Attempt to determine the type of the expression
     if($::debug >= 3) {
         say STDERR "expr_type($k, $e, $CurSub)";
     }
-    # FIXME: Try to get the type of our functions, not just built-ins if possible
     if($class eq 'f') {         # built-in function call
         return func_type($ValPerl[$k]);
     } elsif($k == $#ValClass) {      # we have one thing
@@ -527,6 +712,16 @@ sub expr_type           # Attempt to determine the type of the expression
             return 'S';                 # string
         }
         return 'u';
+    } elsif($class eq 'i') {    # bare word
+        my $name = $ValPy[$k];
+        if($LocalSub{$name} || exists $VarType{$name}{main}) {
+            return $VarType{$name}{main} if(exists $VarType{$name}{main});
+            return 'm';
+        } elsif($k+1 <= $#ValClass && $ValClass[$k+1] eq '(') {
+            return $VarType{$name}{main} if(exists $VarType{$name}{main});
+            return 'm';
+        }
+        return 'S';             # will be changed to a string
     } elsif($class ne '(') {            # Non-parenthesized expression
         $m = next_same_level_tokens('>+-*/%0.', $k, $#ValClass);
         if($m != -1) {
@@ -537,7 +732,7 @@ sub expr_type           # Attempt to determine the type of the expression
                     return 'u';                 # unknown
                 }
             } elsif($ValClass[$m] eq '>') {     # could be like < or like lt
-                return 'S' if($ValPerl[$m] =~ /^[a-z][a-z]$/);
+                return 'S' if($ValPerl[$m] =~ /^[a-z][a-z]$/);  # like eq, gt, etc
                 return 'I';     # boolean is an Int in perl
             }
             return 'N';         # Numeric
