@@ -137,9 +137,11 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'own'=>'global', 'oct'=>'oct', 'ord'=>'ord',
                 'our'=>'',                      # SNOOPYJC
                 'package'=>'NoTrans!', 'pop'=>'.pop()', 'push'=>'.extend(',
+                'printf'=>'print',
                 'say'=>'print','scalar'=>'len', 'shift'=>'.pop(0)', 'split'=>'re.split', 
 		# issue 34 'sort'=>'sort', 
-		'sqrt'=>'math.sqrt',			# SNOOPYJC
+                'sleep'=>'time.sleep',          # SNOOPYJC
+		'sqrt'=>'math.sqrt',		# SNOOPYJC
 		'sort'=>'sorted', 		# issue 34
 		'state'=>'global',
                 'read'=>'.read',                # issue 10
@@ -234,12 +236,14 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'or'=>'0', 'own'=>'t', 'oct'=>'f', 'ord'=>'f', 'open'=>'f',
 		  'opendir'=>'f', 'closedir'=>'f', 'readdir'=>'f', 'seekdir'=>'f', 'telldir'=>'f', 'rewinddir'=>'f',	# SNOOPYJC
                   'push'=>'f', 'pop'=>'f', 'print'=>'f', 'package'=>'c',
+                  'printf'=>'f',                # SNOOPYJC
                   'rindex'=>'f','read'=>'f', 
 		  # issue 61 'return'=>'f', 
 		  'return'=>'k', 		# issue 61
                   'reverse'=>'f',               # issue 65
 		  'ref'=>'f',
                   'say'=>'f','scalar'=>'f','shift'=>'f', 'split'=>'f', 'sprintf'=>'f', 'sort'=>'f','system'=>'f', 'state'=>'t',
+		  'sleep'=>'f',		# SNOOPYJC
 		  'sqrt'=>'f',		# SNOOPYJC
                   'stat'=>'t','sub'=>'k','substr'=>'f','sysread'=>'f',  'sysseek'=>'f',
                   'tie'=>'f',
@@ -258,8 +262,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 'lc'=>'S:S',
                   'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'S:I', 'oct'=>'s:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
 		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:u',
-                  'push'=>'aa:I', 'pop'=>'a:s', 'print'=>'H?a:I', 'rindex'=>'SSI?:I','read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
-                  'say'=>'H?a:I','scalar'=>'a:I','shift'=>'a?:s', 'split'=>'SSI?:a of s', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
+                  'push'=>'aa:I', 'pop'=>'a:s', 'print'=>'H?a:I', 'printf'=>'H?Sa:I', 'rindex'=>'SSI?:I','read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
+                  'say'=>'H?a:I','scalar'=>'a:I','shift'=>'a?:s', 'sleep'=>'I:I', 'split'=>'SSI?:a of s', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
                   'sqrt'=>'N:F', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 
                   'timelocal'=>'IIIIII:I', 'unlink'=>'a?:I', 'values'=>'h:a', 'warn'=>'a', 'undef'=>'u', 'unshift'=>'aa', 'uc'=>'S:S',
                   'ucfirst'=>'S:S', 'umask'=>'I?:I'
@@ -534,7 +538,8 @@ my ($l,$m);
             $ValPy[$tno] = "0o".substr($ValPy[$tno], 1);	# issue 22
 	 }							# issue 22
      }elsif( $s=~/\w/  ){
-         $source=~/^(\w+(\:\:\w+)*)/;
+         # SNOOPYJC var $source=~/^(\w+(\:\:\w+)*)/;
+         $source=~/^(\w+((?:(?:\:\:)|\')\w+)*)/;         # SNOOPYJC: Old perl used ' in a name instead of ::
          $w=$1;
          $cut=length($w);
          if($tno == 0 && $w eq 'END') {         # SNOOPYJC: END block
@@ -549,6 +554,7 @@ my ($l,$m);
          $ValClass[$tno]='i';
          $ValPy[$tno]=$w;
          $ValPy[$tno]=~tr/:/./s;                # SNOOPYJC
+         $ValPy[$tno]=~tr/'/./s;                # SNOOPYJC
          $ValCom[$tno]='';                      # SNOOPYJC
          if( exists($keyword_tr{$w}) ){
             $ValPy[$tno]=$keyword_tr{$w};
@@ -785,8 +791,11 @@ my ($l,$m);
             substr($source,0,$cut)='perl_trace()'; # remove non-tranlatable part.
             $cut=length('perl_trace');
          }else{
-	    if($tno != 0 && ($ValClass[$tno-1] eq '@' || ($ValClass[$tno-1] eq '%' && !$had_space))) {	# issue 50
-               # Change @$xxx to $xxx and %$yyy to $yyy but NOT % $yyy as that's a MOD operator!
+	    if($tno!=0 && 
+               (($ValClass[$tno-1] eq 's' && $ValPerl[$tno-1] eq '$') || # issue 50
+                $ValClass[$tno-1] eq '@' || 
+                ($ValClass[$tno-1] eq '%' && !$had_space))) {	# issue 50
+               # Change $$xxx to $xxx, @$xxx to $xxx and %$yyy to $yyy but NOT % $yyy as that's a MOD operator!
 	       popup();                         # issue 50
 	       $tno--;				# issue 50 - no need to change hashref to hash or arrayref to array in python
       	       $ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
@@ -836,7 +845,8 @@ my ($l,$m);
             }
          }
       }elsif( $s eq '@'  ){
-         if( substr($source,1)=~/^(\:?\:?\w+(\:\:\w+)*)/ ){
+         # SNOOPYJC if( substr($source,1)=~/^(\:?\:?\w+(\:\:\w+)*)/ ){
+         if( substr($source,1)=~/^(\:?\:?\'?\w+((?:(?:\:\:)|\')\w+)*)/ ){       # SNOOPYJC: Allow ' from old perl
             $arg1=$1;
             if( $arg1 eq '_' ){
                $ValPy[$tno]="$PERL_ARG_ARRAY";	# issue 32
@@ -846,33 +856,37 @@ my ($l,$m);
                   $ValPy[$tno]='sys.argv[1:]';	# issue 49
                   $ValType[$tno]="X";
             }else{
-	       $arg1 = escape_keywords($arg1);		# issue 41
+	       my $arg2 = escape_keywords($arg1);		# issue 41
                if( $tno>=2 && $ValClass[$tno-2] =~ /[sd'"q]/  && $ValClass[$tno-1] eq '>'  ){
-                  $ValPy[$tno]='len('.$arg1.')'; # scalar context
+                  $ValPy[$tno]='len('.$arg2.')'; # scalar context   # issue 41
                   $ValType[$tno]="X";
                 }else{
-                  $ValPy[$tno]=$arg1;
+                  $ValPy[$tno]=$arg2;            # issue 41
                }
                $ValPy[$tno]=~tr/:/./s;
+               $ValPy[$tno]=~tr/'/./s;          # SNOOPYJC
                if( substr($ValPy[$tno],0,1) eq '.' ){
                   $ValPy[$tno]='__main__'.$ValPy[$tno];
                   $ValType[$tno]="X";
                }
             }
             $cut=length($arg1)+1;
-            $ValPerl[$tno]=substr($source,$cut);
+            # SNOOPYJC $ValPerl[$tno]=substr($source,$cut);
+            $ValPerl[$tno]=substr($source,0,$cut);      # SNOOPYC
             $ValClass[$tno]='a'; #array
          }else{
             $cut=1;
          }
       }elsif( $s eq '%' ){
          # the problem here is that %2 can be in i=k%2, so we need to excude digits from regex  -- NNB Sept 3, 2020
-         if( substr($source,1)=~/^(\:?\:?[_a-zA-Z]\w*(\:\:[_a-zA-Z]\w*)*)/ ){
+         # SNOOPYJC if( substr($source,1)=~/^(\:?\:?[_a-zA-Z]\w*(\:\:[_a-zA-Z]\w*)*)/ ){
+         if( substr($source,1)=~/^(\:?\:?\'?[_a-zA-Z]\w*((?:(?:\:\:)|\')[_a-zA-Z]\w*)*)/ ){     # old perl used ' for ::
             $cut=length($1)+1;
             $ValClass[$tno]='h'; #hash
             $ValPerl[$tno]=$1;
             $ValPy[$tno]=$1;
             $ValPy[$tno]=~tr/:/./s;
+            $ValPy[$tno]=~tr/'/./s;             # SNOOPYJC
 	    $ValPy[$tno] = escape_keywords($ValPy[$tno]);
             if( substr($ValPy[$tno],0,1) eq '.' ){
                $ValCom[$tno]='X';
@@ -883,12 +897,14 @@ my ($l,$m);
          }
       }elsif( $s eq '&' && ($ch = substr($source,1,1)) ne '&' && $ch ne '='){  # old perl for a sub name, not && or &=
          # the problem here is that &2 can be in i=k&2, so we need to exclude digits from regex  -- NNB Sept 3, 2020
-         if( substr($source,1)=~/^(\:?\:?[_a-zA-Z]\w*(\:\:[_a-zA-Z]\w*)*)/ ){
+         # if( substr($source,1)=~/^(\:?\:?[_a-zA-Z]\w*(\:\:[_a-zA-Z]\w*)*)/ ){
+         if( substr($source,1)=~/^(\:?\:?\'?[_a-zA-Z]\w*((?:(?:\:\:)|\')[_a-zA-Z]\w*)*)/ ){
             $cut=length($1)+1;
             $ValClass[$tno]='i'; # bareword
             $ValPerl[$tno]=$1;
             $ValPy[$tno]=$1;
             $ValPy[$tno]=~tr/:/./s;
+            $ValPy[$tno]=~tr/'/./s;             # SNOOPYJC
 	    $ValPy[$tno] = escape_keywords($ValPy[$tno]);
             if( substr($ValPy[$tno],0,1) eq '.' ){
                $ValCom[$tno]='X';
@@ -965,6 +981,13 @@ my ($l,$m);
               $ValPerl[$tno]=$digram;
               $ValPy[$tno]=('os.path.isfile','os.path.isdir','os.path.islink','not os.path.getsize','os.path.exists','os.path.getsize','_getA', '_getC', '_getM')[$k];          # SNOOPYJC
               $cut=2;
+           #SNOOPYC: had to remove this fix because t-timelocal(...) was being changed to t'-timelocal' !!!
+           #NG           }elsif($source =~ /^(-[A-Za-z_]\w*)/) {       # issue 88: -bareword
+           #NG$w=$1;
+           #NG$cut=length($w);
+           #NG$ValClass[$tno]='"';      # String
+           #NG$ValPerl[$tno]=$w;
+           #NG$ValPy[$tno]="'$w'";
            }else{
               $cut=1; # regular minus operator
            }
@@ -1119,7 +1142,7 @@ my $original;
        }
    }
    if( $::debug > 3  ){
-     say STDERR "Lexem $tno Current token='$ValClass[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
+     say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
    }
    $tno++;
 }
@@ -1225,7 +1248,8 @@ my $rc=-1;
           $ValPy[$tno]='(len('.$1.')-1)';       # SNOOPYJC
       }
       $cut=length($1)+2;
-  }elsif( $source=~/^.(\w*(\:\:\w+)*)/ ){
+  # SNOOPYJC }elsif( $source=~/^.(\w*(\:\:\w+)*)/ ){
+  }elsif( $source=~/^.(\w*((?:(?:\:\:)|\')\w+)*)/ ){    # SNOOPYJC: old perl uses ' for ::
       $cut=length($1)+1;
       $name=$1;
       $ValPy[$tno]=$name;
@@ -1240,6 +1264,18 @@ my $rc=-1;
             $rc=1 #regular var
          }else{
             substr($name,$k,2)='.';
+	    $name = escape_keywords($name);
+	    $ValPy[$tno]=$name;
+            $rc=1 #regular var
+         }
+     } elsif( ($k=index($name,"'")) > -1 ){             # Old perl uses ' for ::
+         $ValType[$tno]="X";
+         if( $k==0 || substr($name,$k) eq 'main' ){
+            substr($name,0,1)='__main__.';
+            $ValPy[$tno]=$name;
+            $rc=1 #regular var
+         }else{
+            substr($name,$k,1)='.';
 	    $name = escape_keywords($name);
 	    $ValPy[$tno]=$name;
             $rc=1 #regular var

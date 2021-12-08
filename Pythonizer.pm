@@ -462,7 +462,7 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             $rhs_type = $type;
         }
         $type = undef;
-        $p = $k+1;
+        my $p = $k+1;
         while($ValClass[$p] eq '(') {
             $class = (($ValPerl[$p] eq '{') ? 'h' : 'a');
             if(defined $type) {
@@ -508,8 +508,8 @@ sub scalar_reference_type       # given a reference to a scalar, try to infer th
 {
     my $k = shift;
 
-    $prev = '';
-    $next = '';
+    my $prev = '';
+    my $next = '';
     $prev = $ValClass[$k-1] if($k != 0);
     $next = $ValClass[$k+1] if($k+1 <= $#ValClass);
 
@@ -556,9 +556,9 @@ sub scalar_reference_type       # given a reference to a scalar, try to infer th
         }
     }
 
-    $p = $k-1;
-    $n = $k+1;
-    $op = '';
+    my $p = $k-1;
+    my $n = $k+1;
+    my $op = '';
     if($k-2 >= 0 && $ValClass[$k-1] eq '(') {
         $p--;
         $prev = $ValClass[$p];
@@ -723,7 +723,7 @@ sub expr_type           # Attempt to determine the type of the expression
         }
         return 'S';             # will be changed to a string
     } elsif($class ne '(') {            # Non-parenthesized expression
-        $m = next_same_level_tokens('>+-*/%0.', $k, $#ValClass);
+        my $m = next_same_level_tokens('>+-*/%0.', $k, $#ValClass);
         if($m != -1) {
             if($ValClass[$m] eq '.') {
                 if($ValPerl[$m] eq '.') {       # String concat
@@ -737,10 +737,10 @@ sub expr_type           # Attempt to determine the type of the expression
             }
             return 'N';         # Numeric
         } elsif($class eq 's' && $ValClass[$k+1] eq '(') {    # An array with possible subscript or hash with key
-            $name = $ValPy[$k];
+            my $name = $ValPy[$k];
             if(exists $VarType{$name}{$CurSub} && index(' of ', $VarType{$name}{$CurSub}) > 0) {
-                $typ = $VarType{$name}{$CurSub};
-                $p = $k+1;
+                my $typ = $VarType{$name}{$CurSub};
+                my $p = $k+1;
                 while($ValClass[$p] eq '(') {
                     $q = matching_br($p);
                     last if($q < 0);
@@ -752,30 +752,37 @@ sub expr_type           # Attempt to determine the type of the expression
         }
         return 'u';
     } else {                    # '('
+        # Handle (a, b) = ...
+        my $m = matching_br($k);
+        if($m > 0 && $m+1 < $#VarClass && $VarClass[$m+1] eq '=') {
+            return 'u';
+        }
         # Check for list first
         $m = next_same_level_tokens(',', $k+1, $#ValClass-1);
         if($m != -1) {
-            $n = next_same_level_tokens(':', $k+1, $m-1);       # Look for =>
+            my $n = next_same_level_tokens(':', $k+1, $m-1);       # Look for =>
             my $t;
             if($n != -1 && $ValPerl[$n] eq '=>') {      # Like {key1=>val1, key2=>val2}
                 $t = expr_type($n+1, $m-1, $CurSub);
                 while($t ne 'm') {
-                    $o = next_same_level_tokens(',', $m+1, $#ValClass-1);
+                    my $o = next_same_level_tokens(',)', $m+1, $#ValClass-1);
                     last if($o < 0);
                     $n = next_same_level_tokens(':', $m+1, $o-1);       # Look for =>
                     last if($n < 0 || $ValPerl[$n] ne '=>');
                     my $u = expr_type($n+1, $o-1, $CurSub);
                     $t = common_type($t, $u);
+                    last if($ValClass[$o] eq ')');
                     $m = $o;
                 }
                 return "h of $t";
             } else {                                    # like (1, 2, 3)
                 $t = expr_type($k+1, $m-1, $CurSub);
                 while($t ne 'm') {
-                    $o = next_same_level_tokens(',', $m+1, $#ValClass-1);
+                    my $o = next_same_level_tokens(',)', $m+1, $#ValClass-1);
                     last if($o < 0);
                     my $u = expr_type($m+1, $o-1, $CurSub);
                     $t = common_type($t, $u);
+                    last if($ValClass[$o] eq ')');
                     $m = $o;
                 }
             }
@@ -877,14 +884,19 @@ my $scan_end=$_[2];
 my $balance=0;
     # issue 74 for( my $k=$scan_start; $k<$scan_end; $k++ ){      # issue 74
     for( my $k=$scan_start; $k<=$scan_end; $k++ ){      # issue 74
-      $s=substr($TokenStr,$k,1);
+      my $s=substr($TokenStr,$k,1);
       if( $s eq '(' ){
          $balance++;
       }elsif( $s eq ')' ){
          $balance--;
       }
-      if( index($toks, $s) >= 0 && $balance<=0  ){
-          return $k;
+      my $p = index($toks, $s);
+      if($p >= 0) {
+          if($s eq ')') {       # SNOOPYJC: if we're looking for a ')', the balance needs to be -1
+              return $k if($balance < 0);
+          } elsif( $balance<=0  ){
+              return $k;
+          }
       }
    } # for
    return -1; # not found
