@@ -56,5 +56,16 @@ assert(join('', sort backwards @harry) eq 'xdogcatCainAbel');
 #We'll fix this some other day
 #@sorted = sort @george, 'to', @harry;
 #assert(join('', @sorted) eq 'AbelAxedCainPunishedcatchaseddoggonetoxyz');
+#
+
+%routespans = ();
+$routespans{rin} = {1=>'av', 3=>'cv', 2=>'bv'};
+$rin = 'rin';
+sub bynum
+{
+   $a <=> $b;
+}
+my @sequence = sort bynum keys %{$routespans{$rin}};
+assert(scalar(@sequence)==3 && $sequence[0] == 1 && $sequence[1] == 2 && $sequence[2] == 3);
 
 print "$0 - test passed!\n";

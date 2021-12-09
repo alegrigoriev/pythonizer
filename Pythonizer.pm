@@ -273,6 +273,9 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
          for( $k=0; $k<@ValClass; $k++ ){
              if(  $ValClass[$k]=~/[sah]/ ){
                 check_ref($CurSubName, $k);                  # SNOOPYJC
+                if($k != 0 && $ValClass[$k-1] eq 't' && $ValPerl[$k-1] eq 'my') {       # SNOOPYJC e.g. for(my $i=...)
+                    $DeclaredVarH{$ValPy[$k]} = 1;
+                }
                 next if exists($DeclaredVarH{$ValPy[$k]});
                 next if(  defined($ValType[$k]) && $ValType[$k] eq 'X');
                 next if($ValPy[$k] eq '');      # Undefined special var

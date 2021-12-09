@@ -85,7 +85,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'`'=>'string_preceeeding_last_match',"'"=>'post_last_match_string',
                 '+'=>'last_capture_group','/'=>'lines_separator',','=>'output_field_separator','\\'=>'unknown_perl_special_var',
                 );
-   %SPECIAL_VAR2=('O'=>'os.name','T'=>'OS_BASETIME', 'V'=>'sys.version[0]', 'X'=>'sys.executable()',); # $^O and friends
+   %SPECIAL_VAR2=('O'=>'os.name','T'=>'OS_BASETIME', 'V'=>'sys.version[0]', 'X'=>'sys.executable()',
+                  'W'=>'WARNING'); # $^O and friends
 
    # Map of functions to python where the mapping is different for scalar and list context
    %SPECIAL_FUNCTION_MAPPINGS=('localtime'=>{scalar=>'tm_py.ctime', list=>'tm_py.localtime'},
@@ -103,7 +104,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'basename'=>'os.path.basename',		# SNOOPYJC
                 'binmode'=>'_dup',                      # SNOOPYJC
                 'bless'=>'NoTrans!','BEGIN'=>'if True:',        # SNOOPYJC
-                'caller'=>q(['implementable_via_inspect',__file__,sys._getframe().f_lineno]),
+                # SNOOPYJC 'caller'=>q(['implementable_via_inspect',__file__,sys._getframe().f_lineno]),
+                'caller'=>q(['main',__file__,sys._getframe(1).f_lineno]),   # SNOOPYJC
 		# issue 54 'chdir'=>'.os.chdir','chmod'=>'.os.chmod',
 		'chdir'=>'os.chdir','chmod'=>'os.chmod',	# issue 54
 		'chomp'=>'.rstrip("\n")','chop'=>'[0:-1]','chr'=>'chr',
@@ -157,6 +159,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'require'=>'NoTrans!', 'return'=>'return', 'rmdir'=>'os.rmdir',
                 'tie'=>'NoTrans!',
 		'time'=>'_time',		# SNOOPYJC
+                'timegm'=>'calendar.timegm',    # SNOOPYJC
                 'uc'=>'.upper()', 'ucfirst'=>'.capitalize()', 'undef'=>'None', 'unless'=>'if not ', 'unlink'=>'os.unlink',
                 'umask'=>'os.umask',            # SNOOPYJC
                    'unshift'=>'.insert(0,',
@@ -213,7 +216,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'atan2'=>'f',		# SNOOPYJC
 		  'basename'=>'f',	# SNOOPYJC
 		  'binmode'=>'f',	# SNOOPYJC
-                  'caller'=>'f','chdir'=>'f','chomp'=>'f', 'chop'=>'f', 'chmod'=>'f','chr'=>'f','close'=>'f',
+                  'caller'=>'a','chdir'=>'f','chomp'=>'f', 'chop'=>'f', 'chmod'=>'f','chr'=>'f','close'=>'f',
                   'cmp'=>'>',           # SNOOPYJC: comparison
                   'delete'=>'f',        # issue delete
                   'default'=>'C','defined'=>'f','die'=>'f',
@@ -247,7 +250,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'sqrt'=>'f',		# SNOOPYJC
                   'stat'=>'t','sub'=>'k','substr'=>'f','sysread'=>'f',  'sysseek'=>'f',
                   'tie'=>'f',
-		  'time'=>'f', 'gmtime'=>'f', 'timelocal'=>'f',	# SNOOPYJC
+		  'time'=>'f', 'gmtime'=>'f', 'timelocal'=>'f',	'timegm'=> 'f', # SNOOPYJC
 		  'unlink'=>'f',		# SNOOPYJC
                   'values'=>'f',
                   'warn'=>'f', 'when'=>'C', 'while'=>'c',
@@ -257,14 +260,14 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
        %FuncType=(    # a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, S=String, u=Unknown, f=function, H=FileHandle, ?=Optional, m=mixed
 		  'abs'=>'N:N', 'alarm'=>'N:N', 'atan2'=>'NN:F', 'basename'=>'S:S',
 		  'binmode'=>'HS?:u',
-                  'caller'=>'I?:a','chdir'=>'S:I','chomp'=>'S:u', 'chop'=>'S:u', 'chmod'=>'Ia:u','chr'=>'I?:S','close'=>'H:I',
+                  'chdir'=>'S:I','chomp'=>'S:u', 'chop'=>'S:u', 'chmod'=>'Ia:u','chr'=>'I?:S','close'=>'H:I',
                   'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:u', 'exists'=>'u:I', 'exit'=>'S:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'glob'=>'S:a of S',
                   'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 'lc'=>'S:S',
                   'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'S:I', 'oct'=>'s:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
 		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:u',
                   'push'=>'aa:I', 'pop'=>'a:s', 'print'=>'H?a:I', 'printf'=>'H?Sa:I', 'rindex'=>'SSI?:I','read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
                   'say'=>'H?a:I','scalar'=>'a:I','shift'=>'a?:s', 'sleep'=>'I:I', 'split'=>'SSI?:a of s', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
-                  'sqrt'=>'N:F', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 
+                  'sqrt'=>'N:F', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timegm'=>'IIIIII:I',
                   'timelocal'=>'IIIIII:I', 'unlink'=>'a?:I', 'values'=>'h:a', 'warn'=>'a', 'undef'=>'u', 'unshift'=>'aa', 'uc'=>'S:S',
                   'ucfirst'=>'S:S', 'umask'=>'I?:I'
                   );
@@ -427,7 +430,9 @@ my ($l,$m);
              last;
 	  # issue 35 }elsif( $ValClass[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1){
           }elsif( $ValClass[$tno-1] ne '=' &&                   # issue 82
-                 ($ValPerl[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1 || ($tno == 2 && $ValPerl[0] eq 'sub'))){	# issue 35, 45
+                 ($ValPerl[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1 || 
+                  ($tno == 2 && $ValPerl[0] eq 'sub') ||
+                  ($tno == 1 && ($ValPerl[0] eq 'BEGIN' || $ValPerl[0] eq 'END')))){	# issue 35, 45
              # $tno>0 this is the case when curvy bracket has comments'
              Pythonizer::getline('{',substr($source,1)); # make it a new line to be proceeed later
              popup(); # eliminate '{' as it does not have tno==0
@@ -564,10 +569,11 @@ my ($l,$m);
          }                                      # SNOOPYJC
          if( exists($TokenType{$w}) ){
             $class=$TokenType{$w};
-            if($class eq 'f' && $w eq 'delete' && $tno != 0 && $ValPerl[$tno-1] eq '{') {        # issue delete in a $hash{delete}
-                $class = 'i';                   # issue delete
-                $ValPy[$tno] = $w;              # issue delete
-            }                                   # issue delete
+            if($tno != 0 && (($ValPerl[$tno-1] eq '{' && $source =~ /^[a-z0-9]+}/) ||   # issue 89: keyword in a hash like $hash{delete} or $hash{q}
+                (index('(,', $ValPerl[$tno-1])>=0 && $source =~ /^[a-z0-9]+\s*=>/))) {  # issue 89: keyword in hash def like (qw=>14, use=>15)
+                $class = 'i';                   # issue 89
+                $ValPy[$tno] = $w;              # issue 89
+            }                                   # issue 89
             $ValClass[$tno]=$class;
             if( $class eq 'c' && $tno > 0 && $Pythonizer::PassNo ){	# Control statement, like if
                # The current solution is pretty britle but works
@@ -615,7 +621,7 @@ my ($l,$m);
                      last;
                   }
             }elsif ( $class eq 't'  ){
-               if( $tno>0 && $w eq 'my' ){
+               if( $tno>0 && $w eq 'my' && $Pythonizer::PassNo){        # SNOOPYJC: In the first pass, we need to see the 'my' so we don't make $i global!
                   $source=substr($source,2); # cut my in constucts like for(my $i=0...)
                   next;
                }
@@ -700,8 +706,8 @@ my ($l,$m);
                         $ValPy[$tno]='str.replace('.$quoted_regex.','.$quoted_regex.',1)';
                      }
                   } elsif( $w eq 'qr' ) {               # SNOOPYJC: qr in other context
-                     ($modifier,$groups_are_present)=is_regex($myregex);
-                     $ValPy[$tno]='re.compile('.put_regex_in_quotes($myregex).$modifier.')';
+                     ($modifier,$groups_are_present)=is_regex($arg1);                           # SNOOPYJC
+                     $ValPy[$tno]='re.compile('.put_regex_in_quotes($arg1).$modifier.')';       # SNOOPYJC
                   }else{
                      abend("Internal error while analysing $w in line $. : $_[0]");
                   }
