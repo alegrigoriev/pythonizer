@@ -1,9 +1,9 @@
  [Softpano-W317]:  Debug flag is set to 5
 
 
-PYTHONIZER: Fuzzy translator of Python to Perl. Version 0.919 (mtime 211208_1131) Started at 21/12/08 11:35
+PYTHONIZER: Fuzzy translator of Python to Perl. Version 0.920 (mtime 211209_1706) Started at 21/12/09 17:06
 
-Logs are at /tmp/Pythonizer/pythonizer.211208_1135.log. Type -h for help.
+Logs are at /tmp/Pythonizer/pythonizer.211209_1706.log. Type -h for help.
 =============================================================================================================
 Results of transcription are written to the file  test_sort.py
 =========================================================================================================================
@@ -483,63 +483,196 @@ Lexem 10 Current token='>' perl='eq' value='==' Tokenstr |c(f(",fia)>| translate
 Lexem 11 Current token='"' perl='xdogcatCainAbel' value=''xdogcatCainAbel'' Tokenstr |c(f(",fia)>"| translated: assert ( .join( ( '' , sorted backwards harry ) == 'xdogcatCainAbel'
 Lexem 12 Current token=')' perl=')' value=')' Tokenstr |c(f(",fia)>")| translated: assert ( .join( ( '' , sorted backwards harry ) == 'xdogcatCainAbel' )
 check_ref(main, harry) at 8
+Lexem 0 Current token='h' perl='routespans' value='routespans' Tokenstr |h| translated: routespans
+Lexem 1 Current token='=' perl='=' value='=' Tokenstr |h=| translated: routespans =
+Lexem 2 Current token='(' perl='(' value='(' Tokenstr |h=(| translated: routespans = (
+Lexem 3 Current token=')' perl=')' value=')' Tokenstr |h=()| translated: routespans = ( )
+check_ref(main, routespans) at 0
+expr_type(2, 3, main)
+expr_type(3, 2, main)
+merge_types(routespans, main, u)
+expr_type(0, 3, main)
+Lexem 0 Current token='s' perl='$routespans' value='routespans' Tokenstr |s| translated: routespans
+Lexem 1 Current token='(' perl='{' value='[' Tokenstr |s(| translated: routespans [
+Lexem 2 Current token='i' perl='rin' value='rin' Tokenstr |s(i| translated: routespans [ rin
+Lexem 3 Current token=')' perl='}' value=']' Tokenstr |s(")| translated: routespans [ 'rin' ]
+Lexem 4 Current token='=' perl='=' value='=' Tokenstr |s(")=| translated: routespans [ 'rin' ] =
+Lexem 5 Current token='(' perl='{' value='[' Tokenstr |s(")=(| translated: routespans [ 'rin' ] = [
+Lexem 6 Current token='d' perl='1' value='1' Tokenstr |s(")=(d| translated: routespans [ 'rin' ] = [ 1
+Lexem 7 Current token=':' perl='=>' value=': ' Tokenstr |s(")=(d:| translated: routespans [ 'rin' ] = [ 1 : 
+Lexem 8 Current token='"' perl='av' value=''av'' Tokenstr |s(")=(d:"| translated: routespans [ 'rin' ] = [ 1 :  'av'
+Lexem 9 Current token=',' perl=',' value=',' Tokenstr |s(")=(d:",| translated: routespans [ 'rin' ] = [ 1 :  'av' ,
+Lexem 10 Current token='d' perl='3' value='3' Tokenstr |s(")=(d:",d| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3
+Lexem 11 Current token=':' perl='=>' value=': ' Tokenstr |s(")=(d:",d:| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3 : 
+Lexem 12 Current token='"' perl='cv' value=''cv'' Tokenstr |s(")=(d:",d:"| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3 :  'cv'
+Lexem 13 Current token=',' perl=',' value=',' Tokenstr |s(")=(d:",d:",| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3 :  'cv' ,
+Lexem 14 Current token='d' perl='2' value='2' Tokenstr |s(")=(d:",d:",d| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3 :  'cv' , 2
+Lexem 15 Current token=':' perl='=>' value=': ' Tokenstr |s(")=(d:",d:",d:| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3 :  'cv' , 2 : 
+Lexem 16 Current token='"' perl='bv' value=''bv'' Tokenstr |s(")=(d:",d:",d:"| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3 :  'cv' , 2 :  'bv'
+Lexem 17 Current token=')' perl='}' value=']' Tokenstr |s(")=(d:",d:",d:")| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3 :  'cv' , 2 :  'bv' ]
+check_ref(main, routespans) at 0
+expr_type(5, 17, main)
+expr_type(8, 8, main)
+expr_type(12, 12, main)
+merge_types(routespans, main, h of h of u)
+merge_types: otype=u
+expr_type(0, 17, main)
+Lexem 0 Current token='s' perl='$rin' value='rin' Tokenstr |s| translated: rin
+Lexem 1 Current token='=' perl='=' value='=' Tokenstr |s=| translated: rin =
+Lexem 2 Current token='"' perl='rin' value=''rin'' Tokenstr |s="| translated: rin = 'rin'
+check_ref(main, rin) at 0
+expr_type(2, 2, main)
+merge_types(rin, main, S)
+expr_type(0, 2, main)
+Lexem 0 Current token='k' perl='sub' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' perl='bynum' value='bynum' Tokenstr |ki| translated: def bynum
+get_globals: switching to 'bynum' at line 65
+expr_type(1, 1, bynum)
+Lexem 0 Current token='s' perl='$a' value='a' Tokenstr |s| translated: a
+Lexem 1 Current token='>' perl='<=>' value='_spaceship' Tokenstr |s>| translated: a _spaceship
+Lexem 2 Current token='s' perl='$b' value='b' Tokenstr |s>s| translated: a _spaceship b
+check_ref(bynum, a) at 0
+scalar_reference_type(0) = I
+merge_types(a, bynum, I)
+check_ref(bynum, b) at 2
+scalar_reference_type(2) = u
+merge_types(b, bynum, u)
+expr_type(0, 2, bynum)
+get_globals: switching back to 'main' at line 67
+merge_types(bynum, main, I)
+Lexem 0 Current token='t' perl='my' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='a' perl='@sequence' value='sequence' Tokenstr |ta| translated:  sequence
+Lexem 2 Current token='=' perl='=' value='=' Tokenstr |ta=| translated:  sequence =
+Lexem 3 Current token='f' perl='sort' value='sorted' Tokenstr |ta=f| translated:  sequence = sorted
+Lexem 4 Current token='i' perl='bynum' value='bynum' Tokenstr |ta=fi| translated:  sequence = sorted bynum
+Lexem 5 Current token='f' perl='keys' value='.keys()' Tokenstr |ta=fif| translated:  sequence = sorted bynum .keys()
+Lexem 6 Current token='%' perl='%' value='%' Tokenstr |ta=fif%| translated:  sequence = sorted bynum .keys() %
+Lexem 7 Current token='(' perl='{' value='[' Tokenstr |ta=fif%(| translated:  sequence = sorted bynum .keys() % [
+Lexem 8 Current token='s' perl='$routespans' value='routespans' Tokenstr |ta=fif%(s| translated:  sequence = sorted bynum .keys() % [ routespans
+Lexem 9 Current token='(' perl='{' value='[' Tokenstr |ta=fif%(s(| translated:  sequence = sorted bynum .keys() % [ routespans [
+Lexem 10 Current token='s' perl='$rin' value='rin' Tokenstr |ta=fif%(s(s| translated:  sequence = sorted bynum .keys() % [ routespans [ rin
+Lexem 11 Current token=')' perl='}' value=']' Tokenstr |ta=fif%(s(s)| translated:  sequence = sorted bynum .keys() % [ routespans [ rin ]
+Lexem 12 Current token=')' perl='}' value=']' Tokenstr |ta=fif%(s(s))| translated:  sequence = sorted bynum .keys() % [ routespans [ rin ] ]
+check_ref(main, sequence) at 1
+expr_type(3, 12, main)
+merge_types(sequence, main, a)
+check_ref(main, routespans) at 8
+merge_types(routespans, main, h of u)
+merge_types: otype=h of h of u
+check_ref(main, rin) at 10
+scalar_reference_type(10) = S
+Lexem 0 Current token='c' perl='assert' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' perl='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='f' perl='scalar' value='len' Tokenstr |c(f| translated: assert ( len
+Lexem 3 Current token='(' perl='(' value='(' Tokenstr |c(f(| translated: assert ( len (
+Lexem 4 Current token='a' perl='@sequence' value='sequence' Tokenstr |c(f(a| translated: assert ( len ( sequence
+Lexem 5 Current token=')' perl=')' value=')' Tokenstr |c(f(a)| translated: assert ( len ( sequence )
+Lexem 6 Current token='>' perl='==' value='==' Tokenstr |c(f(a)>| translated: assert ( len ( sequence ) ==
+Lexem 7 Current token='d' perl='3' value='3' Tokenstr |c(f(a)>d| translated: assert ( len ( sequence ) == 3
+Lexem 8 Current token='0' perl='&&' value=' and ' Tokenstr |c(f(a)>d0| translated: assert ( len ( sequence ) == 3  and 
+Lexem 9 Current token='s' perl='$sequence' value='sequence' Tokenstr |c(f(a)>d0s| translated: assert ( len ( sequence ) == 3  and  sequence
+Lexem 10 Current token='(' perl='[' value='[' Tokenstr |c(f(a)>d0s(| translated: assert ( len ( sequence ) == 3  and  sequence [
+Lexem 11 Current token='d' perl='0' value='0' Tokenstr |c(f(a)>d0s(d| translated: assert ( len ( sequence ) == 3  and  sequence [ 0
+Lexem 12 Current token=')' perl=']' value=']' Tokenstr |c(f(a)>d0s(d)| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ]
+Lexem 13 Current token='>' perl='==' value='==' Tokenstr |c(f(a)>d0s(d)>| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] ==
+Lexem 14 Current token='d' perl='1' value='1' Tokenstr |c(f(a)>d0s(d)>d| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1
+Lexem 15 Current token='0' perl='&&' value=' and ' Tokenstr |c(f(a)>d0s(d)>d0| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and 
+Lexem 16 Current token='s' perl='$sequence' value='sequence' Tokenstr |c(f(a)>d0s(d)>d0s| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence
+Lexem 17 Current token='(' perl='[' value='[' Tokenstr |c(f(a)>d0s(d)>d0s(| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [
+Lexem 18 Current token='d' perl='1' value='1' Tokenstr |c(f(a)>d0s(d)>d0s(d| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1
+Lexem 19 Current token=')' perl=']' value=']' Tokenstr |c(f(a)>d0s(d)>d0s(d)| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ]
+Lexem 20 Current token='>' perl='==' value='==' Tokenstr |c(f(a)>d0s(d)>d0s(d)>| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] ==
+Lexem 21 Current token='d' perl='2' value='2' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2
+Lexem 22 Current token='0' perl='&&' value=' and ' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and 
+Lexem 23 Current token='s' perl='$sequence' value='sequence' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0s| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and  sequence
+Lexem 24 Current token='(' perl='[' value='[' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0s(| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and  sequence [
+Lexem 25 Current token='d' perl='2' value='2' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0s(d| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and  sequence [ 2
+Lexem 26 Current token=')' perl=']' value=']' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0s(d)| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and  sequence [ 2 ]
+Lexem 27 Current token='>' perl='==' value='==' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0s(d)>| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and  sequence [ 2 ] ==
+Lexem 28 Current token='d' perl='3' value='3' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0s(d)>d| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and  sequence [ 2 ] == 3
+Lexem 29 Current token=')' perl=')' value=')' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0s(d)>d)| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and  sequence [ 2 ] == 3 )
+check_ref(main, sequence) at 4
+check_ref(main, sequence) at 9
+merge_types(sequence, main, a of u)
+merge_types: otype=a
+check_ref(main, sequence) at 16
+merge_types(sequence, main, a of u)
+merge_types: otype=a of u
+check_ref(main, sequence) at 23
+merge_types(sequence, main, a of u)
+merge_types: otype=a of u
 Lexem 0 Current token='f' perl='print' value='print' Tokenstr |f| translated: print
 Lexem 1 Current token='"' perl='$0 - test passed!\n' value='f"{__file__} - test passed!\n"' Tokenstr |f"| translated: print f"{__file__} - test passed!\n"
 expr_type(0, 1, main)
 VarSubMap = $VAR1 = {
+  '_script_start' => {
+    'main' => '+'
+  },
+  'AUTODIE' => {
+    'main' => '+'
+  },
+  'routespans' => {
+    'main' => '+'
+  },
+  'TRACEBACK' => {
+    'main' => '+'
+  },
   '_OPEN_MODE_MAP' => {
     'main' => '+'
   },
   'LIST_SEPARATOR' => {
     'main' => '+'
   },
-  'class_' => {
-    'main' => '+'
-  },
-  'OS_ERROR' => {
-    'main' => '+'
-  },
-  '_script_start' => {
-    'main' => '+'
-  },
   '_DUP_MAP' => {
+    'main' => '+'
+  },
+  'class_' => {
     'main' => '+'
   },
   'age' => {
     'main' => '+',
     'byage' => '+'
   },
+  'rin' => {
+    'main' => '+'
+  },
+  'OS_ERROR' => {
+    'main' => '+'
+  },
   'files' => {
-    'main' => '+'
-  },
-  'TRACEBACK' => {
-    'main' => '+'
-  },
-  'AUTODIE' => {
     'main' => '+'
   }
 };
 
 VarType = $VAR1 = {
-  'sortedclass' => {
-    'main' => 'a'
+  'routespans' => {
+    'main' => 'h of h of u'
   },
-  'sys.argv' => {
-    'main' => 'a of S'
-  },
-  'articlesn' => {
-    'main' => 'a'
-  },
-  'articlesnd' => {
-    'main' => 'a'
-  },
-  'articles1' => {
-    'main' => 'a'
-  },
-  'EVAL_ERROR' => {
+  'rin' => {
     'main' => 'S'
   },
   'OS_ERROR' => {
+    'main' => 'S'
+  },
+  'LIST_SEPARATOR' => {
+    'main' => 'S'
+  },
+  'a' => {
+    'byage' => 'S',
+    'main' => 'f',
+    'bynum' => 'I',
+    'backwards' => 'u'
+  },
+  'class_' => {
+    'main' => 'a of u'
+  },
+  'articles2' => {
+    'main' => 'a'
+  },
+  'os.environ' => {
+    'main' => 'h of S'
+  },
+  'os.name' => {
     'main' => 'S'
   },
   'george' => {
@@ -551,95 +684,108 @@ VarType = $VAR1 = {
   'byage' => {
     'main' => 'I'
   },
-  '_script_start' => {
+  'articlesr' => {
+    'main' => 'a'
+  },
+  'backwards' => {
     'main' => 'I'
   },
   '_d' => {
     'main' => 'a'
   },
-  'os.environ' => {
-    'main' => 'h of S'
+  'eldest' => {
+    'main' => 'a'
   },
-  'harry' => {
-    'main' => 'u'
-  },
-  'backwards' => {
-    'main' => 'I'
+  'sortedclass' => {
+    'main' => 'a'
   },
   'age' => {
     'main' => 'h of u',
     'byage' => 'h of u'
   },
-  'articles' => {
-    'main' => 'a'
-  },
-  'os.name' => {
-    'main' => 'S'
-  },
-  'articlesr' => {
-    'main' => 'a'
-  },
-  'a' => {
-    'main' => 'f',
-    'byage' => 'S',
-    'backwards' => 'u'
-  },
-  'class_' => {
+  'sequence' => {
     'main' => 'a of u'
-  },
-  'LIST_SEPARATOR' => {
-    'main' => 'S'
-  },
-  'main' => {},
-  'articles2' => {
-    'main' => 'a'
   },
   'b' => {
     'main' => 'a',
+    'bynum' => 'u',
     'byage' => 'S',
     'backwards' => 'I'
   },
-  'eldest' => {
+  'articlesnd' => {
+    'main' => 'a'
+  },
+  'main' => {},
+  'articlesn' => {
+    'main' => 'a'
+  },
+  'sys.argv' => {
+    'main' => 'a of S'
+  },
+  'bynum' => {
+    'main' => 'I'
+  },
+  'EVAL_ERROR' => {
+    'main' => 'S'
+  },
+  '_script_start' => {
+    'main' => 'I'
+  },
+  'articles1' => {
+    'main' => 'a'
+  },
+  'harry' => {
+    'main' => 'u'
+  },
+  'articles' => {
     'main' => 'a'
   }
 };
 
 initialized = $VAR1 = {
+  'backwards' => {},
+  'byage' => {},
   'main' => {
+    'rin' => 'S',
+    'OS_ERROR' => 'S',
+    'LIST_SEPARATOR' => 'S',
+    'class_' => 'a of u',
+    'routespans' => 'u',
+    'os.name' => 'S',
     'george' => 'u',
     'files' => 'a of u',
-    'eldest' => 'a',
     'articles2' => 'a',
-    'LIST_SEPARATOR' => 'S',
-    'articlesr' => 'a',
-    'articles' => 'a',
-    'os.name' => 'S',
-    'class_' => 'a of u',
-    'OS_ERROR' => 'S',
-    'articles1' => 'a',
-    'EVAL_ERROR' => 'S',
-    'age' => 'h of u',
-    'harry' => 'u',
     'os.environ' => 'h of S',
+    'sequence' => 'a',
+    'age' => 'h of u',
     'articlesnd' => 'a',
-    'sys.argv' => 'a of S',
-    'sortedclass' => 'a',
     'articlesn' => 'a',
+    'articlesr' => 'a',
+    'sortedclass' => 'a',
+    'eldest' => 'a',
+    'harry' => 'u',
+    'articles1' => 'a',
+    'articles' => 'a',
+    'sys.argv' => 'a of S',
+    'EVAL_ERROR' => 'S',
     '_script_start' => 'I'
   },
-  'byage' => {},
-  'backwards' => {}
+  'bynum' => {}
 };
 
 NeedsInitializing = $VAR1 = {
-  'byage' => {
-    'a' => 'S',
-    'b' => 'S',
-    'age' => 'h'
-  },
   'main' => {
-    'b' => 'S',
+    'a' => 'S',
     '_d' => 'a',
+    'b' => 'S'
+  },
+  'bynum' => {
+    'a' => 'I',
+    'b' => 'u'
+  },
+  'byage' => {
+    'b' => 'S',
+    'age' => 'h',
     'a' => 'S'
   },
   'backwards' => {
@@ -660,25 +806,25 @@ AUTO-INITIALIZED VARIABLES:
 age = {}
 
 List of local subroutines:
-main byage backwards
+main bynum byage backwards
 mkdir: cannot create directory ‘/c/Users/Joe’: File exists
 cp: target 'Orost/Archive/pythonizer' is not a directory
 cp: target 'Orost/Archive/Softpano.pm' is not a directory
 cp: target 'Orost/Archive/Perlscan.pm' is not a directory
 cp: target 'Orost/Archive/Pythonizer.pm' is not a directory
    1 | 0 |   |#!/usr/bin/python3 -u
-   1 | 0 |   |# Generated by pythonizer 0.919 run by Joe Orost on Wed Dec  8 11:35:00 2021
+   1 | 0 |   |# Generated by pythonizer 0.920 run by Joe Orost on Thu Dec  9 17:06:16 2021
    1 | 0 |   |# Test the sort function using the examples on the definition page
    2 | 0 |   |
-   3 | 0 |   |import sys,os,re,fcntl,math,fileinput,subprocess,inspect,collections.abc,argparse,glob,warnings,inspect,functools,signal,traceback,io,tempfile,atexit
+   3 | 0 |   |import sys,os,re,fcntl,math,fileinput,subprocess,inspect,collections.abc,argparse,glob,warnings,inspect,functools,signal,traceback,io,tempfile,atexit,calendar
    3 | 0 |   |import time as tm_py
-   3 | 0 |   |AUTODIE = 0
-   3 | 0 |   |OS_ERROR = ''
    3 | 0 |   |_script_start = tm_py.time()
-   3 | 0 |   |_DUP_MAP = dict(STDIN=0, STDOUT=1, STDERR=2)
-   3 | 0 |   |_OPEN_MODE_MAP = {'<': 'r', '>': 'w', '+<': 'r+', '+>': 'w+', '>>': 'a', '+>>': 'a+', '|': '|-'}
-   3 | 0 |   |LIST_SEPARATOR = ' '
+   3 | 0 |   |AUTODIE = 0
    3 | 0 |   |TRACEBACK = 0
+   3 | 0 |   |LIST_SEPARATOR = ' '
+   3 | 0 |   |_OPEN_MODE_MAP = {'<': 'r', '>': 'w', '+<': 'r+', '+>': 'w+', '>>': 'a', '+>>': 'a+', '|': '|-'}
+   3 | 0 |   |_DUP_MAP = dict(STDIN=0, STDOUT=1, STDERR=2)
+   3 | 0 |   |OS_ERROR = ''
    3 | 0 |   |class Die(Exception):
     pass
    3 | 0 |   |class EvalReturn(Exception):
@@ -2034,28 +2180,331 @@ expression returns 11
   56 | 0 |   |#We'll fix this some other day
   57 | 0 |   |#@sorted = sort @george, 'to', @harry;
   58 | 0 |   |#assert(join('', @sorted) eq 'AbelAxedCainPunishedcatchaseddoggonetoxyz');
-  59 | 0 |   |
-  60 | 0 |   |assert ''.join((sorted(harry, key=functools.cmp_to_key(lambda a,b:_sortf(backwards, a, b))))) == 'xdogcatCainAbel' #PL: print "$0 - test passed!\n";
+  59 | 0 |   |#
+  60 | 0 |   |
+  61 | 0 |   |assert ''.join((sorted(harry, key=functools.cmp_to_key(lambda a,b:_sortf(backwards, a, b))))) == 'xdogcatCainAbel' #PL: %routespans = ();
 
 Tokens: cf(",fia)>" ValPy: 
+Main loop, line=%routespans = ();
+
+
+ === Line 61 Perl source:%routespans = ();===
+
+Lexem 0 Current token='h' perl='routespans' value='routespans' Tokenstr |h| translated: routespans
+Lexem 1 Current token='=' perl='=' value='=' Tokenstr |h=| translated: routespans =
+Lexem 2 Current token='(' perl='(' value='(' Tokenstr |h=(| translated: routespans = (
+Lexem 3 Current token=')' perl=')' value=')' Tokenstr |h=()| translated: routespans = ( )
+
+Line:   61 TokenStr: =|h=()|= @ValPy: routespans = ( )
+Generated partial line routespans = {
+Generated partial line routespans = {}
+  62 | 0 |   |routespans = {}                                                                         #PL: $routespans{rin} = {1=>'av', 3=>'cv', 2=>'bv'};
+
+Tokens: h=() ValPy: 
+Main loop, line=$routespans{rin} = {1=>'av', 3=>'cv', 2=>'bv'};
+
+
+ === Line 62 Perl source:$routespans{rin} = {1=>'av', 3=>'cv', 2=>'bv'};===
+
+Lexem 0 Current token='s' perl='$routespans' value='routespans' Tokenstr |s| translated: routespans
+Lexem 1 Current token='(' perl='{' value='[' Tokenstr |s(| translated: routespans [
+Lexem 2 Current token='i' perl='rin' value='rin' Tokenstr |s(i| translated: routespans [ rin
+Lexem 3 Current token=')' perl='}' value=']' Tokenstr |s(")| translated: routespans [ 'rin' ]
+Lexem 4 Current token='=' perl='=' value='=' Tokenstr |s(")=| translated: routespans [ 'rin' ] =
+Lexem 5 Current token='(' perl='{' value='[' Tokenstr |s(")=(| translated: routespans [ 'rin' ] = [
+Lexem 6 Current token='d' perl='1' value='1' Tokenstr |s(")=(d| translated: routespans [ 'rin' ] = [ 1
+Lexem 7 Current token=':' perl='=>' value=': ' Tokenstr |s(")=(d:| translated: routespans [ 'rin' ] = [ 1 : 
+Lexem 8 Current token='"' perl='av' value=''av'' Tokenstr |s(")=(d:"| translated: routespans [ 'rin' ] = [ 1 :  'av'
+Lexem 9 Current token=',' perl=',' value=',' Tokenstr |s(")=(d:",| translated: routespans [ 'rin' ] = [ 1 :  'av' ,
+Lexem 10 Current token='d' perl='3' value='3' Tokenstr |s(")=(d:",d| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3
+Lexem 11 Current token=':' perl='=>' value=': ' Tokenstr |s(")=(d:",d:| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3 : 
+Lexem 12 Current token='"' perl='cv' value=''cv'' Tokenstr |s(")=(d:",d:"| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3 :  'cv'
+Lexem 13 Current token=',' perl=',' value=',' Tokenstr |s(")=(d:",d:",| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3 :  'cv' ,
+Lexem 14 Current token='d' perl='2' value='2' Tokenstr |s(")=(d:",d:",d| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3 :  'cv' , 2
+Lexem 15 Current token=':' perl='=>' value=': ' Tokenstr |s(")=(d:",d:",d:| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3 :  'cv' , 2 : 
+Lexem 16 Current token='"' perl='bv' value=''bv'' Tokenstr |s(")=(d:",d:",d:"| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3 :  'cv' , 2 :  'bv'
+Lexem 17 Current token=')' perl='}' value=']' Tokenstr |s(")=(d:",d:",d:")| translated: routespans [ 'rin' ] = [ 1 :  'av' , 3 :  'cv' , 2 :  'bv' ]
+
+Line:   62 TokenStr: =|s(")=(d:",d:",d:")|= @ValPy: routespans [ 'rin' ] = [ 1 :  'av' , 3 :  'cv' , 2 :  'bv' ]
+assignment(0, 17) =|s(")=(d:",d:",d:")|= $routespans { rin } = { 1 => av , 3 => cv , 2 => bv }
+
+expression(0, 3, 0) =|s(")=(d:",d:",d:")|= $routespans { rin } = { 1 => av , 3 => cv , 2 => bv }
+
+Generated partial line routespans
+Generated partial line routespans[
+expression(2, 2, 0) =|s(")=(d:",d:",d:")|= $routespans { rin } = { 1 => av , 3 => cv , 2 => bv }
+
+Generated partial line routespans['rin'
+expression returns 3
+Generated partial line routespans['rin']
+expression returns 4
+Generated partial line routespans['rin']=
+expression(5, 17, 0) =|s(")=(d:",d:",d:")|= $routespans { rin } = { 1 => av , 3 => cv , 2 => bv }
+
+Generated partial line routespans['rin']={
+expression(6, 16, 0) =|s(")=(d:",d:",d:")|= $routespans { rin } = { 1 => av , 3 => cv , 2 => bv }
+
+Generated partial line routespans['rin']={1
+Generated partial line routespans['rin']={1: 
+Generated partial line routespans['rin']={1: 'av'
+Generated partial line routespans['rin']={1: 'av',
+Generated partial line routespans['rin']={1: 'av',3
+Generated partial line routespans['rin']={1: 'av',3: 
+Generated partial line routespans['rin']={1: 'av',3: 'cv'
+Generated partial line routespans['rin']={1: 'av',3: 'cv',
+Generated partial line routespans['rin']={1: 'av',3: 'cv',2
+Generated partial line routespans['rin']={1: 'av',3: 'cv',2: 
+Generated partial line routespans['rin']={1: 'av',3: 'cv',2: 'bv'
+expression returns 17
+Generated partial line routespans['rin']={1: 'av',3: 'cv',2: 'bv'}
+expression returns 18
+  63 | 0 |   |routespans['rin'] = {1: 'av', 3: 'cv', 2: 'bv'}                                         #PL: $rin = 'rin';
+
+Tokens: s(")=(d:",d:",d:") ValPy: 
+Main loop, line=$rin = 'rin';
+
+
+ === Line 63 Perl source:$rin = 'rin';===
+
+Lexem 0 Current token='s' perl='$rin' value='rin' Tokenstr |s| translated: rin
+Lexem 1 Current token='=' perl='=' value='=' Tokenstr |s=| translated: rin =
+Lexem 2 Current token='"' perl='rin' value=''rin'' Tokenstr |s="| translated: rin = 'rin'
+
+Line:   63 TokenStr: =|s="|= @ValPy: rin = 'rin'
+assignment(0, 2) =|s="|= $rin = rin
+
+Generated partial line rin
+Generated partial line rin=
+assign, ValClass[limit] = ", ValPy='rin', ValPerl=rin
+
+Generated partial line rin='rin'
+  64 | 0 |   |rin = 'rin'                                                                             #PL: sub bynum
+
+Tokens: s=" ValPy: 
+Main loop, line=sub bynum
+
+
+ === Line 64 Perl source:sub bynum===
+
+Lexem 0 Current token='k' perl='sub' value='def' Tokenstr |k| translated: def
+Lexem 1 Current token='i' perl='bynum' value='bynum' Tokenstr |ki| translated: def bynum
+
+Line:   65 TokenStr: =|ki|= @ValPy: def bynum
+Generated partial line defbynum(_args):
+  65 | 0 |   |def bynum(_args):                                                                       #PL: 
+
+Tokens: ki ValPy: 
+Main loop, line={
+
+
+ === Line 65 Perl source:{===
+
+
+Line:   65 TokenStr: =|{|= @ValPy: {
+Main loop, line=$a <=> $b;
+
+
+ === Line 66 Perl source:$a <=> $b;===
+
+Lexem 0 Current token='s' perl='$a' value='a' Tokenstr |s| translated: a
+Lexem 1 Current token='>' perl='<=>' value='_spaceship' Tokenstr |s>| translated: a _spaceship
+Lexem 2 Current token='s' perl='$b' value='b' Tokenstr |s>s| translated: a _spaceship b
+
+Line:   66 TokenStr: =|s>s|= @ValPy: a _spaceship b
+handle_cmp_spaceship(0, 1, 2): a[0:0], b[2:2] = 3 (=|f(s,s))|=)
+function(0, 6) =|f(s,s))|= <=> ( $a , $b ) )
+
+function start=2, end_pos=4, bracketed=1
+Generated partial line _spaceship
+Generated partial line _spaceship(
+expression(2, 4, 0) =|f(s,s))|= <=> ( $a , $b ) )
+
+Generated partial line _spaceship(a
+Generated partial line _spaceship(a,
+Generated partial line _spaceship(a,b
+expression returns 5
+Generated partial line _spaceship(a,b)
+finish: prev_line=$a <=> $b;, PythonCode=_spaceship ( a , b )
+finish: Resetting line to }
+  67 | 1 |   |    return _spaceship(a, b)                                                             #PL: 
+
+Tokens: f(s,s)) ValPy: 
+Main loop, line=}
+
+
+ === Line 67 Perl source:}===
+
+
+Line:   67 TokenStr: =|}|= @ValPy: }
+initialize_globals_for_state_vars: 
+  67 | 0 |   |
+Main loop, line=my @sequence = sort bynum keys %{$routespans{$rin}};
+
+
+ === Line 68 Perl source:my @sequence = sort bynum keys %{$routespans{$rin}};===
+
+Lexem 0 Current token='t' perl='my' value='' Tokenstr |t| translated: 
+Lexem 1 Current token='a' perl='@sequence' value='sequence' Tokenstr |ta| translated:  sequence
+Lexem 2 Current token='=' perl='=' value='=' Tokenstr |ta=| translated:  sequence =
+Lexem 3 Current token='f' perl='sort' value='sorted' Tokenstr |ta=f| translated:  sequence = sorted
+Lexem 4 Current token='i' perl='bynum' value='bynum' Tokenstr |ta=fi| translated:  sequence = sorted bynum
+Lexem 5 Current token='f' perl='keys' value='.keys()' Tokenstr |ta=fif| translated:  sequence = sorted bynum .keys()
+Lexem 6 Current token='%' perl='%' value='%' Tokenstr |ta=fif%| translated:  sequence = sorted bynum .keys() %
+Lexem 7 Current token='(' perl='{' value='[' Tokenstr |ta=fif%(| translated:  sequence = sorted bynum .keys() % [
+Lexem 8 Current token='s' perl='$routespans' value='routespans' Tokenstr |ta=fif%(s| translated:  sequence = sorted bynum .keys() % [ routespans
+Lexem 9 Current token='(' perl='{' value='[' Tokenstr |ta=fif%(s(| translated:  sequence = sorted bynum .keys() % [ routespans [
+Lexem 10 Current token='s' perl='$rin' value='rin' Tokenstr |ta=fif%(s(s| translated:  sequence = sorted bynum .keys() % [ routespans [ rin
+Lexem 11 Current token=')' perl='}' value=']' Tokenstr |ta=fif%(s(s)| translated:  sequence = sorted bynum .keys() % [ routespans [ rin ]
+Lexem 12 Current token=')' perl='}' value=']' Tokenstr |ta=fif%(s(s))| translated:  sequence = sorted bynum .keys() % [ routespans [ rin ] ]
+
+Line:   68 TokenStr: =|ta=fif%(s(s))|= @ValPy:  sequence = sorted bynum .keys() % [ routespans [ rin ] ]
+assignment(0, 8) =|a=fifs(s)|= @sequence = sort bynum keys $routespans { $rin }
+
+Generated partial line sequence
+Generated partial line sequence=
+expression(2, 8, 0) =|a=fifs(s)|= @sequence = sort bynum keys $routespans { $rin }
+
+function(2, 8) =|a=fifs(s)|= @sequence = sort bynum keys $routespans { $rin }
+
+function start=3, end_pos=8, bracketed=0
+Generated partial line sequence=sorted
+Generated partial line sequence=sorted(
+expression(4, 8, 0) =|a=fifs(s)|= @sequence = sort bynum keys $routespans { $rin }
+
+function(4, 8) =|a=fifs(s)|= @sequence = sort bynum keys $routespans { $rin }
+
+function start=5, end_pos=8, bracketed=0
+expression(5, 8, 0) =|a=fifs(s)|= @sequence = sort bynum keys $routespans { $rin }
+
+Generated partial line sequence=sorted(routespans
+Generated partial line sequence=sorted(routespans.get(
+expression(7, 7, 0) =|a=fifs(s)|= @sequence = sort bynum keys $routespans { $rin }
+
+Generated partial line sequence=sorted(routespans.get(rin
+expression returns 8
+Generated partial line sequence=sorted(routespans.get(rin)
+expression returns 9
+Generated partial line sequence=sorted(routespans.get(rin).keys()
+expression returns 9
+Generated partial line sequence=sorted(routespans.get(rin).keys(), key=functools.cmp_to_key(lambda a,b:
+Generated partial line sequence=sorted(routespans.get(rin).keys(), key=functools.cmp_to_key(lambda a,b:_sortf(bynum, a, b)
+Generated partial line sequence=sorted(routespans.get(rin).keys(), key=functools.cmp_to_key(lambda a,b:_sortf(bynum, a, b))
+Generated partial line sequence=sorted(routespans.get(rin).keys(), key=functools.cmp_to_key(lambda a,b:_sortf(bynum, a, b)))
+expression returns 9
+  69 | 0 |   |sequence = sorted(routespans.get(rin).keys(), key=functools.cmp_to_key(lambda a,b:_sortf(bynum, a, b)))
+                                                                                                      #PL: assert(scalar(@sequence)==3 && $sequence[0] == 1 && $sequence[1] == 2 && $sequence[2] =
+                                                                                                      #+ : = 3);
+
+Tokens: a=fifs(s) ValPy: 
+Main loop, line=assert(scalar(@sequence)==3 && $sequence[0] == 1 && $sequence[1] == 2 && $sequence[2] == 3);
+
+
+ === Line 69 Perl source:assert(scalar(@sequence)==3 && $sequence[0] == 1 && $sequence[1] == 2 && $sequence[2] == 3);===
+
+Lexem 0 Current token='c' perl='assert' value='assert' Tokenstr |c| translated: assert
+Lexem 1 Current token='(' perl='(' value='(' Tokenstr |c(| translated: assert (
+Lexem 2 Current token='f' perl='scalar' value='len' Tokenstr |c(f| translated: assert ( len
+Lexem 3 Current token='(' perl='(' value='(' Tokenstr |c(f(| translated: assert ( len (
+Lexem 4 Current token='a' perl='@sequence' value='sequence' Tokenstr |c(f(a| translated: assert ( len ( sequence
+Lexem 5 Current token=')' perl=')' value=')' Tokenstr |c(f(a)| translated: assert ( len ( sequence )
+Lexem 6 Current token='>' perl='==' value='==' Tokenstr |c(f(a)>| translated: assert ( len ( sequence ) ==
+Lexem 7 Current token='d' perl='3' value='3' Tokenstr |c(f(a)>d| translated: assert ( len ( sequence ) == 3
+Lexem 8 Current token='0' perl='&&' value=' and ' Tokenstr |c(f(a)>d0| translated: assert ( len ( sequence ) == 3  and 
+Lexem 9 Current token='s' perl='$sequence' value='sequence' Tokenstr |c(f(a)>d0s| translated: assert ( len ( sequence ) == 3  and  sequence
+Lexem 10 Current token='(' perl='[' value='[' Tokenstr |c(f(a)>d0s(| translated: assert ( len ( sequence ) == 3  and  sequence [
+Lexem 11 Current token='d' perl='0' value='0' Tokenstr |c(f(a)>d0s(d| translated: assert ( len ( sequence ) == 3  and  sequence [ 0
+Lexem 12 Current token=')' perl=']' value=']' Tokenstr |c(f(a)>d0s(d)| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ]
+Lexem 13 Current token='>' perl='==' value='==' Tokenstr |c(f(a)>d0s(d)>| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] ==
+Lexem 14 Current token='d' perl='1' value='1' Tokenstr |c(f(a)>d0s(d)>d| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1
+Lexem 15 Current token='0' perl='&&' value=' and ' Tokenstr |c(f(a)>d0s(d)>d0| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and 
+Lexem 16 Current token='s' perl='$sequence' value='sequence' Tokenstr |c(f(a)>d0s(d)>d0s| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence
+Lexem 17 Current token='(' perl='[' value='[' Tokenstr |c(f(a)>d0s(d)>d0s(| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [
+Lexem 18 Current token='d' perl='1' value='1' Tokenstr |c(f(a)>d0s(d)>d0s(d| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1
+Lexem 19 Current token=')' perl=']' value=']' Tokenstr |c(f(a)>d0s(d)>d0s(d)| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ]
+Lexem 20 Current token='>' perl='==' value='==' Tokenstr |c(f(a)>d0s(d)>d0s(d)>| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] ==
+Lexem 21 Current token='d' perl='2' value='2' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2
+Lexem 22 Current token='0' perl='&&' value=' and ' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and 
+Lexem 23 Current token='s' perl='$sequence' value='sequence' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0s| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and  sequence
+Lexem 24 Current token='(' perl='[' value='[' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0s(| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and  sequence [
+Lexem 25 Current token='d' perl='2' value='2' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0s(d| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and  sequence [ 2
+Lexem 26 Current token=')' perl=']' value=']' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0s(d)| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and  sequence [ 2 ]
+Lexem 27 Current token='>' perl='==' value='==' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0s(d)>| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and  sequence [ 2 ] ==
+Lexem 28 Current token='d' perl='3' value='3' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0s(d)>d| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and  sequence [ 2 ] == 3
+Lexem 29 Current token=')' perl=')' value=')' Tokenstr |c(f(a)>d0s(d)>d0s(d)>d0s(d)>d)| translated: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and  sequence [ 2 ] == 3 )
+
+Line:   69 TokenStr: =|c(f(a)>d0s(d)>d0s(d)>d0s(d)>d)|= @ValPy: assert ( len ( sequence ) == 3  and  sequence [ 0 ] == 1  and  sequence [ 1 ] == 2  and  sequence [ 2 ] == 3 )
+control(0) =|c(f(a)>d0s(d)>d0s(d)>d0s(d)>d)|= assert ( scalar ( @sequence ) == 3 && $sequence [ 0 ] == 1 && $sequence [ 1 ] == 2 && $sequence [ 2 ] == 3 )
+
+control-parens removed, begin=0 start=1 =|cf(a)>d0s(d)>d0s(d)>d0s(d)>d|= assert scalar ( @sequence ) == 3 && $sequence [ 0 ] == 1 && $sequence [ 1 ] == 2 && $sequence [ 2 ] == 3
+
+Generated partial line assert
+expression(1, 27, 0) =|cf(a)>d0s(d)>d0s(d)>d0s(d)>d|= assert scalar ( @sequence ) == 3 && $sequence [ 0 ] == 1 && $sequence [ 1 ] == 2 && $sequence [ 2 ] == 3
+
+function(1, 7) =|cf(a)>d0s(d)>d0s(d)>d0s(d)>d|= assert scalar ( @sequence ) == 3 && $sequence [ 0 ] == 1 && $sequence [ 1 ] == 2 && $sequence [ 2 ] == 3
+
+function start=3, end_pos=3, bracketed=1
+Generated partial line assertlen
+Generated partial line assertlen(
+expression(3, 3, 0) =|cf(a)>d0s(d)>d0s(d)>d0s(d)>d|= assert scalar ( @sequence ) == 3 && $sequence [ 0 ] == 1 && $sequence [ 1 ] == 2 && $sequence [ 2 ] == 3
+
+Generated partial line assertlen(sequence
+expression returns 4
+Generated partial line assertlen(sequence)
+Generated partial line assertlen(sequence)==
+Generated partial line assertlen(sequence)==3
+Generated partial line assertlen(sequence)==3 and 
+Generated partial line assertlen(sequence)==3 and sequence
+Generated partial line assertlen(sequence)==3 and sequence[
+expression(10, 10, 0) =|cf(a)>d0s(d)>d0s(d)>d0s(d)>d|= assert scalar ( @sequence ) == 3 && $sequence [ 0 ] == 1 && $sequence [ 1 ] == 2 && $sequence [ 2 ] == 3
+
+Generated partial line assertlen(sequence)==3 and sequence[0
+expression returns 11
+Generated partial line assertlen(sequence)==3 and sequence[0]
+Generated partial line assertlen(sequence)==3 and sequence[0]==
+Generated partial line assertlen(sequence)==3 and sequence[0]==1
+Generated partial line assertlen(sequence)==3 and sequence[0]==1 and 
+Generated partial line assertlen(sequence)==3 and sequence[0]==1 and sequence
+Generated partial line assertlen(sequence)==3 and sequence[0]==1 and sequence[
+expression(17, 17, 0) =|cf(a)>d0s(d)>d0s(d)>d0s(d)>d|= assert scalar ( @sequence ) == 3 && $sequence [ 0 ] == 1 && $sequence [ 1 ] == 2 && $sequence [ 2 ] == 3
+
+Generated partial line assertlen(sequence)==3 and sequence[0]==1 and sequence[1
+expression returns 18
+Generated partial line assertlen(sequence)==3 and sequence[0]==1 and sequence[1]
+Generated partial line assertlen(sequence)==3 and sequence[0]==1 and sequence[1]==
+Generated partial line assertlen(sequence)==3 and sequence[0]==1 and sequence[1]==2
+Generated partial line assertlen(sequence)==3 and sequence[0]==1 and sequence[1]==2 and 
+Generated partial line assertlen(sequence)==3 and sequence[0]==1 and sequence[1]==2 and sequence
+Generated partial line assertlen(sequence)==3 and sequence[0]==1 and sequence[1]==2 and sequence[
+expression(24, 24, 0) =|cf(a)>d0s(d)>d0s(d)>d0s(d)>d|= assert scalar ( @sequence ) == 3 && $sequence [ 0 ] == 1 && $sequence [ 1 ] == 2 && $sequence [ 2 ] == 3
+
+Generated partial line assertlen(sequence)==3 and sequence[0]==1 and sequence[1]==2 and sequence[2
+expression returns 25
+Generated partial line assertlen(sequence)==3 and sequence[0]==1 and sequence[1]==2 and sequence[2]
+Generated partial line assertlen(sequence)==3 and sequence[0]==1 and sequence[1]==2 and sequence[2]==
+Generated partial line assertlen(sequence)==3 and sequence[0]==1 and sequence[1]==2 and sequence[2]==3
+expression returns 28
+  70 | 0 |   |
+  71 | 0 |   |assert len(sequence) == 3 and sequence[0] == 1 and sequence[1] == 2 and sequence[2] == 3 #PL: print "$0 - test passed!\n";
+
+Tokens: cf(a)>d0s(d)>d0s(d)>d0s(d)>d ValPy: 
 Main loop, line=print "$0 - test passed!\n";
 
 
- === Line 60 Perl source:print "$0 - test passed!\n";===
+ === Line 71 Perl source:print "$0 - test passed!\n";===
 
 Lexem 0 Current token='f' perl='print' value='print' Tokenstr |f| translated: print
 Lexem 1 Current token='"' perl='$0 - test passed!\n' value='f"{__file__} - test passed!\n"' Tokenstr |f"| translated: print f"{__file__} - test passed!\n"
 
-Line:   60 TokenStr: =|f"|= @ValPy: print f"{__file__} - test passed!\n"
+Line:   71 TokenStr: =|f"|= @ValPy: print f"{__file__} - test passed!\n"
 Generated partial line print(
-print3(0) handle=, k=1, end_pos=1
+print3(0) start=0, handle=, k=1, end_pos=1
 
 expression(1, 1, 0) =|f"|= print $0 - test passed!\n
 
 Generated partial line print(f"{__file__} - test passed!\n"
 expression returns 2
 Generated partial line print(f"{__file__} - test passed!")
-  60 | 0 |   |print(f"{__file__} - test passed!")                                                     #PL: print "$0 - test passed!\n";
+  71 | 0 |   |print(f"{__file__} - test passed!")                                                     #PL: print "$0 - test passed!\n";
 
 Tokens: f" ValPy: 
 initialize_globals_for_state_vars: 
