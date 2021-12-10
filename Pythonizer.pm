@@ -33,7 +33,7 @@ require Exporter;
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
 @EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %GlobalVar %InitVar %VarType init_val); # SNOOPYJC
-our  ($IntactLine, $output_file, $NextNest,$CurNest, $line);
+our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname);
    # issue 32 $::TabSize=3;
    $::TabSize=$TABSIZE;         # issue 32
    $::breakpoint=0;

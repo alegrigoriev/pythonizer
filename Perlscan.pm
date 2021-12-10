@@ -114,6 +114,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 # issue 42 'die'=>'sys.exit', 
                 'die'=>'raise Die',     # issue 42
                 'defined'=>'unknown', 'do'=>'','delete'=>'.pop(','defined'=>'perl_defined',
+                'each'=>'_each',                        # SNOOPYJC
                 'END'=>'_END_',                      # SNOOPYJC
                 'for'=>'for ','foreach'=>'for ',
                 'else'=>'else: ','elsif'=>'elif ',
@@ -165,6 +166,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'umask'=>'os.umask',            # SNOOPYJC
                    'unshift'=>'.insert(0,',
 		   'use'=>'NoTrans!', 'until'=>'while not ','untie'=>'NoTrans!',
+                'values'=>'.values()',	# SNOOPYJC
                  'warn'=>'print',
                );
 
@@ -222,6 +224,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'cmp'=>'>',           # SNOOPYJC: comparison
                   'delete'=>'f',        # issue delete
                   'default'=>'C','defined'=>'f','die'=>'f',
+                  'each'=>'f',          # SNOOPYJC
                   'else'=>'C', 'elsif'=>'C', 'exists'=>'f', 'exit'=>'f', 'export'=>'f',
                   'eval'=>'C',          # issue 42
                   'fc'=>'f',            # SNOOPYJC
@@ -265,7 +268,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'abs'=>'N:N', 'alarm'=>'N:N', 'atan2'=>'NN:F', 'basename'=>'S:S',
 		  'binmode'=>'HS?:u',
                   'chdir'=>'S:I','chomp'=>'S:u', 'chop'=>'S:u', 'chmod'=>'Ia:u','chr'=>'I?:S','close'=>'H:I',
-                  'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:u', 'exists'=>'u:I', 'exit'=>'S:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':I',
+                  'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:u', 'each'=>'h:a', 'exists'=>'u:I', 'exit'=>'S:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':I',
                   'glob'=>'S:a of S', 'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 'lc'=>'S:S',
                   'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'S:I', 'oct'=>'s:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
 		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'rename'=>'SS:I', 'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:u',
@@ -278,11 +281,13 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 #
 # one to one translation of digramms. most are directly translatatble.
 #
-   %digram_tokens=('++'=>'^', '--'=>'^', '+='=>'=', '-='=>'=', '.='=>'=', '%='=>'=', '=~'=>'~','!~'=>'~',
+   %digram_tokens=('++'=>'^', '--'=>'^', '+='=>'=', '-='=>'=', '.='=>'=', '%='=>'=', 
+                   '|='=>'=', '&='=>'=',                        # SNOOPYJC
+                   '=~'=>'~','!~'=>'~',
                    '=='=>'>', '!='=>'>', '>='=>'>', '<='=>'>', # comparison
                    '=>'=>':', '->'=>'.',
                    '<<' => 'H', '>>'=>'=', '&&'=>'0', '||'=>'0',
-                   '*='=>'=', '/='=>'/', '**'=>'*', '::'=>'.' ); #and/or/not
+                   '*='=>'=', '/='=>'=', '**'=>'*', '::'=>'.' ); #and/or/not
 
    %digram_map=('++'=>'+=1','--'=>'-=1','+='=>'+=', '*='=>'*=', '/='=>'/=', '.='=>'+=', '=~'=>'','<>'=>'readline()','=>'=>': ','->'=>'.',
                 '&&'=>' and ', '||'=>' or ','::'=>'.',
@@ -452,7 +457,7 @@ my ($l,$m);
          $cut=1;
       # issue 17 }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,k]/ || $ValPerl[$tno-1] eq 'split') ){
       }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,kc=0!]/ || $ValPerl[$tno-1] eq 'split' ||
-          $ValPerl[$tno-1] eq 'grep') ){	# issue 17, 32, 66, 60
+          $ValPerl[$tno-1] eq 'grep' || $ValClass[$tno-1] eq 'r') ){	# issue 17, 32, 66, 60, range
            # typical cases: if(/abc/ ){0}; $a=~/abc/; /abc/; split(/,/,$text)  split /,/,$text REALLY CRAZY STAFF
            $ValClass[$tno]='q';
            $cut=single_quoted_literal($s,1);
@@ -619,7 +624,8 @@ my ($l,$m);
 #               #$ValType[$tno]='P';
             }elsif ( $class eq '0' ){	# and/or
                   $balance=(join('',@ValClass)=~tr/()//);
-                  if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && join('',@ValClass) !~ /^t?[ahs]=/ ){
+                  # issue 93 if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && join('',@ValClass) !~ /^t?[ahs]=/ ){
+                  if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C'){             # issue 93
                      # postfix conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020,Oct 12, 2020 --NNB
                      bash_style_or_and_fix($cut);
                      last;
@@ -953,7 +959,8 @@ my ($l,$m);
             $ValPerl[$tno]=$digram;
             if($ValClass[$tno] eq '0'){		# && or ||
                $balance=(join('',@ValClass)=~tr/()//);
-               if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && join('',@ValClass) !~ /^t?[ahs]=/ ){  # SNOOPYJC
+               # issue 93 if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && join('',@ValClass) !~ /^t?[ahs]=/ ){  # SNOOPYJC
+               if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C'){  # issue 93
                   # postfix conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020,Oct 12, 2020 --NNB
                   bash_style_or_and_fix(3);
                   last;
