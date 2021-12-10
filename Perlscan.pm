@@ -85,8 +85,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'`'=>'string_preceeeding_last_match',"'"=>'post_last_match_string',
                 '+'=>'last_capture_group','/'=>'lines_separator',','=>'output_field_separator','\\'=>'unknown_perl_special_var',
                 );
-   %SPECIAL_VAR2=('O'=>'os.name','T'=>'OS_BASETIME', 'V'=>'sys.version[0]', 'X'=>'sys.executable()',
-                  'W'=>'WARNING'); # $^O and friends
+   %SPECIAL_VAR2=('O'=>'os.name','T'=>'OS_BASETIME', 'V'=>'sys.version[0]', 'X'=>'sys.executable()', # $^O and friends
+                  'W'=>'WARNING');              # SNOOPYJC
 
    # Map of functions to python where the mapping is different for scalar and list context
    %SPECIAL_FUNCTION_MAPPINGS=('localtime'=>{scalar=>'tm_py.ctime', list=>'tm_py.localtime'},
@@ -105,7 +105,6 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'binmode'=>'_dup',                      # SNOOPYJC
                 'bless'=>'NoTrans!','BEGIN'=>'if True:',        # SNOOPYJC
                 # SNOOPYJC 'caller'=>q(['implementable_via_inspect',__file__,sys._getframe().f_lineno]),
-                'caller'=>q(['main',__file__,sys._getframe(1).f_lineno]),   # SNOOPYJC
 		# issue 54 'chdir'=>'.os.chdir','chmod'=>'.os.chmod',
 		'chdir'=>'os.chdir','chmod'=>'os.chmod',	# issue 54
 		'chomp'=>'.rstrip("\n")','chop'=>'[0:-1]','chr'=>'chr',
@@ -123,6 +122,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'exit'=>'sys.exit','exists'=> 'in', # if  key in dictionary 'exists'=>'.has_key'
                 'fc'=>'.casefold()',                    # SNOOPYJC
 		'flock'=>'_flock',			# issue flock
+                'fork'=>'os.fork',                      # SNOOPYJC
 		'glob'=>'glob.glob',			# SNOOPYJC
                 'if'=>'if ', 'index'=>'.find',
 		'int'=>'int',				# issue int
@@ -140,6 +140,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'our'=>'',                      # SNOOPYJC
                 'package'=>'NoTrans!', 'pop'=>'.pop()', 'push'=>'.extend(',
                 'printf'=>'print',
+                'rename'=>'os.replace',         # SNOOPYJC
                 'say'=>'print','scalar'=>'len', 'shift'=>'.pop(0)', 'split'=>'re.split', 
 		# issue 34 'sort'=>'sort', 
                 'sleep'=>'time.sleep',          # SNOOPYJC
@@ -187,7 +188,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
        # t => Variable type like local, my, own, state
        # u, v, w
        # x => Executable in `...` or qx
-       # y, z
+       # y => Extra python code we need to generate as is (used in multi_subscripts)
+       # z
        # C => More control like default, else, elsif
        # H => Here doc <<
        # W => Context manager (with)
@@ -216,7 +218,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'atan2'=>'f',		# SNOOPYJC
 		  'basename'=>'f',	# SNOOPYJC
 		  'binmode'=>'f',	# SNOOPYJC
-                  'caller'=>'a','chdir'=>'f','chomp'=>'f', 'chop'=>'f', 'chmod'=>'f','chr'=>'f','close'=>'f',
+                  'caller'=>'f','chdir'=>'f','chomp'=>'f', 'chop'=>'f', 'chmod'=>'f','chr'=>'f','close'=>'f',
                   'cmp'=>'>',           # SNOOPYJC: comparison
                   'delete'=>'f',        # issue delete
                   'default'=>'C','defined'=>'f','die'=>'f',
@@ -224,6 +226,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'eval'=>'C',          # issue 42
                   'fc'=>'f',            # SNOOPYJC
 		  'flock'=>'f',		# issue flock
+		  'fork'=>'f',		# SNOOPYJC
 		  'glob'=>'f',		# SNOOPYJC
                   'if'=>'c',  'index'=>'f',
 		  'int'=>'f',		# issue int
@@ -241,6 +244,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'push'=>'f', 'pop'=>'f', 'print'=>'f', 'package'=>'c',
                   'printf'=>'f',                # SNOOPYJC
                   'rindex'=>'f','read'=>'f', 
+                  'rename'=>'f',                # SNOOPYJC
 		  # issue 61 'return'=>'f', 
 		  'return'=>'k', 		# issue 61
                   'reverse'=>'f',               # issue 65
@@ -261,10 +265,10 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'abs'=>'N:N', 'alarm'=>'N:N', 'atan2'=>'NN:F', 'basename'=>'S:S',
 		  'binmode'=>'HS?:u',
                   'chdir'=>'S:I','chomp'=>'S:u', 'chop'=>'S:u', 'chmod'=>'Ia:u','chr'=>'I?:S','close'=>'H:I',
-                  'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:u', 'exists'=>'u:I', 'exit'=>'S:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'glob'=>'S:a of S',
-                  'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 'lc'=>'S:S',
+                  'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:u', 'exists'=>'u:I', 'exit'=>'S:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':I',
+                  'glob'=>'S:a of S', 'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 'lc'=>'S:S',
                   'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'S:I', 'oct'=>'s:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
-		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:u',
+		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'rename'=>'SS:I', 'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:u',
                   'push'=>'aa:I', 'pop'=>'a:s', 'print'=>'H?a:I', 'printf'=>'H?Sa:I', 'rindex'=>'SSI?:I','read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
                   'say'=>'H?a:I','scalar'=>'a:I','shift'=>'a?:s', 'sleep'=>'I:I', 'split'=>'SSI?:a of s', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
                   'sqrt'=>'N:F', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timegm'=>'IIIIII:I',
@@ -1990,6 +1994,7 @@ sub insert
 my $pos=shift;
    if($pos == scalar @ValClass) {               # issue 74
        append($_[0], $_[1], $_[2]);             # issue 74
+       return;                                  # issue 74
    }                                            # issue 74
    if(  $pos>$#ValClass ){
       abend('Insert position $pos is outside upper bound');
