@@ -107,6 +107,7 @@
 # 0.919  2021/12/08  SNOOPYJC  Set nest to 0 after pass 1, allow ' in varnames (old perl syntax for ::), fix infinite recursion in expr_type, fix := in assignment in expression by fixing next_same_level_token(s) for parens, issue 88, extra issue 50 fix for $$xxx, addl fix for issue 45 with function call as last statement
 # 0.920  2021/12/09  SNOOPYJC  issue 89, issue 90, addl fix for $t-timegm issue 88, add timegm(), issue 91
 # 0.921  2021/12/10  SNOOPYJC  Fix if not(open(FH,...)), add rename, fork, implement range (..) operator in slice, issue 84, fix open/opendir in control stmt
+# 0.922  2021/12/10  SNOOPYJC  issue 93, fix foreach (%hash), @arr = keys %hash, @arr = values %hash, @arr = %hash, ignore var defs alone, handle modelsss constant open, handle sed/awk style range, implement each
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -134,7 +135,7 @@
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar %VarType %InitVar init_val); # SNOOPYJC
 
-   $VERSION='0.921';
+   $VERSION='0.922';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -157,7 +158,7 @@
    # Local dictionaries
    #
    # SNOOPYJC %PyOpen=('<'=>'r', '>'=>'w', '>>'=>'a', '+<'=>'+');
-   %PyOpen=('<'=>'r', '>'=>'w', '>>'=>'a', '+<'=>'r+', '+>'=>'w+', '+>>'=>'a+', '->'=>'->', '<-'=>'<-', '-|'=>'-|', '|-'=>'|-', '|'=>'|-');   # SNOOPYJC
+   %PyOpen=('<'=>'r', '>'=>'w', '>>'=>'a', '+<'=>'r+', '+>'=>'w+', '+>>'=>'a+', '->'=>'->', '<-'=>'<-', '-|'=>'-|', '|-'=>'|-', '|'=>'|-', ''=>'r');   # SNOOPYJC
 
    $LOG_DIR='/tmp/'.ucfirst($SCRIPT_NAME);
    # issue 64    banner($LOG_DIR,$SCRIPT_NAME,"Fuzzy translator of Python to Perl. Version $VERSION",30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
@@ -351,7 +352,7 @@ my ($start,$token_buffer_active);
          if(!$Perlscan::PREV_HAD_COLON) {                 # SNOOPYJC
              # The user opened a brace with nothing before it, so we have to generate some code for
              # the nesting to be correct
-             gen_statement('if True:');
+             gen_statement('for _ in range(1):');       # SNOOPYJC: Use a loop so you can last/next it
              #finish();
          }
          correct_nest(1); # next line will be indented
@@ -565,20 +566,43 @@ my ($start,$token_buffer_active);
                   gen_chunk('}');
                   finish();
                   next;
-             }elsif( scalar(@ValClass)==2 && ($ValPerl[2] eq 'h' || $ValPerl[2] eq 'q') ){
+             # SNOOPYJC }elsif( scalar(@ValClass)==2 && ($ValPerl[2] eq 'h' || $ValPerl[2] eq 'q') ){
+             }elsif( scalar(@ValClass)==2 && $ValClass[2] eq 'h') {     # SNOOPYJC
 		  # issue 31 gen_chunk("$ValPy[0]=$ValPy[2].copy"); # copy structure not reference
                   gen_chunk("$ValPy[0] = $ValPy[2].copy()"); # copy structure not reference	# issue 31
                   finish();
                   next;
+             } elsif($#ValClass==2 && $ValClass[2] eq 'a') {    # SNOOPYJC: %hash = @arr
+                  gen_chunk("$ValPy[0] = {$ValPy[2]".'[_]:'.$ValPy[2]."[_+1] for _ in range(0,len(".$ValPy[2]."),2)}");
+                  finish();
+                  next;
              }
+          } elsif($#ValClass == 0) {            # SNOOPYJC: Hash definition (ignore it)
+              finish();
+              next;
           }
           $TrStatus=assignment(0);
       }elsif($ValClass[0] eq 'a'){
+          if($#ValClass == 0) {            # SNOOPYJC: Array definition (ignore it)
+              finish();
+              next;
+          }
           if( $ValClass[1] eq '=' ){
              if( $#ValClass==2 && $ValClass[2] eq 'a'){
                 # Special case array to array copy
 		# issue 31 gen_chunk("$ValPy[0]=$ValPy[2].copy");
                 gen_chunk("$ValPy[0] = $ValPy[2].copy()");	# issue 31
+                finish();
+                next;
+             } elsif($#ValClass==2 && $ValClass[2] eq 'h') {    # SNOOPYJC: @arr = %hash
+                gen_chunk("$ValPy[0] = list(functools.reduce(lambda x,y:x+y,$ValPy[2].items()))");
+                finish();
+                next;
+             } elsif($ValClass[2] eq 'f' && ($ValPerl[2] eq 'keys' || $ValPerl[2] eq 'values')) {       # SNOOPYJC
+                # python keys() and values() functions return something not subscriptable!
+                gen_chunk("$ValPy[0] = list(");
+                $TrStatus=expression(2,$#ValClass,0);
+                gen_chunk(')');
                 finish();
                 next;
              }elsif( $ValPerl[2] eq '(' && ($end_pos=matching_br(2)) == $#ValClass){    # SNOOPYJC
@@ -1912,6 +1936,28 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
           # while(<SYSIN>)
           gen_chunk("$ValPy[$start] $DEFAULT_VAR = $ValPy[$start+2]:"); # gen initial keyword     # issue 32
           return($#ValClass);
+      } elsif($TokenStr eq 'cqrq' || $TokenStr eq 'cdrq') {             # SNOOPYJC: issue range
+          $Pyf{'_range'} = 1;
+          my $key = substr($Pythonizer::fname,0,length($Pythonizer::fname)-3).':'.$.;    # filename and line # as key - each range gets it's own storage
+          my $pat1;
+          my $flags1 = 0;
+          if($ValClass[1] eq 'd') {
+             $pat1 = $ValPy[1];
+          } else {
+             $ValPy[1] =~ /^re\.search\((.*),.*(?:,\s?flags=(.*))?\)/;
+             $pat1 = $1;
+             return -255 if(!$pat1);
+             $flags1 = $2 if($2);
+          }
+          $ValPy[3] =~ /re\.search\((.*),(.*)(?:,\s?flags=(.*))?\)/;
+          my $pat2 = $1;
+          return -255 if(!$pat2);
+          my $var = $2;
+          return -255 if(!$var);
+          $flags2 = 0;
+          $flags2 = $3 if($3);
+          gen_chunk("$ValPy[$begin] _range($var, $pat1, $flags1, $pat2, $flags2, '$key'):");
+          return($#ValClass);
       }
       gen_chunk($ValPy[$begin]); # gen initial keyword
       if( $ValPerl[$begin] eq 'unless' ) { gen_chunk('('); }	# issue 20
@@ -2059,6 +2105,9 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
       if( substr($TokenStr,$start) eq '(a)') {
          # loop over an array
            gen_chunk($ValPy[$start+1]);
+      }elsif( substr($TokenStr,$start) eq '(h)') {              # SNOOPYJC: Looping over a hash in perl gives the keys and the values
+         # loop over a hash
+           gen_chunk('functools.reduce(lambda x,y:x+y,'.$ValPy[$start+1].'.items())');
       }elsif( substr($TokenStr,$start)=~/^\(f\(?h\)/ ){
          # foreach loop over a hash
          $start++; # skip '('
@@ -2066,6 +2115,9 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
              $hashpos=index($TokenStr,'h',$start);
 	     # issue foreach gen_chunk("$ValPy[$hashpos]q$ValPy[$start]()"); # translate keys function into postfix notation
              gen_chunk("$ValPy[$hashpos]$ValPy[$start]"); # translate keys function into postfix notation # issue foreach
+         } elsif($ValPerl[$start] eq 'sort') {          # SNOOPYJC: Sort the keys and values
+             $hashpos=index($TokenStr,'h',$start);      # SNOOPYJC
+             gen_chunk('sorted(list(functools.reduce(lambda x,y:x+y,'.$ValPy[$hashpos].'.items())))');  # SNOOPYJC
          }else{
 	    say STDERR "FIXME: Can't handle 'for' with $ValPerl[$start]\n";	# SNOOPYJC
             $TrStatus=-1; return -255;
@@ -2642,7 +2694,8 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
        #
        $k=$start;
        gen_chunk($py_name);
-       if(!($bracketed == 1 && $ValPerl[$begin+1] eq '{') && $ValClass[$k] !~ /[if]/) {
+       if(!($bracketed == 1 && $ValPerl[$begin+1] eq '{') && 
+           ($ValClass[$k] ne 'i' || ($k+1 < $#ValClass && $ValClass[$k+1] eq '('))) {        # sub but not sub()
          # Simple case of sort @arr -or- sort (list)
          gen_chunk('(');
          $TrStatus=expression($start,$end_pos,0);
@@ -2657,7 +2710,13 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
            $limit = $#ValClass;
            $limit = $_[1] if(scalar(@_)>1);
            # If bracketed == 1, then end_pos points just before the '}'
-           $k = expression($end_pos+2, $limit, 0);
+           if($end_pos+2 == $limit && $ValClass[$limit] eq 'h') {       # sort a hash sorts the keys and values in perl
+               gen_chunk('functools.reduce(lambda x,y:x+y,'.$ValPy[$limit].'.items())')
+           } else {
+               $k = expression($end_pos+2, $limit, 0);
+           }
+       } elsif($start+1 == $limit && $ValClass[$limit] eq 'h') {        # sort a hash sorts the keys and values in perl
+           gen_chunk('functools.reduce(lambda x,y:x+y,'.$ValPy[$limit].'.items())')
        } else {
            $k = expression($start+1, $limit, 0);
        }
@@ -3454,6 +3513,14 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos);
          gen_chunk($ValPy[$cur_pos]);
 	 # issue 15 $cur_pos=expression($cur_pos+1,$end_pos,0); # preserve brackets
          my $match = matching_br($cur_pos);             # issue paren
+         # SNOOPYJC: Handle [k=>v, ...] and (k=>v, ...) - needs to generate a list, not a hash (note not {...} brackets)
+         if($ValPy[$cur_pos] ne '{') {
+             for(my $i=$cur_pos+1; $i<$match; $i++) {
+                 if($ValClass[$i] eq ':' && $ValPerl[$i] eq '=>') {
+                     $ValPy[$i] = ',';
+                 }
+             }
+         }
          $cur_pos=expression($cur_pos+1,$match-1,0); # preserve brackets	# issue 15, paren
          ($cur_pos<0) && return -255;
       }elsif(  $ValClass[$cur_pos] eq '<' ){
@@ -3583,6 +3650,8 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos);
           $cur_pos = $end_pos+1;
       }elsif($ValClass[$cur_pos] eq '=' && $ValPy[$cur_pos] eq '=' && inParens($cur_pos)) {           # issue assign in expr
           gen_chunk(':=');
+          $cur_pos++;
+      }elsif($ValClass[$cur_pos] eq ',' && $cur_pos == $#ValClass) {    # issue trailing ',' - ignore it!
           $cur_pos++;
       }else{
          gen_chunk($ValPy[$cur_pos]);
