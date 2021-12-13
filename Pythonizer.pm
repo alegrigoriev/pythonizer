@@ -326,6 +326,10 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
        print STDERR "NeedsInitializing = ";
        $Data::Dumper::Indent=1;
        say STDERR Dumper(\%NeedsInitializing);
+       print STDERR "sub_external_last_nexts = ";
+       say STDERR Dumper(\%Perlscan::sub_external_last_nexts);
+       print STDERR "line_needs_try_block = ";
+       say STDERR Dumper(\%Perlscan::line_needs_try_block);
    }
 
    foreach $varname (keys %VarSubMap ){
@@ -1375,6 +1379,7 @@ sub cleanup_imports
     my $import_lno = 0;
     my $import_as_lno = 0;              # import time as tm_py
     my $die_def_lno = 0;                # class Die(Exception):
+    my $loop_control_def_lno = 0;       # class LoopControl(Exception):
     my $as_what = '';
     my @imports = ();
     my %referenced_imports = ();
@@ -1383,9 +1388,11 @@ sub cleanup_imports
     my %referenced_globals = ();
     my $import_as_referenced = 0;
     my $die_referenced = 0;
+    my $loop_control_referenced = 0;
     my $eval_return_lno = 0;            # class $EVAL_RETURN_EXCEPTION(
     my $eval_referenced = 0;
     my $import_as_global = '';
+    my $loop_control = label_exception_name(undef);     # issue 94
     my @gl;
     #my $list_sep_lno = 0;
     #my $list_sep_referenced = 0;
@@ -1404,6 +1411,8 @@ sub cleanup_imports
             }
         } elsif($line =~ /^class Die\(/) {
             $die_def_lno = $lno;
+        } elsif($line =~ /^class $loop_control\(/) {      # issue 94
+            $loop_control_def_lno = $lno;
         } elsif($line =~ /^class $EVAL_RETURN_EXCEPTION\(/) {
             $eval_return_lno = $lno;
             #} elsif($line =~ /^LIST_SEPARATOR = /) {
@@ -1435,6 +1444,8 @@ sub cleanup_imports
                 #$list_sep_referenced = 1;
             } elsif($line =~ /\bDie\b/) {
                 $die_referenced = 1;
+            } elsif($line =~ /\b$loop_control\b/) {
+                $loop_control_referenced = 1;
             } elsif($line =~ /\b$EVAL_RETURN_EXCEPTION\b/) {
                 $eval_referenced = 1;
                 #} elsif($line =~ /\b$SCRIPT_START\b/ || $line =~ /\b_get[ACM]\b/) {
@@ -1458,6 +1469,10 @@ sub cleanup_imports
             $line_ref->[$die_def_lno-1] = '';   # class Die(Exception):
             $line_ref->[$die_def_lno] = '';     #     pass or def __init__(...):
             $line_ref->[$die_def_lno+1] = '' if($::traceback);     #     traceback
+        }
+        if($loop_control_def_lno && !$loop_control_referenced) {
+            $line_ref->[$loop_control_def_lno-1] = '';   # class LoopControl(Exception):
+            $line_ref->[$loop_control_def_lno] = '';     #     pass
         }
         if($eval_return_lno && !$eval_referenced) {
             $line_ref->[$eval_return_lno-1] = '';   # class $EVAL_RETURN_EXCEPTION(Exception):

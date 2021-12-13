@@ -28,6 +28,7 @@ do
       echo "$pyf run with python FAILED"
       ((failed++))
       status=1
+      continue
    fi
    ((passed++))
 done;

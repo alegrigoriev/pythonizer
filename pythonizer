@@ -108,6 +108,7 @@
 # 0.920  2021/12/09  SNOOPYJC  issue 89, issue 90, addl fix for $t-timegm issue 88, add timegm(), issue 91
 # 0.921  2021/12/10  SNOOPYJC  Fix if not(open(FH,...)), add rename, fork, implement range (..) operator in slice, issue 84, fix open/opendir in control stmt
 # 0.922  2021/12/10  SNOOPYJC  issue 93, fix foreach (%hash), @arr = keys %hash, @arr = values %hash, @arr = %hash, ignore var defs alone, handle modelsss constant open, handle sed/awk style range, implement each
+# 0.923  2021/12/12  SNOOPYJC  Add wait() using _wait(), fileparse() using _fileparse(), fix open/opendir with filename expression, issue 94
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -135,7 +136,7 @@
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar %VarType %InitVar init_val); # SNOOPYJC
 
-   $VERSION='0.922';
+   $VERSION='0.923';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -213,6 +214,10 @@
        }
    }
    my @more_headers = ("$Die", "class $EVAL_RETURN_EXCEPTION(Exception):\n    pass");   # SNOOPYJC
+   for my $label (keys %Perlscan::all_labels) {                 # issue 94
+       my $ex_name = label_exception_name($label);
+       push @more_headers, "class $ex_name(Exception):\n    pass";
+   }
    push @headers, @more_headers;                # SNOOPYJC
    #
    # SNOOPYJC: Define any variables that just appear out of nowhere in perl, like $option{key} = 1 creates %options
@@ -246,6 +251,7 @@ my ($start,$token_buffer_active);
    $context_manager_nest = -2;          # issue 66
    @eval_stack = ();                    # issue 42
    $LastLabel = '';                    # SNOOPYJC
+   &Perlscan::initialize();             # issue 94
    while( defined($line) || scalar(@Perlscan::BufferValClass)>0 ){
       $TrStatus=0;
       # issue 68 if( scalar(@ValClass)==0 || ! defined($ValClass[0]) ){
@@ -276,6 +282,8 @@ my ($start,$token_buffer_active);
       }else{
          if($token_buffer_active==0){
             @ValClass=@ValPerl=('{');
+            @ValPy=('if');                      # issue 94
+            &Perlscan::enter_block();           # issue 94
             $token_buffer_active=1;
          }elsif($token_buffer_active==1){
             @ValClass=@Perlscan::BufferValClass;
@@ -286,6 +294,7 @@ my ($start,$token_buffer_active);
             $token_buffer_active=2;
          }else{
             @ValClass=@ValPerl=('}');
+            &Perlscan::exit_block();           # issue 94
             @Perlscan::BufferValClass=@Perlscan::BufferValCom=@Perlscan::BufferValPerl=@Perlscan::BufferValPy=();
             $token_buffer_active=0;
          }
@@ -340,6 +349,19 @@ my ($start,$token_buffer_active);
       
       if( $ValClass[0] eq '}' ){
          # we treat curvy bracket as a separate dummy statement
+         if(&Perlscan::loop_needs_try_block(1)) {
+             my $ex_name = label_exception_name($Perlscan::nesting_last->{label});
+             gen_statement();
+             correct_nest(-1,-1);
+             gen_statement("except $ex_name as _l:");
+             correct_nest(1,1);
+             gen_statement("if 'break' in str(_l):");
+             correct_nest(1,1);
+             gen_statement('break');
+             correct_nest(-1,-1);
+             gen_statement('continue');
+             correct_nest(-1);
+         }
          correct_nest(-1); # next line will be de-indented
          if( $we_are_in_sub_body  && $Pythonizer::NextNest ==0  ){
             correct_nest(0,0);
@@ -354,6 +376,12 @@ my ($start,$token_buffer_active);
              # the nesting to be correct
              gen_statement('for _ in range(1):');       # SNOOPYJC: Use a loop so you can last/next it
              #finish();
+         }
+         $Perlscan::PREV_HAD_COLON = 0;                 # issue 94: It's only good once!
+         if(&Perlscan::loop_needs_try_block(0)) {                # issue 94
+             gen_statement();
+             correct_nest(1,1);
+             gen_statement('try:');
          }
          correct_nest(1); # next line will be indented
       }elsif( $ValClass[0] eq '(' ){
@@ -692,9 +720,9 @@ my ($start,$token_buffer_active);
           }
 
           if ($TokenStr=~/^c\(\!f\(?/ && $ValPerl[3] eq 'open' ){
-            $TrStatus=open_fun(3,'c');
+            $TrStatus=open_fun(3,matching_br(1)-1,'c');   # SNOOPYJC: add extra param
           }elsif ($TokenStr=~/^c\(\!f\(?/ && $ValPerl[3] eq 'opendir' ){
-            $TrStatus=open_dir(3,'c');
+              $TrStatus=open_dir(3,matching_br(1)-1,'c'); # SNOOPYJC: add extra param
           }else{
             $TrStatus=control(0); # control now itself destroy the last ) Oct 14, 2020 --NNB
           }
@@ -737,9 +765,9 @@ my ($start,$token_buffer_active);
                function(0,$#ValClass);          # SNOOPYJC
              }                                  # SNOOPYJC
          }elsif( $ValPerl[0] eq 'open' ){
-            $rc=open_fun(0,'s');
+            $rc=open_fun(0,$#ValClass,'s');     # SNOOPYJC: Add extra param
 	 }elsif( $ValPerl[0] eq 'opendir' ){	# SNOOPYJC
-	    $rc=open_dir(0,'s');
+	    $rc=open_dir(0,$#ValClass,'s');
          }else{
             $TrStatus=function(0);
 
@@ -798,14 +826,22 @@ my ($start,$token_buffer_active);
          } else {
             if( $#ValClass == 0 ){
                 #say STDOUT "$ValPy[0], we_are_in_sub_body=$we_are_in_sub_body, CurNest=$Pythonizer::CurNest, NextNest=$Pythonizer::NextNest";
-                gen_chunk($ValPy[0]);
+                if(($ValPerl[0] eq 'next' || $ValPerl[0] eq 'last') && &Perlscan::next_last_needs_raise()) {
+                    my $ex_name = label_exception_name(undef);
+                    gen_chunk("raise $ex_name('$ValPy[0]')");
+                } else {
+                    gen_chunk($ValPy[0]);
+                }
             }elsif( $ValClass[1] eq '(' ){
                 $TrStatus=expression(0,$#ValClass,0); # Can be this will scan till ')'
-            }elsif($ValClass[1] eq 'i' && ($ValPerl[0] eq 'next' || $ValPerl[0] eq 'last') && $ValPerl[1] ne $LastLabel) {      # SNOOPYJC
-                # next LABEL or last LABEL, with LABEL not the last one we saw
-                logme('W',"$ValPerl[0] with label $ValPerl[1] is not supported - translation is incorrect!");
-                gen_chunk($ValPy[0]);
-                gen_chunk($ValPy[1]);
+            }elsif($ValClass[1] eq 'i' && ($ValPerl[0] eq 'next' || $ValPerl[0] eq 'last')) {   # issue 94
+                if($ValPerl[1] eq $LastLabel) {
+                    gen_chunk($ValPy[0]);
+                } else {
+                    # next LABEL or last LABEL, with LABEL not the last one we saw
+                    my $ex_name = label_exception_name($ValPerl[1]);
+                    gen_chunk("raise $ex_name('$ValPy[0]')");
+                }
             }else{
                 # last 2
                 gen_chunk($ValPy[0]);
@@ -839,7 +875,7 @@ my ($start,$token_buffer_active);
             }
          }elsif($#ValClass == 1 && $ValClass[1] eq ':') {       # SNOOPYJC: Label
              $LastLabel = $ValPerl[0];                          # SNOOPYJC
-             output_line('','#SKIPPED: '.$line.' ');            # SNOOPYJC
+             output_line('',"# $LastLabel:");                   # issue 94
              $Perlscan::PREV_HAD_COLON = 0;                     # SNOOPYJC
          }else{
            $RecursionLevel=-1;
@@ -2461,10 +2497,10 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
          gen_chunk(')');                                # issue 40
       }                         # issue 40
    }elsif( $perl_name eq 'open' ){
-      $TrStatus=open_fun($begin,'f'); # open like function, for example in if
+      $TrStatus=open_fun($begin,$end_pos,'f'); # open like function, for example in if
       return -255 if( $TrStatus < 0 );
    }elsif( $perl_name eq 'opendir' ){	# SNOOPYJC:
-      $TrStatus=open_dir($begin,'f'); # open like function, for example in if
+      $TrStatus=open_dir($begin,$end_pos,'f'); # open like function, for example in if
       return -255 if( $TrStatus < 0 );
    }elsif( $perl_name eq 'exists' ){
       # applicable to the elemnt of hash only
@@ -3208,12 +3244,13 @@ sub GetOptions_fun              # issue 48: Generate code for GetOptions
 sub open_fun
 #
 # Process Perl open statement
-# assents two parameters
+# assents three parameters
 #   start --  Starting postion
+#   limit --  End position
 #   mode  -- 's' or 'f' statement or invocation in expression, or 'c' if it's an "if not open"
 {
-my ($start,$mode)=@_;
-#my $limit=(scalar(@_)>1) ? $_[1] : balance_br($start+1);
+my ($start,$limit,$mode)=@_;
+my $end_pos=($ValPerl[$start+1] eq '(') ? matching_br($start+1)-1 : $limit;
 my($k,$myline, $target,$open_mode,$handle);
     #  open (SYSFORM,'>',$output_file ) || abend(__LINE__,"Cannot open file $output_file for");
    $k=($ValPerl[$start+1] eq '(') ? $start+2: $start+1;
@@ -3282,7 +3319,11 @@ my($k,$myline, $target,$open_mode,$handle);
       # implicit filemode
       # issue 26 $open_mode='>';
       $open_mode=undef;		# issue 26
-      $target=$ValPy[$k];
+      if($k == $end_pos) {      # SNOOPYJC: Simple variable
+          $target=$ValPy[$k];
+      } else {                  # SNOOPYJC: Expression for target
+          $target = undef;
+      }
    }elsif( $ValClass[$k] eq 'i' && $LocalSub{$ValPy[$k]}) {
       $open_mode=undef;		# issue 26
       $target=escape_keywords($ValPy[$k]).'([])';
@@ -3326,40 +3367,35 @@ my($k,$myline, $target,$open_mode,$handle);
    if( $mode eq 'f' ){
      # SNOOPYJC logme('E',"In case of error open function in Python raises the FileNotFoundError exception. The code should be revised");
      # SNOOPYJC gen_chunk("($handle:=open($target,'$open_mode'))");
-     gen_chunk("($handle:=$function($target$open_mode$encoding$errors))");	# SNOOPYJC
+     if(defined $target) {                              # SNOOPYJC
+        gen_chunk("($handle:=$function($target$open_mode$encoding$errors))");	# SNOOPYJC
+     } else {                                           # SNOOPYJC
+        gen_chunk("($handle:=$function(");              # SNOOPYJC
+        expression($k,$end_pos,0);                      # SNOOPYJC
+        gen_chunk("$open_mode$encoding$errors))");	# SNOOPYJC
+     }
      # issue paren return $k+1 if ($ValClass[$k+1] eq ')');
      return $k+1 if ($ValPerl[$start+1] eq '(');
      # issue paren return $k+1;
      return $k;			# issue paren
    }elsif( $mode eq 's' ){
       $k+=2;
-      output_line("$handle = $function($target$open_mode$encoding$errors)");
-#      output_line('try:');
-#      correct_nest(1,1);
-#      output_line("$handle=open($target, '$open_mode')");
-#      correct_nest(-1,-1);
-#      output_line('except OSError as _e:');     # issue 71
-#      correct_nest(1,1);
-#      # issue 71 output_line('sys.exit()');
-#      output_line('global OS_ERROR') if($CurSub ne 'main');     # issue 71
-#      output_line('OS_ERROR = str(_e)');      # issue 71 perl does nothing if open fails
-#      output_line('traceback.print_exc()') if($traceback);    # SNOOPYJC
-#      output_line('raise') if($autodie);      # SNOOPYJC
-#      correct_nest(-1,-1);
-   }elsif( $mode eq 'c' ){
-      output_line("if not ($handle:=$function($target$open_mode$encoding$errors)):");
+      if(defined $target) {                             # SNOOPYJC
+         output_line("$handle = $function($target$open_mode$encoding$errors)");
+      } else {
+         gen_chunk("$handle = $function(");
+         expression($k,$end_pos,0);                      # SNOOPYJC
+         gen_chunk("$open_mode$encoding$errors)");
+       }
+   }elsif( $mode eq 'c' ){                      # Control statement, like if
+      if(defined $target) {                     # SNOOPYJC
+         output_line("if not ($handle:=$function($target$open_mode$encoding$errors)):");
+      } else {
+         gen_chunk("if not ($handle:=$function(");
+         expression($k,$end_pos,0);                      # SNOOPYJC
+         gen_chunk("$open_mode$encoding$errors)):");
+      }
       $Perlscan::PREV_HAD_COLON = 1;
-#      output_line('try:');
-#      correct_nest(1,1);
-#      output_line("$handle=open($target, '$open_mode')"); # Open statement generation from collected info -- $handle, $target and $open_mode
-#      correct_nest(-1,-1);
-#      gen_chunk('except OSError as _e:');
-#      correct_nest(1,1);
-#      output_line('global OS_ERROR') if($CurSub ne 'main');     # issue 71
-#      output_line('OS_ERROR = str(_e)');      # issue 71
-#      output_line('traceback.print_exc()') if($traceback);    # SNOOPYJC
-#      output_line('raise') if($autodie);      # SNOOPYJC
-#      correct_nest(-1,-1);
    } #if mode
    return $#ValClass;
 } # open_fun
@@ -3367,12 +3403,13 @@ my($k,$myline, $target,$open_mode,$handle);
 sub open_dir
 #
 # Process Perl opendir statement
-# assents two parameters
+# assents thrww parameters
 #   start --  Starting postion
+#   limit --  End position
 #   mode  -- 's' or 'f' statement or invocation in expression, or 'c' for if not opendir
 {
-my ($start,$mode)=@_;
-#my $limit=(scalar(@_)>1) ? $_[1] : balance_br($start+1);
+my ($start,$limit,$mode)=@_;
+my $end_pos=($ValPerl[$start+1] eq '(') ? matching_br($start+1)-1 : $limit;
 my($k,$myline, $target,$open_mode,$handle);
     #  open (SYSFORM,'>',$output_file ) || abend(__LINE__,"Cannot open file $output_file for");
    $k=($ValPerl[$start+1] eq '(') ? $start+2: $start+1;
@@ -3383,24 +3420,47 @@ my($k,$myline, $target,$open_mode,$handle);
    $Constants{$handle} = 1 if $ValClass[$k] eq 'i';             # issue 13
    $k+=2 if(  $ValPerl[$k+1] eq ',');
    if( $ValClass[$k] eq 's' ){
-      $target=$ValPy[$k];
+      if($k == $end_pos) {      # SNOOPYJC: Simple variable
+         $target=$ValPy[$k];
+      } else {                  # expression
+         $target = undef;
+      }
    }elsif( $ValClass[$k] eq 'i' && $LocalSub{$ValPy[$k]}) {
       $target=escape_keywords($ValPy[$k]).'([])';
    }
 
    if( $mode eq 'f' ){
      #logme('E',"In case of error open function in Python raises the FileNotFoundError exception. The code should be revised");
-     gen_chunk("($handle:=opendir($target))");
+     if(defined $target) {
+        gen_chunk("($handle:=opendir($target))");
+     } else {
+        gen_chunk("($handle:=opendir(");
+        expression($k,$end_pos,0);                      # SNOOPYJC
+        gen_chunk("))");
+     }
      return $k+1 if ($ValClass[$k+1] eq ')');
-     return $k+1;
+     return $k;
    }elsif( $mode eq 's' ){
       $k+=2;
       if($autodie) {
-        output_line("$handle=opendir($target)");
+         if(defined $target) {
+            output_line("$handle=opendir($target)");
+         } else {
+            gen_chunk("$handle=opendir(");
+            expression($k,$end_pos,0);                      # SNOOPYJC
+            gen_chunk(')');
+         }
       } else {
         output_line('try:');
         correct_nest(1,1);
-        output_line("$handle=opendir($target)");
+        if(defined $target) {
+            output_line("$handle=opendir($target)");
+        } else {
+            gen_chunk("$handle=opendir(");
+            expression($k,$end_pos,0);                      # SNOOPYJC
+            gen_chunk(')');
+            gen_statement();
+        }
         correct_nest(-1,-1);
         output_line('except OSError as _e:');
         correct_nest(1,1);
@@ -3409,12 +3469,25 @@ my($k,$myline, $target,$open_mode,$handle);
       }
    }elsif( $mode eq 'c' ){
       if($autodie) {
-        output_line("if not($handle:=opendir($target)):");
+        if(defined $target) {
+            output_line("if not($handle:=opendir($target)):");
+        } else {
+            gen_chunk("if not($handle:=opendir(");
+            expression($k,$end_pos,0);                      # SNOOPYJC
+            gen_chunk(")):");
+        }
       } else {
         output_line('try:');
         correct_nest(1,1);
         output_line("$handle=None");
-        output_line("$handle=opendir($target)"); # Opendir statement generation from collected info -- $handle and $target
+        if(defined $target) {
+            output_line("$handle=opendir($target)"); # Opendir statement generation from collected info -- $handle and $target
+        } else {
+            gen_chunk("$handle=opendir(");
+            expression($k,$end_pos,0);                      # SNOOPYJC
+            gen_chunk(')');
+            gen_statement();
+        }
         correct_nest(-1,-1);
         output_line('except OSError as _e:');
         correct_nest(1,1);
