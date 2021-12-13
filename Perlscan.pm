@@ -116,13 +116,14 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'defined'=>'unknown', 'do'=>'','delete'=>'.pop(','defined'=>'perl_defined',
                 'each'=>'_each',                        # SNOOPYJC
                 'END'=>'_END_',                      # SNOOPYJC
-                'for'=>'for ','foreach'=>'for ',
+                'for'=>'for','foreach'=>'for',          # SNOOPYJC: remove space from each
                 'else'=>'else: ','elsif'=>'elif ',
                 # issue 42 'eval'=>'NoTrans!', 
                 'eval'=>'try',  # issue 42
                 'exit'=>'sys.exit','exists'=> 'in', # if  key in dictionary 'exists'=>'.has_key'
                 'fc'=>'.casefold()',                    # SNOOPYJC
 		'flock'=>'_flock',			# issue flock
+                'fileparse'=>'_fileparse',              # SNOOPYJC
                 'fork'=>'os.fork',                      # SNOOPYJC
 		'glob'=>'glob.glob',			# SNOOPYJC
                 'if'=>'if ', 'index'=>'.find',
@@ -132,11 +133,11 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'join'=>'.join(',
 		# issue 33 'keys'=>'.keys',
                 'keys'=>'.keys()',	# issue 33
-                'last'=>'break ', 'local'=>'', 'lc'=>'.lower()', 'length'=>'len', 
+                'last'=>'break', 'local'=>'', 'lc'=>'.lower()', 'length'=>'len', 
 		# issue localtime 'localtime'=>'.localtime',
 		'localtime'=>'tm_py.localtime',		# issue localtime
                 'map'=>'map', 'mkdir'=>'os.mkdir', 'my'=>'',
-                'next'=>'continue ', 'no'=>'NoTrans!',
+                'next'=>'continue', 'no'=>'NoTrans!',
                 'own'=>'global', 'oct'=>'oct', 'ord'=>'ord',
                 'our'=>'',                      # SNOOPYJC
                 'package'=>'NoTrans!', 'pop'=>'.pop()', 'push'=>'.extend(',
@@ -168,6 +169,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		   'use'=>'NoTrans!', 'until'=>'while not ','untie'=>'NoTrans!',
                 'values'=>'.values()',	# SNOOPYJC
                  'warn'=>'print',
+                 'wait'=>'_wait',       # SNOOPYJC
                );
 
        #
@@ -228,6 +230,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'else'=>'C', 'elsif'=>'C', 'exists'=>'f', 'exit'=>'f', 'export'=>'f',
                   'eval'=>'C',          # issue 42
                   'fc'=>'f',            # SNOOPYJC
+                  'fileparse'=>'f',     # SNOOPYJC
 		  'flock'=>'f',		# issue flock
 		  'fork'=>'f',		# SNOOPYJC
 		  'glob'=>'f',		# SNOOPYJC
@@ -262,13 +265,15 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'values'=>'f',
                   'warn'=>'f', 'when'=>'C', 'while'=>'c',
                   'undef'=>'f', 'unless'=>'c', 'unshift'=>'f','until'=>'c','uc'=>'f', 'ucfirst'=>'f','use'=>'c','untie'=>'f',
-                  'umask'=>'f'                  # SNOOPYJC
+                  'umask'=>'f',                  # SNOOPYJC
+                  'wait'=>'f',                   # SNOOPYJC
                   );
        %FuncType=(    # a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, S=String, u=Unknown, f=function, H=FileHandle, ?=Optional, m=mixed
 		  'abs'=>'N:N', 'alarm'=>'N:N', 'atan2'=>'NN:F', 'basename'=>'S:S',
 		  'binmode'=>'HS?:u',
                   'chdir'=>'S:I','chomp'=>'S:u', 'chop'=>'S:u', 'chmod'=>'Ia:u','chr'=>'I?:S','close'=>'H:I',
                   'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:u', 'each'=>'h:a', 'exists'=>'u:I', 'exit'=>'S:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':I',
+                  'fileparse'=>'SS?:a of S',
                   'glob'=>'S:a of S', 'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 'lc'=>'S:S',
                   'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'S:I', 'oct'=>'s:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
 		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'rename'=>'SS:I', 'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:u',
@@ -307,6 +312,170 @@ $PREV_HAD_COLON=1;               # SNOOPYJC
 @BufferValType=();		# issue 37
 $TokenStr='';
 $delayed_block_closure=0;
+$nesting_level=0;               # issue 94
+@nesting_stack=();              # issue 94
+$nesting_last=undef;            # issue 94: Last thing we popped off the stack
+$last_block_lno=0;              # issue 94
+$last_label=undef;              # issue 94
+%all_labels=(''=>1);            # issue 94: all labels seen in this file
+%sub_external_last_nexts=();    # issue 94: Map of subnames to set of all last/next labels that propagate out ('' if no label)
+%line_needs_try_block=();       # issue 94: Map from line number to 1 if that line needs a try block
+sub initialize                  # issue 94
+{
+    $nesting_level = 0;
+    @nesting_stack = ();
+    $last_label = undef;
+    $last_block_lno=0;
+}
+sub def_label                   # issue 94
+{
+    $label = shift;
+    if($::debug >= 4) {
+        say STDERR "def_label($label)";
+    }
+    $last_label = $label;
+    $all_labels{$label} = 1;
+}
+sub enter_block                 # issue 94
+{
+    return if($last_block_lno == $. && scalar(@ValPerl) <= 1);       # We see the '{' twice on like if(...) {
+    if($::debug >= 4) {
+        say STDERR "enter_block at line $., prior nesting_level=$nesting_level, ValPerl=@ValPerl";
+    }
+    $last_block_lno = $.;
+    my %nesting_info = ();
+    my $begin = 0;
+    $begin++ if(scalar(@ValClass) >= 2 && $ValClass[0] eq 'W');         # with fileinput...
+    $nesting_info{type} = '';
+    $nesting_info{type} = $ValPy[$begin];
+    $nesting_info{lno} = $.;
+    $nesting_info{level} = $nesting_level;
+    # Note a {...} block by itself is considered a loop
+    $nesting_info{is_loop} = ($begin <= $#ValClass && ($ValPy[$begin] eq '{' || $ValPerl[$begin] eq 'for' || $ValPerl[$begin] eq 'foreach' ||
+                                           $ValPerl[$begin] eq 'while' || $ValPerl[$begin] eq 'do' || $ValPerl[$begin] eq 'until'));
+    $nesting_info{is_eval} = ($begin <= $#ValClass && $ValPerl[$begin] eq 'eval');
+    $nesting_info{is_sub} = ($begin <= $#ValClass && $ValPerl[$begin] eq 'sub');
+    $nesting_info{cur_sub} = (($begin+1 <= $#ValClass && $nesting_info{is_sub}) ? $ValPerl[$begin+1] : undef);
+
+    $nesting_info{in_loop} = ($nesting_info{is_loop} || (scalar(@nesting_stack) && $nesting_stack[-1]{in_loop}));
+    $nesting_info{in_sub} = ($nesting_info{is_sub} || (scalar(@nesting_stack) && $nesting_stack[-1]{in_sub}));
+    if($nesting_info{in_sub} && !$nesting_info{is_sub}) {
+        $nesting_info{cur_sub} = $nesting_stack[-1]{cur_sub};
+    }
+    if(defined $last_label) {
+        $nesting_info{label} = $last_label;
+        $last_label = undef;            # We used it up
+    }
+    push @nesting_stack, \%nesting_info;
+    if($::debug >= 4) {
+        say STDERR "nesting_info=@{[%nesting_info]}";
+    }
+    $nesting_level++;
+}
+sub exit_block                  # issue 94
+{
+    if($::debug >= 4) {
+        say STDERR "exit_block at line $., prior nesting_level=$nesting_level";
+    }
+    if($nesting_level == 0) {
+        if($::debug >= 1) {
+            say STDERR "ERROR: exit_block at line $., prior nesting_level=$nesting_level <<<<";
+        }
+        return;
+    }
+    $nesting_last = pop @nesting_stack;
+    my $label = '';
+    $label = $nesting_last->{label} if(exists $nesting_last->{label});
+    if(exists $nesting_last->{can_call} && $Pythonizer::PassNo == 0) {
+        for $sub (keys %{$nesting_last->{can_call}}) {
+            if(exists $sub_external_last_nexts{$sub} && exists $sub_external_last_nexts{$sub}{$label}) {
+                say STDERR "exit_block: setting line_needs_try_block{$nesting_last->{lno}} from call to $sub" if($::debug >= 5);
+                $line_needs_try_block{$nesting_last->{lno}} = 1;
+            }
+        }
+    }
+    $nesting_level--;
+}
+sub last_next_propagates        # issue 94
+# Does this last/next propagate out of this sub?
+# Side effect - sets {needs_try_block} on any loops we need to generate a try block for
+{
+    $label = shift;
+
+    if(!defined $label) {
+        return 1 if($nesting_level == 0);
+        $top = $nesting_stack[-1];
+        return !($top->{in_loop} || $top->{in_eval});
+    } elsif($Pythonizer::PassNo == 0) {         # only do this once
+        for $ndx (reverse 0 .. $#nesting_stack) {
+            if(exists $nesting_stack[$ndx]->{label} && $nesting_stack[$ndx]->{label} eq $label) {
+                if($ndx != $#nesting_stack) {           # No need to use exception for last/next inner;
+                    $nesting_stack[$ndx]->{needs_try_block} = 1;
+                    say STDERR "last_next_propagates: setting line_needs_try_block{$nesting_stack[$ndx]->{lno}} from last/next at line $." if($::debug >= 5);
+                    $line_needs_try_block{$nesting_stack[$ndx]->{lno}} = 1;
+                }
+                return 0;
+            }
+        }
+        return 1;
+    }
+}
+
+sub handle_last_next            # issue 94
+{
+    my $label = undef;
+
+    return if($nesting_level == 0);
+    if($#ValClass >= 1 && $ValClass[1] eq 'i') {
+        $label = $ValPerl[1];
+    }
+    if(last_next_propagates($label)) {
+        my $top = $nesting_stack[-1];
+        my $sub = $top->{cur_sub};
+        return if(!defined $sub);
+        $label = '' if(!defined $label);
+        $sub_external_last_nexts{$sub}{$label} = 1;
+    }
+}
+
+sub track_potential_sub_call    # issue 94
+# Keep track of what subs are potentially called in this loop (if we're in a loop)
+# Ok if it contains mistakes as long as it contains the actual subs we can call, e.g. 'i' class values that turn into strings
+{
+    my $name = shift;
+    
+    return if($nesting_level == 0);
+    return if(!$nesting_stack[-1]->{in_loop});
+    say STDERR "track_potential_sub_call($name) at line $." if($::debug >= 5);
+    for $ndx (reverse(0 .. $#nesting_stack)) {
+        $nesting_stack[$ndx]->{can_call}{$name} = 1;
+    }
+}
+
+sub loop_needs_try_block                # issue 94
+{
+    my $at_bottom = shift;
+
+    my $top = $nesting_last;
+    if(!$at_bottom) {
+        return 0 if($nesting_level == 0);
+        $top = $nesting_stack[-1];
+    }
+    if($::debug >= 4) {
+        say STDERR "loop_needs_try_block($at_bottom), top=@{[%$top]}";
+    }
+    return 1 if(exists $line_needs_try_block{$top->{lno}});
+    return 0;
+}
+
+sub next_last_needs_raise               # issue 94
+# Do we need to generate a raise statement for this next/last?
+{
+    return 1 if($nesting_level == 0);           # Generate an exception instead of a syntax error
+    my $top = $nesting_stack[-1];
+    return 1 if(!$top->{in_loop});
+}
+
 #
 # Tokenize line into one string and three arrays @ValClass  @ValPerl  @ValPy
 #
@@ -391,6 +560,7 @@ my ($l,$m);
          if( $tno==0  ){
               # we recognize it as the end of the block if '}' is the first symbol
              if( length($source)>=1 ){
+                exit_block();                 # issue 94
                 Pythonizer::getline(substr($source,1)); # save tail
                 $source=$s; # this was we artifically create line with one symbol on it;
              }
@@ -408,6 +578,7 @@ my ($l,$m);
              
              if(parens_are_balanced()) {                # issue 85
                 # issue 45 Pythonizer::getline('}'); # make it a separate statement
+                exit_block();                 # issue 94
                 Pythonizer::getline($source); # make it a separate statement # issue 45
                 popup(); # kill the last symbol
                 last; # we truncate '}' and will process it as the next line
@@ -426,6 +597,7 @@ my ($l,$m);
           #say STDERR "got {, tno=$tno, source=$source, ValPerl=@ValPerl";
          # we treat '{' as the beginning of the block if it is the first or the last symbol on the line or is preceeded by ')' -- Aug 7, 2020
           if( $tno==0 ){
+             enter_block();                 # issue 94
              if( length($source)>1  ){
                 Pythonizer::getline(substr($source,1)); # save tail
              }
@@ -434,6 +606,7 @@ my ($l,$m);
           }elsif( length($source)==1 && $ValClass[$tno-1] ne '='){      # issue 82
              # $tno>0 but line may came from buffer.
              # We recognize end of statemt only if previous token eq ')' to avod collision with #h{$s}
+             enter_block();                 # issue 94
              Pythonizer::getline('{'); # make $tno==0 on the next iteration
              popup(); # eliminate '{' as it does not have tno==0
              last;
@@ -443,6 +616,7 @@ my ($l,$m);
                   ($tno == 2 && $ValPerl[0] eq 'sub') ||
                   ($tno == 1 && ($ValPerl[0] eq 'BEGIN' || $ValPerl[0] eq 'END')))){	# issue 35, 45
              # $tno>0 this is the case when curvy bracket has comments'
+             enter_block();                 # issue 94
              Pythonizer::getline('{',substr($source,1)); # make it a new line to be proceeed later
              popup(); # eliminate '{' as it does not have tno==0
              last;
@@ -798,6 +972,9 @@ my ($l,$m);
 	    popup();                                                                            # issue 39
 	    popup() if($has_squiggle);
          }
+         if($ValClass[$tno] eq 'i') {                   # issue 94
+             track_potential_sub_call($ValPerl[$tno]);  # issue 94
+         }                                              # issue 94
       }elsif( $s eq '$'  ){
          if( substr($source,0,length('$DB::single')) eq '$DB::single' ){
             # special case: $DB::single = 1;
@@ -1116,6 +1293,13 @@ my ($l,$m);
             }elsif( $s eq '<'  ){
                $ValClass[$tno]='>';
 	       $cut=1;						# issue 23
+            }elsif($s eq ':' && $tno == 1 && $ValClass[0] eq 'i') {     # issue 94: Labeled statement
+                def_label($ValPerl[0]);                         # issue 94
+                if( length($source)>1  ){                       # issue 94
+                   Pythonizer::getline(substr($source,1)); # save tail
+                }
+                last; # artificially truncating the line making it two-symbol line
+                $cut=1;
             }else{
 	       $cut=1;						# issue 23
 	    }
@@ -1124,6 +1308,9 @@ my ($l,$m);
       }
       finish(); # subroutine that prepeares the next cycle
    } # while
+   if($tno > 0 && $ValClass[0] eq 'k' && ($ValPerl[0] eq 'last' || $ValPerl[0] eq 'next')) {    # issue 94
+       handle_last_next();                              # issue 94
+   }
 
    $TokenStr=join('',@ValClass);
    if( $::debug>=2 && $Pythonizer::PassNo ){
