@@ -76,4 +76,32 @@ sub check_sub
 
 assert(check_sub() == 4);
 assert($iters == 2);
+
+# 12/13/21: New case!
+my $release = 0;
+my $rel = $release || -1;
+assert($rel == -1);
+$release = 1;
+$rel = $release || -1;
+assert($rel == 1);
+$release = 0;
+$rel = ($release or -1);
+assert($rel == -1);
+$release = 1;
+$rel = ($release or -1);
+assert($rel == 1);
+$release = 0;
+my $z = 0;
+$rel = $release || $z || -1;
+assert($rel == -1);
+$rel = $release && $z && -1;
+assert($rel == 0);
+
+sub check_new {
+    my $j = 1 || 2 || return 7;
+    assert($j == 1);
+    0;
+}
+assert(check_new() == 0);
+
 print "$0 - test passed!\n";

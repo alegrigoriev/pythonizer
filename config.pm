@@ -9,7 +9,7 @@ package config;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET array_var_name hash_var_name label_exception_name );
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET array_var_name hash_var_name label_exception_name );
 
 # use Readonly;		# Readonly is not installed by default so skip it!
 
@@ -35,7 +35,8 @@ our $EVAL_RETURN_EXCEPTION = "EvalReturn";      # issue 42
 our $SUBPROCESS_RC = "CHILD_ERROR";
 our $ANONYMOUS_SUB = "_f";                      # issue 81
 our $DIE_TRACEBACK = "TRACEBACK";        # issue 81
-our $SCRIPT_START = "_script_start";    # Warning: if you change this, then also change pyf/_get*.py
+our $SCRIPT_START = "_script_start";    # Warning: if you change this, then also change pyf/_get*.py (now in lib/pythonizer.py)
+our $DO_CONTROL = "_do_";
 #
 # Put contants here that need to be recognized literally and translated to python references.
 #
