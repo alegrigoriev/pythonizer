@@ -113,7 +113,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'cmp'=>'_cmp',                          # SNOOPYJC
                 # issue 42 'die'=>'sys.exit', 
                 'die'=>'raise Die',     # issue 42
-                'defined'=>'unknown', 'do'=>'','delete'=>'.pop(','defined'=>'perl_defined',
+                'defined'=>'unknown', 'delete'=>'.pop(','defined'=>'perl_defined',
                 'each'=>'_each',                        # SNOOPYJC
                 'END'=>'_END_',                      # SNOOPYJC
                 'for'=>'for','foreach'=>'for',          # SNOOPYJC: remove space from each
@@ -226,6 +226,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'cmp'=>'>',           # SNOOPYJC: comparison
                   'delete'=>'f',        # issue delete
                   'default'=>'C','defined'=>'f','die'=>'f',
+                  'do'=>'C',            # SNOOPYJC
                   'each'=>'f',          # SNOOPYJC
                   'else'=>'C', 'elsif'=>'C', 'exists'=>'f', 'exit'=>'f', 'export'=>'f',
                   'eval'=>'C',          # issue 42
@@ -352,7 +353,7 @@ sub enter_block                 # issue 94
     $nesting_info{level} = $nesting_level;
     # Note a {...} block by itself is considered a loop
     $nesting_info{is_loop} = ($begin <= $#ValClass && ($ValPy[$begin] eq '{' || $ValPerl[$begin] eq 'for' || $ValPerl[$begin] eq 'foreach' ||
-                                           $ValPerl[$begin] eq 'while' || $ValPerl[$begin] eq 'do' || $ValPerl[$begin] eq 'until'));
+                                           $ValPerl[$begin] eq 'while' || $ValPerl[$begin] eq 'until'));
     $nesting_info{is_eval} = ($begin <= $#ValClass && $ValPerl[$begin] eq 'eval');
     $nesting_info{is_sub} = ($begin <= $#ValClass && $ValPerl[$begin] eq 'sub');
     $nesting_info{cur_sub} = (($begin+1 <= $#ValClass && $nesting_info{is_sub}) ? $ValPerl[$begin+1] : undef);
@@ -518,6 +519,7 @@ my ($l,$m);
                $balance--;
             }
          }
+         #say STDERR "Got ; balance=$balance, tno=$tno, nesting_last=$nesting_last";
          if( $balance != 0  ){
             # for statement or similar situation
             $ValClass[$tno]=$ValPerl[$tno]=$s;
@@ -528,6 +530,12 @@ my ($l,$m);
             # this is regular end of statement
             if( $tno>0 && $ValPerl[0] eq 'sub' ){
                $ValPy[0]='#NoTrans!'; # this is a subroutne prototype, ignore it.
+            } elsif($tno == 0 && defined $nesting_last && $nesting_last->{type} eq 'do') { # SNOOPYC
+             # if this is a do{...}; we will generate an infinite loop unless we add a False condition here!
+             $ValClass[$tno]='c'; $ValPy[$tno]=$ValPerl[$tno]='while'; $tno++;
+             $ValClass[$tno]=$ValPy[$tno]=$ValPerl[$tno]='('; $tno++;
+             $ValClass[$tno]='d'; $ValPy[$tno]='False'; $ValPerl[$tno]='0'; $tno++;
+             $ValClass[$tno]=$ValPy[$tno]=$ValPerl[$tno]=')'; $tno++;
             }
             # issue 86 if( $delayed_block_closure ){
             while( $delayed_block_closure ){
@@ -565,7 +573,8 @@ my ($l,$m);
                 $source=$s; # this was we artifically create line with one symbol on it;
              }
              last; # we need to process it as a seperate one-symbol line
-         }elsif( $tno>0 && (length($source)==1 || $source =~ /^}\s*#/)){                # issue 45
+         }elsif( $tno>0 && (length($source)==1 || $source =~ /^}\s*#/ ||
+                 $source =~ /^}\s*(?:(?:(?:else|elsif|while|until|continue|)\b)|;)/)){    # issue 45, issue 95
              # NOTE: here $tno>0 and we reached the last symbol of the line
              # we recognize it as the end of the block
              #curvy bracket as the last symbol of the line
@@ -576,13 +585,15 @@ my ($l,$m);
              #say STDERR "Got }, tno=$tno, ValClass=@ValClass, source=$source";
              # The way we tell is to look at the tokens and if there are unbalanced (), then this is NOT a block end
              
-             if(parens_are_balanced()) {                # issue 85
+             if(parens_are_balanced()) {                # issue 85: Note: this '}' is NOT considered to be a ')'
+                #say STDERR "parens_are_balanced";
                 # issue 45 Pythonizer::getline('}'); # make it a separate statement
-                exit_block();                 # issue 94
+                #exit_block();                 # issue 94
                 Pythonizer::getline($source); # make it a separate statement # issue 45
                 popup(); # kill the last symbol
                 last; # we truncate '}' and will process it as the next line
              }
+             #say STDERR "parens_are_NOT_balanced";
          }
          # this is closing bracket of hash element
 	 if( $tno > 2 && $ValClass[$tno-1] eq 'i' and $ValPerl[$tno-2] eq '{' ) {	# issue 13
@@ -613,6 +624,7 @@ my ($l,$m);
 	  # issue 35 }elsif( $ValClass[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1){
           }elsif( $ValClass[$tno-1] ne '=' &&                   # issue 82
                  ($ValPerl[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1 || 
+                  ($ValClass[0] eq 'C' && $ValPerl[0] eq 'do') ||               # SNOOPYJC: do {...} until(...);
                   ($tno == 2 && $ValPerl[0] eq 'sub') ||
                   ($tno == 1 && ($ValPerl[0] eq 'BEGIN' || $ValPerl[0] eq 'END')))){	# issue 35, 45
              # $tno>0 this is the case when curvy bracket has comments'
@@ -639,7 +651,8 @@ my ($l,$m);
            $ValPerl[$tno]=remove_escaped_delimiters($s, substr($source,1,$cut-2));       # issue 51
            substr($source,0,$cut)=''; # you need to provide modifiers to perl_match
            $cut=0;
-           if( $tno>=1 && ( $ValClass[$tno-2] eq 'f' || $ValPerl[$tno-1] eq 'split') ){
+           if( $tno>=1 && ( ($ValClass[$tno-2] eq 'f' && $ValPerl[$tno-2] !~ /^(?:chomp|chop|chr|shift)$/)      # issue 99: not a function that takes no args
+                            || $ValPerl[$tno-1] eq 'split') ){
               # in split regex should be plain vanilla -- no re.match is needed.
               $ValPy[$tno]=put_regex_in_quotes( $ValPerl[$tno]); #  double quotes neeed to be escaped just in case
            }else{
@@ -758,7 +771,7 @@ my ($l,$m);
                 $ValPy[$tno] = $w;              # issue 89
             }                                   # issue 89
             $ValClass[$tno]=$class;
-            if( $class eq 'c' && $tno > 0 && $Pythonizer::PassNo ){	# Control statement, like if
+            if( $class eq 'c' && $tno > 0 && $Pythonizer::PassNo && ($ValClass[0] ne 'C' || $ValPerl[0] ne 'do')){ # Control statement, like if # SNOOPYJC: do
                # The current solution is pretty britle but works
                # You can't recreate Perl source from ValPerl as it does not have 100% correspondence.
                # So the token buffer implemented Oct 08, 2020 --NNB
@@ -799,10 +812,11 @@ my ($l,$m);
             }elsif ( $class eq '0' ){	# and/or
                   $balance=(join('',@ValClass)=~tr/()//);
                   # issue 93 if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && join('',@ValClass) !~ /^t?[ahs]=/ ){
-                  if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C'){             # issue 93
+                  if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && bash_style_or_and_fix($cut)){             # issue 93
                      # postfix conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020,Oct 12, 2020 --NNB
-                     bash_style_or_and_fix($cut);
-                     last;
+                     # issue 93 bash_style_or_and_fix($cut);
+                     # issue 93 last;
+                     last;              # issue 93
                   }
             }elsif ( $class eq 't'  ){
                if( $tno>0 && $w eq 'my' && $Pythonizer::PassNo){        # SNOOPYJC: In the first pass, we need to see the 'my' so we don't make $i global!
@@ -1137,9 +1151,9 @@ my ($l,$m);
             if($ValClass[$tno] eq '0'){		# && or ||
                $balance=(join('',@ValClass)=~tr/()//);
                # issue 93 if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && join('',@ValClass) !~ /^t?[ahs]=/ ){  # SNOOPYJC
-               if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C'){  # issue 93
+               if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && bash_style_or_and_fix(3)){  # issue 93
                   # postfix conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020,Oct 12, 2020 --NNB
-                  bash_style_or_and_fix(3);
+                  # issue 93 bash_style_or_and_fix(3);
                   last;
                }else{
                   $cut=2
@@ -1357,7 +1371,14 @@ my $split=$_[0];
    # bash-style conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020 --NNB
    $is_or = ($ValPy[-1] =~ /or/);	# issue 12
    if($::debug >= 3) {
-       say STDERR "bash_style_or_and_fix($split) is_or=$is_or";
+       say STDERR "bash_style_or_and_fix($split) is_or=$is_or, source=$source";
+   }
+   # issue 93: if this is an assignment, only transform it if it contains a control statement afterwards
+   if(join('',@ValClass) =~ /^t?[ahs](?:\(.*\))*=/ && substr($source,$split) !~ /^\s*(?:return|next|last|assert|delete|require|die)\b/) {       # issue 93
+       if($::debug >= 3) {
+          say STDERR "bash_style_or_and_fix($split) returning 0 - does not need transforming";
+       }
+       return 0;
    }
    Pythonizer::getline('{');
    # issue 86 $delayed_block_closure=1;
@@ -1383,6 +1404,7 @@ my $split=$_[0];
        say STDERR "After bash_style_or_and_fix($split): =|$TokenStr|=";
    }
    $cut=0;
+   return 1;                            # issue 93
 }
 sub decode_scalar
 # Returns codes via variable $rc.-1 -special variable; 1 -regular variable
@@ -2099,7 +2121,7 @@ my $line='';
          }
       } # for
       $PREV_HAD_COLON = (substr($line, -1, 1) eq ':') ? 1 : 0;      # SNOOPYJC
-      if( defined[$ValCom[-1]] && length($ValCom[-1]) > 1  ){
+      if( defined $ValCom[-1]  && length($ValCom[-1]) > 1  ){
          # single symbol ValCom will be used as additional determinator of the token in pass 0 -- Sept 18, 200 -- NNB
          #that means that you need a new line. bezroun Feb 3, 2020
          Pythonizer::output_line($line,$ValCom[-1] );
@@ -2238,6 +2260,7 @@ sub autoincrement_fix
 #
 {
 my $wart_pos;
+   return if(1);                # SNOOPYJC: we fixed this issue elsewhere
     #postincement
    if( length($TokenStr)>6 &&  substr($TokenStr,0,6) eq 's(s^)='){
       logme('E','Increment of array index found on the left side of assignement and replaced by append function. This guess might be wrong');

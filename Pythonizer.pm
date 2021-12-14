@@ -48,6 +48,7 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname);
    %InitVar=(); # SNOOPYJC: generated initialization
    # issue 32 $maxlinelen=188;
    $maxlinelen=$MAXLINELEN;
+   $GeneratedCode=0;    # issue 96: used to see if we generated any real code between { and }
 #
 #::prolog --  Decode parameter for the pythonizer. all parameters are exported
 #
@@ -962,23 +963,30 @@ sub getline
 #
 {
 state @buffer; # buffer to "postponed lines. Used for translation of postfix conditinals among other things.
-   return $line if( scalar(@Perlscan::BufferValClass)>0  ); # block input if we process token buffer Oct 8, 2020 -- NNB
+   #say STDERR "getline(@_): BufferValClass=@Perlscan::BufferValClass, buffer=@buffer";
+   # issue 95 return $line if( scalar(@Perlscan::BufferValClass)>0  ); # block input if we process token buffer Oct 8, 2020 -- NNB
    if(  scalar(@_)>0 ){
        push(@buffer,@_); # buffer lines in the order they listed; they will be injected in the next call;
        #if (scalar(@_)==3){
        #  say join('|',@_);
        #  $DB::single = 1;
        #}
+       #say STDERR "getline(@_): pushed to buffer";
        return;
    }
+   return $line if( scalar(@Perlscan::BufferValClass)>0  ); # issue 95: block input if we process token buffer Oct 8, 2020 -- NNB
    while(1 ){
       #
       # firs we perform debufferization
       #
       if(  scalar(@buffer) ){
          $line=shift(@buffer);
+         #say STDERR "getline(): got $line from buffer, buffer=@buffer";
       }else{
          $line=<>;
+         #my $l2 = $line;
+         #$l2 =~ s/[\n\r]//g;
+         #say STDERR "getline(): got $l2 from <>";
          return $line unless (defined($line)); # End of file
       }
 
@@ -1066,6 +1074,7 @@ my $orig_tail_len=length($tailcomment);
 my $i;
 my $orig_tail_comment = $tailcomment;
 
+   $GeneratedCode = (scalar(@_) > 0 && $line);          # issue 96
    if(  $tailcomment){
        if (scalar(@_) < 3) {            # SNOOPYJC
            $tailcomment=($tailcomment=~/^\s+(.*)$/ ) ? $indent.$1 : $indent.$tailcomment;

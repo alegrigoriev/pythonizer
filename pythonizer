@@ -109,6 +109,7 @@
 # 0.921  2021/12/10  SNOOPYJC  Fix if not(open(FH,...)), add rename, fork, implement range (..) operator in slice, issue 84, fix open/opendir in control stmt
 # 0.922  2021/12/10  SNOOPYJC  issue 93, fix foreach (%hash), @arr = keys %hash, @arr = values %hash, @arr = %hash, ignore var defs alone, handle modelsss constant open, handle sed/awk style range, implement each
 # 0.923  2021/12/12  SNOOPYJC  Add wait() using _wait(), fileparse() using _fileparse(), fix open/opendir with filename expression, issue 94
+# 0.924  2021/12/13  SNOOPYJC  issue 95, implement do{...}while/until(...);, PERL5PATH is now automatic, addl fix for issue 93, issue 96, remove double ++/-- fix, remove warning on 1;, issue 99
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -117,11 +118,17 @@
    use feature 'state';
    use Carp 'verbose';	# SNOOPYJC
    use File::Basename;	# SNOOPYJC
-   use config;				# issue 32
    $SIG{ __DIE__ } = sub { Carp::confess( @_ ) };	# SNOOPYJC
    $SIG{ INT } = sub { Carp::confess( @_ ) };		# SNOOPYJC
    $| = 1;                                              # SNOOPYJC - unbuffer STDOUT
 
+BEGIN {                                                 # SNOOPYJC
+    if(!exists $ENV{PERL5PATH}) {
+        $ENV{PERL5PATH} = dirname(__FILE__);
+        unshift @INC, dirname(__FILE__);
+    }
+}
+   use config;				# issue 32
 #
 # Modules used ( from the current directory to make debugging more convenient; will change later)
 #
@@ -136,7 +143,7 @@
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar %VarType %InitVar init_val); # SNOOPYJC
 
-   $VERSION='0.923';
+   $VERSION='0.924';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -263,7 +270,7 @@ my ($start,$token_buffer_active);
       # issue 13 $line =~ s/\{([A-Za-z_][A-Za-z0-9_]*)\}/\{\'$1\'\}/g;	# issue 13
       # We do this a better way now: $line =~ s/(?<!\$)\{([A-Za-z_][A-Za-z0-9_]*)\}/\{\'$1\'\}/g;	# issue 13
       if($debug >= 5) {
-        say "Main loop, line=$line";
+        say "Main loop, line=$line, BufferValClass=@Perlscan::BufferValClass";
       }
 
 #
@@ -349,6 +356,9 @@ my ($start,$token_buffer_active);
       
       if( $ValClass[0] eq '}' ){
          # we treat curvy bracket as a separate dummy statement
+         if(!$Pythonizer::GeneratedCode) {      # issue 96
+             gen_statement('pass');             # issue 96: python doesn't allow empty blocks
+         }                                      # issue 96
          if(&Perlscan::loop_needs_try_block(1)) {
              my $ex_name = label_exception_name($Perlscan::nesting_last->{label});
              gen_statement();
@@ -383,6 +393,7 @@ my ($start,$token_buffer_active);
              correct_nest(1,1);
              gen_statement('try:');
          }
+         $Pythonizer::GeneratedCode = 0;                # issue 96
          correct_nest(1); # next line will be indented
       }elsif( $ValClass[0] eq '(' ){
          $close_br_pos=matching_br(0);
@@ -396,7 +407,7 @@ my ($start,$token_buffer_active);
          }
       }elsif(  $ValPy[0] eq 'NoTrans!'  ){
          if($Pythonizer::CurNest) {                             # SNOOPYJC
-             output_line('','pass    #SKIPPED: '.$line);
+             output_line('pass','    #SKIPPED: '.$line);        # issue 96
          } else {
              output_line('','#SKIPPED: '.$line);
          }
@@ -573,9 +584,10 @@ my ($start,$token_buffer_active);
                   # Special case hash initialization needs to be converted to dictionary initialization
                   gen_chunk($ValPy[0].' = {');
 		  # issue 13: Handle a list of key, value, key, value by converting it to key: value, key: value
-		  for( my $i=4; $i<$#ValPy; $i+=4 ) {				# issue 13
-		     $ValPy[$i] = ":" if $ValPy[$i] eq ",";			# issue 13
-		  }								# issue 13
+                  #for( my $i=4; $i<$#ValPy; $i+=4 ) {				# issue 13
+                  #$ValPy[$i] = ":" if $ValPy[$i] eq ",";			# issue 13
+                  #}								# issue 13
+                  my $comma_flip = 0;                   # issue 13
                   for( my $i=3; $i<$#ValPy; $i++ ){
                      if( $ValClass[$i] eq 'i' ) {                               # issue 13
 	                if( $LocalSub{$ValPy[$i]} ){				# issue 13: local sub call with no parens
@@ -587,8 +599,13 @@ my ($start,$token_buffer_active);
 		            $ValPy[$i] = "'".$ValPy[$i]."'";			# issue 13 - put in quotes
                             gen_chunk( $ValPy[$i] );                            # issue 13
                         }                                                       # issue 13
+                     } elsif($ValPy[$i] eq ',' && $comma_flip == 0) {           # issue 97
+                         gen_chunk(': ');                                       # issue 97
+                         $comma_flip = 1;                                       # issue 97
 		     } else {							# issue 13
                         gen_chunk( $ValPy[$i] );
+                        $comma_flip = 1-$comma_flip if($ValPy[$i] eq ',' && $comma_flip != -1); # issue 97
+                        $comma_flip = -1 if($ValPy[$i] =~ /^:\s?$/);                 # issue 97
                      }
                   }
                   gen_chunk('}');
@@ -739,6 +756,9 @@ my ($start,$token_buffer_active);
                gen_statement();
          }elsif( $ValPerl[0] eq 'eval' ) {              # issue 42
              gen_eval(0, 0);                            # issue 42
+         }elsif( $ValPerl[0] eq 'do' ) {                # SNOOPYJC
+             gen_statement("$DO_CONTROL$. = True");     # SNOOPYJC
+             gen_chunk("while $DO_CONTROL$.:");         # SNOOPYJC
          }
      }elsif( $ValClass[0] eq 'f' ){
          #this is a left hand function like is substr($line,0,1)='' or open or chomp;
@@ -786,9 +806,9 @@ my ($start,$token_buffer_active);
          }
       }elsif( $ValClass[0] eq 'd' ){
          if( length($TokenStr)==1 ){
-             if($CurSub eq 'main' && scalar(@eval_stack) == 0) {  # issue 45: could be the return value of a sub # issue 42 or eval
-                logme('W','line starts with digit');
-             }                                          # issue 45
+             # SNOOPYJC: just ignore it!  if($CurSub eq 'main' && scalar(@eval_stack) == 0) {  # issue 45: could be the return value of a sub # issue 42 or eval
+             # SNOOPYJC: just ignore it!  logme('W','line starts with digit');
+             # SNOOPYJC: just ignore it!  }                                          # issue 45
          # issue 45 }else{
          }elsif($CurSub eq 'main' && scalar(@eval_stack) == 0) {     # issue 45: could be the return value of a sub # issue 42 or eval
             $TrStatus=-1;
@@ -823,6 +843,9 @@ my ($start,$token_buffer_active);
             gen_statement();
             gen_statement("raise $EVAL_RETURN_EXCEPTION");
             $eval_stack[-1]->{had_return} = 1;
+         } elsif($ValPy[0] eq 'return' && $CurSub eq 'main') {          # SNOOPYJC
+             gen_statement('raise Die("Can\'t return outside a function")');  # SNOOPYJC
+             logme('W',"Attempt to return outside a subroutine will die if executed");    # SNOOPYJC
          } else {
             if( $#ValClass == 0 ){
                 #say STDOUT "$ValPy[0], we_are_in_sub_body=$we_are_in_sub_body, CurNest=$Pythonizer::CurNest, NextNest=$Pythonizer::NextNest";
@@ -1314,7 +1337,7 @@ my $end_pos=$#ValClass;                                            # issue 10
    if( $start+1 <= $#ValClass && $ValClass[$start+1] =~ /[is]/ ){ # issue 32
       $handle=$ValPy[$start+1];
       $k=$start+2;
-      if($k <= $#ValClass && $ValClass[$k] eq ',') {    # issue 32
+      if($k <= $#ValClass && ($ValClass[$k] eq ',' || $ValClass[$k] eq '.')) {    # issue 32; handle print $session->elapsed_time(...)
           $handle='';
           $k = $start+1;
       }elsif($ValClass[$start+1] eq 's' && ($#ValClass == $start+1 || $ValClass[$start+2] eq '(')) { # issue 32
@@ -2003,11 +2026,20 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
       gen_chunk(':');
       return($#ValClass);
    }elsif( $ValPerl[$begin] eq 'while' || $ValPerl[$begin] eq 'until' ){
+      # SNOOPYJC: Implement 'do':
+      my $in_do = 0;
+      if(defined $Perlscan::nesting_last && $Perlscan::nesting_last->{type} eq 'do') {
+          my $lno = $Perlscan::nesting_last->{lno};
+          $ValPy[0] =~ s/^while\s*/$DO_CONTROL$lno = (/;
+          $in_do = 1;
+          correct_nest(1,1);
+          $Perlscan::nesting_last = undef;
+      }
       # issue 18 if( $TokenStr eq 'c(s=i)' && substr($ValPerl[4],0,1) eq '<' ) {
       if( $TokenStr eq 'cs=i' && substr($ValPerl[4],0,1) eq '<' ) {	# issue 18, issue paren
          gen_chunk("$ValPy[0] $ValPy[2] in $ValPy[4]" );
       # issue 18}elsif( substr($TokenStr,$start) eq 'c(d)' && $ValPy[$start+2]==1  ){
-      }elsif( substr($TokenStr,$start) eq 'd' && $ValPy[$start+2]==1  ){	# issue 18
+      }elsif( substr($TokenStr,$start) eq 'd' && $ValPy[$start] eq '1' ){	# issue 18
           gen_chunk("$ValPy[0] True" ); # while(1) Perl idiom
       # issue 18}elsif( substr($TokenStr,$start) eq 'c(i)' ){
       }elsif( substr($TokenStr,$start) eq 'i' ){	# issue 18
@@ -2026,7 +2058,13 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
               $TrStatus=expression($start,$limit,0); # gen expression
            }
       }
-      gen_chunk(':');
+      if($in_do) {                      # SNOOPYJC
+          gen_chunk(')');
+          gen_statement();
+          correct_nest(-1,-1);
+      } else {
+          gen_chunk(':');
+      }
       return($#ValClass);
    # issue paren }elsif( $ValPerl[$begin] eq 'for' && $ValPerl[$begin+1] eq '('  && $ValClass[$begin+2] !~ /[ahf]/ ){
    }elsif( ($ValPerl[$begin] eq 'for' || $ValPerl[$begin] eq 'foreach') && $hadparens == 1 && $ValClass[$begin+1] !~ /[ahf]/ ){	# issue paren, issue foreach
@@ -3364,6 +3402,11 @@ my($k,$myline, $target,$open_mode,$handle);
    }
    $Pyf{$function} = 1;	# SNOOPYJC
 
+   my $orig_mode = $mode;               # SNOOPYJC: Handle complex handle
+   if($mode ne 's' && $handle !~ /^[A-Za-z0-9_]+$/) {
+       $mode = 's';
+       save_code();
+   }
    if( $mode eq 'f' ){
      # SNOOPYJC logme('E',"In case of error open function in Python raises the FileNotFoundError exception. The code should be revised");
      # SNOOPYJC gen_chunk("($handle:=open($target,'$open_mode'))");
@@ -3397,6 +3440,15 @@ my($k,$myline, $target,$open_mode,$handle);
       }
       $Perlscan::PREV_HAD_COLON = 1;
    } #if mode
+   if($mode ne $orig_mode) {                    # SNOOPYJC: Handle complex handle like sys.stderr that can't appear in a :=
+       restore_code();
+       if($orig_mode eq 'f') {
+           gen_chunk($handle);
+       } else {
+           output_line("if not $handle:");
+           $Perlscan::PREV_HAD_COLON = 1;
+       }
+    }
    return $#ValClass;
 } # open_fun
 
@@ -3622,10 +3674,11 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos);
             gen_chunk($ValPy[$cur_pos],$ValPy[$cur_pos+1]);
             $cur_pos=function($cur_pos+2,$end_pos);
          # issue 90 }elsif( $end_pos-$cur_pos>1 && ($split=index(substr($TokenStr,$cur_pos,$end_pos-$cur_pos+1),'~'))>-1 ){
-         }elsif( $end_pos-$cur_pos>1 && ($split=next_same_level_token('~',$cur_pos,$end_pos))>-1) {     # issue 90
+         }elsif( $end_pos-$cur_pos>1 && ($split=next_same_level_token('~',$cur_pos,$end_pos))>-1 && $split <= $end_pos) {     # issue 90, issue 99
             # REGEX processing $line=~/abc/
             # issue 90 $cur_pos=regex_and_translate($start,$cur_pos,$cur_pos+$split); # split is index from $cur_pos not abs index
-            $cur_pos=regex_and_translate($start,$cur_pos,$split); # issue 90
+            # issue 99 $cur_pos=regex_and_translate($start,$cur_pos,$split); # issue 90
+            $cur_pos=regex_and_translate($cur_pos,$cur_pos,$split); # issue 90, issue 99
          }elsif( $ValClass[$cur_pos] eq 'f'){
             $cur_pos=function($cur_pos,$end_pos);
             ($cur_pos<0) && return -255;
@@ -3636,29 +3689,37 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos);
       # issue uninit value }elsif( $cur_pos<$#ValClass && $ValClass[$cur_pos] eq 'i' && $ValClass[$cur_pos+1] eq '(' ){ 
       }elsif( $cur_pos<$#ValClass && $ValClass[$cur_pos] eq 'i' && $ValClass[$cur_pos+1] eq '(' ){ # issue uninit
          $end_pos=matching_br($cur_pos+1); # find balanced bracket for the current bracket
-         # issue 41 gen_chunk($ValPy[$cur_pos]);
-         gen_chunk(escape_keywords($ValPy[$cur_pos]));
-         if( $LocalSub{$ValPy[$cur_pos]} ){
-            # Perl user defined function -- need to pass an array
-            gen_chunk('([');
-            # issue parens expression($cur_pos+2,$end_pos-1,0); # call without brackets
-            expression($cur_pos+2,$end_pos-1,0) if($cur_pos+2 <= $end_pos-1); # call without brackets   # issue paren
-            gen_chunk('])');
-            $cur_pos=$end_pos+1;
-         }elsif( $ValClass[$cur_pos+2] eq 'f' ){
-            #built-in function
-            gen_chunk('(');
-            # issue paren function($cur_pos+2,$end_pos-1);
-            function($cur_pos+2,$end_pos-1) if($cur_pos+2 <= $end_pos-1);       # issue paren
-            gen_chunk(')');
-         }else{
-            #function of unknown origin
-            logme("W","Function $ValPy[$cur_pos] is neither internal not built-in function. Please check the correspondence of arguments");
-            expression($cur_pos+1,$end_pos,1); # preseve brackets
-         }
-         $cur_pos=$end_pos+1;
+         if($end_pos+1<=$limit && $ValClass[$end_pos+1] eq '~') {            # issue 99
+            $cur_pos=regex_and_translate($cur_pos,$cur_pos,$end_pos+1);         # issue 99
+         } else {
+             # issue 41 gen_chunk($ValPy[$cur_pos]);
+             gen_chunk(escape_keywords($ValPy[$cur_pos]));
+             if( $LocalSub{$ValPy[$cur_pos]} ){
+                # Perl user defined function -- need to pass an array
+                gen_chunk('([');
+                # issue parens expression($cur_pos+2,$end_pos-1,0); # call without brackets
+                expression($cur_pos+2,$end_pos-1,0) if($cur_pos+2 <= $end_pos-1); # call without brackets   # issue paren
+                gen_chunk('])');
+                $cur_pos=$end_pos+1;
+             }elsif( $ValClass[$cur_pos+2] eq 'f' ){
+                #built-in function
+                gen_chunk('(');
+                # issue paren function($cur_pos+2,$end_pos-1);
+                function($cur_pos+2,$end_pos-1) if($cur_pos+2 <= $end_pos-1);       # issue paren
+                gen_chunk(')');
+             }else{
+                #function of unknown origin
+                logme("W","Function $ValPy[$cur_pos] is neither internal not built-in function. Please check the correspondence of arguments");
+                expression($cur_pos+1,$end_pos,1); # preseve brackets
+             }
+             $cur_pos=$end_pos+1;
+         }                                                                      # issue 99
       }elsif($ValClass[$cur_pos] eq 'i' && $ValPy[$cur_pos] eq $ValPerl[$cur_pos] && !inDotOp($cur_pos)) {	# issue 13
-         if( $LocalSub{$ValPy[$cur_pos]} && ($cur_pos+1 > $#ValClass || $ValPerl[$cur_pos+1] ne '=>')){		# issue 13: local sub call with no parens
+         $pos=next_same_level_tokens('0>~)',$cur_pos,$limit);           # issue 13, issue 99
+         $end_pos=( $pos>-1 )? $pos-1 : (($bracketed ==1) ? $limit-1 : $limit);      # issue 13: limit scan to next && or ||, issue 99
+         if($pos>-1 && $ValClass[$pos] eq '~') {                                   # issue 99
+            $cur_pos=regex_and_translate($cur_pos,$cur_pos,$pos)-1;       # issue 99 (-1 is because we add 1 to it below)
+         } elsif( $LocalSub{$ValPy[$cur_pos]} && ($cur_pos+1 > $#ValClass || $ValPerl[$cur_pos+1] ne '=>')){		# issue 13: local sub call with no parens
             if($cur_pos+1 <= $end_pos && $ValClass[$cur_pos+1] eq 'i' && 
                !$LocalSub{$ValPy[$cur_pos+1]} && !$Constants{$ValPy[$cur_pos+1]}) {    # SNOOPYJC: like new Package()
                 gen_chunk($ValPy[$cur_pos+1], '.');
@@ -3674,8 +3735,6 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos);
                 gen_chunk(escape_keywords($ValPy[$cur_pos]));				# issue 13, issue 41
             }
             gen_chunk('([');                                                            # issue 13
-            $pos=next_same_level_tokens('0>~)',$cur_pos,$limit);                        # issue 13
-            $end_pos=( $pos>-1 )? $pos-1 : (($bracketed ==1) ? $limit-1 : $limit);      # issue 13: limit scan to next && or ||
             $k = 0;                                                                     # issue 13
             $k=expression($cur_pos+1, $end_pos, 0) if($cur_pos+1 <= $end_pos);          # issue 13
             if($k < 0) { $TrStatus=-1; return -255; }                                   # issue 13
@@ -3684,6 +3743,18 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos);
             $cur_pos++ if($bracketed == 1);                                             # issue 13
           } elsif ($Constants{$ValPy[$cur_pos]}) {                                      # issue 13: constant or file handle
             gen_chunk($ValPy[$cur_pos]);						# issue 13
+          } elsif($cur_pos+1 <= $#ValClass && $ValClass[$cur_pos+1] eq 'i') {           # SNOOPYJC: Like new XXXX
+              my $last_i;
+              for($last_i = $cur_pos+1; $last_i <= $#ValClass; $last_i++) {
+                  last if($ValClass[$last_i] ne 'i' && $ValClass[$last_i] ne '.');
+              }
+              $last_i--;
+              #say STDERR "last_i = $last_i";
+              if($last_i <= $#ValClass && $ValClass[$last_i] eq 'i') {
+                  $ValPy[$last_i] .= ".$ValPy[$cur_pos]";                               # SNOOPYJC: Change new XXXX to XXXX.new
+              } else {
+                  gen_chunk($ValPy[$cur_pos]);
+              }
 	  } else {									# issue 13: bare word - treat as string
             gen_chunk("'".$ValPy[$cur_pos]."'");					# issue 13
 	  }										# issue 13
