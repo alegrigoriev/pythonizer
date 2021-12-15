@@ -299,7 +299,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 '&&'=>' and ', '||'=>' or ','::'=>'.',
                );
 
-   %SpaceBefore=(in=>1, is=>1, an=>1, or=>1);                  # SNOOPYJC - always generate a space before these 2-letter output words
+#  %SpaceBefore=(in=>1, is=>1, an=>1, or=>1);                  # SNOOPYJC - always generate a space before these 2-letter output words
 
    %SpaceBoth=('='=>1, '+='=>1, '-='=>1, '*='=>1, '/='=>1, '%='=>1,
                '>'=>1, '>='=>1, '<'=>1, '<='=>1, '=='=>1, '!='=>1,
@@ -349,6 +349,7 @@ sub enter_block                 # issue 94
     $begin++ if(scalar(@ValClass) >= 2 && $ValClass[0] eq 'W');         # with fileinput...
     $nesting_info{type} = '';
     $nesting_info{type} = $ValPy[$begin];
+    $nesting_info{type} =~ s/:\s*$//;           # Change "else: " to "else"
     $nesting_info{lno} = $.;
     $nesting_info{level} = $nesting_level;
     # Note a {...} block by itself is considered a loop
@@ -369,15 +370,13 @@ sub enter_block                 # issue 94
     }
     push @nesting_stack, \%nesting_info;
     if($::debug >= 4) {
+        no warnings 'uninitialized';
         say STDERR "nesting_info=@{[%nesting_info]}";
     }
     $nesting_level++;
 }
 sub exit_block                  # issue 94
 {
-    if($::debug >= 4) {
-        say STDERR "exit_block at line $., prior nesting_level=$nesting_level";
-    }
     if($nesting_level == 0) {
         if($::debug >= 1) {
             say STDERR "ERROR: exit_block at line $., prior nesting_level=$nesting_level <<<<";
@@ -385,6 +384,9 @@ sub exit_block                  # issue 94
         return;
     }
     $nesting_last = pop @nesting_stack;
+    if($::debug >= 4) {
+        say STDERR "exit_block at line $., prior nesting_level=$nesting_level, nesting_last->{type} is now $nesting_last->{type}";
+    }
     my $label = '';
     $label = $nesting_last->{label} if(exists $nesting_last->{label});
     if(exists $nesting_last->{can_call} && $Pythonizer::PassNo == 0) {
@@ -463,6 +465,7 @@ sub loop_needs_try_block                # issue 94
         $top = $nesting_stack[-1];
     }
     if($::debug >= 4) {
+        no warnings 'uninitialized';
         say STDERR "loop_needs_try_block($at_bottom), top=@{[%$top]}";
     }
     return 1 if(exists $line_needs_try_block{$top->{lno}});
@@ -625,6 +628,7 @@ my ($l,$m);
           }elsif( $ValClass[$tno-1] ne '=' &&                   # issue 82
                  ($ValPerl[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1 || 
                   ($ValClass[0] eq 'C' && $ValPerl[0] eq 'do') ||               # SNOOPYJC: do {...} until(...);
+                  ($ValClass[0] eq 'C' && $ValPerl[0] eq 'else') ||             # SNOOPYJC: else {...}
                   ($tno == 2 && $ValPerl[0] eq 'sub') ||
                   ($tno == 1 && ($ValPerl[0] eq 'BEGIN' || $ValPerl[0] eq 'END')))){	# issue 35, 45
              # $tno>0 this is the case when curvy bracket has comments'
@@ -905,6 +909,7 @@ my ($l,$m);
                      }
                   } elsif( $w eq 'qr' ) {               # SNOOPYJC: qr in other context
                      ($modifier,$groups_are_present)=is_regex($arg1);                           # SNOOPYJC
+                     $modifier='' if($modifier eq 'r');                                         # SNOOPYJC
                      $ValPy[$tno]='re.compile('.put_regex_in_quotes($arg1).$modifier.')';       # SNOOPYJC
                   }else{
                      abend("Internal error while analysing $w in line $. : $_[0]");
@@ -1798,7 +1803,8 @@ my  $outer_delim;
           $end_br += ($n_len - $p_len);                 # issue 13, 43
       }                                                 # issue 13, 43
       #say STDERR "quote3=$quote";
-      if( $quote=~/^\s*([\[\{].+?[\]\}])/  ){
+      # issue 98 if( $quote=~/^\s*([\[\{].+?[\]\}])/  ){
+      if( $quote=~/^([\[\{].+?[\]\}])/  ){              # issue 98: Don't allow spaces before the [ or {
          #HACK element of the array of hash. Here we cut corners and do not process expressions as index.
          $ind=$1;
          $cut=length($ind);
@@ -2109,8 +2115,8 @@ my $line='';
         } elsif( defined($line) && substr($line,-1,1)=~/[\w'"]/ &&  $s =~/[\w'"]/ ){
             # space between identifiers and before quotes
             $line.=' '.$PythonCode[$i];
-         } elsif( exists $SpaceBefore{substr($PythonCode[$i],0,2)} && defined($line) && substr($line,-1,1) ne ' ' ) {        # SNOOPYJC
-            $line.=' '.$PythonCode[$i];                         # SNOOPYJC e.g. ...)or => ...) or
+        #} elsif( exists $SpaceBefore{substr($PythonCode[$i],0,2)} && defined($line) && substr($line,-1,1) ne ' ' ) {        # SNOOPYJC
+           #$line.=' '.$PythonCode[$i];                         # SNOOPYJC e.g. ...)or => ...) or
          } elsif( exists $SpaceBoth{$PythonCode[$i]} && defined($line) && substr($line,-1,1) ne ' ' ) {        # SNOOPYJC
             $line.=' '.$PythonCode[$i].' ';                     # SNOOPYJC e.g. a=b => a = b
          } elsif($PythonCode[$i] eq ',') {              # SNOOPYJC  Space after ','

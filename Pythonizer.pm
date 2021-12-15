@@ -143,7 +143,7 @@ sub prolog
             `pre_pythonizer -v 0 $fname`;
          }
          unless( -f "$fname.bak" ){
-            `cp -p $fname $fname.bak && tr -d "\r" < $fname.bak > $fname`; # just in case
+            `cp -p "$fname" "$fname.bak" && tr -d "\r" < "$fname.bak" > "$fname"`; # just in case
          }
          $fsize=-s $fname;
          if ($fsize<10){
@@ -960,12 +960,27 @@ my $line=<>;		# issue 39
 sub getline
 #
 #get input line. It has now ability to buffer line, which will be scanned by tokeniser next.
+# issue 45: if you pass in a 0, this means to defer outputting of blank and comment lines, which
+# issue 45: will then be output on the next call.  Pass in a 1 just to do that output.
 #
 {
 state @buffer; # buffer to "postponed lines. Used for translation of postfix conditinals among other things.
    #say STDERR "getline(@_): BufferValClass=@Perlscan::BufferValClass, buffer=@buffer";
    # issue 95 return $line if( scalar(@Perlscan::BufferValClass)>0  ); # block input if we process token buffer Oct 8, 2020 -- NNB
+   state @output_buffer = ();   # issue 45
+   $flag = -1;                  # issue 45
+   if ( scalar(@_) == 1 && 
+        length( do { no if $] >= 5.022, "feature", "bitwise"; no warnings "numeric"; $_[0] & "" } ) ) {
+       $flag = shift;           # issue 45: LOL all this just to see if I passed in a number or a string!
+   }
+   if($flag == 1) {             # issue 45: just output any buffered lines
+       while($o = pop @output_buffer) {
+           output_line(@$o);
+       }
+       return $line;
+   }
    if(  scalar(@_)>0 ){
+       return if(scalar(@_) == 1 && $_[0] eq '');       # SNOOPYJC: Don't make extra blank lines
        push(@buffer,@_); # buffer lines in the order they listed; they will be injected in the next call;
        #if (scalar(@_)==3){
        #  say join('|',@_);
@@ -975,6 +990,16 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
        return;
    }
    return $line if( scalar(@Perlscan::BufferValClass)>0  ); # issue 95: block input if we process token buffer Oct 8, 2020 -- NNB
+   my $output_line = sub {                      # issue 45
+       return if(!$PassNo);
+       if($flag == 0) {
+            my @args = @_;      # make a copy
+            push @output_buffer, \@args;
+        } else {
+            output_line(@_);
+        }
+   };
+
    while(1 ){
       #
       # firs we perform debufferization
@@ -992,11 +1017,11 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
 
       chomp($line);
       if(  length($line)==0 || $line=~/^\s*$/ ){
-         output_line('') if(  $PassNo); # blank line
+         &$output_line('');             # isue 45: blank line
          next;
       }elsif(  $line =~ /^\s*(#.*$)/ ){
          # pure comment lines
-         output_line('',$1) if(  $PassNo);
+         &$output_line('',$1);          # issue 45
          next;
       }elsif(  $line =~ /^__DATA__/ || $line =~ /^__END__/){
          # data block
@@ -1011,31 +1036,31 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
       }elsif(  substr($line,0,1) eq '='){
          # POD block
          # issue 79 output_line('',q['''']);
-         output_line('',q[''']) if( $PassNo);                # issue 79
-         output_line('',$line,1) if(  $PassNo);              # issue 79
+         &$output_line('',q[''']);                # issue 79, issue 45
+         &$output_line('',$line,1);               # issue 79, issue 45
          while($line=<>){
              # issue 79 last if( $line eq '=cut');
-            output_line('',$line,1) if(  $PassNo);  # issue 79
+            &$output_line('',$line,1);            # issue 79, issue 45
             if( substr($line,0,4) eq '=cut') {      # issue 79
                 $line = <>;                         # issue 79
                 last;
             }
          }
          # issue 79 output_line('',q['''']) if(  $PassNo);
-         output_line('',q[''']) if(  $PassNo);      # issue 79
+         &$output_line('',q[''']);      # issue 79, issue 45
       }elsif( substr($line,0,5) eq 'goto ') {   # SNOOPYJC: strange way to skip some code
          $line =~ /goto\s+([A-Za-z0-9_]+)/;
          $label = $1;
-         output_line('',q[''']) if( $PassNo);
-         output_line('',$line,1) if( $PassNo);
+         &$output_line('',q[''']);              # issue 45
+         &$output_line('',$line,1);             # issue 45
          while($line=<>){
-            output_line('', $line,1) if(  $PassNo);
+            &$output_line('', $line,1);         # issue 45
             if( $line =~ /^$label:/ ) {
                 $line = <>; 
                 last;
             }
          }
-         output_line('',q[''']) if(  $PassNo);
+         &$output_line('',q[''']);              # issue 45
       }
 
       return $line if(!defined $line);          # issue 79 - gives lots of errors below if we hit EOF
@@ -1374,7 +1399,7 @@ sub pep8                # Generate blank lines where they should be, and elimina
     }
     say $out $line;
     $last_was_blank = $this_is_blank;
-    $last_indent = $this_indent;
+    $last_indent = $this_indent if(!$this_is_blank);
 }
 
 sub cleanup_imports

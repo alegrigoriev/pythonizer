@@ -110,6 +110,7 @@
 # 0.922  2021/12/10  SNOOPYJC  issue 93, fix foreach (%hash), @arr = keys %hash, @arr = values %hash, @arr = %hash, ignore var defs alone, handle modelsss constant open, handle sed/awk style range, implement each
 # 0.923  2021/12/12  SNOOPYJC  Add wait() using _wait(), fileparse() using _fileparse(), fix open/opendir with filename expression, issue 94
 # 0.924  2021/12/13  SNOOPYJC  issue 95, implement do{...}while/until(...);, PERL5PATH is now automatic, addl fix for issue 93, issue 96, remove double ++/-- fix, remove warning on 1;, issue 99
+# 0.925  2021/12/14  SNOOPYJC  Addl fixes for issue 21 (split), issue 45 (was putting orig lines in wrong place), issue 58 on elsif, fix opendir not found error, issue 98, issue 100, remove extra 'r' after regex, issue 101
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -120,6 +121,7 @@
    use File::Basename;	# SNOOPYJC
    $SIG{ __DIE__ } = sub { Carp::confess( @_ ) };	# SNOOPYJC
    $SIG{ INT } = sub { Carp::confess( @_ ) };		# SNOOPYJC
+   # $SIG{ __WARN__ } = sub { Carp::confess( @_ ) };	# SNOOPYJC
    $| = 1;                                              # SNOOPYJC - unbuffer STDOUT
 
 BEGIN {                                                 # SNOOPYJC
@@ -143,7 +145,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar %VarType %InitVar init_val); # SNOOPYJC
 
-   $VERSION='0.924';
+   $VERSION='0.925';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -251,14 +253,19 @@ BEGIN {                                                 # SNOOPYJC
 #Main loop
 #
    @Perlscan::BufferValClass=@Perlscan::BufferValCom=@Perlscan::BufferValPerl=@Perlscan::BufferValPy=(); # cleaning after the first pass
+   @Perlscan::BufferValType=();
 my ($start,$token_buffer_active);
    $CurSub='main';
    $token_buffer_active=0;
    $we_are_in_sub_body=0;
    $context_manager_nest = -2;          # issue 66
    @eval_stack = ();                    # issue 42
-   $LastLabel = '';                    # SNOOPYJC
+   $LastLabel = '';                     # SNOOPYJC
+   $deferred_statement=0;               # issue 58
+   $deferred_statement_nesting=0;       # issue 58
+   @DeferredValClass=@DeferredValCom=@DeferredValPerl=@DeferredValPy=@DeferredValType=();        # issue 58
    &Perlscan::initialize();             # issue 94
+
    while( defined($line) || scalar(@Perlscan::BufferValClass)>0 ){
       $TrStatus=0;
       # issue 68 if( scalar(@ValClass)==0 || ! defined($ValClass[0]) ){
@@ -270,13 +277,13 @@ my ($start,$token_buffer_active);
       # issue 13 $line =~ s/\{([A-Za-z_][A-Za-z0-9_]*)\}/\{\'$1\'\}/g;	# issue 13
       # We do this a better way now: $line =~ s/(?<!\$)\{([A-Za-z_][A-Za-z0-9_]*)\}/\{\'$1\'\}/g;	# issue 13
       if($debug >= 5) {
-        say "Main loop, line=$line, BufferValClass=@Perlscan::BufferValClass";
+        say "Main loop, line=$line, BufferValClass=@Perlscan::BufferValClass, deferred_statement=$deferred_statement";
       }
 
 #
 # You need to claw back tokens from buffer for postfix conditionals. This is a pretty brittle and complex code -- Oct 8,2020 NNB
 #
-      if ( scalar(@Perlscan::BufferValClass)==0 ) {
+      if ( scalar(@Perlscan::BufferValClass)==0 && $deferred_statement < 2) {       # issue 58
          if( $debug>1 ){
             say STDERR "\n\n === Line $. Perl source:".(defined($line)?$line:$ValPerl[0])."===\n";
             if( $.>=$breakpoint ){
@@ -286,8 +293,41 @@ my ($start,$token_buffer_active);
             }
          }
          tokenize($line);   # I just like to see tokenize call first in debugger  :-)
+         if($debug >= 5) {
+            say STDERR "deferred_statement_nesting=$deferred_statement_nesting, nesting_level=$Perlscan::nesting_level, TokenStr=$TokenStr, nesting_last->{type}=$Perlscan::nesting_last->{type}" if($deferred_statement == 1);
+         }
+
+         if($deferred_statement == 1 && $Perlscan::nesting_level < $deferred_statement_nesting) {       # issue 58
+            if($Perlscan::nesting_last->{type} eq 'else') {
+                $deferred_statement=0;          # We're all set
+            } elsif($TokenStr ne '}' && substr($TokenStr,0,1) ne 'C') {
+                gen_statement('else:');         # Insert an 'else:' clause so we have a place to generate the assignment
+                correct_nest(1,1);
+                my @tmp=@ValClass; @ValClass=@DeferredValClass; @DeferredValClass=@tmp;
+                @tmp=@ValCom; @ValCom=@DeferredValCom; @DeferredValCom=@tmp;
+                @tmp=@ValPerl; @ValPerl=@DeferredValPerl; @DeferredValPerl=@tmp;
+                @tmp=@ValPy; @ValPy=@DeferredValPy; @DeferredValPy=@tmp;
+                @tmp=@ValType; @ValType=@DeferredValType; @DeferredValType=@tmp;
+                $TokenStr=join('',@ValClass);
+                $deferred_statement=3;
+            }
+        }
       }else{
-         if($token_buffer_active==0){
+         if($deferred_statement >= 2) {         # issue 58
+            @ValClass=@DeferredValClass;
+            $TokenStr=join('',@ValClass);
+            @ValCom=@DeferredValCom;
+            @ValPerl=@DeferredValPerl;
+            @ValPy=@DeferredValPy;
+            @ValType=@DeferredValType;
+            #@DeferredValClass=@DeferredValCom=@DeferredValPerl=@DeferredValPy=@DeferredValType=();   # issue 58
+            if($deferred_statement == 3) {
+                correct_nest(-1,-1);            # We inserted an "else:" above
+                $deferred_statement = 0;
+            } else {
+                $deferred_statement = 1;
+            }
+         } elsif($token_buffer_active==0){
             @ValClass=@ValPerl=('{');
             @ValPy=('if');                      # issue 94
             &Perlscan::enter_block();           # issue 94
@@ -298,11 +338,13 @@ my ($start,$token_buffer_active);
             @ValCom=@Perlscan::BufferValCom;
             @ValPerl=@Perlscan::BufferValPerl;
             @ValPy=@Perlscan::BufferValPy;
+            @ValType=@Perlscan::BufferValType;
             $token_buffer_active=2;
          }else{
             @ValClass=@ValPerl=('}');
             &Perlscan::exit_block();           # issue 94
             @Perlscan::BufferValClass=@Perlscan::BufferValCom=@Perlscan::BufferValPerl=@Perlscan::BufferValPy=();
+            @Perlscan::BufferValType=();
             $token_buffer_active=0;
          }
       }
@@ -356,6 +398,10 @@ my ($start,$token_buffer_active);
       
       if( $ValClass[0] eq '}' ){
          # we treat curvy bracket as a separate dummy statement
+         if($debug >= 5 && $deferred_statement == 1) {
+             say STDERR "deferred_statement_nesting=$deferred_statement_nesting, nesting_level=$Perlscan::nesting_level";
+             say STDERR "nesting_last->{type}=$Perlscan::nesting_last->{type}";
+         }
          if(!$Pythonizer::GeneratedCode) {      # issue 96
              gen_statement('pass');             # issue 96: python doesn't allow empty blocks
          }                                      # issue 96
@@ -395,6 +441,9 @@ my ($start,$token_buffer_active);
          }
          $Pythonizer::GeneratedCode = 0;                # issue 96
          correct_nest(1); # next line will be indented
+         if($deferred_statement == 1 && $deferred_statement_nesting == $Perlscan::nesting_level) {
+            $deferred_statement = 2;  # issue 58
+         }
       }elsif( $ValClass[0] eq '(' ){
          $close_br_pos=matching_br(0);
          # issue paren if( $close_br_pos && $ValClass[$close_br_pos+1] eq '=' ){
@@ -746,9 +795,32 @@ my ($start,$token_buffer_active);
       }elsif( $ValClass[0] eq 'C' ){
          #next last continue
          if( $ValPerl[0] eq 'elsif' ){
-            gen_chunk('elif ');
             $end_pos=matching_br(1);
-            $TrStatus=expression(2,$end_pos-1,0);
+            $k=0;
+            if(($k=next_same_level_token('=', 2, $end_pos-1))>-1 && 
+                ($ValClass[$k-1] !~ /[ahs]/ || $ValPy[$k-1] !~ /[A-Za-z0-9_]+/)) {      # issue 58: complex assignment
+               $deferred_statement = 1;                 # In the elif body we will generate the "complex_stuff=_e" assignment
+               $deferred_statement_nesting = $Perlscan::nesting_level;
+               @DeferredValClass=@ValClass[2..$k]; 
+               @DeferredValCom=@ValCom[2..$k]; 
+               @DeferredValPerl=@ValPerl[2..$k]; 
+               @DeferredValPy=@ValPy[2..$k];
+	       @DeferredValType=@ValType[2..$k];
+               push @DeferredValClass, 'a';
+               push @DeferredValCom, '';
+               push @DeferredValPerl, $ELSIF_TEMP;
+               push @DeferredValPy, $ELSIF_TEMP;
+               push @DeferredValType, '';
+               replace(2, 'a', $ELSIF_TEMP, $ELSIF_TEMP);       # Change it to _e:=expression
+               destroy(3,$k-3) if($k >= 3);
+               $end_pos -= ($k-3);
+            }
+            gen_chunk('elif ');
+            if($k>0) {                          # issue 58: We have a := in there
+                $TrStatus=expression(1,$end_pos,0);     # Keep the parens
+            } else {
+                $TrStatus=expression(2,$end_pos-1,0);
+            }
             gen_chunk(':');
             gen_statement();
          }elsif( $ValPerl[0] eq 'else' ){
@@ -1181,7 +1253,7 @@ sub finish
     $generated_code = scalar(@Perlscan::PythonCode);            # issue 45
     # issue 45 gen_statement();
     my $prev_line = $line;                                      # issue 45
-    $line=getline(); # get new line
+    $line=getline(0) if($deferred_statement < 2); # get new line # issue 58, issue 45
     #say STDERR "finish $CurSub generated_code=$generated_code, line=(($line)), prev_line=(($prev_line)), ValPerl=@ValPerl, CurNest=$Pythonizer::CurNest";
     if(($CurSub ne 'main' || scalar(@eval_stack) != 0) &&       # issue 42
         defined $line &&                                        # issue 42
@@ -1230,6 +1302,7 @@ sub finish
         }                                                       # issue 45
     }                                                           # issue 45
     gen_statement();                                            # issue 45
+    getline(1);                                                 # issue 45
 
     $eval_nest = ((scalar(@eval_stack) == 0) ? -2 : $eval_stack[-1]->{eval_nest});        # issue 42
     if($debug >= 3 && scalar(@eval_stack)) {
@@ -1755,6 +1828,7 @@ sub regex_and_translate
 #
 {
 my($start,$k,$split)=@_;
+   say STDERR "regex_and_translate($start,$k,$split)" if($debug >= 3);  # SNOOPYJC
    if( $ValClass[$split+1] eq 'f' && $ValPerl[$split+1] eq 'tr'){
       # tr is a special case -- this is not regular expression
       if( $split-$k==1 ){
@@ -2585,13 +2659,24 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       }
       $arg1=$ValPy[$k];  # first argument is present
       $arg1type=$ValClass[$k];
+      $flags = '';                      # issue 21
+      if($arg1type ne '"' && $k+1 <= $#ValClass && $ValClass[$k+1] eq 'i') {    # issue 21: we have FLAGS!
+          $k++;
+          foreach my $flag (split(//,$ValPerl[$k])) {
+              next if($flag eq 'g');            # 'g' flag is meaningless here
+              $flags .= '|re.'.uc($flag);     
+          }
+          $flags =~ s/^\|/, flags=/;
+      }
       if(($k+1) > $#ValClass || $ValPerl[$k+1] ne ','){	# SNOOPYJC
          # special case of splitting degaqult varible on white space
-         if( $arg1 eq ' ' || $arg1type eq '"' ){
+         # issue 21 if( $arg1 eq ' ' || $arg1type eq '"' ){
+         if( $arg1type eq '"' ){                        # issue 21: string
+            $arg1 ='' if($arg1 eq "' '");               # issue 21: string of ' ' is a special case
             gen_chunk("${DEFAULT_VAR}.split($arg1)");           # issue 32
          }else{
 	    # issue 21 gen_chunk($py_name,"($arg1,default_var"); # this is a regex function
-            gen_chunk($py_name,"($arg1,$DEFAULT_VAR)"); # this is a regex function	# issue 21, issue 32
+            gen_chunk($py_name,"($arg1, $DEFAULT_VAR$flags)"); # this is a regex function	# issue 21, issue 32
          }
          # SNOOPYJC return $end_pos+1;
          return $limit+1;                     # SNOOPYJC
@@ -2600,27 +2685,41 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       if( $k==$end_pos ){
          $arg2=$ValPy[$k];
          $k+=1;
-         if( $arg1 eq ' ' || $arg1type eq '"' ){
-	    # issue split gen_chunk("$arg2.lstrip($arg1");
-            gen_chunk("$arg2.split(");	# issue split
+         # issue 21 if( $arg1 eq ' ' || $arg1type eq '"' ){
+	 # issue 21    gen_chunk("$arg2.lstrip($arg1");
+         if( $arg1type eq '"' ){        # issue 21
+            $arg1 ='' if($arg1 eq "' '");       # issue 21: string of ' ' is a special case
+            gen_chunk("$arg2.split($arg1");	# issue 21
          }else{
-            gen_chunk($py_name,"($arg1,$arg2"); # this is a regex function
+            gen_chunk($py_name,"($arg1,$arg2$flags"); # issue 21: this is a regex function
          }
       }elsif( ($split=next_same_level_token(',',$k+1,$end_pos))>-1 ){
          #we have third argument to split
-         gen_chunk($py_name,"($arg1,");
-         $k=expression($k,$split-1);
-         gen_chunk(',');
-         if( $end_pos-$split==1 ){
-            gen_chunk($ValPy[$k]);
-         }else{
-            $k=expression($split+1,$end_pos,0);
+         if($arg1type eq '"') {                 # issue 21
+            $k=expression($k,$split-1);         # issue 21
+            if($arg1 eq "' '") {       # issue 21: string of ' ' is a special case
+                gen_chunk(".split(maxsplit=");       # issue 21
+            } else {
+                gen_chunk(".split($arg1,");          # issue 21
+            }
+         } else {
+            gen_chunk($py_name,"($arg1,");
+            $k=expression($k,$split-1);
             return -255 if($k<0);
+            gen_chunk(',');
          }
-	 gen_chunk("-1");	# issue 21
-      }else{			# issue 21
+         $k=expression($split+1,$end_pos,0);
+         return -255 if($k<0);
+	 gen_chunk("-1");	        # issue 21: # of times to split is different in python
+         gen_chunk($flags) if($flags);  # issue 21
+      }elsif($arg1type eq '"') {        # issue 21: Expression with string pattern and 2 args
+         $k=expression($k,$end_pos);	# issue 21
+         $arg1 ='' if($arg1 eq "' '");       # issue 21: string of ' ' is a special case
+         gen_chunk(".split($arg1");     # issue 21
+      }else{			# issue 21: Expression with regex pattern and 2 args
          gen_chunk($py_name,"($arg1,");	# issue 21
          $k=expression($k,$end_pos);	# issue 21
+         gen_chunk($flags) if($flags);  # issue 21
       }
       gen_chunk(')');
    }elsif($perl_name eq 'print' || $perl_name eq 'printf') {
@@ -3480,6 +3579,7 @@ my($k,$myline, $target,$open_mode,$handle);
    }elsif( $ValClass[$k] eq 'i' && $LocalSub{$ValPy[$k]}) {
       $target=escape_keywords($ValPy[$k]).'([])';
    }
+   $Pyf{'opendir'} = 1;
 
    if( $mode eq 'f' ){
      #logme('E',"In case of error open function in Python raises the FileNotFoundError exception. The code should be revised");
@@ -3570,7 +3670,7 @@ my $begin=$_[0];
       return -255;
    }
 
-my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos);
+my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
    if( $begin<0 || $TrStatus<0 ){
        $TrStatus=-1; return -255;
    }elsif( $begin>$#ValClass ){
@@ -3590,7 +3690,8 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos);
    # issue 70 }else{
    # issue 70    $limit=$_[1];
    }
-   $bracketed=1 if $ValClass[$begin] eq '(';
+   # issue 90 $bracketed=1 if $ValClass[$begin] eq '(';
+   $bracketed=1 if $ValClass[$begin] eq '(' && matching_br($begin) == $limit;   # issue 90
    $RecursionLevel++; # we are starting from 0
    if($debug >= 3) {
 	   say STDERR "expression($begin, $limit, $mode) =|$TokenStr|= @ValPerl\n"
@@ -3633,6 +3734,11 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos);
          $DB::single = 1;
       }
       #
+      $pos = next_same_level_tokens('0~', $cur_pos, $limit);    # issue 101
+      if($pos != -1 && $ValClass[$pos] eq '~') {                # issue 101
+         $cur_pos=regex_and_translate($cur_pos,$cur_pos,$pos); # issue 101
+         next;                                                  # issue 101
+      }                                                         # issue 101
       if( $ValClass[$cur_pos] eq '(' ){
          # generate bracket if mode=1 or recursion level is above zero
          gen_chunk($ValPy[$cur_pos]);
@@ -3668,6 +3774,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos);
          # As the argument to =~ can be complex. currently we can transtalte only two simple case: a scalar and an element of array/hash
          $pos=next_same_level_token('0',$cur_pos,$limit); # limit  of search for '~' below
          $end_pos=( $pos>-1 )? $pos : (($bracketed ==1) ? $limit-1 : $limit); # limit scan to next && or ||
+         #say STDERR "found s/f at $cur_pos, pos=$pos, end_pos=$end_pos, limit=$limit, bracketed=$bracketed";
          if( $end_pos-$cur_pos>=2 && $ValClass[$cur_pos] eq 's'
              && $ValClass[$cur_pos+1] eq '='  &&  $ValClass[$cur_pos+2] eq 'f' ){
             # can be method like while( $line=shift )
@@ -3808,7 +3915,8 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos);
       }
       $prev_k=$cur_pos
    }
-   if( $mode==1 && $ValClass[$begin] ne '(' ){
+   # issue 90 if( $mode==1 && $ValClass[$begin] ne '(' ){
+   if( $mode==1 && $bracketed == 0){    # issue 90
       #we generated opening bracket, so let's geneerate closing
       gen_chunk(')');
    }

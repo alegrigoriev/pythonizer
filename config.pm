@@ -9,7 +9,7 @@ package config;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET array_var_name hash_var_name label_exception_name );
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET array_var_name hash_var_name label_exception_name $ELSIF_TEMP);
 
 # use Readonly;		# Readonly is not installed by default so skip it!
 
@@ -29,6 +29,7 @@ our $GLOB_LIST = "_g";
 our $PERL_ARG_ARRAY = "_args";
 our $PERL_SORT_ = "";
 our $ARG_PARSER = "_parser";
+our $ELSIF_TEMP = "_e";                         # issue 58: used to capture complicated assignment in elsif
 our $DIAMOND = "_dia";                          # issue 66: for the <> operator
 our $EVAL_RESULT = "_eval_result";              # issue 42
 our $EVAL_RETURN_EXCEPTION = "EvalReturn";      # issue 42
