@@ -207,6 +207,16 @@ class _ArrayHash(defaultdict, collections.abc.Sequence):
             for i in range(len(self)):
                 yield self[i]
 
+    def __str__(self):
+        if hasattr(self, 'isHash'):
+            return str(dict(self))
+        return str(list(self))
+
+    def __repr__(self):
+        if hasattr(self, 'isHash'):
+            return "Hash(" + self.__str__() + ")"
+        return "Array(" + self.__str__() + ")"
+
     def __add__(self, other):
         result = ArrayHash(self)
         if hasattr(self, 'isHash') or (isinstance(other, dict) and not isinstance(other, _ArrayHash)) or hasattr(other, 'isHash'):
@@ -267,6 +277,11 @@ def ArrayHash(init=None,isHash=False):
             result.append(init)
     return result
 
+def Array(init=None):
+    return ArrayHash(init)
+
+def Hash(init=None):
+    return ArrayHash(init, isHash=True)
 
 
 def _binmode(file,mode=None,encoding=None,errors=None):
