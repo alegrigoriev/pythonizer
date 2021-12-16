@@ -111,6 +111,7 @@
 # 0.923  2021/12/12  SNOOPYJC  Add wait() using _wait(), fileparse() using _fileparse(), fix open/opendir with filename expression, issue 94
 # 0.924  2021/12/13  SNOOPYJC  issue 95, implement do{...}while/until(...);, PERL5PATH is now automatic, addl fix for issue 93, issue 96, remove double ++/-- fix, remove warning on 1;, issue 99
 # 0.925  2021/12/14  SNOOPYJC  Addl fixes for issue 21 (split), issue 45 (was putting orig lines in wrong place), issue 58 on elsif, fix opendir not found error, issue 98, issue 100, remove extra 'r' after regex, issue 101
+# 0.926  2021/12/15  SNOOPYJC  Addl fix for issue 93, uniquely map tokens to get precedence, issue 102, update to ending fix in double_quoted string
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -143,9 +144,9 @@ BEGIN {                                                 # SNOOPYJC
                  'save_code', 'restore_code',           # issue 74
                  '@ValType', '$TokenStr');
 
-   use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar %VarType %InitVar init_val); # SNOOPYJC
+   use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token); # SNOOPYJC
 
-   $VERSION='0.925';
+   $VERSION='0.926';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -682,6 +683,32 @@ my ($start,$token_buffer_active);
               next;
           }
           if( $ValClass[1] eq '=' ){
+             my $need_flatten = 0;                                                  # issue 102
+             if( $ValPerl[2] eq '(' && ($end_pos=matching_br(2)) == $#ValClass){    # issue 102
+                # array initialization
+                # issue 102: need to smarten this code up.  First see if what we have needs to be flattened,
+                # if so and it's just one thing, we can avoid doing that.
+                my $elements = 0;
+                for(my $i=3; $i<$end_pos; $i++) {
+                    $elements++;
+                    if($ValClass[$i] =~ /[ah]/) {
+                        $need_flatten = 1;
+                        last if($elements>1);
+                    } elsif($ValClass[$i] eq 'f' && substr(&Pythonizer::func_type($ValPerl[$i]),0,1) eq 'a') {
+                        $need_flatten = 1;
+                        last if($elements>1);
+                    }
+                    my $pos = next_same_level_token(',', $i, $end_pos-1);
+                    $pos = $end_pos if($pos == -1);
+                    $i = $pos;
+                }
+                #say STDERR "need_flatten=$need_flatten, elements=$elements";
+                if($need_flatten && $elements==1) {
+                    destroy($end_pos, 1);
+                    destroy(2,1);
+                    $need_flatten = 0;
+                }
+             }
              if( $#ValClass==2 && $ValClass[2] eq 'a'){
                 # Special case array to array copy
 		# issue 31 gen_chunk("$ValPy[0]=$ValPy[2].copy");
@@ -701,24 +728,24 @@ my ($start,$token_buffer_active);
                 next;
              }elsif( $ValPerl[2] eq '(' && ($end_pos=matching_br(2)) == $#ValClass){    # SNOOPYJC
                 # array initialization
-                gen_chunk($ValPy[0],' = [');
-                $end_pos=matching_br(2);
-                for (my $i=3; $i<$end_pos; $i++){
-		    if( $ValClass[$i] eq 'i' && $ValPerl[$i] eq $ValPy[$i]) {	# issue 13
-	      		if( $LocalSub{$ValPy[$i]} ){				# issue 13: local sub call with no parens
-	        	    gen_chunk(escape_keywords($ValPy[$i]));		# issue 13, issue 41
-	        	    gen_chunk('([])');  				# issue 13
-              		} elsif ($Constants{$ValPy[$i]}) {                      # issue 13: constant or file handle
-                	    gen_chunk($ValPy[$i]);           		        # issue 13
-			} else {
-			    $ValPy[$i] = "'".$ValPy[$i]."'";		        # issue 13 - put in quotes
-                            gen_chunk($ValPy[$i]);
-			}
-		    } else {							# issue 13
-                        gen_chunk($ValPy[$i]);
-                    }
+
+                my $flatten = '';
+                my $flatten_end = '';
+                if($need_flatten) {
+                    $Pyf{'_flatten'} = 1;
+                    $flatten = '_flatten(';
+                    $flatten_end = ')';
                 }
-                gen_chunk(']');
+
+                gen_chunk($ValPy[0]," = $flatten".'[');
+                for (my $i=3; $i<$end_pos; $i++){
+                    my $pos = next_same_level_token(',', $i, $end_pos-1);       # issue 102
+                    $pos = $end_pos if($pos == -1);                             # issue 102
+                    $TrStatus = expression($i, $pos-1, 0);                      # issue 102
+                    $i = $pos;
+                    gen_chunk(',') if($ValClass[$i] eq ',');
+                }
+                gen_chunk("]$flatten_end");
                 finish();
                 next;
              }elsif( $ValPerl[2] =~ /<\w*>/ ){
@@ -785,9 +812,9 @@ my ($start,$token_buffer_active);
 	      }						# issue 19
           }
 
-          if ($TokenStr=~/^c\(\!f\(?/ && $ValPerl[3] eq 'open' ){
+          if ($TokenStr=~/^c\([!n]f\(?/ && $ValPerl[3] eq 'open' ){
             $TrStatus=open_fun(3,matching_br(1)-1,'c');   # SNOOPYJC: add extra param
-          }elsif ($TokenStr=~/^c\(\!f\(?/ && $ValPerl[3] eq 'opendir' ){
+          }elsif ($TokenStr=~/^c\([!n]f\(?/ && $ValPerl[3] eq 'opendir' ){
               $TrStatus=open_dir(3,matching_br(1)-1,'c'); # SNOOPYJC: add extra param
           }else{
             $TrStatus=control(0); # control now itself destroy the last ) Oct 14, 2020 --NNB
@@ -888,14 +915,14 @@ my ($start,$token_buffer_active);
       }elsif( $ValClass[0] eq '(' ){
          # (/abc/) && a=b; (a<b) || a=7
          $right_br=matching_br(0);
-         if( $ValClass[$right_br+1] eq '0' ){
+         if( $ValClass[$right_br+1] =~ /[0o]/ ){        # issue 93
             gen_chunk('if ');
             $RecursionLevel=-1;
             $TrStatus=expression(0); # this will scan till ')'
-         }elsif( $ValClass[$right_br+1] eq '1' ){
-            gen_token('if ! ');
-            $RecursionLevel=-1;
-            $TrStatus=expression(0); # this will scan till ')'
+         # SNOOPYJC }elsif( $ValClass[$right_br+1] eq '1' ){
+            # SNOOPYJC gen_token('if ! ');
+            # SNOOPYJC $RecursionLevel=-1;
+            # SNOOPYJC $TrStatus=expression(0); # this will scan till ')'
          }elsif( $ValClass[$right_br+1] eq '=' ){
             #this is a list assignment like ($i,$k)=@_  or ($i,$k)=split(//,$text)
             $RecursionLevel=-1;
@@ -1067,14 +1094,15 @@ sub fix_scalar_context                          # issue 37
 sub fix_string_catenation                       # issue 36
 {
     # Run over the statement and fix string catenation issues
+    # FIXME: Handle .= operator!
     for(my $i=0; $i<=$#ValClass; $i++) {
-        if($ValClass[$i] eq '.' and $ValPy[$i] eq ' + ') {
+        if($ValClass[$i] eq '.') {              # issue 93
             my $j = $i-1;
             while($j >= 0) {
                 if($ValClass[$j] eq ')') {
                     $j=reverse_matching_br($j);
                 } else {
-                    last if(index(".>0=,()!cfi", $ValClass[$j]) >= 0);
+                    last if(index(".>o0=,()ncfi", $ValClass[$j]) >= 0);
                 }
                 $j--;
             }
@@ -1094,7 +1122,7 @@ sub fix_string_catenation                       # issue 36
                 if($ValClass[$j] eq '(') {
                     $j=matching_br($j);
                 } else {
-                    last if(index(".>0=,()!c", $ValClass[$j]) >= 0);
+                    last if(index(".>o0=,()nc", $ValClass[$j]) >= 0);
                 }
                 $j++;
             }
@@ -1172,7 +1200,7 @@ sub remove_array_or_hash_references                     # issue 50
             my $to = matching_br($i);
             next if($to < 0);
             my $j;
-            if(($j = index($TokenStr,':',$i+1)) > 0 && $j < $to) {   # $TokenStr is a string representation of @ValClass
+            if(($j = index($TokenStr,'A',$i+1)) > 0 && $j < $to) {   # $TokenStr is a string representation of @ValClass
                 $ValPy[$i] = '{';
                 $ValPy[$to] = '}';
             }
@@ -1410,7 +1438,7 @@ my $end_pos=$#ValClass;                                            # issue 10
    if( $start+1 <= $#ValClass && $ValClass[$start+1] =~ /[is]/ ){ # issue 32
       $handle=$ValPy[$start+1];
       $k=$start+2;
-      if($k <= $#ValClass && ($ValClass[$k] eq ',' || $ValClass[$k] eq '.')) {    # issue 32; handle print $session->elapsed_time(...)
+      if($k <= $#ValClass && ($ValClass[$k] eq ',' || $ValClass[$k] eq 'D')) {    # issue 32; handle print $session->elapsed_time(...), issue 93
           $handle='';
           $k = $start+1;
       }elsif($ValClass[$start+1] eq 's' && ($#ValClass == $start+1 || $ValClass[$start+2] eq '(')) { # issue 32
@@ -1719,7 +1747,7 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
    }elsif( ($split=index($TokenStr,'~',$k))>-1) {
       $k=regex_and_translate($start,$k,$split,0);
       return $k+1;
-   }elsif($#ValClass >= 3 && $ValClass[$start+1] eq '.' && $ValClass[$start+2] eq 'i') {        # SNOOPYJC $obj->method or $obj->method(args)
+   }elsif($#ValClass >= 3 && $ValClass[$start+1] eq 'D' && $ValClass[$start+2] eq 'i') {        # SNOOPYJC $obj->method or $obj->method(args)
        $k = expression($start,$#ValClass,0);            # SNOOPYJC
        return -255 if( $k<0 );                          # SNOOPYJC
        return $k+1;                                     # SNOOPYJC
@@ -1914,48 +1942,6 @@ my($start,$k,$split)=@_;
    return $k+1;
 }
 
-sub matching_br
-# Find matching bracket, arase closeing braket, if found.
-# Arg1 - starting position for scan
-# Arg2 - (optional) -- balance from whichto start (allows to skip opening brace)
-{
-my $scan_start=$_[0];
-my $balance=(scalar(@_)>1) ? $_[1] : 0; # case where opening bracket is missing for some reason or was skipped.
-   for( my $k=$scan_start; $k<length($TokenStr); $k++ ){
-     $s=substr($TokenStr,$k,1);
-     if( $s eq '(' ){
-        $balance++;
-     }elsif( $s eq ')' ){
-        $balance--;
-        if( $balance==0  ){
-           return $k;
-        }
-     }
-  } # for
-  return $#TokenStr;
-} # matching_br
-
-sub reverse_matching_br
-# Find matching bracket, opening braket, if found.
-# Arg1 - starting position for scan
-# Arg2 - (optional) -- balance from whichto start (allows to skip closing brace)
-{
-my $scan_start=$_[0];
-my $balance=(scalar(@_)>1) ? $_[1] : 0; # case where opening bracket is missing for some reason or was skipped.
-   for( my $k=$scan_start; $k>=0; $k-- ){
-     $s=substr($TokenStr,$k,1);
-     if( $s eq ')' ){
-        $balance++;
-     }elsif( $s eq '(' ){
-        $balance--;
-        if( $balance==0  ){
-           return $k;
-        }
-     }
-  } # for
-  return 0;
-} # reverse_matching_br
-
 #
 # Extration of assignment statement from conditions and other places where Python prohibits them
 # Added Nov 11, 2019
@@ -1969,7 +1955,7 @@ my  $assign_end=matching_br($assign_start);
 	   say STDERR "pre_assign($assign_start, $_[1]), assign_end=$assign_end, =|$TokenStr|= @ValPerl\n"
    }
    ($assign_end<0) && return -255;
-   if($ValClass[$assign_start+1] eq '!') {              # issue 58 - skip any "not" clause
+   if($ValClass[$assign_start+1] =~ /[n!]/) {              # issue 58 - skip any "not" clause, issue 93
        if($ValClass[$assign_start+2] eq '(') {
            $assign_start += 2;
            $assign_end = matching_br($assign_start);
@@ -2307,67 +2293,6 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
    }
 } # control
 
-sub next_matching_token                 # SNOOPYJC
-# get the next matching token
-{
-my $t=$_[0];
-my $scan_start=$_[1];
-my $scan_end=$_[2];
-    $k = index(substr($TokenStr, $scan_start, $scan_end-$scan_start+1), $t);
-    return $k if($k < 0);
-    return $k + $scan_start;
-} # next_matching_token
-
-sub next_same_level_token
-# get the next token on the same nesting level.
-{
-my $t=$_[0];
-my $scan_start=$_[1];
-my $scan_end=$_[2];
-my $balance=0;
-    # issue 74 for( my $k=$scan_start; $k<$scan_end; $k++ ){      # issue 74
-    for( my $k=$scan_start; $k<=$scan_end; $k++ ){      # issue 74
-      my $s=substr($TokenStr,$k,1);
-      if( $s eq '(' ){
-         $balance++;
-      }elsif( $s eq ')' ){
-         $balance--;
-      }
-      if($t eq ')') {            # SNOOPYJC: if we're looking for a ')', the balance needs to be -1
-          return $k if($s eq $t && $balance < 0);
-      } elsif( $s eq $t && $balance<=0  ){
-          return $k;
-      }
-   } # for
-   return -1; # not found
-} # next_same_level_token
-
-sub next_same_level_tokens
-# get the next token on the same nesting level matching any given by first arg.
-{
-my $toks=$_[0];
-my $scan_start=$_[1];
-my $scan_end=$_[2];
-my $balance=0;
-    # issue 74 for( my $k=$scan_start; $k<$scan_end; $k++ ){      # issue 74
-    for( my $k=$scan_start; $k<=$scan_end; $k++ ){      # issue 74
-      my $s=substr($TokenStr,$k,1);
-      if( $s eq '(' ){
-         $balance++;
-      }elsif( $s eq ')' ){
-         $balance--;
-      }
-      my $p = index($toks, $s);
-      if($p >= 0) {
-          if($s eq ')') {       # SNOOPYJC: if we're looking for a ')', the balance needs to be -1
-              return $k if($balance < 0);
-          } elsif( $balance<=0  ){
-              return $k;
-          }
-      }
-   } # for
-   return -1; # not found
-} # next_same_level_tokens
 
 sub function
 # Built-in  functions processing
@@ -2393,6 +2318,9 @@ my $bracketed=0;  # nessesary for the proper call of expression.
     if( $ValClass[$limit] eq ')' ){ $end_pos=$limit-1; }
   # issue 16 }elsif( ($k=index($TokenStr,'0'))>=1 ){
   }elsif( ($k=index($TokenStr,'0',$begin+1))>=1 ){	# issue 16
+      $end_pos=$limit=$k-1 if($k-1 < $end_pos); # if we have && that function should end before it
+      $bracketed=-1 if($end_pos < $start);              # issue 59
+  }elsif( ($k=index($TokenStr,'o',$begin+1))>=1 ){	# issue 16, issue 93
       $end_pos=$limit=$k-1 if($k-1 < $end_pos); # if we have && that function should end before it
       $bracketed=-1 if($end_pos < $start);              # issue 59
   }elsif( ($k=index($TokenStr,'>',$begin+1))>=1 ){	# issue 16
@@ -2775,7 +2703,7 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       # issue 28 }elsif($perl_name eq 'shift' ){
    }elsif($perl_name eq 'shift' || $perl_name eq 'pop'){        # issue 28
       # assent only a single arg -- array; if no argument then it uses @_ array
-      $bracketed=-1 if($bracketed!=-1 && index('>0+-*/',$ValClass[$start]) >= 0); # issue 28: pop has no arg if the next thing is an operator
+      $bracketed=-1 if($bracketed!=-1 && index('>0o+-*/',$ValClass[$start]) >= 0); # issue 28: pop has no arg if the next thing is an operator
       if( $bracketed==-1 ){
 	  # issue 28 gen_chunk("perl_arg_array$py_name");
           gen_chunk("($PERL_ARG_ARRAY$py_name if $PERL_ARG_ARRAY else None)");	# issue 28, issue 32
@@ -3190,7 +3118,7 @@ sub GetOptionsHandled           # issue 48: Can we handle this GetOptions call?
     } else {            # Check for Type 2:
         for(my $i = $start; ($i+4) <= $end_pos; $i += 5) {
             return 0 if($ValClass[$i] ne '"');
-            return 0 if($ValClass[$i+1] ne ':');
+            return 0 if($ValClass[$i+1] ne 'A');        # issue 93
             return 0 if($ValClass[$i+2] ne '\\');
             return 0 if($ValClass[$i+3] ne 's' && $ValClass[$i+3] ne 'a');
             return 0 if($ValClass[$i+4] ne ',' && $ValClass[$i+4] ne ')');
@@ -3703,7 +3631,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
            $l = matching_br($i);                        # issue 53
            next if($l < 0);                             # issue 53
            next if(index($TokenStr, '=') > $l);         # issue 53: skip if on lhs of assignment
-           if(substr($TokenStr,$i,($l+1)-$i) !~ /[,:]/) {   # issue 53: don't change list or hash constant
+           if(substr($TokenStr,$i,($l+1)-$i) !~ /[,A]/) {   # issue 53: don't change list or hash constant, issue 93
                $ValPy[$i] = '.get(';                        # issue 53
                $ValPy[$l] = ')';                            # issue 53
            }
@@ -3734,10 +3662,12 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
          $DB::single = 1;
       }
       #
-      $pos = next_same_level_tokens('0~', $cur_pos, $limit);    # issue 101
-      if($pos != -1 && $ValClass[$pos] eq '~') {                # issue 101
-         $cur_pos=regex_and_translate($cur_pos,$cur_pos,$pos); # issue 101
-         next;                                                  # issue 101
+      $pos = next_same_level_tokens('o0~,', $cur_pos, $limit);  # issue 101
+      if($pos != -1) {                                          # issue 101
+         if($ValClass[$pos] eq '~') {                           # issue 101
+            $cur_pos=regex_and_translate($cur_pos,$cur_pos,$pos); # issue 101
+            next;                                               # issue 101
+         }                                                      # issue 101: do nothing if we hit the 0 (or/and) or comma first
       }                                                         # issue 101
       if( $ValClass[$cur_pos] eq '(' ){
          # generate bracket if mode=1 or recursion level is above zero
@@ -3747,7 +3677,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
          # SNOOPYJC: Handle [k=>v, ...] and (k=>v, ...) - needs to generate a list, not a hash (note not {...} brackets)
          if($ValPy[$cur_pos] ne '{') {
              for(my $i=$cur_pos+1; $i<$match; $i++) {
-                 if($ValClass[$i] eq ':' && $ValPerl[$i] eq '=>') {
+                 if($ValClass[$i] eq 'A') {             # issue 93
                      $ValPy[$i] = ',';
                  }
              }
@@ -3762,17 +3692,24 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
          gen_chunk($ValPy[$cur_pos]);
          # issue paren return $cur_pos+1;
          $cur_pos++;                    # issue paren
-      }elsif( $ValClass[$cur_pos] eq '0' ){
+      }elsif( $ValClass[$cur_pos] =~ /[0o]/ ) {         # issue 93
          gen_chunk($ValPy[$cur_pos]);
          $start=$cur_pos=$cur_pos+1; # change starting point -- we need that for regular expressions.
        }elsif( $ValClass[$cur_pos] eq 'x' ){
          # execution of Unix uility via shell
           gen_chunk(qq{subprocess.run($ValPy[$cur_pos],capture_output=True,text=True,shell=True).stdout});
          $cur_pos++;
+      }elsif( $ValClass[$cur_pos] =~ /[ahs]/ && $cur_pos+1 < $limit && $ValPy[$cur_pos+1] eq ':=' && $mode != 1 &&
+              !(($cur_pos==0 || $ValPy[$cur_pos-1] eq '(') && ($limit+1>$#ValPy || $ValPy[$limit+1] eq ')' ))) {         # issue 93
+         $pos = $cur_pos+1;                                     # issue 93: ":=" operators have to be in parens
+         $pos = next_lower_or_equal_precedent_token('=', $pos+1, $limit);    # issue 93
+         $pos = $limit+1 if($pos<0);                        # issue 93
+         $cur_pos=expression($cur_pos, $pos-1, 1);          # issue 93: Add parens to the := operator
+         $cur_pos++;
       }elsif( $ValClass[$cur_pos]=~ /[sf]/ ){
          # match in Puthon is library re.match
          # As the argument to =~ can be complex. currently we can transtalte only two simple case: a scalar and an element of array/hash
-         $pos=next_same_level_token('0',$cur_pos,$limit); # limit  of search for '~' below
+         $pos=next_same_level_tokens('0o',$cur_pos,$limit); # limit  of search for '~' below    # issue 93
          $end_pos=( $pos>-1 )? $pos : (($bracketed ==1) ? $limit-1 : $limit); # limit scan to next && or ||
          #say STDERR "found s/f at $cur_pos, pos=$pos, end_pos=$end_pos, limit=$limit, bracketed=$bracketed";
          if( $end_pos-$cur_pos>=2 && $ValClass[$cur_pos] eq 's'
@@ -3822,7 +3759,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
              $cur_pos=$end_pos+1;
          }                                                                      # issue 99
       }elsif($ValClass[$cur_pos] eq 'i' && $ValPy[$cur_pos] eq $ValPerl[$cur_pos] && !inDotOp($cur_pos)) {	# issue 13
-         $pos=next_same_level_tokens('0>~)',$cur_pos,$limit);           # issue 13, issue 99
+         $pos=next_same_level_tokens('o0>~)',$cur_pos,$limit);           # issue 13, issue 99
          $end_pos=( $pos>-1 )? $pos-1 : (($bracketed ==1) ? $limit-1 : $limit);      # issue 13: limit scan to next && or ||, issue 99
          if($pos>-1 && $ValClass[$pos] eq '~') {                                   # issue 99
             $cur_pos=regex_and_translate($cur_pos,$cur_pos,$pos)-1;       # issue 99 (-1 is because we add 1 to it below)
@@ -3853,7 +3790,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
           } elsif($cur_pos+1 <= $#ValClass && $ValClass[$cur_pos+1] eq 'i') {           # SNOOPYJC: Like new XXXX
               my $last_i;
               for($last_i = $cur_pos+1; $last_i <= $#ValClass; $last_i++) {
-                  last if($ValClass[$last_i] ne 'i' && $ValClass[$last_i] ne '.');
+                  last if($ValClass[$last_i] ne 'i' && $ValClass[$last_i] ne 'D');
               }
               $last_i--;
               #say STDERR "last_i = $last_i";
@@ -3934,10 +3871,10 @@ sub inDotOp				# issue 13 - check to see if this bare word is involved in a "->"
 {
     my $pos = shift;
     if($pos != 0) {
-	return 1 if($ValClass[$pos-1] eq '.');
+	return 1 if($ValClass[$pos-1] eq 'D');
     }
     if($pos != $#ValClass) {
-	return 1 if($ValClass[$pos+1] eq '.');
+	return 1 if($ValClass[$pos+1] eq 'D');
     }
     return 0;
 }
@@ -4013,7 +3950,7 @@ sub handle_incr_decr                    # issue 74: handle ++ and -- in expressi
     if($lvalue_start != 0 && $ValClass[$lvalue_start-1] eq 'i' && $ValClass[$lvalue_start] ne '(' && $LocalSub{$ValPy[$lvalue_start-1]}) {
         # We have a sub call w/o parens here - since we may insert parens after the function reference,
         # we have to surround the entire set of args with parens to make sure we process it right
-        $pos=next_same_level_tokens('0~',$lvalue_start,$limit); 
+        $pos=next_same_level_tokens('o0~',$lvalue_start,$limit); 
         $end_pos=( $pos>-1 )? $pos-1 : $limit;
         insert($end_pos+1, ')', ')', ')');
         insert($lvalue_start, '(', '(', '(');
@@ -4150,8 +4087,7 @@ sub handle_cmp_spaceship                    # SNOOPYJC: Handle cmp and <=> opera
     for($a_start=$a_end; $a_start >= $start; $a_start--) {
         if($ValClass[$a_start] eq ')') {
             $a_start = reverse_matching_br($a_start);
-        } elsif(index('&|^0r:?=,!(', $ValClass[$a_start]) >= 0) {
-            next if($ValPerl[$a_start] eq '!');         # Distinguish ! from 'not', as ! is higher precidence than 'not'
+        } elsif(index('&|^o0r:A?=,n(', $ValClass[$a_start]) >= 0) {
             last;
         }
     }
@@ -4160,8 +4096,7 @@ sub handle_cmp_spaceship                    # SNOOPYJC: Handle cmp and <=> opera
     for($b_end=$b_start; $b_end <= $limit; $b_end++) {
         if($ValClass[$b_end] eq '(') {
             $b_end = matching_br($b_end);
-        } elsif(index('&|^0r:?=,!)', $ValClass[$b_end]) >= 0) {
-            next if($ValPerl[$b_end] eq '!');         # Distinguish ! from 'not'
+        } elsif(index('&|^o0r:A?=,n)', $ValClass[$b_end]) >= 0) {
             last;
         }
     }

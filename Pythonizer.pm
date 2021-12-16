@@ -24,7 +24,7 @@ use v5.10.1;
 use warnings;
 use strict 'subs';
 use feature 'state';
-use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType);
+use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType %token_precedence);  # SNOOPYJC
 use Softpano qw(abend logme out getopts standard_options);
 use config;				# issue 32
 use Data::Dumper;       # SNOOPYJC
@@ -32,7 +32,7 @@ require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %GlobalVar %InitVar %VarType init_val); # SNOOPYJC
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token); # SNOOPYJC
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname);
    # issue 32 $::TabSize=3;
    $::TabSize=$TABSIZE;         # issue 32
@@ -571,22 +571,18 @@ sub scalar_reference_type       # given a reference to a scalar, try to infer th
         $p--;
         $prev = $ValClass[$p];
     }
-    $op = $prev if(index(">+-*/%0.", $prev) >= 0);
+    $op = $prev if(index(">+-*/%0o.", $prev) >= 0);
     $m = $p;
     if($k+2 <= $#VarClass && $ValClass[$k+1] eq ')') {
         $n++;
         $next = $ValClass[$n];
     }
-    if(index(">+-*/%0.", $next) >= 0) {
+    if(index(">+-*/%0o.", $next) >= 0) {
         $op = $next;
         $m = $n;
     }
     if($op eq '.') {
-        if($ValPerl[$m] eq '.') {       # String concat
-            return 'S';
-        } else {
-            return 'u';                 # unknown
-        }
+        return 'S';
     } elsif($op eq '>') {     # could be like < or like lt
         return 'S' if($ValPerl[$m] =~ /^[a-z][a-z]$/);  # like eq, gt, etc
         return 'I';     # boolean is an Int in perl
@@ -731,14 +727,10 @@ sub expr_type           # Attempt to determine the type of the expression
         }
         return 'S';             # will be changed to a string
     } elsif($class ne '(') {            # Non-parenthesized expression
-        my $m = next_same_level_tokens('>+-*/%0.', $k, $#ValClass);
+        my $m = next_same_level_tokens('>+-*/%0o.', $k, $#ValClass);
         if($m != -1) {
             if($ValClass[$m] eq '.') {
-                if($ValPerl[$m] eq '.') {       # String concat
-                    return 'S';
-                } else {
-                    return 'u';                 # unknown
-                }
+                return 'S';             # String concat
             } elsif($ValClass[$m] eq '>') {     # could be like < or like lt
                 return 'S' if($ValPerl[$m] =~ /^[a-z][a-z]$/);  # like eq, gt, etc
                 return 'I';     # boolean is an Int in perl
@@ -768,14 +760,14 @@ sub expr_type           # Attempt to determine the type of the expression
         # Check for list first
         $m = next_same_level_tokens(',', $k+1, $#ValClass-1);
         if($m != -1) {
-            my $n = next_same_level_tokens(':', $k+1, $m-1);       # Look for =>
+            my $n = next_same_level_token('A', $k+1, $m-1);       # Look for =>
             my $t;
             if($n != -1 && $ValPerl[$n] eq '=>') {      # Like {key1=>val1, key2=>val2}
                 $t = expr_type($n+1, $m-1, $CurSub);
                 while($t ne 'm') {
                     my $o = next_same_level_tokens(',)', $m+1, $#ValClass-1);
                     last if($o < 0);
-                    $n = next_same_level_tokens(':', $m+1, $o-1);       # Look for =>
+                    $n = next_same_level_tokens('A', $m+1, $o-1);       # Look for =>
                     last if($n < 0 || $ValPerl[$n] ne '=>');
                     my $u = expr_type($n+1, $o-1, $CurSub);
                     $t = common_type($t, $u);
@@ -820,7 +812,7 @@ sub common_type         # Create a common type from 2 types
     } elsif($t2 eq 's' && index('IFN', $t1) >= 0) {
         return 's';              # Scalar
     }
-    my $lcp = lcp($t1, $t2);
+    my $lcp = length(lcp($t1, $t2));
     if($lcp != 0) {                  # handle both being like a of I or a of a of N, etc
         return substr($t1,0,$lcp) . common_type(substr($t1,$lcp), substr($t2,$lcp));
     }
@@ -833,7 +825,7 @@ sub lcp {               # Longest common prefix - LOL don't ask me how it works!
 
 sub func_type                   # Get the result type of this built-in function
 {
-    my $fname = shift;
+    my $fname = shift;          # send us ValPerl
 
     return 'u' if(!exists $Perlscan::FuncType{$fname});
     my $type = $Perlscan::FuncType{$fname};
@@ -883,6 +875,41 @@ my $balance=(scalar(@_)>1) ? $_[1] : 0; # case where opening bracket is missing 
   return 0;
 } # reverse_matching_br
 
+sub next_matching_token                 # SNOOPYJC
+# get the next matching token
+{
+my $t=$_[0];
+my $scan_start=$_[1];
+my $scan_end=$_[2];
+    $k = index(substr($TokenStr, $scan_start, $scan_end-$scan_start+1), $t);
+    return $k if($k < 0);
+    return $k + $scan_start;
+} # next_matching_token
+
+sub next_same_level_token
+# get the next token on the same nesting level.
+{
+my $t=$_[0];
+my $scan_start=$_[1];
+my $scan_end=$_[2];
+my $balance=0;
+    # issue 74 for( my $k=$scan_start; $k<$scan_end; $k++ ){      # issue 74
+    for( my $k=$scan_start; $k<=$scan_end; $k++ ){      # issue 74
+      my $s=substr($TokenStr,$k,1);
+      if( $s eq '(' ){
+         $balance++;
+      }elsif( $s eq ')' ){
+         $balance--;
+      }
+      if($t eq ')') {            # SNOOPYJC: if we're looking for a ')', the balance needs to be -1
+          return $k if($s eq $t && $balance < 0);
+      } elsif( $s eq $t && $balance<=0  ){
+          return $k;
+      }
+   } # for
+   return -1; # not found
+} # next_same_level_token
+
 sub next_same_level_tokens
 # get the next token on the same nesting level matching any given by first arg.
 {
@@ -909,6 +936,21 @@ my $balance=0;
    } # for
    return -1; # not found
 } # next_same_level_tokens
+
+sub next_lower_or_equal_precedent_token
+# get the next token on the same nesting level that's lower or equal precedence than the given token
+{
+my $tok=$_[0];
+my $scan_start=$_[1];
+my $scan_end=$_[2];
+    return -1 unless(exists $token_precedence{$tok});
+    my $prec = $token_precedence{$tok};
+    my $toks = '';
+    for $t (keys %token_precedence) {
+        $toks.=$t if($token_precedence{$t} <= $prec);
+    }
+    return next_same_level_tokens($toks, $scan_start, $scan_end);
+}
 
 sub get_here
 #
