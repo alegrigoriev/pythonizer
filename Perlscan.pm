@@ -57,7 +57,7 @@ require Exporter;
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw(Exporter);
-@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code);		# issue 41, issue 65, issue 74
+@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence);	# issue 41, issue 65, issue 74, issue 93
 #our (@ValClass,  @ValPerl,  @ValPy, $TokenStr); # those are from main::
 
   $VERSION = '0.93';
@@ -185,7 +185,10 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
        # i => BareWord like ABC or abc - could be a local sub name
        # j
        # k => Special control like last, next, return, or sub
-       # l, m, n, o, p
+       # l, m, 
+       # n => not
+       # o => or, and, xor - lower precedence than || &&
+       # p
        # q => Pattern like  m/.../, s/../.../, tr/../../, or wr, or /.../
        # r => range (..)
        # s => Scalar like $var
@@ -194,10 +197,14 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
        # x => Executable in `...` or qx
        # y => Extra python code we need to generate as is (used in multi_subscripts)
        # z
+       # A => => (arrow)
        # C => More control like default, else, elsif
+       # D => -> (dot in python)
        # H => Here doc <<
+       # I => >>
+       # P => :: (package reference)
        # W => Context manager (with)
-       # 0 => and, or, &&, ||
+       # 0 => &&, ||
        # ^ => ++ or --
        # > => comparison like > < >= <= == eq ne lt gt le ge
        # = => assignment like = += -= etc
@@ -205,17 +212,67 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
        # : => : or =>
        # . => . or -> or ::
        # * => *, **, or x
+       # ! => !
        # +, -, /, % => Operators
        # ~ => Pattern match like =~ or !~
        # " => Quoted string or q/abc/, qq(def), etc
        
+       %token_precedence=(
+			# Prec    Assoc       Token       Desc
+			# 25      left        ashi        terms and list operators (leftward)
+                        a=>25, s=>25, h=>25, i=>25, '('=>25, ')'=>25, '"'=>25, q=>25, x=>25,
+			# 24      left        D           ->
+                        D=>24,
+			# 23      nonassoc    ^           ++ --
+                        '^'=>23,
+			# 22      right       *           **
+                        '*'=>22,
+			# 21      right       !~\+-       ! ~ ~. \ and unary + and -
+                        '!'=>21, '\\'=>21,
+			# 20      left        ~           =~ !~
+                        '~'=>20,
+			# 19      left        */%         * / % x
+                        '*'=>19, '/'=>19, '%'=>19,
+			# 18      left        +-.         + - .
+                        '+'=>18, '-'=>18, '.'=>18,
+			# 17      left        HI          << >>
+                        H=>17, I=>17,
+			# 16      nonassoc    f           named unary operators
+                        f=>16,
+			# 15      nonassoc    N/A         isa
+			# 14      chained     >           < > <= >= lt gt le ge
+                        '>'=>14,
+			# 13      chain/na    >           == != eq ne <=> cmp ~~
+			# 12      left        &           & &.
+                        '&'=>12,
+			# 11      left        |           | |. ^ ^.
+                        '|'=>11,
+			# 10      left        0           &&
+                        '0'=>10,
+			# 9       left        0           || //
+			# 8       nonassoc    r           ..  ...
+                        'r'=>8,
+			# 7       right       ?:          ?:
+                        '?'=>7, ':'=>7,
+			# 6       right       =           = += -= *= etc. goto last next redo dump
+                        '='=>6,
+			# 5       left        ,A          , =>
+                        ','=>5, A=>5,
+			# 4       nonassoc    f           list operators (rightward)
+			# 3       right       n           not
+                        n=>3,
+			# 2       left        o           and
+			# 1       left        o           or xor
+                        o=>1);
+
        %TokenType=('eq'=>'>','ne'=>'>','lt'=>'>','gt'=>'>','le'=>'>','ge'=>'>',
                   'x'=>'*',
                   'y'=>'q', 'q'=>'q','qq'=>'q','qr'=>'q',
 		  # issue 44 'wq'=>'q',
 		  'qw'=>'q',		# issue 44
 		  'wr'=>'q','qx'=>'q','m'=>'q','s'=>'q','tr'=>'q',
-                  'and'=>'0',
+                  # issue 93 'and'=>'0',
+                  'and'=>'o',           # issue 93
 		  'abs'=>'f',	        # SNOOPYJC
                   'alarm'=>'f',         # issue 81
 		  'assert'=>'c',	# SNOOPYJC
@@ -246,7 +303,9 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'my'=>'t', 'map'=>'f', 'mkdir'=>'f',
                   'next'=>'k','not'=>'!',
                   'our'=>'t',                   # SNOOPYJC
-                  'or'=>'0', 'own'=>'t', 'oct'=>'f', 'ord'=>'f', 'open'=>'f',
+                  # issue 93 'or'=>'0', 
+                  'or'=>'o',                    # issue 93
+                  'own'=>'t', 'oct'=>'f', 'ord'=>'f', 'open'=>'f',
 		  'opendir'=>'f', 'closedir'=>'f', 'readdir'=>'f', 'seekdir'=>'f', 'telldir'=>'f', 'rewinddir'=>'f',	# SNOOPYJC
                   'push'=>'f', 'pop'=>'f', 'print'=>'f', 'package'=>'c',
                   'printf'=>'f',                # SNOOPYJC
@@ -291,9 +350,9 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                    '|='=>'=', '&='=>'=',                        # SNOOPYJC
                    '=~'=>'~','!~'=>'~',
                    '=='=>'>', '!='=>'>', '>='=>'>', '<='=>'>', # comparison
-                   '=>'=>':', '->'=>'.',
-                   '<<' => 'H', '>>'=>'=', '&&'=>'0', '||'=>'0',
-                   '*='=>'=', '/='=>'=', '**'=>'*', '::'=>'.' ); #and/or/not
+                   '=>'=>'A', '->'=>'D',                        # issue 93
+                   '<<' => 'H', '>>'=>'I', '&&'=>'0', '||'=>'0', # issue 93
+                   '*='=>'=', '/='=>'=', '**'=>'*', '::'=>'P' ); # issue 93
 
    %digram_map=('++'=>'+=1','--'=>'-=1','+='=>'+=', '*='=>'*=', '/='=>'/=', '.='=>'+=', '=~'=>'','<>'=>'readline()','=>'=>': ','->'=>'.',
                 '&&'=>' and ', '||'=>' or ','::'=>'.',
@@ -339,6 +398,7 @@ sub def_label                   # issue 94
 }
 sub enter_block                 # issue 94
 {
+    # FIXME: Use a different character like 开 = open in Chinese to replace the '{' for the second round
     return if($last_block_lno == $. && scalar(@ValPerl) <= 1);       # We see the '{' twice on like if(...) {
     if($::debug >= 4) {
         say STDERR "enter_block at line $., prior nesting_level=$nesting_level, ValPerl=@ValPerl";
@@ -636,7 +696,7 @@ my ($l,$m);
              Pythonizer::getline('{',substr($source,1)); # make it a new line to be proceeed later
              popup(); # eliminate '{' as it does not have tno==0
              last;
-          }elsif($ValClass[$tno-1] eq '.' && $ValPerl[$tno-1] eq '->') {	# issue 50
+          }elsif($ValClass[$tno-1] eq 'D') {	# issue 50, issue 93
 	    popup();                            # issue 50, 37
             $TokenStr=join('',@ValClass);       # issue 50
 	    $tno--;				# issue 50 - no need to keep arrow operator in python
@@ -646,7 +706,7 @@ my ($l,$m);
          $ValPy[$tno]='[';
          $cut=1;
       # issue 17 }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,k]/ || $ValPerl[$tno-1] eq 'split') ){
-      }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,kc=0!]/ || $ValPerl[$tno-1] eq 'split' ||
+      }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,kc=o0!]/ || $ValPerl[$tno-1] eq 'split' ||
           $ValPerl[$tno-1] eq 'grep' || $ValClass[$tno-1] eq 'r') ){	# issue 17, 32, 66, 60, range
            # typical cases: if(/abc/ ){0}; $a=~/abc/; /abc/; split(/,/,$text)  split /,/,$text REALLY CRAZY STAFF
            $ValClass[$tno]='q';
@@ -813,7 +873,7 @@ my ($l,$m);
 #               $ValClass[$tno] = 'i';
 #               $ValPy[$tno] = $ValPerl[$tno] = "$ANONYMOUS_SUB$.";
 #               #$ValType[$tno]='P';
-            }elsif ( $class eq '0' ){	# and/or
+            }elsif ( $class eq 'o' ){	# and/or   # issue 93
                   $balance=(join('',@ValClass)=~tr/()//);
                   # issue 93 if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && join('',@ValClass) !~ /^t?[ahs]=/ ){
                   if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && bash_style_or_and_fix($cut)){             # issue 93
@@ -1127,7 +1187,7 @@ my ($l,$m);
            $cut=1;
          }
       }elsif( $s eq '[' || $s eq '(' ){
-         if($tno != 0 && $ValClass[$tno-1] eq '.' && $ValPerl[$tno-1] eq '->') {	# issue 50
+         if($tno != 0 && $ValClass[$tno-1] eq 'D') {	# issue 50, issue 93
 	    popup();                            # issue 50
 	    $tno--;				# issue 50 - no need to keep arrow operator in python
       	    $ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
@@ -1176,7 +1236,10 @@ my ($l,$m);
                 $ValPy[$tno-1] = "'delete'";
             }
          }elsif( $s eq '='  ){
-            if( index(join('',@ValClass),'c')>-1 ){
+            $TokenStr = join('',@ValClass);             # issue 93
+            if( index($TokenStr,'c')>-1 ||
+                index($TokenStr,'o')>-1 ||              # issue 93
+                index($TokenStr,'0')>-1){               # issue 93: handle "$i = exp1 or $j = exp2;"
                $ValPy[$tno]=':=';
             }
             $cut=1;
@@ -1375,11 +1438,24 @@ sub bash_style_or_and_fix
 my $split=$_[0];
    # bash-style conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020 --NNB
    $is_or = ($ValPy[-1] =~ /or/);	# issue 12
-   if($::debug >= 3) {
-       say STDERR "bash_style_or_and_fix($split) is_or=$is_or, source=$source";
+   $is_low_prec = ($ValPerl[-1] =~ /^[a-z]+$/);         # issue 93: is this low precedence like and/or instead of &&/||
+   $balance=0;                                          # issue 93: compute paren balance to see if we're in parens
+   for ($i=0;$i<@ValClass;$i++ ){
+      if( $ValClass[$i] eq '(' ){
+         $balance++;
+      }elsif( $ValClass[$i] eq ')' ){
+         $balance--;
+      }
    }
-   # issue 93: if this is an assignment, only transform it if it contains a control statement afterwards
-   if(join('',@ValClass) =~ /^t?[ahs](?:\(.*\))*=/ && substr($source,$split) !~ /^\s*(?:return|next|last|assert|delete|require|die)\b/) {       # issue 93
+   $is_low_prec = 0 if($balance > 0);                   # issue 93: eg: "$i = (this or ...", parens make the 'or' act like '||'
+
+   if($::debug >= 3) {
+       say STDERR "bash_style_or_and_fix($split) is_or=$is_or, source=$source, is_low_prec=$is_low_prec";
+   }
+   # issue 93: if this is an assignment, only transform it if it contains a control statement afterwards or if it's a low precedence op
+   if(join('',@ValClass) =~ /^t?[ahs](?:\(.*\))*=/ && 
+      !$is_low_prec &&
+      substr($source,$split) !~ /^\s*(?:return|next|last|assert|delete|require|die)\b/) {       # issue 93
        if($::debug >= 3) {
           say STDERR "bash_style_or_and_fix($split) returning 0 - does not need transforming";
        }
@@ -1400,7 +1476,7 @@ my $split=$_[0];
       insert(0,'(','(','(');
    }
    if($is_or) {				# issue 12
-      insert(0,'!','not','not');	# issue 12
+      insert(0,'n','not','not');	# issue 12, issue 93
       insert(0,'(','(','(');		# issue 12
       append(')',')',')');		# issue 12
    }					# issue 12
@@ -1633,7 +1709,8 @@ my  $groups_are_present;
          }else{
            return 're.search('.$quoted_regex.','; #  we do not need the result of match as no groups is present. # issue 75
          }
-      }elsif( $ValClass[$tno-1] eq '0'  ||  $ValClass[$tno-1] eq '(' ){
+      # issue 93 }elsif( $ValClass[$tno-1] eq '0'  ||  $ValClass[$tno-1] eq '(' ){
+      }elsif( $ValClass[$tno-1] =~ /[0o]/  ||  $ValClass[$tno-1] eq '(' ){      # issue 93
             # this is calse like || /text/ or while(/#/)
             if( $groups_are_present ){
                 return "($DEFAULT_MATCH:=re.search(".$quoted_regex.",$DEFAULT_VAR))"; #  we need to have the result of match to extract groups. # issue 32
@@ -1881,7 +1958,8 @@ my  $outer_delim;
        #the last part
        $result.=$quote;
    }
-   if($outer_delim eq '"""' && substr($result,-1,1) eq '"') {    # SNOOPYJC: oops - we have to fix this!
+   if($outer_delim eq '"""' && substr($result,-1,1) eq '"' &&
+      (substr($result,-2,1) ne '\\' || substr($result,-3,1) eq '\\')) {    # SNOOPYJC: oops - we have to fix this!
        $result = substr($result,0,length($result)-1)."\\".'"';
    }
    $result.=$outer_delim;

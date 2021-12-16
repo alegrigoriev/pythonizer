@@ -104,4 +104,28 @@ sub check_new {
 }
 assert(check_new() == 0);
 
+# 12/15/21: more cases!
+$i = 0 || -1;
+assert($i == -1);
+$i = 0 or -1;
+assert($i == 0);
+$i = (0 or -1);
+assert($i == -1);
+$i = 0 or $j = 1;
+assert($i == 0 && $j == 1);
+$i = 0 || $j = 1;
+assert($i == 1 && $j == 1);
+$i = 0 and $j = 2;
+assert($i == 0 && $j == 1);
+$i = 1 and $j = 2;
+assert($i == 1 && $j == 2);
+
+sub check_low_prec {
+    my $j = 1 or return 7;
+    assert($j == 1);
+    $j = 0 or return 5;
+    0;
+}
+assert(check_low_prec() == 5);
+
 print "$0 - test passed!\n";
