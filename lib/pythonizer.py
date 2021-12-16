@@ -588,10 +588,18 @@ def _ref(r):
     _ref_map = {"<class 'int'>": 'SCALAR', "<class 'str'>": 'SCALAR',
                 "<class 'float'>": 'SCALAR', "<class 'NoneType'>": 'SCALAR',
                 "<class 'list'>": 'ARRAY', "<class 'tuple'>": 'ARRAY',
-                "<class 'dict'>": 'HASH'}
+                "<class 'dict'>": 'HASH', "<class 're.Pattern'>": 'Regexp'}
     t = str(type(r))
     if t in _ref_map:
         return _ref_map[t]
+    if t.endswith("._ArrayHash'>"):
+        if hasattr(r, 'isHash'):
+            return 'HASH'
+        return 'ARRAY'
+    if t.endswith(".Num'>"):
+        return 'SCALAR'
+    if t.startswith("<class '") and t.endswith("'>"):
+        return t.replace("<class '",'').replace("'>",'')
     return ''
 
 def _reverse_scalar(expr):
@@ -639,13 +647,35 @@ def _wait():
     except Exception:
         return -1
 
+def _localtime(secs=None):
+    """Replacement for perl built-in localtime function"""
+    lct = tm_py.localtime(secs)
+    return (lct.tm_sec, lct.tm_min, lct.tm_hour, lct.tm_mday, 
+            lct.tm_mon-1, lct.tm_year-1900, (lct.tm_wday+1)%7, 
+            lct.tm_yday-1, lct.tm_isdst) 
 
-def gmtime(secs=None):
+def _cgtime(secs=None):
+    """Replacement for perl built-in gmtime function in scalar context"""
+    return tm_py.asctime(tm_py.gmtime(secs))
+
+def _timegm(sec, min, hour, mday, mon, year, wday=0, yday=0, isdst=0):
+    """Replacement for perl built-in timegm function"""
+    if year < 1900:
+        year += 1900
+    return calendar.timegm((year, mon+1, mday, hour, min, sec, 0, 1, -1))
+
+def _timelocal(sec, min, hour, mday, mon, year, wday=0, yday=0, isdst=0):
+    """Replacement for perl built-in timelocal function"""
+    if year < 1900:
+        year += 1900
+    return tm_py.mktime((year, mon+1, mday, hour, min, sec, 0, 1, -1))
+
+def _gmtime(secs=None):
     """Replacement for perl built-in gmtime function"""
     gmt = tm_py.gmtime(secs)
     return (gmt.tm_sec, gmt.tm_min, gmt.tm_hour, gmt.tm_mday, 
-            gmt.tm_mon-1, gmt.tm_year-1900) 
-
+            gmt.tm_mon-1, gmt.tm_year-1900, (gmt.tm_wday+1)%7, 
+            gmt.tm_yday-1, 0) 
 
 def opendir(DIR):
     """Replacement for perl built-in directory functions"""
@@ -679,8 +709,4 @@ def rewinddir(DIR):
 def closedir(DIR):
     DIR[0] = None
     DIR[1] = None
-
-def timelocal(sec, min, hour, mday, mon, year):
-    """Replacement for perl built-in timelocal function"""
-    return tm_py.mktime((year+1900, mon+1, mday, hour, min, sec, 0, 1, -1))
 
