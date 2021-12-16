@@ -89,7 +89,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'W'=>'WARNING');              # SNOOPYJC
 
    # Map of functions to python where the mapping is different for scalar and list context
-   %SPECIAL_FUNCTION_MAPPINGS=('localtime'=>{scalar=>'tm_py.ctime', list=>'tm_py.localtime'},
+   %SPECIAL_FUNCTION_MAPPINGS=('localtime'=>{scalar=>'tm_py.ctime', list=>'_localtime'},        # issue times
+                'gmtime'=>{scalar=>'_cgtime', list=>'_gmtime'},                                 # issue times
                 'reverse'=>{list=>'[::-1]', scalar=>'_reverse_scalar'}  # issue 65
                 );
 
@@ -129,13 +130,14 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'if'=>'if ', 'index'=>'.find',
 		'int'=>'int',				# issue int
 		'GetOptions'=>'argparse',		# issue 48
+		'gmtime'=>'_gmtime',    		# issue times
                 'grep'=>'filter', 'goto'=>'NoTrans!', 'getcwd'=>'os.getcwd',
                 'join'=>'.join(',
 		# issue 33 'keys'=>'.keys',
                 'keys'=>'.keys()',	# issue 33
                 'last'=>'break', 'local'=>'', 'lc'=>'.lower()', 'length'=>'len', 
 		# issue localtime 'localtime'=>'.localtime',
-		'localtime'=>'tm_py.localtime',		# issue localtime
+		'localtime'=>'_localtime',		# issue times
                 'map'=>'map', 'mkdir'=>'os.mkdir', 'my'=>'',
                 'next'=>'continue', 'no'=>'NoTrans!',
                 'own'=>'global', 'oct'=>'oct', 'ord'=>'ord',
@@ -162,7 +164,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'require'=>'NoTrans!', 'return'=>'return', 'rmdir'=>'os.rmdir',
                 'tie'=>'NoTrans!',
 		'time'=>'_time',		# SNOOPYJC
-                'timegm'=>'calendar.timegm',    # SNOOPYJC
+		'timelocal'=>'_timelocal',	# issue times
+                'timegm'=>'_timegm',            # issue times
                 'uc'=>'.upper()', 'ucfirst'=>'.capitalize()', 'undef'=>'None', 'unless'=>'if not ', 'unlink'=>'os.unlink',
                 'umask'=>'os.umask',            # SNOOPYJC
                    'unshift'=>'.insert(0,',

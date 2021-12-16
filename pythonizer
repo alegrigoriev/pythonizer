@@ -112,6 +112,7 @@
 # 0.924  2021/12/13  SNOOPYJC  issue 95, implement do{...}while/until(...);, PERL5PATH is now automatic, addl fix for issue 93, issue 96, remove double ++/-- fix, remove warning on 1;, issue 99
 # 0.925  2021/12/14  SNOOPYJC  Addl fixes for issue 21 (split), issue 45 (was putting orig lines in wrong place), issue 58 on elsif, fix opendir not found error, issue 98, issue 100, remove extra 'r' after regex, issue 101
 # 0.926  2021/12/15  SNOOPYJC  Addl fix for issue 93, uniquely map tokens to get precedence, issue 102, update to ending fix in double_quoted string
+# 0.927  2021/12/16  SNOOPYJC  Revamp the time functions, use *arr for passing arrays, use map(str,...) for join of int array
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -146,7 +147,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token); # SNOOPYJC
 
-   $VERSION='0.926';
+   $VERSION='0.927';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -1083,7 +1084,14 @@ sub fix_scalar_context                          # issue 37
             # The 'scalar' function gets changed to 'len' which works unless it's applied to 'localtime'
             # or other functions that have different scalar interpretation, like 'reverse',
             # so we handle that here by fixing the function and removing the 'len' call.
-            if(apply_scalar_context($i+1) == 1) {
+            if($ValClass[$i+1] eq '(' && apply_scalar_context($i+2) == 1) {     # issue times
+                my $close = matching_br($i+1);
+                if($close != -1) {
+                    destroy($close,1);
+                    destroy($i,2);
+                    $i--;
+                }
+            } elsif(apply_scalar_context($i+1) == 1) {
                 destroy($i,1);
                 $i--;
             }
@@ -2526,6 +2534,7 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
             return $TrStatus if ($TrStatus<0);
          }
          gen_chunk($py_name);           # issue 40: gen .join(
+         gen_chunk('map(str, ');        # SNOOPYJC: FIXME: Optimize out if know it's an array of strings
          if($end_pos-$split==1) {       # issue 40: one thing (a list)
              gen_chunk($ValPy[$end_pos]);       # issue 40: arr
          } else {                       # issue 40: Multiple things: make them into a tuple by adding an extra set of parens
@@ -2534,6 +2543,7 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
             return $TrStatus if ($TrStatus<0);             # issue 40
             gen_chunk(')');             # issue 40
          }
+         gen_chunk(')');                # SNOOPYC: End of map
          gen_chunk(')');                                # issue 40
       }                         # issue 40
    }elsif( $perl_name eq 'open' ){
@@ -3083,13 +3093,9 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       # issue 13 }elsif( $end_pos==$start ){
       # issue 13   # single argument                            # issue 13: int(PI) needs to call PI([])!!
       # issue 13   gen_chunk('('.$ValPy[$start].')')
-      }elsif( $bracketed==1 ){
-         gen_chunk('(');		# Issue time
-         $TrStatus=expression($start,$end_pos,0);
-         return -255 if ($TrStatus<0);
-         gen_chunk(')');		# Issue time
       }else{
          gen_chunk('(');
+         gen_chunk('*') if($start == $end_pos && $ValClass[$start] eq 'a' && substr($ValPy[$start],0,4) ne 'len(');     # issue times
          $TrStatus=expression($start,$end_pos,0);
          return -255 if ($TrStatus<0);
          gen_chunk(')');
@@ -3605,7 +3611,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
       $cur_pos=$#ValClass;
    }else{
       $cur_pos=$begin;
-   }
+   }    # issue times
    $start=$cur_pos;  # starting point possibly from && or ||  -- we need that for regular expressions.
    $mode=(scalar(@_)>2) ? $_[2] : 0; # $mode allows brackets to be supressed but only on recursion level 0
                                      # $mode 1 injects ( and ) if they are not present
@@ -3741,6 +3747,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
              if( $LocalSub{$ValPy[$cur_pos]} ){
                 # Perl user defined function -- need to pass an array
                 gen_chunk('([');
+                gen_chunk('*') if($cur_pos+2 == $end_pos-1 && $ValClass[$cur_pos+2] eq 'a' && substr($ValPy[$cur_pos+2],0,4) ne 'len(');    # SNOOPYJC: Handle passing array
                 # issue parens expression($cur_pos+2,$end_pos-1,0); # call without brackets
                 expression($cur_pos+2,$end_pos-1,0) if($cur_pos+2 <= $end_pos-1); # call without brackets   # issue paren
                 gen_chunk('])');
@@ -3780,6 +3787,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
             }
             gen_chunk('([');                                                            # issue 13
             $k = 0;                                                                     # issue 13
+            gen_chunk('*') if($cur_pos+1 == $end_pos && $ValClass[$cur_pos+1] eq 'a');  # SNOOPYJC: Handle passing array
             $k=expression($cur_pos+1, $end_pos, 0) if($cur_pos+1 <= $end_pos);          # issue 13
             if($k < 0) { $TrStatus=-1; return -255; }                                   # issue 13
             gen_chunk('])');								# issue 13
