@@ -24,7 +24,7 @@ use v5.10.1;
 use warnings;
 use strict 'subs';
 use feature 'state';
-use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType %token_precedence);  # SNOOPYJC
+use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType %token_precedence %SPECIAL_FUNCTION_MAPPINGS destroy);  # SNOOPYJC
 use Softpano qw(abend logme out getopts standard_options);
 use config;				# issue 32
 use Data::Dumper;       # SNOOPYJC
@@ -32,7 +32,7 @@ require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token); # SNOOPYJC
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context); # SNOOPYJC
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname);
    # issue 32 $::TabSize=3;
    $::TabSize=$TABSIZE;         # issue 32
@@ -226,6 +226,7 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
       unless(defined($ValClass[0])){
          next;
       }
+      fix_scalar_context();                             # issue 37
       if( $ValClass[0] eq 't' && $ValPerl[0] eq 'my' ){
          for($i=1; $i<=$#ValClass; $i++ ){
             last if( $ValClass[$i] eq '=' );
@@ -281,7 +282,7 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
                 next if(  defined($ValType[$k]) && $ValType[$k] eq 'X');
                 next if($ValPy[$k] eq '');      # Undefined special var
                 $VarSubMap{$ValPy[$k]}{$CurSubName}='+';
-                if( $ValPy[$k] =~/[\[\(]/){
+                if( $ValPy[$k] =~/[\[\(]/ && $ValPy[$k] !~ /^len\(/){   # Issue 13
                    $InLineNo = $.;
                    say "=== Pass 1 INTERNAL ERROR in processing line $InLineNo Special variable is $ValPerl[$k] as $ValPy[$k], k=$k, ValType=@ValType";
                    $DB::single = 1;
@@ -291,7 +292,10 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
           if(scalar(@ValClass) > 0 && $ValClass[0] eq 'k' && $ValPerl[0] eq 'return') {         # SNOOPYJC: return statement
               $typ = 'm';
               if(scalar(@ValClass) > 1) {
-                  $typ = expr_type(1, $#ValClass, $CurSubName);
+                  my $end = $#ValClass;
+                  my $c;                # Look for return N if(...);
+                  $end = $c-1 if(($c = next_same_level_token('c', 1, $end)) != -1);
+                  $typ = expr_type(1, $end, $CurSubName);
               }
               $VarType{$CurSubName}{main} = merge_types($CurSubName, 'main', $typ);
           }
@@ -399,6 +403,7 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
     my $name = $ValPy[$k];
     my $class;
     my $type = undef;
+    my $typ = undef;
     $class = $ValClass[$k];
     if($::debug >= 3) {
         say STDERR "check_ref($CurSub, $name) at $k";
@@ -421,7 +426,17 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
 
     if($k+1 <= $#ValClass) {
         if($ValClass[$k+1] eq '=') {
-            $type = expr_type($k+2, $#ValClass, $CurSub);
+            my $lim = $#ValClass;
+            if($k-1 >= 0 && $ValClass[$k-1] eq '(') {   # parens around assignment - stop at the )
+                $lim = matching_br($k-1)-1;
+            }
+            $type = expr_type($k+2, $lim, $CurSub);
+            if($class eq 'a' && $type !~ / of /) {
+                $type = "a of ".$type;
+            } elsif($class eq 'h' && $type !~ / of /) {
+                $type = "h of ".$type;
+            }
+            #$type = 'm' if($type eq 'u');       # If we don't know the type, can no longer assume anything
             my $op = $ValPerl[$k+1];
             if($op eq '=') {     # e.g. not +=
                 $initialized{$CurSub}{$name} = $type;
@@ -436,19 +451,22 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             $type = 'I';
             $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
         } elsif(!defined $type) {
-            $m = next_same_level_tokens(')', $k, $#ValClass); 
+            $m = next_same_level_token(')', $k, $#ValClass); 
             #say STDERR "m = $m";
             if($m != -1 && $m < $#ValClass && $ValClass[$m+1] eq '=') {        # like ($v1, $v2) = RHS;
                 $rhs_type = expr_type($m+2, $#ValClass, $CurSub);
                 if($rhs_type =~ /^a of (.*)$/) {            # like a of S
                     $type = $1;
-                    $initialized{$CurSub}{$name} = $type;
+                } else {
+                    $type = 'u';
                 }
+                $initialized{$CurSub}{$name} = $type;
             }
         }
     }
     if($k == 1 && $ValClass[0] eq 'c' && $ValPy[0] eq 'for') {  # Var in a foreach loop is initialized
         $type = expr_type($k+1, $#ValClass, $CurSub);
+        $type = 's' if($type eq 'a' || $type eq 'h');           # We don't know a of what?
         $type =~ s/^a of //;
         $initialized{$CurSub}{$name} = $type;
     } elsif(($k >=1 && $ValClass[$k-1] eq 'f' && ($ValPerl[$k-1] eq 'open' || $ValPerl[$k-1] eq 'opendir')) ||  # open $fh
@@ -488,15 +506,23 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
                 $rhs_type = expr_type($p+1, $#ValClass, $CurSub);
             } elsif($ValClass[$p] eq '^') {
                 $rhs_type = 'I';
+            } elsif($ValClass[$p] eq '~') {
+                $rhs_type = 'S';
+            } elsif(index(")x*/%+-.HI>&|0r?:,Ao", $ValClass[$p]) >= 0) {
+                return;         # Just a reference to the array
             }
+        } else {
+            return;             # Just a reference to the array
         }
         if(defined $rhs_type) {
             $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of $rhs_type");
         } else {
-            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of u");
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of m");
         }
-    } elsif($class eq 'a' || $class eq 'h') {    # e.g. if(@arr) or if(%hash) or push @arr, ...
+   } elsif($class eq 'a' || $class eq 'h') {    # e.g. if(@arr) or if(%hash) or push @arr, ...
         $NeedsInitializing{$CurSub}{$name} = $class if(!exists $initialized{$CurSub}{$name});
+   } elsif(($typ = expr_type($k, $k, $CurSub)) && $typ ne 's') {
+        $NeedsInitializing{$CurSub}{$name} = $typ if(!exists $initialized{$CurSub}{$name});
    } elsif(!defined $type) {                            # Scalar reference - try to find what type it needs to be
         $type = scalar_reference_type($k);
         if($::debug >= 3) {
@@ -508,7 +534,9 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
         if(!exists $VarType{$name}{$CurSub} || $VarType{$name}{$CurSub} eq 'u') {
             $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
         }
-        $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
+        if(!exists $NeedsInitializing{$CurSub}{$name}) {
+            $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
+        }
     }
 }
 
@@ -560,6 +588,8 @@ sub scalar_reference_type       # given a reference to a scalar, try to infer th
                 say STDERR "arg_type($fname, $arg) = $ty";
             }
             return $ty if(defined $ty);
+            last;
+        } elsif($ValClass[$i] eq 'c') {         # .... if(... v ...);
             last;
         }
     }
@@ -691,7 +721,8 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
     return 'm';         # Mixed
 }
 
-sub expr_type           # Attempt to determine the type of the expression
+sub _expr_type           # Attempt to determine the type of the expression
+# a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, S=String, u=undef, f=function, H=FileHandle, ?=Optional, m=mixed
 {
     my $k = shift;
     my $e = shift;
@@ -702,8 +733,27 @@ sub expr_type           # Attempt to determine the type of the expression
         say STDERR "expr_type($k, $e, $CurSub)";
     }
     if($class eq 'f') {         # built-in function call
+        if($k+1 <= $#ValClass) {
+            if($ValPerl[$k] =~ /sort/) {
+                if($ValPerl[$k+1] eq '{') {
+                    my $ep = matching_br($k+1);
+                    return expr_type($ep+1, $e, $CurSub) if($ep>$k && $ep+1 <= $e);
+                } elsif($ValClass[$k+1] =~ /fi/) {      # sort f a
+                    return expr_type($k+2, $e, $CurSub) if($k+2 <= $e);
+                } else {                                # sort a
+                    return expr_type($k+1, $e, $CurSub) if($k+1 <= $e);
+                }
+            } elsif($ValPerl[$k] =~ /map/) {
+                if($ValClass[$k+1] =~ /fi/) {      # map f a
+                    return 'a of ' . expr_type($k+1, $k+1, $CurSub);
+                }
+            } elsif($ValPerl[$k] =~ /reverse/) {
+                return 'S' if(substr($ValPy[$k],0,1) eq '_');   # _reverse: scalar context
+                return expr_type($k+1, $e, $CurSub) if($k+1 <= $e);
+            }
+        }
         return func_type($ValPerl[$k]);
-    } elsif($k == $#ValClass) {      # we have one thing
+    } elsif($k == $e) {      # we have one thing
         if($class eq 'd') {             # Digits
             if($ValPy[$k] =~ /^(?:0[xbo])?\d+$/) {
                 return 'I';             # Integer
@@ -711,14 +761,61 @@ sub expr_type           # Attempt to determine the type of the expression
             return 'F';                 # Float
         } elsif($class eq 's') {        # Scalar
             return $VarType{$ValPy[$k]}{$CurSub} if(exists $VarType{$ValPy[$k]}{$CurSub});
+            my $v = substr($ValPerl[$k], 1);
+            if(exists $Perlscan::SpecialVarType{$v}) {
+                my $typ = $Perlscan::SpecialVarType{$v};
+                $initialized{$CurSub}{$ValPy[$k]} = $typ;
+                $VarType{$ValPy[$k]}{$CurSub} = $typ;
+                return $typ;
+            }
             return 's';                 # scalar
-        } elsif($class eq '"' || $class eq 'x') {       # string or `exec`
+        } elsif($class eq 'a') {        # array
+            return 'I' if($ValPy[$k] =~ /^len\(/);      # Scalar context
+            return $VarType{$ValPy[$k]}{$CurSub} if(exists $VarType{$ValPy[$k]}{$CurSub});
+            my $v = substr($ValPerl[$k], 1);
+            if(exists $Perlscan::SpecialArrayType{$v}) {
+                my $typ = $Perlscan::SpecialArrayType{$v};
+                $initialized{$CurSub}{$ValPy[$k]} = $typ;
+                $VarType{$ValPy[$k]}{$CurSub} = $typ;
+                return $typ;
+            }
+            return 'a of u';
+        } elsif($class eq 'h') {        # hash
+            return 'I' if($ValPy[$k] =~ /^len\(/);      # Scalar context
+            return $VarType{$ValPy[$k]}{$CurSub} if(exists $VarType{$ValPy[$k]}{$CurSub});
+            my $v = substr($ValPerl[$k], 1);
+            if(exists $Perlscan::SpecialHashType{$v}) {
+                my $typ = $Perlscan::SpecialHashType{$v};
+                $initialized{$CurSub}{$ValPy[$k]} = $typ;
+                $VarType{$ValPy[$k]}{$CurSub} = $typ;
+                return $typ;
+            }
+            return 'h of u';
+        } elsif($class eq '"' || $class eq 'x' || $class eq 'q') {       # string or `exec` or /regex/
             return 'S';                 # string
+        } elsif($class eq 'i') {
+            my $name = $ValPy[$k];
+            if(substr($ValPerl[$k],0,1) eq '<') {   # Diamond operator
+                return 'a of S' if($k-2 >= 0 && $ValClass[$k-2] eq 'a' && $ValClass[$k-1] eq '=');
+                return 'S';
+            } elsif($LocalSub{$name} || exists $VarType{$name}{main}) { # Local sub with no args
+                return $VarType{$name}{main} if(exists $VarType{$name}{main});
+                return 'm';
+            } else {
+                return 'S';
+            }
+        } elsif($class eq 'g') {                # Glob
+            return 'a of S';
         }
-        return 'u';
+        return 'm';
+    } elsif($k+2 <= $e && $ValClass[$k+1] eq '=') {     # Type of assignment is type of RHS
+        return expr_type($k+2, $e, $CurSub);
     } elsif($class eq 'i') {    # bare word
         my $name = $ValPy[$k];
-        if($LocalSub{$name} || exists $VarType{$name}{main}) {
+        if(substr($ValPerl[$k],0,1) eq '<') {   # Diamond operator
+            return 'a of S' if($k-2 >= 0 && $ValClass[$k-2] eq 'a' && $ValClass[$k-1] eq '=');
+            return 'S';
+        } elsif($LocalSub{$name} || exists $VarType{$name}{main}) {
             return $VarType{$name}{main} if(exists $VarType{$name}{main});
             return 'm';
         } elsif($k+1 <= $#ValClass && $ValClass[$k+1] eq '(') {
@@ -728,17 +825,20 @@ sub expr_type           # Attempt to determine the type of the expression
         return 'S';             # will be changed to a string
     } elsif($class ne '(') {            # Non-parenthesized expression
         my $m = next_same_level_tokens('>+-*/%0o.', $k, $#ValClass);
-        if($m != -1) {
+        if($m != -1 && $m <= $e) {
             if($ValClass[$m] eq '.') {
                 return 'S';             # String concat
             } elsif($ValClass[$m] eq '>') {     # could be like < or like lt
                 return 'S' if($ValPerl[$m] =~ /^[a-z][a-z]$/);  # like eq, gt, etc
                 return 'I';     # boolean is an Int in perl
+            } elsif($ValClass[$m] =~ /0o/) {    # or || and &&
+                return common_type(expr_type($k, $m-1, $CurSub),
+                                   expr_type($m+1, $e, $CurSub));
             }
             return 'N';         # Numeric
-        } elsif($class eq 's' && $ValClass[$k+1] eq '(') {    # An array with possible subscript or hash with key
+        } elsif($class eq 's' && $k+1 <= $#ValClass && $ValClass[$k+1] eq '(') {    # An array with possible subscript or hash with key
             my $name = $ValPy[$k];
-            if(exists $VarType{$name}{$CurSub} && index(' of ', $VarType{$name}{$CurSub}) > 0) {
+            if(exists $VarType{$name}{$CurSub} && index($VarType{$name}{$CurSub}, ' of ') > 0) {
                 my $typ = $VarType{$name}{$CurSub};
                 my $p = $k+1;
                 while($ValClass[$p] eq '(') {
@@ -746,19 +846,24 @@ sub expr_type           # Attempt to determine the type of the expression
                     last if($q < 0);
                     $typ =~ s/^. of //;
                     $p = $q+1;
+                    last if($p > $#ValClass);
                 }
                 return $typ if($typ);
             }
+        } elsif($class eq 's' && $k+2 <= $#ValClass && $ValClass[$k+1] eq '~' &&        # Pattern match
+                $ValClass[$k+2] eq 'q' && capturing_pattern($ValPerl[$k+2])) {
+                return 'a of S';
         }
-        return 'u';
+        return 'm';
     } else {                    # '('
         # Handle (a, b) = ...
         my $m = matching_br($k);
         if($m > 0 && $m+1 < $#VarClass && $VarClass[$m+1] eq '=') {
-            return 'u';
+            return 'm';
         }
+        my $ma = $m;
         # Check for list first
-        $m = next_same_level_tokens(',', $k+1, $#ValClass-1);
+        $m = next_same_level_token(',', $k+1, $m-1);
         if($m != -1) {
             my $n = next_same_level_token('A', $k+1, $m-1);       # Look for =>
             my $t;
@@ -788,9 +893,45 @@ sub expr_type           # Attempt to determine the type of the expression
             }
             return "a of $t";
         } else {        # Not a list, just a parenthesized expression
-            return expr_type($k+1, $#ValClass-1, $CurSub);           # Just get the type of the expression in the (...)
+            return expr_type($k+1, $ma-1, $CurSub);           # Just get the type of the expression in the (...)
         }
     }
+}
+
+sub expr_type
+{
+    state $level = 0;
+    $level++;
+    print STDERR '>' x $level if($::debug>=3);
+    my $result = _expr_type(@_);
+    if($::debug>=3) {
+        print STDERR '<' x $level;
+        say STDERR "expr_type($_[0], $_[1], $_[2]) = $result";
+    }
+    $level--;
+    return $result;
+}
+
+
+sub capturing_pattern           # Is this pattern capturing with (...)?
+{
+    my $pat = shift;
+
+    for(my $i = 0; $i < length($pat); $i++) {
+        my $c = substr($pat, $i, 1);
+        if($c eq "\\") {
+            $i++;
+            next;
+        }
+        if($c eq '(') {
+           if(substr($pat, $i+1, 2) =~ /\?[<']/) {      # named capture group
+               return 1;        
+           } elsif(substr($pat, $i+1, 1) ne '?') {      # regular capture group
+               return 1;
+           }
+        }
+    }
+    return 0;
 }
 
 sub common_type         # Create a common type from 2 types
@@ -950,6 +1091,68 @@ my $scan_end=$_[2];
         $toks.=$t if($token_precedence{$t} <= $prec);
     }
     return next_same_level_tokens($toks, $scan_start, $scan_end);
+}
+
+sub apply_scalar_context                        # issue 37
+{
+    $pos = shift;
+    return 0 if($pos < 0 || $pos > $#ValClass);
+    if($ValClass[$pos] eq 'a' && substr($ValPy[$pos],0,4) ne 'len(') {
+        $ValPy[$pos] = 'len('.$ValPy[$pos].')';
+        return 1;
+    } elsif($ValClass[$pos] eq 'f' && exists $SPECIAL_FUNCTION_MAPPINGS{$ValPerl[$pos]}) {      # issue 65
+        $scalar_ValPy = $SPECIAL_FUNCTION_MAPPINGS{$ValPerl[$pos]}->{scalar};
+        if($ValPy[$pos] ne $scalar_ValPy) {
+            $ValPy[$pos] = $scalar_ValPy;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+sub fix_scalar_context                          # issue 37
+{
+    # Run over the statement and fix scalar context issues
+    my $did_something = 0;
+    if($TokenStr eq 's=a' || $TokenStr =~ /^s=f/) {                     # issue 65
+        $did_something |= apply_scalar_context(2);
+    } elsif($TokenStr eq 'ts=a' || $TokenStr =~ /^ts=f/) {               # issue 65
+        $did_something |= apply_scalar_context(3);
+    } elsif($#ValClass > 5 && $ValClass[1] eq '(' && $ValClass[0] eq 's') {    # Array subscript or hashref
+        $j=matching_br(1);
+        if($j+2 <= $#ValClass && $ValClass[$j+1] eq '=' && $ValClass[$j+2] =~ /[af]/) {
+            $did_something |= apply_scalar_context($j+2);
+        }
+    }
+
+    for(my $i=0; $i<=$#ValClass; $i++) {
+        if(index("+-*/.>",$ValClass[$i]) >= 0) {        # Scalar operator
+            if($i-1 == 0 || $ValClass[$i-2] ne 'f') {   # function (like shift/pop) on an array - don't apply scalar context to the array
+                $did_something |= apply_scalar_context($i-1);
+            }
+            $did_something |= apply_scalar_context($i+1);
+        } elsif($ValClass[$i] eq 'f' and $ValPerl[$i] eq 'scalar') {
+            # The 'scalar' function gets changed to 'len' which works unless it's applied to 'localtime'
+            # or other functions that have different scalar interpretation, like 'reverse',
+            # so we handle that here by fixing the function and removing the 'len' call.
+            if($ValClass[$i+1] eq '(' && apply_scalar_context($i+2) == 1) {     # issue times
+                my $close = matching_br($i+1);
+                if($close != -1) {
+                    destroy($close,1);
+                    destroy($i,2);
+                    $i--;
+                    $did_something = 1;
+                }
+            } elsif(apply_scalar_context($i+1) == 1) {
+                destroy($i,1);
+                $i--;
+                $did_something = 1;
+            }
+        }
+    }
+    if($::debug && $did_something) {
+        say STDERR "After fix_scalar_context: =|$TokenStr|=, ValPy = @ValPy";
+    }
 }
 
 sub get_here
@@ -1463,6 +1666,8 @@ sub cleanup_imports
     my %global_lnos = ();
     my %referenced_globals = ();
     my $import_as_referenced = 0;
+    my $_str_lno = 0;
+    my $_str_referenced = 0;
     my $die_referenced = 0;
     my $loop_control_referenced = 0;
     my $eval_return_lno = 0;            # class $EVAL_RETURN_EXCEPTION(
@@ -1491,10 +1696,8 @@ sub cleanup_imports
             $loop_control_def_lno = $lno;
         } elsif($line =~ /^class $EVAL_RETURN_EXCEPTION\(/) {
             $eval_return_lno = $lno;
-            #} elsif($line =~ /^LIST_SEPARATOR = /) {
-            #$list_sep_lno = $lno;
-            #} elsif($line =~ /^$SCRIPT_START = /) {
-            #$script_start_lno = $lno;   # doesn't count for $import_as_referenced
+        } elsif($line =~ /^_str = lambda/) {
+            $_str_lno = $lno;
         } elsif((@gl = grep { $line =~ /^$_ = / } @globals)) {
             $g = $gl[0];
             $global_lnos{$g} = $lno;
@@ -1518,15 +1721,18 @@ sub cleanup_imports
                 #say STDERR $line;
                 #} elsif($line =~ /\bLIST_SEPARATOR\b/) {
                 #$list_sep_referenced = 1;
-            } elsif($line =~ /\bDie\b/) {
+            }
+            if($line =~ /\b_str\b/) {
+                $_str_referenced = 1;
+            }
+            if($line =~ /\bDie\b/) {
                 $die_referenced = 1;
-            } elsif($line =~ /\b$loop_control\b/) {
+            }
+            if($line =~ /\b$loop_control\b/) {
                 $loop_control_referenced = 1;
-            } elsif($line =~ /\b$EVAL_RETURN_EXCEPTION\b/) {
+            }
+            if($line =~ /\b$EVAL_RETURN_EXCEPTION\b/) {
                 $eval_referenced = 1;
-                #} elsif($line =~ /\b$SCRIPT_START\b/ || $line =~ /\b_get[ACM]\b/) {
-                #$script_start_referenced = 1;
-                #$import_as_referenced = 1;      # yes, this references that!
             }
         }
     }
@@ -1546,6 +1752,9 @@ sub cleanup_imports
             $line_ref->[$die_def_lno] = '';     #     pass or def __init__(...):
             $line_ref->[$die_def_lno+1] = '' if($::traceback);     #     traceback
         }
+        if($_str_lno && !$_str_referenced) {
+            $line_ref->[$_str_lno-1] = '';
+        }
         if($loop_control_def_lno && !$loop_control_referenced) {
             $line_ref->[$loop_control_def_lno-1] = '';   # class LoopControl(Exception):
             $line_ref->[$loop_control_def_lno] = '';     #     pass
@@ -1554,12 +1763,6 @@ sub cleanup_imports
             $line_ref->[$eval_return_lno-1] = '';   # class $EVAL_RETURN_EXCEPTION(Exception):
             $line_ref->[$eval_return_lno] = '';     #     pass
         }
-        #if($list_sep_lno && !$list_sep_referenced) {
-        #$line_ref->[$list_sep_lno-1] = '';
-        #}
-        #if($script_start_lno && !$script_start_referenced) {
-        #$line_ref->[$script_start_lno-1] = '';
-        #}
         foreach my $g (keys %global_lnos) {
             if(!exists $referenced_globals{$g}) {
                 $line_ref->[$global_lnos{$g}-1] = '';

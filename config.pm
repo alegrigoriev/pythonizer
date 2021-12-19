@@ -9,7 +9,7 @@ package config;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET array_var_name hash_var_name label_exception_name $ELSIF_TEMP);
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name label_exception_name $ELSIF_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP);
 
 # use Readonly;		# Readonly is not installed by default so skip it!
 
@@ -29,7 +29,8 @@ our $GLOB_LIST = "_g";
 our $PERL_ARG_ARRAY = "_args";
 our $PERL_SORT_ = "";
 our $ARG_PARSER = "_parser";
-our $ELSIF_TEMP = "_e";                         # issue 58: used to capture complicated assignment in elsif
+our $ELSIF_TEMP = "_e";                         # issue 58: used to capture complicated assignment in elsif, for and while loops
+our $SUBSCRIPT_TEMP = "_s";                     # Used to capture complicated expressions in subscripts for arrays that need type conversion involved in ++/-- or +=/-= etc
 our $DIAMOND = "_dia";                          # issue 66: for the <> operator
 our $EVAL_RESULT = "_eval_result";              # issue 42
 our $EVAL_RETURN_EXCEPTION = "EvalReturn";      # issue 42
@@ -55,8 +56,18 @@ our %CONSTANT_MAP = (%flocks, %os_opens, %sigs);
 # SNOOPYJC: Globals to be generated in the code header
 my $open_mode_map = "{'<': 'r', '>': 'w', '+<': 'r+', '+>': 'w+', '>>': 'a', '+>>': 'a+', '|': '|-'}";
 my $dup_map = "dict(STDIN=0, STDOUT=1, STDERR=2)";
-our %GLOBALS = ($SCRIPT_START=>'tm_py.time()', LIST_SEPARATOR=>"' '", OS_ERROR=>"''", $SUBPROCESS_RC=>0, AUTODIE=>0, TRACEBACK=>0, _OPEN_MODE_MAP=>$open_mode_map, _DUP_MAP=>$dup_map);
-our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', OS_ERROR=>'S');
+# NOTE: When adding a new global, remember to define it's type below!!
+our %GLOBALS = ($SCRIPT_START=>'tm_py.time()', 
+                LIST_SEPARATOR=>"' '", 
+                INPUT_RECORD_SEPARATOR=>'"\n"',
+                OS_ERROR=>"''", 
+                $SUBPROCESS_RC=>0, 
+                AUTODIE=>0, 
+                TRACEBACK=>0, 
+                _OPEN_MODE_MAP=>$open_mode_map, 
+                _DUP_MAP=>$dup_map);
+our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_RECORD_SEPARATOR=>'S', OS_ERROR=>'S', $SUBPROCESS_RC=>'I',
+                     AUTODIE=>'I', TRACEBACK=>'I');
 
 sub hash_var_name                       # issue 92
 # Given the name of a %hash, return the python name for it
@@ -83,7 +94,12 @@ sub label_exception_name                # issue 94
 }
 
 # issue 41
+
 our @PYTHON_KEYWORDS = qw(False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise try while with yield);
+our @PYTHON_BUILTINS = qw(abs aiter all any anext ascii bin bool breakpoint bytearray bytes callable chr classmethod compile complex delattr dict dir divmod enumerate eval exec filter float format frozenset getattr globals hasattr hash help hex id input int isinstance issubclass iter len list locals map max memoryview min next object oct open ord pow print property range repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip);
 our %PYTHON_KEYWORD_SET = map { $_ => 1 } @PYTHON_KEYWORDS;
+our %PYTHON_RESERVED_SET = map { $_ => 1 } (@PYTHON_KEYWORDS, @PYTHON_BUILTINS);
+
+our %CONVERTER_MAP = (I=>'_int', N=>'_num', S=>'_str');
 
 1;

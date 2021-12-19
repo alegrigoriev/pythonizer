@@ -113,6 +113,7 @@
 # 0.925  2021/12/14  SNOOPYJC  Addl fixes for issue 21 (split), issue 45 (was putting orig lines in wrong place), issue 58 on elsif, fix opendir not found error, issue 98, issue 100, remove extra 'r' after regex, issue 101
 # 0.926  2021/12/15  SNOOPYJC  Addl fix for issue 93, uniquely map tokens to get precedence, issue 102, update to ending fix in double_quoted string
 # 0.927  2021/12/16  SNOOPYJC  Revamp the time functions, use *arr for passing arrays, use map(str,...) for join of int array
+# 0.928  2021/12/19  SNOOPYJC  Rename vars that clash with built-in functions like len, etc., fix _each, issue 103, issue 104, implement automatic type conversion, issue 105, issue 106
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -141,13 +142,12 @@ BEGIN {                                                 # SNOOPYJC
    use Perlscan ('gen_statement', 'tokenize', 'gen_chunk', 'append', 'replace',
                  'insert', 'destroy', 'autoincrement_fix', '@ValClass', '@ValPerl', '@ValPy', '@ValCom',
                  'escape_keywords',                     # issue 41
-                 '%SPECIAL_FUNCTION_MAPPINGS',          # issue 65
                  'save_code', 'restore_code',           # issue 74
                  '@ValType', '$TokenStr');
 
-   use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token); # SNOOPYJC
+   use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context); # SNOOPYJC
 
-   $VERSION='0.927';
+   $VERSION='0.928';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -213,8 +213,10 @@ BEGIN {                                                 # SNOOPYJC
     def __init(self, arg):
         traceback.print_stack()" if($traceback);
    # NOTE: This import line gets rewritten in Pythonizer.pm!
-   my @headers = ('import sys,os,re,fcntl,math,fileinput,subprocess,inspect,collections.abc,argparse,glob,warnings,inspect,functools,signal,traceback,io,tempfile,atexit,calendar',
-	   'import time as tm_py');             # SNOOPYJC
+   my @headers = ('import sys,os,re,fcntl,math,fileinput,subprocess,inspect,collections.abc,argparse,glob,warnings,inspect,functools,signal,traceback,io,tempfile,atexit,calendar,types',
+	   'import time as tm_py',                              # SNOOPYJC
+           "_str = lambda s: '' if s is None else str(s)",      # SNOOPYJC
+                 );
    foreach my $g (keys %GLOBALS) {              # SNOOPYJC
        if($g eq 'TRACEBACK' && $traceback) {
            push @headers, "$g = 1";
@@ -302,7 +304,8 @@ my ($start,$token_buffer_active);
          if($deferred_statement == 1 && $Perlscan::nesting_level < $deferred_statement_nesting) {       # issue 58
             if($Perlscan::nesting_last->{type} eq 'else') {
                 $deferred_statement=0;          # We're all set
-            } elsif($TokenStr ne '}' && substr($TokenStr,0,1) ne 'C') {
+            } elsif(($TokenStr ne '}' && substr($TokenStr,0,1) ne 'C') ||
+                    $Perlscan::nesting_level < $deferred_statement_nesting-1) {         # issue 103
                 gen_statement('else:');         # Insert an 'else:' clause so we have a place to generate the assignment
                 correct_nest(1,1);
                 my @tmp=@ValClass; @ValClass=@DeferredValClass; @DeferredValClass=@tmp;
@@ -367,10 +370,13 @@ my ($start,$token_buffer_active);
       }
 
       fix_scalar_context();                             # issue 37
-      fix_string_catenation();                          # issue 36
+      #fix_string_catenation();                          # issue 36
       fix_multi_subscripts();                           # issue 84
       remove_array_or_hash_references();                # issue 50
+      replace_incr_decr_stmt();                         # SNOOPYJC
       fix_expression_issues();                          # SNOOPYJC, issue 74, issue 52
+      fix_type_issues(0, $#ValClass, undef);            # SNOOPYJC
+      fix_undef();                                      # SNOOPYJC
 
       #
       # Statements
@@ -556,7 +562,7 @@ my ($start,$token_buffer_active);
 	              gen_chunk("'".$ValPy[3]."'");				# issue 13
 	            }
 	       } else {				# Issue 8
-                  output_line("$ValPy[1]=$ValPy[-1]");
+                  output_line("$ValPy[1] = $ValPy[-1]");
 	       }
             }elsif( $ValPerl[0] eq  'own' ){
                gen_chunk( $ValPy[0], $ValPy[1].' = ',$ValPy[-1] );
@@ -824,27 +830,11 @@ my ($start,$token_buffer_active);
          #next last continue
          if( $ValPerl[0] eq 'elsif' ){
             $end_pos=matching_br(1);
-            $k=0;
-            if(($k=next_same_level_token('=', 2, $end_pos-1))>-1 && 
-                ($ValClass[$k-1] !~ /[ahs]/ || $ValPy[$k-1] !~ /[A-Za-z0-9_]+/)) {      # issue 58: complex assignment
-               $deferred_statement = 1;                 # In the elif body we will generate the "complex_stuff=_e" assignment
-               $deferred_statement_nesting = $Perlscan::nesting_level;
-               @DeferredValClass=@ValClass[2..$k]; 
-               @DeferredValCom=@ValCom[2..$k]; 
-               @DeferredValPerl=@ValPerl[2..$k]; 
-               @DeferredValPy=@ValPy[2..$k];
-	       @DeferredValType=@ValType[2..$k];
-               push @DeferredValClass, 'a';
-               push @DeferredValCom, '';
-               push @DeferredValPerl, $ELSIF_TEMP;
-               push @DeferredValPy, $ELSIF_TEMP;
-               push @DeferredValType, '';
-               replace(2, 'a', $ELSIF_TEMP, $ELSIF_TEMP);       # Change it to _e:=expression
-               destroy(3,$k-3) if($k >= 3);
-               $end_pos -= ($k-3);
-            }
+            my $adjust = fixup_complex_assignment_in_control(2, $end_pos-1);            # issue 58, 103
+            $adjust = 0 if($adjust == -1);
+            $end_pos -= $adjust;
             gen_chunk('elif ');
-            if($k>0) {                          # issue 58: We have a := in there
+            if($adjust) {                          # issue 58: We have a := in there
                 $TrStatus=expression(1,$end_pos,0);     # Keep the parens
             } else {
                 $TrStatus=expression(2,$end_pos-1,0);
@@ -889,7 +879,8 @@ my ($start,$token_buffer_active);
 	 }elsif( $ValPerl[0] eq 'opendir' ){	# SNOOPYJC
 	    $rc=open_dir(0,$#ValClass,'s');
          }else{
-            $TrStatus=function(0);
+             # $TrStatus=function(0);
+            $TrStatus=expression(0,$#ValClass,0);          # SNOOPYJC: They could have f(s)+f(s)
 
          }
       }elsif( $ValClass[0] eq 'x' ){
@@ -1043,60 +1034,509 @@ my ($start,$token_buffer_active);
    $rc=summary(); # print diagnostic messages summary
    exit $rc;
 
-sub apply_scalar_context                        # issue 37
+sub fixup_complex_assignment_in_control         # issue 58, 103
+# See if we have a complex assignment in a control statement like for, foreach, while, elsif
+# and if so, fix it up to use a simple variable that python allows in a := operation.  We play
+# lots of games to get the actual assignment generated inside the control statement, and also
+# in an else clause that we generate if there isn't one already.
+# Returns the # of tokens we removed if it does a replacement, or -1 if we didn't do anything
 {
-    $pos = shift;
-    return if($pos < 0 || $pos > $#ValClass);
-    if($ValClass[$pos] eq 'a' && substr($ValPy[$pos],0,4) ne 'len(') {
-        $ValPy[$pos] = 'len('.$ValPy[$pos].')';
-        return 1;
-    } elsif($ValClass[$pos] eq 'f' && exists $SPECIAL_FUNCTION_MAPPINGS{$ValPerl[$pos]}) {      # issue 65
-        $scalar_ValPy = $SPECIAL_FUNCTION_MAPPINGS{$ValPerl[$pos]}->{scalar};
-        if($ValPy[$pos] ne $scalar_ValPy) {
-            $ValPy[$pos] = $scalar_ValPy;
-            return 1;
-        }
+    my $start = shift;          # Point after the '('
+    my $end_pos = shift;        # Point before the ')'
+
+    if(($k=next_same_level_token('=', $start, $end_pos))>-1 && 
+        ($ValClass[$k-1] !~ /[ahs]/ || $ValPy[$k-1] !~ /[A-Za-z0-9_]+/)) {      # issue 58: complex assignment
+       $deferred_statement = 1;                 # In the elif/while/for body we will generate the "complex_stuff=_e" assignment
+       $deferred_statement_nesting = $Perlscan::nesting_level;
+       @DeferredValClass=@ValClass[$start..$k]; 
+       @DeferredValCom=@ValCom[$start..$k]; 
+       @DeferredValPerl=@ValPerl[$start..$k]; 
+       @DeferredValPy=@ValPy[$start..$k];
+       @DeferredValType=@ValType[$start..$k];
+       @DeferredValPy[$k-$start] = '=';                 # Replace := with =
+       push @DeferredValClass, 'a';
+       push @DeferredValCom, '';
+       push @DeferredValPerl, $ELSIF_TEMP;
+       push @DeferredValPy, $ELSIF_TEMP;
+       push @DeferredValType, '';
+       replace(2, 'a', $ELSIF_TEMP, $ELSIF_TEMP);       # Change it to _e:=expression
+       destroy(3,$k-3) if($k >= 3);
+       return ($k-3);
     }
-    return 0;
+    return -1;           # didn't do anything
 }
 
-sub fix_scalar_context                          # issue 37
+sub replace_incr_decr_stmt
+# Replace ++x --x x++ and x-- if on the statement level with x+-1 or x-=1
+# This is what we have to produce anyway and it simplifies the checking
+# in fix_type_issues.
 {
-    # Run over the statement and fix scalar context issues
-    if($TokenStr eq 's=a' || $TokenStr =~ /^s=f/) {                     # issue 65
-        apply_scalar_context(2);
-    } elsif($TokenStr eq 'ts=a' || $TokenStr =~ /^ts=f/) {               # issue 65
-        apply_scalar_context(3);
-    } elsif($#ValClass > 5 && $ValClass[1] eq '(' && $ValClass[0] eq 's') {    # Array subscript or hashref
-        $j=matching_br(1);
-        if($j+2 <= $#ValClass && $ValClass[$j+1] eq '=' && $ValClass[$j+2] =~ /[af]/) {
-            apply_scalar_context($j+2);
-        }
+    return if(scalar(@ValClass) < 2);
+    $pop = '+=';
+    if($ValClass[0] eq '^') {
+        $pop = '-=' if($ValPerl[0] eq '--');
+        destroy(0, 1);
+    } elsif($ValClass[$#ValClass] eq '^') {
+        $pop = '-=' if($ValPerl[$#ValClass] eq '--');
+        destroy($#ValClass, 1);
+    } else {
+        return;
+    }
+    # At this point all we have left is the operand
+    append('=', $pop, $pop);
+    append('d', '1', '1');
+    say STDERR "replace_incr_decr_stmt: now =|$TokenStr|=" if($debug >= 1);
+}
+
+sub end_of_variable
+# Given a 's' scalar variable reference, return the end_pos of the reference,
+# e.g. if it's $s, then return the same pos, but if it's $s[4]{'k'} then return
+# the end of those tokens.
+# Also works if you give it a parenthesized expression, function, or sub ref
+{
+    my $pos = shift;
+
+    my $k;
+    return matching_br($pos) if($ValClass[$pos] eq '(');
+    return matching_br($pos+1) if($ValClass[$pos] =~ /[if]/ && $pos+1 <= $#ValClass && $ValClass[$pos+1] eq '(');
+    return $pos if($ValClass[$pos] ne 's');
+    while($pos+1 <= $#ValClass && $ValClass[$pos+1] eq '(' &&
+        ($ValPerl[$pos+1] eq '{' || $ValPerl[$pos+1] eq '[') && ($k = matching_br($pos+1)) != -1) {
+        $pos = $k;
+    }
+    return $pos;
+}
+
+sub operator_type
+# If this is an operator, what type is needed?  If not an operator, return undef
+{
+    my $p = shift;
+    my $left = shift;           # 1 if we want the left operand type, else 0 (if it matters)
+
+    $cl = $ValClass[$p];
+    return 'S' if($cl eq '.');
+    return 'S' if($cl eq '~');
+    if(index('HI^>=+*/%-', $cl) >= 0) {
+        return 'S' if($left && $cl eq '*' && $ValPerl[$p] eq 'x');       # x operator is string x number
+        return 'S' if($cl eq '>' && $ValPerl[$p] =~ /^[a-z]/);  # e.g. ne, eq, le, cmp, ...
+        return 'S' if($cl eq '=' && $ValPerl[$p] eq '.=');
+        return undef if($cl eq '=' && $ValPerl[$p] eq '=');   # Regular assignment
+        return 'N';
+    } elsif($cl eq 'f' && exists $Perlscan::FuncType{$ValPerl[$p]}) {
+        return substr($Perlscan::FuncType{$ValPerl[$p]}, 0, 1);
+    }
+    return undef;
+}
+
+sub insert_converter
+# If we need a converter, insert it and return the # of elements inserted, else return 0
+{
+    my $start = shift;          # Start of expr
+    my $limit = shift;          # End of expr
+    my $i = shift;              # Start of item
+    my $k = shift;              # End of item
+    my $type = shift;           # Type we need
+
+    return 0 if($k < $i);
+    $t_left = $t_right = undef;
+    #no warnings 'uninitialized';
+    if($i-1 >= $start) {
+        $t_left = operator_type($i-1, 0);
+        #say STDERR "operator_type($i-1) = $t";
+    }
+    if($k+1 <= $limit) {
+        $t_right = operator_type($k+1, 1);
+        return 0 if($ValClass[$k+1] eq '~' && $i == $start);    # $var =~ s/a/b/; or something like that
+        #say STDERR "operator_type($k+1) = $t";
+    }
+    my $t = (defined $t_left) ? $t_left: $t_right;
+    if(defined $t_left && defined $t_right) {
+        my $p_left = $Perlscan::token_precedence{$ValClass[$i-1]};
+        my $p_right = $Perlscan::token_precedence{$ValClass[$k+1]};
+        $t = $t_right if($p_right > $p_left);
+    }
+    $t = $type if(!defined $t);
+    $t = $type if(defined $type && index('IF', $type) >= 0 && defined $t && $t ne 'I');
+    my $converter = get_converter($i, $k, $t);
+    if($debug >= 3) {
+        no warnings 'uninitialized';
+        say STDERR "insert_converter($start, $limit, $i, $k, $type): for =|$TokenStr|=, $ValPerl[$i], t=$t, converter=$converter";
     }
 
-    for(my $i=0; $i<=$#ValClass; $i++) {
-        if(index("+-*/.>",$ValClass[$i]) >= 0) {        # Scalar operator
-            if($i-1 == 0 || $ValClass[$i-2] ne 'f') {   # function (like shift/pop) on an array - don't apply scalar context to the array
-                apply_scalar_context($i-1);
-            }
-            apply_scalar_context($i+1);
-        } elsif($ValClass[$i] eq 'f' and $ValPerl[$i] eq 'scalar') {
-            # The 'scalar' function gets changed to 'len' which works unless it's applied to 'localtime'
-            # or other functions that have different scalar interpretation, like 'reverse',
-            # so we handle that here by fixing the function and removing the 'len' call.
-            if($ValClass[$i+1] eq '(' && apply_scalar_context($i+2) == 1) {     # issue times
-                my $close = matching_br($i+1);
-                if($close != -1) {
-                    destroy($close,1);
-                    destroy($i,2);
-                    $i--;
-                }
-            } elsif(apply_scalar_context($i+1) == 1) {
-                destroy($i,1);
-                $i--;
-            }
+    return 0 if(!defined $converter);
+    my $adjust = 0;
+
+    my $j;
+    if($k+1 <= $#ValClass && $ValClass[$k+1] eq '=') {
+        if($ValPerl[$k+1] ne '=') {
+            say STDERR "insert_converter($start, $limit, $i, $k, $type): for =|$TokenStr|=, $ValPerl[$i], t=$t, converter=$converter - calling expand_augmented_assignment" if($debug >= 3);
+            my $adj;
+            ($i, $k, $adj) = expand_augmented_assignment($i, $k+1);
+            $limit += $adj;
+            $adjust += $adj;
+        } else {
+            return 0;               # Don't put the function directly on the LHS of an assignment!
+        }
+    } elsif(($j = next_same_level_token('=', $i, $k))!= -1) {  # If this is an assignment, point to the RHS
+        if($ValPerl[$j] eq '=') {       # Regular '='
+            $i = $j+1;
+        } else {
+            say STDERR "insert_converter($start, $limit, $i, $k, $type): for =|$TokenStr|=, $ValPerl[$i], t=$t, converter=$converter, j=$j - calling expand_augmented_assignment" if($debug >= 3);
+            my $adj;
+            ($i, $k, $adj) = expand_augmented_assignment($i, $j);
+            $limit += $adj;
+            $adjust += $adj;
         }
     }
+    insert($k+1, ')', ')', ')');
+    insert($i, '(', '(', '(');
+    insert($i, 'f', $converter, $converter);
+    if($debug >= 3) {
+        no warnings 'uninitialized';
+        say STDERR "insert_converter($start, $limit, $i, $k, $type): new =|$TokenStr|=, $ValPerl[$i], result = 3+$adjust";
+    }
+    return 3 + $adjust;
+}
+
+sub expand_augmented_assignment
+# Take an augumented assignment, like $i += 2, and change it to $i = $i + 2 so we can do a type conversion on $i.
+# Of course this is the simplest case.  We need to handle the hard cases like $arr[$i+=1]+=1 too!
+# Returns the new start and end of the expression we moved to the RHS and the adjustment factor of how many tokens
+# we added or removed.
+{
+    my $start = shift;
+    my $equals = shift;
+
+    my $total_adjust = 0;             # How many tokens we added
+
+    # Determine the token, perl, and python versions of the operation
+    my $pl = $op = substr($ValPerl[$equals], 0, length($ValPerl[$equals])-1);
+    my $py = substr($ValPy[$equals], 0, length($ValPy[$equals])-1);
+    $op = 'H' if($op eq '<<');
+    $op = 'I' if($op eq '>>');
+    $op = '*' if($op eq '**');
+    replace($equals, '=', '=', '=');            # Change to plain '='
+    insert($equals+1, $op, $pl, $py);           # Insert the +,-,* or whatever operator it is
+    $total_adjust++;
+
+    my $i;
+    for($i = $equals-1; $i >= $start; $i--) {        # Insert a full copy of the LHS
+        insert($equals+1, $ValClass[$i], $ValPerl[$i], $ValPy[$i]);
+        $total_adjust++;
+    }
+
+    my $new_start = $equals+1;
+    my $new_end = $new_start+$total_adjust-2;
+    if(is_expression_simple($start, $equals-1)) {
+        say STDERR "expand_augmented_assignment($start, $equals) simple: gives =|$TokenStr|=, ValPy=@ValPy, new_start=$new_start, new_end=$new_end, adjust=$total_adjust" if($debug>=1);
+        return ($new_start, $new_end, $total_adjust);
+    }
+
+    # Now the fun begins!  Walk thru looking for subscripts that we can grab the value of in
+    # a temp variable (using the := operator in python) and replace the corresponding LHS with
+    # a reference to that temp variable.
+
+    my $copy = $equals+1;               # Where our copy starts
+    $i = $start;
+    my $suffix = 0;
+    my $adjust = 0;
+    my $eq = $equals;
+    #$DB::single = 1;
+    for($i = index($TokenStr, '(', $i); $i >= 0 && $i < $eq; $i = index($TokenStr, '(', $i+1)) {
+        my $sub_start = $i+1;
+        my $sub_end = matching_br($i)-1;
+        $i = $sub_end+1;
+        next if($ValPerl[$sub_start-1] ne '{' && $ValPerl[$sub_start-1] ne '[');
+        last if($sub_end < 0);
+        if(is_expression_simple($sub_start, $sub_end)) {
+            say STDERR "expand_augmented_assignment: Leaving $sub_start..$sub_end alone - simple expression" if($debug >= 3);
+            next;
+        }
+        # We found something to do, start by creating our temp var and then finding the corresponding spot in the RHS
+        $temp = $SUBSCRIPT_TEMP . $suffix;
+        $suffix++;
+        my $rhs_start = $sub_start + $copy - $start;
+        my $rhs_end = $sub_end + $copy - $start;
+        insert($rhs_end+1, ')', ')', ')');
+        insert($rhs_start, '=', '=', ':=');
+        insert($rhs_start, 's', $temp, $temp);
+        insert($rhs_start, '(', '(', '(');
+        replace($sub_start, 's', $temp, $temp);
+        destroy($sub_start+1, $sub_end-$sub_start);
+        $adjust = 4 - ($sub_end-$sub_start);
+        $i = $sub_start+1;              # Point back to the ']'
+        $eq -= ($sub_end-$sub_start);   # Point back to '='
+        $new_start -= ($sub_end-$sub_start);   # Point back to the start of our expression on the RHS
+        $new_end += $adjust;
+        $copy += 4;                     # Adjust by the # we inserted
+        $total_adjust += $adjust;
+        say STDERR "expand_augmented_assignment($start, $equals) did   =|$TokenStr|= i=$i, eq=$eq, new_start=$new_start, new_end=$new_end, copy=$copy, adjust=$adjust, total_adjust=$total_adjust, ValPy=@ValPy" if($debug >= 5);
+    }
+    say STDERR "expand_augmented_assignment($start, $equals) gives =|$TokenStr|=, new_start=$new_start, new_end=$new_end, adjust=$total_adjust, ValPy=@ValPy" if($debug>=1);
+    return ($new_start, $new_end, $total_adjust);
+}
+
+sub get_converter
+# Get the right converter for this variable to the specified type.  Returns undef if no conversion is needed.
+{
+    my $var_start = shift;
+    my $var_end = shift;
+    my $type = shift;
+
+    return undef if(!defined $type);
+    return undef if(!exists $CONVERTER_MAP{$type});
+    $v_type = &Pythonizer::expr_type($var_start, $var_end, $CurSub);
+    return undef if($type eq $v_type);
+    return undef if($type eq 'N' && $v_type =~ /[IF]/);
+    return $CONVERTER_MAP{$type};
+}
+
+sub fix_type_issues
+# Fixup issues with variable types and how perl automatically converts things to the proper type e.g.
+# strings used in numeric contexts.  This is a recursive function, and returns the adjustment factor
+# of how many tokens we added.  It uses the functions _num(), _str(), and _int() to make the conversions.
+# _int() is used in subscripts.  We make use of the type information we gathered in pass 1 to see
+# if we can eliminate as many of these conversions as possible.  FIXME: As a desired enhancement, we
+# should "peephole optimize" the code, which means keeping track of the exact type of each variable
+# in assignment statements in each basic block of code, so that if you say "$j = 1", we know that
+# "$j" is an int in the same block even if it gets set to a string elsewhere. Once we hit a merge 
+# point, e.g. a "}", then all bets are off!
+{
+    my $start = shift;
+    my $limit = shift;
+    my $type = shift;
+
+    if($debug >= 3) {
+        no warnings 'uninitialized';
+        say STDERR "fix_type_issues($start, $limit, $type)";
+    }
+    my $total_adjust = 0;
+    my $k;
+    my $ot;
+    my $adjust;
+    my $opt;
+    return if(scalar(@ValClass) == 0 || ($ValClass[0] eq 'k' && $ValPerl[0] eq 'sub'));
+    return 0 if($start > $limit);
+    return fix_type_issues($start+1, $limit, $type) if($ValClass[$start] eq 'f' && $ValPy[$start] eq 'print');
+    for(my $i=$start; $i<=$limit; $i++) {
+        $k = $i;
+        no warnings 'uninitialized';
+        say STDERR "fix_type_issues($start, $limit, $type): checking $ValPerl[$i] at $i, limit=$limit" if($debug >= 5);
+        if($ValClass[$i] eq 'f') {
+            next if(!exists $Perlscan::FuncType{$ValPerl[$i]});
+            my $f_type = $Perlscan::FuncType{$ValPerl[$i]};
+            my $t_pos = 0;
+            if($i+1 <= $#ValClass && $ValClass[$i+1] eq '(') {
+                my $endbr = matching_br($i+1);
+                for(my $j = $i+2; $j < $endbr; $j++) {
+                    my $comma = next_same_level_token(',', $j, $endbr);
+                    my $ep = (($comma==-1) ? $endbr-1 : $comma-1);
+                    my $t = substr($f_type, $t_pos, 1);
+                    $t = substr($f_type, ++$t_pos, 1) if($t eq '?');
+                    $t = substr($f_type, --$t_pos, 1) if($t eq ':');
+                    $t = substr($f_type, --$t_pos, 1) if($t eq '?');
+                    $t_pos++;
+                    if($t eq 'H' && $ValClass[$j] =~ /[isf]/) {      # e.g. print(H a,b);
+                        $j = end_of_variable($j);
+                        $j++ if($j+1 == $comma);
+                        next;
+                    } elsif($ValClass[$j] =~ /[ah]/) {     # We will * an array, and iterate a hash, so just skip this
+                        last;
+                    } elsif($t eq 'S' && $ValPerl[$i] eq 'grep' && $ValPerl[$i+1] eq '{') {
+                        last;                              # Don't convert the function result on a grep {...} @arr
+                    } else {
+                        if($ValClass[$j] eq 'q' && $ValClass[$ep] eq 'i' && $j+1 == $ep) {      # ignore flags on regex
+                            $adjust = fix_type_issues($j, $j, $t);
+                        } else {
+                            $adjust = fix_type_issues($j, $ep, $t);
+                        }
+                        $ep += $adjust;
+                        $endbr += $adjust;
+                        $limit += $adjust;
+                        $total_adjust += $adjust;
+                    }
+                    $j = $ep+1;
+                }
+                $k = $endbr;
+            } else {                    # Unbracketed function call
+                my $end_pos = $limit;
+                if($i != 0 && $ValClass[$i-1] eq '(') {         # If the whole thing is in brackets, we know where to stop
+                    $end_pos = matching_br($i-1) - 1;
+                }
+                my $j;
+                for($j = $i+1; $j <= $end_pos; $j++) {
+                    my $comma = next_lower_or_equal_precedent_token('f', $j, $end_pos);
+                    my $ep = (($comma==-1) ? $end_pos : $comma-1);
+                    my $optional = 0;
+                    my $t = substr($f_type, $t_pos, 1);
+                    $optional = 1 if(substr($f_type, $t_pos+1, 1) eq '?');
+                    $t = substr($f_type, ++$t_pos, 1) if($t eq '?');
+                    if($t eq ':') {
+                        $t = substr($f_type, --$t_pos, 1);
+                        $t = substr($f_type, --$t_pos, 1) if($t eq '?');
+                        last if($t ne 'a');
+                    }
+                    $t_pos++;
+                    if($t eq 'H' && $ValClass[$j] =~ /[isf]/) {      # e.g. print H a,b;
+                        $j = end_of_variable($j);
+                        $j++ if($j+1 == $comma);
+                        next;
+                    } elsif($ValClass[$j] =~ /[ah]/) {     # We will * an array, and iterate a hash, so just skip this
+                        last;
+                    } elsif($optional && index("^*~/%+-.HI>&|0or?:=,A", $ValClass[$j]) >= 0) {
+                        $j--;
+                        last;
+                    } else {
+                        if($ValClass[$j] eq 'q' && $ValClass[$ep] eq 'i' && $j+1 == $ep) {      # ignore flags on regex
+                            $adjust = fix_type_issues($j, $j, $t);
+                        } else {
+                            $adjust = fix_type_issues($j, $ep, $t);
+                        }
+                        $comma += $adjust;
+                        $ep += $adjust;
+                        $end_pos += $adjust;
+                        $limit += $adjust;
+                        $total_adjust += $adjust;
+                    }
+                    if($comma >= 0 && $ValClass[$comma] ne ',') {
+                        $j = $ep;
+                        last;
+                    }
+                    $j = $ep+1;
+                }
+                $k = $j;
+            }
+        } elsif($ValClass[$i] eq 'i' && ($LocalSub{$ValPy[$i]} || $i+1 <= $#ValClass && $ValClass[$i+1] eq '(')) {
+            # Known local sub call or unknown sub call
+            if($i+1 <= $#ValClass && $ValClass[$i+1] eq '(') {          # sub(...)
+                my $endbr = matching_br($i+1);
+                return if($endbr < 0);
+                for(my $j = $i+2; $j < $endbr; $j++) {
+                    my $comma = next_same_level_token(',', $j, $endbr);
+                    my $ep = (($comma==-1) ? $endbr-1 : $comma-1);
+                    if($ValClass[$j] eq 'a') {     # We will * an array, so just skip this
+                        last;
+                    }
+                    $adjust = fix_type_issues($j, $ep, undef);
+                    $ep += $adjust;
+                    $endbr += $adjust;
+                    $limit += $adjust;
+                    $total_adjust += $adjust;
+                    $j = $ep+1;
+                }
+                $k = $endbr;
+            } else {                    # Unbracketed function call
+                my $end_pos = $limit;
+                if($i != 0 && $ValClass[$i-1] eq '(') {         # If the whole thing is in brackets, we know where to stop
+                    $end_pos = matching_br($i-1) - 1;
+                }
+                my $j;
+                for($j = $i+1; $j <= $end_pos; $j++) {
+                    my $comma = next_lower_or_equal_precedent_token(',', $j, $end_pos);
+                    my $ep = (($comma==-1) ? $end_pos : $comma-1);
+                    if($ValClass[$j] eq 'a') {     # We will * an array, so just skip this
+                        last;
+                    } elsif(index("^*~/%+-.HI>&|0or?:=,A", $ValClass[$j]) >= 0) {       # Operator is next - that's it!
+                        last;
+                    }
+                    $adjust = fix_type_issues($j, $ep, undef);
+                    $ep += $adjust;
+                    $comma += $adjust;
+                    $limit += $adjust;
+                    $end_pos += $adjust;
+                    $total_adjust += $adjust;
+                    if($comma >= 0 && $ValClass[$comma] ne ',') {
+                        $j = $ep;
+                        last;
+                    }
+                    $j = $ep+1;
+                }
+                $k = $j;
+            }
+        } elsif($ValClass[$i] =~ /[sd"]/) {             # Scalar, digits, or string
+            $k = end_of_variable($i);
+            #say STDERR "end_of_variable $ValPerl[$i] at $i = $k";
+            my $t = undef;
+            if($k != $i) {      # Process subscripts
+                for(my $j = $i+1; $j < $k; $j++) {
+                    $t = 'S';
+                    if($ValPerl[$j] eq '[') {   # Array subscript
+                        $t = 'I';
+                    }
+                    my $m = matching_br($j);
+                    $adjust = fix_type_issues($j+1, $m-1, $t);
+                    $m += $adjust;
+                    $limit += $adjust;
+                    $k += $adjust;
+                    $total_adjust += $adjust;
+                    $j = $m;
+                }
+            }
+        } elsif($ValClass[$i] =~ /[ah]/ && $ValPy[$i] =~ /^len\(/) {    # Scalar context
+            $k = $i;
+        # Not good to look backwards because we may have a function with non-parenthesised arguments
+        #} elsif(defined ($ot = operator_type($i))) {
+        #if($ValClass[$i-1] eq ')' && $ValPerl[$i-1] eq ')') {
+        #my $j=reverse_matching_br($i-1);
+        #while($j-1 >= 0 && $ValClass[$j-1] =~ /[if]/) {
+        #$j--;
+        #}
+        #$adjust = insert_converter($start, $limit, $j, $i-1, $ot);
+        #$total_adjust += $adjust;
+        #$i += $adjust;
+        #$limit += $adjust;
+        #}
+            # Not good to look forward since our $adjust will only pertain to SOME of the pointers
+            #if($i+1 <= $#ValClass && $ValClass[$i+1] eq '(') {
+            #$k = matching_br($i+1);
+            #$adjust = insert_converter($start, $limit, $i+1, $k, $ot);
+            #$total_adjust += $adjust;
+            #$limit += $adjust;
+            #}
+            #next;
+        } elsif($ValClass[$i] eq '(' && $ValPerl[$i] eq '(') {
+            $k = matching_br($i);
+            if($k+1 < $limit && defined($ot = operator_type($k+1, 1))) {
+                $adjust = fix_type_issues($i, $k, $ot);
+                $k += $adjust;
+                $limit += $adjust;
+                $total_adjust += $adjust;
+                $i = $k;
+            }
+            next;
+        } elsif($ValClass[$i] eq ')' && $ValPerl[$i] eq ')') {
+            $k = reverse_matching_br($i);
+            if($k > 0 && defined($ot = operator_type($k-1, 0))) {
+                $adjust = insert_converter($start, $limit, $k, $i, $ot);
+                $total_adjust += $adjust;
+                $i += $adjust;
+                $limit += $adjust;
+            }
+            next;
+        #} elsif($opt = operator_type($i) && $opt ne $type) {
+            #$adjust = insert_converter($start, $limit, $start, $i-1, $opt);
+            #$total_adjust += $adjust;
+            #$i += $adjust;
+            #$k += $adjust;
+            #$limit += $adjust;
+        } elsif($ValClass[$i] eq ';') {         # See it inside a anon sub
+            return $total_adjust + fix_type_issues($i+1, $k, $type) if($i+1 >= $k);
+            return $total_adjust;
+        } else {
+            next;
+        }
+        $adjust = insert_converter($start, $limit, $i, $k, $type);
+        $total_adjust += $adjust;
+        $i = $k + $adjust;
+        $limit += $adjust;
+    }
+    # Do one last check to make sure the whole expression is of the desired type
+    $adjust = insert_converter($start, $limit, $start, $limit, $type);
+    $total_adjust += $adjust;
+    if($total_adjust && $debug >= 3) {
+        say STDERR "After fix_type_issues: =|$TokenStr|=, \@ValPy: @ValPy";
+    }
+    return $total_adjust;
 }
 
 sub fix_string_catenation                       # issue 36
@@ -1213,6 +1653,27 @@ sub remove_array_or_hash_references                     # issue 50
                 $ValPy[$to] = '}';
             }
         }
+    }
+}
+
+sub fix_undef                                           # SNOOPYJC
+# Change $a=$b=$c=undef; to undef $a, $c, $d; so we can generate the code that sets the
+# value to the proper type (if we know it).
+{
+    return if(scalar(@ValClass) < 3);
+    return if($ValClass[-1] ne 'f');
+    return if($ValPerl[-1] ne 'undef');
+    return if($ValClass[-2] ne '=');
+    return if($ValClass[-3] ne 's');
+    $start = 0;
+    if($ValClass[0] eq 't') {
+        return if($ValPerl[0] ne 'my');
+        $start++;
+    }
+    insert($start, 'f', 'undef', $ValPy[-1]);
+    destroy($#ValClass, 1);
+    for(my $i = $start+1; $i<=$#ValClass; $i++) {
+        replace($i, ',', ',', ',') if($ValClass[$i] eq '=');
     }
 }
 
@@ -1383,6 +1844,9 @@ sub rename_state_var
 ($from,$to)=@_;
    for( $i=$from; $i<=$to; $i++ ){
       if( defined($ValClass[$i]) &&  $ValClass[$i]=~/[sah]/ && exists($new_state_var_name{$ValPy[$i]}) ){
+          if(exists $VarType{$ValPy[$i]}{$CurSub}) {    # SNOOPYJC: Copy it's type over
+              $VarType{"${CurSub}_$ValPy[$i]"}{$CurSub} = $VarType{$ValPy[$i]}{$CurSub};
+          }
           $ValPy[$i]=$CurSub.'_'.$ValPy[$i];
       }
    }
@@ -1572,7 +2036,8 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
 #
    $add_right_paren = 0;			# issue 14
    $number_of_elements = 0;                     # issue 56
-   if( ($split=index($TokenStr,'=',$k))>-1 ){
+   # issue 105 if( ($split=index($TokenStr,'=',$k))>-1 ){
+   if( ($split=next_same_level_token('=', $k, $#ValClass)) != -1) {     # issue 105: skip any := in the LHS
        if($split+1 <= $#ValClass && $ValClass[$split+1] eq 'C') {         # issue 42
            if(handle_assign_eval($split+1)) {   # issue 42
                return $#ValClass;               # issue 42
@@ -1943,6 +2408,11 @@ my($start,$k,$split)=@_;
          }
          # next token
          $k=$split+1;
+      }elsif($ValClass[$split+1] eq '"') {                      # issue 106
+          gen_chunk($ValPy[$split+1], 'in');
+          $k=expression($start,$split-1,0);
+          return -255 if( $k<0 );
+          $k = $split+1;
       }else{
         return -255;
       }
@@ -1962,12 +2432,20 @@ my  $assign_end=matching_br($assign_start);
    if($debug >= 3) {
 	   say STDERR "pre_assign($assign_start, $_[1]), assign_end=$assign_end, =|$TokenStr|= @ValPerl\n"
    }
+   $begin = $assign_start-1;
    ($assign_end<0) && return -255;
    if($ValClass[$assign_start+1] =~ /[n!]/) {              # issue 58 - skip any "not" clause, issue 93
        if($ValClass[$assign_start+2] eq '(') {
            $assign_start += 2;
            $assign_end = matching_br($assign_start);
         }
+   }
+
+   #say STDERR "ValPerl[$begin] = $ValPerl[$begin]";
+   if($ValPerl[$begin] =~ /^(?:for|foreach|while|until)$/) {            # Issue 103: Looping construct
+      # We don't want to pull the expression out of the loop in case it needs to run multiple times
+      # e.g. in issue 103, it called the "each" iterator.
+      return if(fixup_complex_assignment_in_control(2, $#ValClass-1) != -1);            # issue 103
    }
    my $from=index($TokenStr,'=',$assign_start+2); # issue 58
    if($ValPy[$from] eq ':=') {                    # issue 58: generate a regular '=', not a walrus operator
@@ -2145,6 +2623,10 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
          $increment='';                                 # issue 74
       } elsif(index($TokenStr, ';((s=s-d)+d)') > 0) {   # issue 74 - replacement code for --
          $increment='-1';                               # issue 74
+      } elsif(index($TokenStr, ';((s=f(s)+d)-d)') > 0) {       # SNOOPYJC: Handle us putting a _num conversion in
+         $increment='';
+      } elsif(index($TokenStr, ';((s=f(s)-d)+d)') > 0) {       # SNOOPYJC: Handle us putting a _num conversion in
+         $increment='-1';
       }elsif( index($TokenStr,';',$begin+1) < 0 ) {	# issue foreach: Expression returning an iterable
          gen_chunk($ValPy[$begin]);			# issue foreach
 	 gen_chunk("$DEFAULT_VAR in ");			# issue foreach, issue 32
@@ -2485,12 +2967,15 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       if( $ValClass[$start+1] eq ',' ){
          # Simplest case -- scalar varaible is used
          gen_chunk("$ValPy[$start]$py_name("); # line.find -- .find is now in scannet table Nov 15, 2019 --NNB
-         $split=$start+2;
+         # issue 104 $split=$start+2;
+         $split=$start+1;       # issue 104
       }else{
          $split=next_same_level_token(',',$start,$end_pos); # next comma on the same nesting level
-         $k=expression($start+2,$split-1,0);
+         # issue 104 $k=expression($start+2,$split-1,0);
+         $k=expression($start,$split-1,0);      # issue 104
          return -255 if ($k<0);
-         gen_chunk("$ValPy[$start]("); # .find and opening  bracket
+         # issue 104 gen_chunk("$ValPy[$start]("); # .find and opening  bracket
+         gen_chunk("$py_name("); # .find and opening  bracket   # issue 104
       }
       $split2=next_same_level_token(',',$split+1,$end_pos);
       # processing string to find
@@ -2508,7 +2993,8 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
           gen_chunk(')');
       }else{
          # index($line,'xxx') -> line.find('xxx')
-         $k=expression($split,$end_pos,0);
+         # issue 104 $k=expression($split,$end_pos,0);
+         $k=expression($split+1,$end_pos,0);    # issue 104
          return -255 if ($k<0);
          gen_chunk(')');
       }
@@ -2534,7 +3020,11 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
             return $TrStatus if ($TrStatus<0);
          }
          gen_chunk($py_name);           # issue 40: gen .join(
-         gen_chunk('map(str, ');        # SNOOPYJC: FIXME: Optimize out if know it's an array of strings
+         my $mapped = 1;
+         if(&Pythonizer::expr_type($split+1, $end_pos, $CurSub) eq 'a of S') {
+             $mapped = 0;
+         }
+         gen_chunk('map(_str, ') if($mapped);       # SNOOPYJC
          if($end_pos-$split==1) {       # issue 40: one thing (a list)
              gen_chunk($ValPy[$end_pos]);       # issue 40: arr
          } else {                       # issue 40: Multiple things: make them into a tuple by adding an extra set of parens
@@ -2543,7 +3033,7 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
             return $TrStatus if ($TrStatus<0);             # issue 40
             gen_chunk(')');             # issue 40
          }
-         gen_chunk(')');                # SNOOPYC: End of map
+         gen_chunk(')') if($mapped);                # SNOOPYC: End of map
          gen_chunk(')');                                # issue 40
       }                         # issue 40
    }elsif( $perl_name eq 'open' ){
@@ -2902,8 +3392,12 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       }
    }elsif($perl_name eq 'sprintf' ){
       #$ValPy[$start] -- format string
-      gen_chunk($ValPy[$start],' % ( '); # format string
-      $k=expression($start+2,$end_pos,0); # skip initial',' and scan all variables
+      # SNOOPYJC gen_chunk($ValPy[$start],' % ( '); # format string
+      # SNOOPYJC $k=expression($start+2,$end_pos,0); # skip initial',' and scan all variables
+      $k = end_of_variable($start);             # SNOOPYJC
+      $k=expression($start, $k, 0);             # SNOOPYJC
+      gen_chunk(' % ( ');                       # SNOOPYJC
+      $k=expression($k+1,$end_pos,0) if($k+1 <= $end_pos); # SNOOPYJC: skip initial ',' and scan all variables
       return -255 if $k<0;
       gen_chunk(')'); #
    }elsif($perl_name eq 'undef'  ){
@@ -2980,7 +3474,13 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
          for(my $i=$start; $i<=$end_pos; $i+=2 ){             # SNOOPYJC
             # SNOOPYJC last if ($ValClass[$i] ne ','); # check if the list endeded
             # SNOOPYJC gen_chunk($ValPy[$i],'=',$ValPy[$i],$ValPy[0],';');
-            gen_chunk($ValPy[$i],' = ',$ValPy[$i],$ValPy[0]); # SNOOPYJC
+            # SNOOPYJC: After fix_type_issues runs, we could have _str(a) instead of just a, so handle that:
+            if($ValClass[$i] eq 'f' && $ValPy[$i] eq $CONVERTER_MAP{S}) {       # SNOOPYJC
+                gen_chunk($ValPy[$i+2],' = ',$ValPy[$i],'(',$ValPy[$i+2],')',$ValPy[0]);        # SNOOPYJC
+                $i += 3;
+            } else {
+                gen_chunk($ValPy[$i],' = ',$ValPy[$i],$ValPy[0]); # SNOOPYJC
+            }
             gen_statement();                                    # SNOOPYJC
          }
       } else {
@@ -3333,6 +3833,7 @@ my($k,$myline, $target,$open_mode,$handle);
    my $encoding = '';                   # SNOOPYJC
    my $errors = '';                     # SNOOPYJC
    my $dup = '';                        # SNOOPYJC
+   $target = undef;                     # SNOOPYJC
    my $variable_mode = '';
    $k+=2 if(  $ValPerl[$k+1] eq ',');
    # SNOOPYJC if( $ValClass[$k] eq '"' && ($k+1) <= $#ValClass && $ValClass[$k+1] eq ',' ){
@@ -3455,7 +3956,7 @@ my($k,$myline, $target,$open_mode,$handle);
      # issue paren return $k+1;
      return $k;			# issue paren
    }elsif( $mode eq 's' ){
-      $k+=2;
+       # SNOOPYJC $k+=2;
       if(defined $target) {                             # SNOOPYJC
          output_line("$handle = $function($target$open_mode$encoding$errors)");
       } else {
@@ -3627,8 +4128,11 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
    # issue 90 $bracketed=1 if $ValClass[$begin] eq '(';
    $bracketed=1 if $ValClass[$begin] eq '(' && matching_br($begin) == $limit;   # issue 90
    $RecursionLevel++; # we are starting from 0
+   state $nest = 0;
    if($debug >= 3) {
-	   say STDERR "expression($begin, $limit, $mode) =|$TokenStr|= @ValPerl\n"
+       $nest++;
+       print STDERR '>' x $nest;
+       say STDERR "expression($begin, $limit, $mode) =|$TokenStr|= @ValPerl\n"
    }
 
    # issue 53: Change hash references to use ".get(...)" instead of "[...]"
@@ -3788,8 +4292,14 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
             gen_chunk('([');                                                            # issue 13
             $k = 0;                                                                     # issue 13
             gen_chunk('*') if($cur_pos+1 == $end_pos && $ValClass[$cur_pos+1] eq 'a');  # SNOOPYJC: Handle passing array
-            $k=expression($cur_pos+1, $end_pos, 0) if($cur_pos+1 <= $end_pos);          # issue 13
-            if($k < 0) { $TrStatus=-1; return -255; }                                   # issue 13
+            if($cur_pos+1 <= $end_pos) {
+                if(index("^*~/%+-.HI>&|0or?:=,A", $ValClass[$cur_pos+1]) >= 0) {            # SNOOPYJC: If op next, then no args!
+                    $end_pos = $cur_pos;
+                } else {
+                    $k=expression($cur_pos+1, $end_pos, 0);          # issue 13
+                    if($k < 0) { $TrStatus=-1; return -255; }                                   # issue 13
+                }
+            }
             gen_chunk('])');								# issue 13
             $cur_pos = $end_pos;                                                        # issue 13: we add one to it below
             $cur_pos++ if($bracketed == 1);                                             # issue 13
@@ -3870,6 +4380,8 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
        $cur_pos = $limit;               # issue paren
    }                                    # issue paren
    if($debug >= 3) {
+       print STDERR '<' x $nest;
+       $nest--;
        say STDERR 'expression returns ' . ($cur_pos+1);
    }
    return $cur_pos+1;
@@ -3928,6 +4440,7 @@ sub handle_incr_decr                    # issue 74: handle ++ and -- in expressi
         print STDERR "handle_incr_decr($start, $op_pos, $limit) with $ValPerl[$op_pos]";
     }
     if($op_pos == 0) {
+        print "\n" if($debug >= 3);
         return 0;               # we handle this case natively
     }
     if($op_pos+1 <= $#ValClass && $ValClass[$op_pos+1] eq 's') {
@@ -3984,7 +4497,7 @@ sub handle_incr_decr                    # issue 74: handle ++ and -- in expressi
                 $ValPy[$lvalue_start] =~ s/-1\)$/-2\)/;
             }
             if($debug >= 3) {
-                say STDERR " = ".(-1+$inc);
+                say STDERR " = ".(-1+$inc)." now =|$TokenStr|=";
             }
             return -1+$inc;
         }
@@ -3998,7 +4511,7 @@ sub handle_incr_decr                    # issue 74: handle ++ and -- in expressi
             insert($lvalue_start+1, '=', '=', ':=');
             insert($lvalue_start, '(', '(', '(');
             if($debug >= 3) {
-                say STDERR " = ".(5+$inc);
+                say STDERR " = ".(5+$inc)." now =|$TokenStr|=";
             }
             return 5+$inc;           # how many we inserted
         } else {        # post op: generate (($val:=$val+1)-1) replacing $val++
@@ -4014,7 +4527,7 @@ sub handle_incr_decr                    # issue 74: handle ++ and -- in expressi
             insert($lvalue_start, '(', '(', '(');
             insert($lvalue_start, '(', '(', '(');
             if($debug >= 3) {
-                say STDERR " = ".(9+$inc);
+                say STDERR " = ".(9+$inc)." now =|$TokenStr|=";
             }
             return 9+$inc;           # how many we inserted
         }
@@ -4034,14 +4547,14 @@ sub handle_incr_decr                    # issue 74: handle ++ and -- in expressi
             append('=', '+=', '+=');
             append('d', '1', '1');
             if($debug >= 3) {
-                say STDERR " = ".(2+$inc);
+                say STDERR " = ".(2+$inc)." now =|$TokenStr|=";
             }
             return 2+$inc;
         } elsif(!$pre_op && $lvalue_start == 0 && $op_pos == $#ValClass) {      # entire line
             replace($op_pos, '=', "$op=", "$op=");
             append('d', '1', '1');
             if($debug >= 3) {
-                say STDERR " = ".(1+$inc);
+                say STDERR " = ".(1+$inc)." now =|$TokenStr|=";
             }
             return 1+$inc;
         }
@@ -4064,7 +4577,7 @@ sub handle_incr_decr                    # issue 74: handle ++ and -- in expressi
         destroy($op_pos, 1);            # remove the ++ or --
         if($pre_op) {
             if($debug >= 3) {
-                say STDERR " = ". (-1+$inc)." (arr/hash)";
+                say STDERR " = ". (-1+$inc)." (arr/hash)"." now =|$TokenStr|=";
             }
             return -1+$inc;
         } else {                # post op
@@ -4073,7 +4586,7 @@ sub handle_incr_decr                    # issue 74: handle ++ and -- in expressi
             insert($lvalue_end+1, $rop, $rop, $rop);
             insert($lvalue_start, '(', '(', '(');
             if($debug >= 3) {
-                say STDERR " = ".(3+$inc);
+                say STDERR " = ".(3+$inc)." now =|$TokenStr|=";
             }
             return 3+$inc;
         }
@@ -4202,6 +4715,28 @@ sub handle_anonymous_sub_in_expression          # issue 81
     $adjust++;
     return -$adjust;
 }
+
+sub is_expression_simple
+# Heuristic to see if this expression is simple or not
+# This is used in the case of $arr[EXPR] += 1, where we have to
+# first do a type conversion on the $arr[EXPR].  Since _num($arr[EXPR])+=1 won't do
+# the trick, we have to generate arr[EXPR] = _num(arr[EXPR]) + 1.  If EXPR
+# has any side-effects, or is slow to compute, we wouldn't want to run it twice,
+# so we generate: arr[_s0] = _num(arr[(_s0:=EXPR)]) + 1.  (_t is called $SUBSCRIPT_TEMP)
+# This is also used for a hash key.
+{
+    my $start = shift;
+    my $end = shift;
+
+    return 0 if($end-$start >= 10);             # too long
+    for(my $i=$start; $i<=$end; $i++) {
+        # Just allow a few simple things
+        return 0 if(index('"ds+-*()', $ValClass[$i]) < 0);
+    }
+    return 1;
+}
+
+
 
 sub left_hand_substr
 #
