@@ -15,7 +15,7 @@ assert(sub1 =~ /^sub1$/);
 assert(sub2('arg') =~ /^arg$/);
 assert(sub2 'argb' =~ /^argb$/);
 assert(substr('arg',0) =~ /^arg$/);
-assert(substr 'arg',0  =~ /^arg$/);
+assert((substr 'arg',0)  =~ /^arg$/);
 
 $_ = ord('a');
 assert(chr =~ /^a$/);

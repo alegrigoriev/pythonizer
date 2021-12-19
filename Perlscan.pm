@@ -83,10 +83,19 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'"'=>'LIST_SEPARATOR',		# issue 46
                 '|'=>'OUTPUT_AUTOFLUSH',        # SNOOPYJC
 		'`'=>'string_preceeeding_last_match',"'"=>'post_last_match_string',
-                '+'=>'last_capture_group','/'=>'lines_separator',','=>'output_field_separator','\\'=>'unknown_perl_special_var',
+                '+'=>'last_capture_group','/'=>'INPUT_RECORD_SEPARATOR',','=>'OUTPUT_FIELD_SEPARATOR','\\'=>'OUTPUT_RECORD_SEPARATOR',
                 );
    %SPECIAL_VAR2=('O'=>'os.name','T'=>'OS_BASETIME', 'V'=>'sys.version[0]', 'X'=>'sys.executable()', # $^O and friends
                   'W'=>'WARNING');              # SNOOPYJC
+
+   %SpecialVarType=('.'=>'I', '?'=>'S', '!'=>'I', '$'=>'I', ';'=>'S', ']'=>'F', 
+                    '0'=>'S', '@'=>'S', '"'=>'S', '|'=>'I', '/'=>'S', ','=>'S',
+                    '^O'=>'S', '^T'=>'S', '^V'=>'S', '^X'=>'S', '^W'=>'I',
+                    '&'=>'S', '1'=>'S', '2'=>'S', '3'=>'S', '4'=>'S',
+                    '5'=>'S', '6'=>'S', '7'=>'S', '8'=>'S', '9'=>'S',
+                    '_'=>'s');
+   %SpecialArrayType=('ARGV'=>'a of S', '_'=>'a of m');
+   %SpecialHashType=('ENV'=>'h of S');
 
    # Map of functions to python where the mapping is different for scalar and list context
    %SPECIAL_FUNCTION_MAPPINGS=('localtime'=>{scalar=>'tm_py.ctime', list=>'_localtime'},        # issue times
@@ -147,7 +156,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'rename'=>'os.replace',         # SNOOPYJC
                 'say'=>'print','scalar'=>'len', 'shift'=>'.pop(0)', 'split'=>'re.split', 
 		# issue 34 'sort'=>'sort', 
-                'sleep'=>'time.sleep',          # SNOOPYJC
+                'sleep'=>'tm_py.sleep',         # SNOOPYJC
 		'sqrt'=>'math.sqrt',		# SNOOPYJC
 		'sort'=>'sorted', 		# issue 34
 		'state'=>'global',
@@ -331,19 +340,22 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'umask'=>'f',                  # SNOOPYJC
                   'wait'=>'f',                   # SNOOPYJC
                   );
-       %FuncType=(    # a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, S=String, u=Unknown, f=function, H=FileHandle, ?=Optional, m=mixed
+                      # NB: Use ValPerl[$i] as the key here!
+       %FuncType=(    # a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, S=String, u=undef, f=function, H=FileHandle, ?=Optional, m=mixed
+                  '_num'=>'m:N', '_int'=>'m:I', '_str'=>'m:S',
 		  'abs'=>'N:N', 'alarm'=>'N:N', 'atan2'=>'NN:F', 'basename'=>'S:S',
-		  'binmode'=>'HS?:u',
-                  'chdir'=>'S:I','chomp'=>'S:u', 'chop'=>'S:u', 'chmod'=>'Ia:u','chr'=>'I?:S','close'=>'H:I',
-                  'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:u', 'each'=>'h:a', 'exists'=>'u:I', 'exit'=>'S:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':I',
+		  'binmode'=>'HS?:m',
+                  'chdir'=>'S:I','chomp'=>'S:m', 'chop'=>'S:m', 'chmod'=>'Ia:m','chr'=>'I?:S','close'=>'H:I',
+                  'cmp'=>'SS:I', '<=>'=>'NN:I',
+                  'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:m', 'each'=>'h:a', 'exists'=>'u:I', 'exit'=>'S:m', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':I',
                   'fileparse'=>'SS?:a of S',
                   'glob'=>'S:a of S', 'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 'lc'=>'S:S',
                   'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'S:I', 'oct'=>'s:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
-		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'rename'=>'SS:I', 'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:u',
+		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'rename'=>'SS:I', 'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:m',
                   'push'=>'aa:I', 'pop'=>'a:s', 'print'=>'H?a:I', 'printf'=>'H?Sa:I', 'rindex'=>'SSI?:I','read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
-                  'say'=>'H?a:I','scalar'=>'a:I','shift'=>'a?:s', 'sleep'=>'I:I', 'split'=>'SSI?:a of s', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
+                  'say'=>'H?a:I','scalar'=>'a:I','shift'=>'a?:s', 'sleep'=>'I:I', 'split'=>'SSI?:a of S', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
                   'sqrt'=>'N:F', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timegm'=>'IIIIII:I',
-                  'timelocal'=>'IIIIII:I', 'unlink'=>'a?:I', 'values'=>'h:a', 'warn'=>'a', 'undef'=>'u', 'unshift'=>'aa', 'uc'=>'S:S',
+                  'timelocal'=>'IIIIII:I', 'unlink'=>'a?:I', 'values'=>'h:a', 'warn'=>'a:I', 'undef'=>'a?:u', 'unshift'=>'aa:I', 'uc'=>'S:S',
                   'ucfirst'=>'S:S', 'umask'=>'I?:I'
                   );
 #
@@ -1158,7 +1170,7 @@ my ($l,$m);
          if( substr($source,1)=~/^(\:?\:?\'?[_a-zA-Z]\w*((?:(?:\:\:)|\')[_a-zA-Z]\w*)*)/ ){     # old perl used ' for ::
             $cut=length($1)+1;
             $ValClass[$tno]='h'; #hash
-            $ValPerl[$tno]=$1;
+            $ValPerl[$tno]=substr($source,0,1).$1;      # SNOOPYJC
             $ValPy[$tno]=$1;
             $ValPy[$tno]=~tr/:/./s;
             $ValPy[$tno]=~tr/'/./s;             # SNOOPYJC
@@ -1166,6 +1178,9 @@ my ($l,$m);
             if( substr($ValPy[$tno],0,1) eq '.' ){
                $ValCom[$tno]='X';
                $ValPy[$tno]='__main__'.$ValPy[$tno];
+            } elsif($ValPy[$tno] eq 'ENV') {                # issue 103
+               $ValType[$tno]="X";
+               $ValPy[$tno]='os.environ';
             }
          }else{
            $cut=1;
@@ -1504,7 +1519,7 @@ my $rc=-1;
    if ( $update  ){
       $ValClass[$tno]='s'; # we do not need to set it if we are analysing double wuoted literal
    }
-   my $specials = q(!?<>()!;]&`'+"@$|,\\);              # issue 50
+   my $specials = q(!?<>()!;]&`'+"@$|/,\\);             # issue 50
    if($s2 eq '$' && substr($source,2,1) =~ /[\w:]/) {   # issue 50
        $specials = '!';
    }
@@ -1513,11 +1528,13 @@ my $rc=-1;
       # issue 66 $ValPy[$tno]='fileinput.filelineno()';
        $ValPy[$tno]='fileinput.lineno()';       # issue 66: Mimic the perl behavior
        $ValType[$tno]="X";
+       $ValPerl[$tno]=substr($source,0,2) if($update);  # SNOOPYJC
        $cut=2
    }elsif( $s2 eq '^'  ){
        $s3=substr($source,2,1);
        $cut=3;
        $ValType[$tno]="X";
+       $ValPerl[$tno]=substr($source,0,3) if($update);  # SNOOPYJC
        if( $s3=~/\w/  ){
           if( exists($SPECIAL_VAR2{$s3}) ){
             $ValPy[$tno]=$SPECIAL_VAR2{$s3};
@@ -1533,7 +1550,7 @@ my $rc=-1;
    }elsif( $s2 =~ /\d/ ){
        $source=~/^.(\d+)/;
        if( $update ){
-          $ValPerl[$tno]=$1;
+          $ValPerl[$tno]=substr($source,0,1).$1;        # SNOOPYJC
           $ValType[$tno]="X";
        }
        if( $s2 eq '0' ){
@@ -1544,20 +1561,21 @@ my $rc=-1;
           $ValPy[$tno]="$DEFAULT_MATCH.group($1)";		# issue 32
        }
        $cut=length($1)+1;
-   }elsif( $s2 eq '#' ){
-      if(!($source=~/^..(\w+)/)) {
-          $source=~/^...(\w+)/;                # SNOOPYJC: Handle $#$arr_ref
-      }
+   } elsif( $s2 eq '#' ){
+      #$source=~/^..(\w+)/;
+      $source=~/^..\{(\w+)\}/ or $source=~/^..\$?(\w+)/;  # Handle $#{var} $#var $#$var
+      #say STDERR "decode_scalar: source='$source', \$1=$1";
       $ValType[$tno]="X";
       if( $update ){
-         $ValPerl[$tno]=$1;
+         $ValPerl[$tno]=substr($source,0,2).$1; # SNOOPYJC
       }
       if( $1 eq 'ARGV'  ){                      # SNOOPYJC: Generate proper code for $#ARGV
           $ValPy[$tno] ='(len(sys.argv)-2)';    # SNOOPYJC
       } else {                                  # SNOOPYJC
           $ValPy[$tno]='(len('.$1.')-1)';       # SNOOPYJC
       }
-      $cut=length($1)+2;
+      # SNOOPYJC $cut=length($1)+2;
+      $cut=length($&);                          # SNOOPYJC
   # SNOOPYJC }elsif( $source=~/^.(\w*(\:\:\w+)*)/ ){
   }elsif( $source=~/^.(\w*((?:(?:\:\:)|\')\w+)*)/ ){    # SNOOPYJC: old perl uses ' for ::
       $cut=length($1)+1;
@@ -2084,6 +2102,9 @@ sub decode_hash                 # issue 47
         if( substr($ValPy[$tno],0,1) eq '.' ){
             #$ValCom[$tno]='X';
            $ValPy[$tno]='__main__'.$ValPy[$tno];
+        } elsif($ValPy[$tno] eq 'ENV') {                # issue 103
+           $ValType[$tno]="X";
+           $ValPy[$tno]='os.environ';
         }
      }else{
        $cut=1;
@@ -2414,12 +2435,13 @@ my $balance=(scalar(@_)>2) ? $_[2] : 0; # case where opening bracket is missing 
 sub escape_keywords		# issue 41
 # Accepts a name and escapes any python keywords in it by appending underscores.  The name can
 # be a period separated list of names.  Returns the escaped name.
+# Note: We also escape the names of the built-in functions like len, etc
 {
 	my $name = shift;
 	my @ids = split /[.]/, $name;
 	my @result = ();
 	for my $id (@ids) {
-	   if(exists $PYTHON_KEYWORD_SET{$id}) {
+	   if(exists $PYTHON_RESERVED_SET{$id}) {
 	       $id = $id.'_';
 	   }
            push @result, $id;

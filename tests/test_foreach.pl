@@ -114,7 +114,7 @@ aeq(\@arr, ['a','b','c']);
 foreach $region (A, ABC, D, EF) {
 	push @arr, $region;
 }
-aeqi(\@arr, [A,ABC,D,EF]);
+aeq(\@arr, [A,ABC,D,EF]);
 
 @arr = ();
 foreach $id (keys %tickets)

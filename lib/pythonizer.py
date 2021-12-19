@@ -27,10 +27,10 @@ class Num(numbers.Number):
         """Convert expr to a number"""
         if not expr:
             return 0
-        if isinstance(expr, Num):
-            expr = expr.value
         if isinstance(expr, (int, float)):
             return expr
+        if isinstance(expr, Num):
+            expr = expr.value
         try:
             return int(expr)
         except Exception:
@@ -142,6 +142,28 @@ class Num(numbers.Number):
         return self.value != self._num(other)
 
 
+class Int(Num):
+    @staticmethod
+    def _num(expr):
+        """Convert expr to an integer"""
+        if not expr:
+            return 0
+        if isinstance(expr, int):
+            return expr
+        if isinstance(expr, Num):
+            expr = expr.value
+        try:
+            return int(expr)
+        except Exception:
+            pass
+        # Check for a prefix that's an integer, and return that
+        # see: https://squareperl.com/en/how-perl-convert-string-to-number
+        if (m:=re.match(r'^\s*([+-]?(?:\d+))', expr)):
+            return int(m.group(1))
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        warnings.warn(f"Argument \"{expr}\" isn't numeric in numeric context at {caller.filename}:{caller.lineno}")
+        return 0
+
 class _ArrayHash(defaultdict, collections.abc.Sequence):
     def append(self, value):
         self[len(self)] = value
@@ -216,6 +238,11 @@ class _ArrayHash(defaultdict, collections.abc.Sequence):
         if hasattr(self, 'isHash'):
             return "Hash(" + self.__str__() + ")"
         return "Array(" + self.__str__() + ")"
+
+    def __getattribute__(self, name):
+        if name in ('keys', 'values', 'items') and not hasattr(self, 'isHash'):
+            raise AttributeError
+        return super().__getattribute__(name)
 
     def __add__(self, other):
         result = ArrayHash(self)
@@ -342,7 +369,7 @@ def _dup(file,mode):
 
 def _each(h_a):
     """See https://perldoc.perl.org/functions/each"""
-    key = id(h_a)       # Unique memory address of object
+    key = str(id(h_a))       # Unique memory address of object
     if not hasattr(_each, key):
         setattr(_each, key, iter(h_a))
     it = getattr(_each, key)
@@ -352,7 +379,7 @@ def _each(h_a):
         setattr(_each, key, iter(h_a))
         return []
 
-    if isinstance(h_a, dict):
+    if hasattr(h_a, 'keys'):
         return [v, h_a[v]]
     return v
 

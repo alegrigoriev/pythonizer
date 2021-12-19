@@ -47,11 +47,11 @@ close FH;
 unlink '_test.tmp';
 $_ = 65;
 $c = chr;
-assert($c == 'A');
-assert(chr == 'A');
-assert(chr $_ == 'A');
-assert(chr $_+1 == 'B');
-assert(chr($_) == 'A');
+assert($c eq 'A');
+assert(chr eq 'A');
+assert(chr $_ eq 'A');
+assert(chr $_+1 eq 'B');
+assert(chr($_) eq 'A');
 my @numbers = (1,2,3);
 my @doubles = map {$_ * 2} @numbers;
 assert(scalar(@doubles) == 3 && $doubles[0] == 2 && $doubles[1] == 4 && $doubles[2] == 6);
@@ -88,7 +88,7 @@ my $string = "the quick brown fox jumped over the lazy dog";
 my $count_the_fox = $string =~ /\s+([a-z][a-z]x)\s+/;	# 1
 assert($count_the_fox == 1);
 my ($find_the_fox) = $string =~ /\s+([a-z][a-z]x)\s+/;	# "fox"
-assert($find_the_fox == 'fox');
+assert($find_the_fox eq 'fox');
 
 assert(my_add(1, 2) == 3);
 
@@ -96,8 +96,8 @@ sub my_add {
 	# Add op1 to op2 giving result
 	$op1 = shift;
 	$op2 = shift;
-	return if(!defined $op1);	# Make sure they gave both args
-	return if(!defined $op2);	# Make sure they gave both args
+	return 0 if(!defined $op1);	# Make sure they gave both args
+	return 0 if(!defined $op2);	# Make sure they gave both args
 	$op1 + $op2;		# implicitly return the sum
 }
 
