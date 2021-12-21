@@ -51,13 +51,13 @@ use warnings;
 use feature 'state';
 use Softpano qw(abend logme out);
 #use Pythonizer qw(correct_nest getline prolog epilog output_line);
-use config;				# issue 32
+use Pyconfig;				# issue 32
 require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw(Exporter);
-@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence);	# issue 41, issue 65, issue 74, issue 93
+@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence %SpecialVarsUsed @EndBlocks);	# issue 41, issue 65, issue 74, issue 93
 #our (@ValClass,  @ValPerl,  @ValPy, $TokenStr); # those are from main::
 
   $VERSION = '0.93';
@@ -65,6 +65,9 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
   # types of veriables detected during the first pass; to be implemented later
   #
   #%is_numeric=();
+
+  %SpecialVarsUsed=();                  # SNOOPYJC: Keep track of special vars used so we can generate better code if you don't use some feature
+  @EndBlocks=();                        # SNOOPYJC: List of END blocks with their unique names
 #
 # List of Perl special variables
 #
@@ -289,6 +292,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'alarm'=>'f',         # issue 81
 		  'assert'=>'c',	# SNOOPYJC
 		  'atan2'=>'f',		# SNOOPYJC
+		  'autoflush'=>'f',	# SNOOPYJC
 		  'basename'=>'f',	# SNOOPYJC
 		  'binmode'=>'f',	# SNOOPYJC
                   'caller'=>'f','chdir'=>'f','chomp'=>'f', 'chop'=>'f', 'chmod'=>'f','chr'=>'f','close'=>'f',
@@ -343,8 +347,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                       # NB: Use ValPerl[$i] as the key here!
        %FuncType=(    # a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, S=String, u=undef, f=function, H=FileHandle, ?=Optional, m=mixed
                   '_num'=>'m:N', '_int'=>'m:I', '_str'=>'m:S',
-		  'abs'=>'N:N', 'alarm'=>'N:N', 'atan2'=>'NN:F', 'basename'=>'S:S',
-		  'binmode'=>'HS?:m',
+		  'abs'=>'N:N', 'alarm'=>'N:N', 'atan2'=>'NN:F', 
+                  'autoflush'=>'I?:I', 'basename'=>'S:S', 'binmode'=>'HS?:m',
                   'chdir'=>'S:I','chomp'=>'S:m', 'chop'=>'S:m', 'chmod'=>'Ia:m','chr'=>'I?:S','close'=>'H:I',
                   'cmp'=>'SS:I', '<=>'=>'NN:I',
                   'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:m', 'each'=>'h:a', 'exists'=>'u:I', 'exit'=>'S:m', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':I',
@@ -413,7 +417,7 @@ sub def_label                   # issue 94
 }
 sub enter_block                 # issue 94
 {
-    # FIXME: Use a different character like 开 = open in Chinese to replace the '{' for the second round
+    # FIXME: Use a different character like ^ all alone or (开 = open in Chinese) to replace the '{' for the second round
     return if($last_block_lno == $. && scalar(@ValPerl) <= 1);       # We see the '{' twice on like if(...) {
     if($::debug >= 4) {
         say STDERR "enter_block at line $., prior nesting_level=$nesting_level, ValPerl=@ValPerl";
@@ -702,8 +706,7 @@ my ($l,$m);
 	  # issue 35 }elsif( $ValClass[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1){
           }elsif( $ValClass[$tno-1] ne '=' &&                   # issue 82
                  ($ValPerl[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1 || 
-                  ($ValClass[0] eq 'C' && $ValPerl[0] eq 'do') ||               # SNOOPYJC: do {...} until(...);
-                  ($ValClass[0] eq 'C' && $ValPerl[0] eq 'else') ||             # SNOOPYJC: else {...}
+                  ($tno == 1 && $ValClass[0] eq 'C')||  # SNOOPYJC: do {...} until(...); else {...}; elsif {...}; eval {...};
                   ($tno == 2 && $ValPerl[0] eq 'sub') ||
                   ($tno == 1 && ($ValPerl[0] eq 'BEGIN' || $ValPerl[0] eq 'END')))){	# issue 35, 45
              # $tno>0 this is the case when curvy bracket has comments'
@@ -829,6 +832,7 @@ my ($l,$m);
              $ValCom[$tno]='';
              $tno++;
              $w = "__END__$.";                  # SNOOPYJC: Special name checked in pythonizer
+             push @EndBlocks, $w if(!$Pythonizer::PassNo);         # SNOOPYJC
          }
          $ValPerl[$tno]=$w;
          $ValClass[$tno]='i';
@@ -1054,7 +1058,12 @@ my ($l,$m);
                       $ValPy[$tno]='"'.$ValPerl[$tno].'".split()';	# issue 44: python split doesn't take a regex!
                    }
                }
+            } elsif($w eq 'autoflush' && $tno-2 > 0 && $ValClass[$tno-1] eq 'D' &&
+                ($ValPerl[$tno-2] eq 'STDOUT' || $ValPerl[$tno-2] eq 'STDERR')) {       # SNOOPYJC
+               # Pretend they use $| so we define the autoflush functions for these standard outputs
+               $SpecialVarsUsed{'$|'} = 1;                                              # SNOOPYJC
             }
+
 	 } elsif( ($tno>1 && $ValPerl[$tno-1] eq '<<' && index('sd)', $ValClass[$tno-2]) < 0) || # issue 39 - bare HereIs (and not a shift)
 	          ( $tno>2 && $ValPerl[$tno-1] eq '~' && $ValPerl[$tno-2] eq '<<' && index('sd)', $ValClass[$tno-3]) < 0)) {	# issue 39 - bare HereIs (and not a shift)
             $has_squiggle = ($ValPerl[$tno-1] eq '~');
@@ -1138,10 +1147,12 @@ my ($l,$m);
             if( $arg1 eq '_' ){
                $ValPy[$tno]="$PERL_ARG_ARRAY";	# issue 32
                $ValType[$tno]="X";
+               $SpecialVarsUsed{'@_'} = 1;                       # SNOOPYJC
             }elsif( $arg1 eq 'ARGV'  ){
 		    # issue 49 $ValPy[$tno]='sys.argv';
                   $ValPy[$tno]='sys.argv[1:]';	# issue 49
                   $ValType[$tno]="X";
+                  $SpecialVarsUsed{'@ARGV'} = 1;                       # SNOOPYJC
             }else{
 	       my $arg2 = escape_keywords($arg1);		# issue 41
                if( $tno>=2 && $ValClass[$tno-2] =~ /[sd'"q]/  && $ValClass[$tno-1] eq '>'  ){
@@ -1181,6 +1192,7 @@ my ($l,$m);
             } elsif($ValPy[$tno] eq 'ENV') {                # issue 103
                $ValType[$tno]="X";
                $ValPy[$tno]='os.environ';
+               $SpecialVarsUsed{'%ENV'} = 1;                # SNOOPYJC
             }
          }else{
            $cut=1;
@@ -1520,7 +1532,7 @@ my $rc=-1;
       $ValClass[$tno]='s'; # we do not need to set it if we are analysing double wuoted literal
    }
    my $specials = q(!?<>()!;]&`'+"@$|/,\\);             # issue 50
-   if($s2 eq '$' && substr($source,2,1) =~ /[\w:]/) {   # issue 50
+   if($s2 eq '$' && substr($source,2,1) =~ /[\w:']/) {   # issue 50: $$ is a special var, but not $$a or $$: or $$'
        $specials = '!';
    }
    if( $s2 eq '.'  ){
@@ -1528,13 +1540,17 @@ my $rc=-1;
       # issue 66 $ValPy[$tno]='fileinput.filelineno()';
        $ValPy[$tno]='fileinput.lineno()';       # issue 66: Mimic the perl behavior
        $ValType[$tno]="X";
-       $ValPerl[$tno]=substr($source,0,2) if($update);  # SNOOPYJC
+       my $vn = substr($source,0,2);                    # SNOOPYJC
+       $SpecialVarsUsed{$vn} = 1;                       # SNOOPYJC
+       $ValPerl[$tno]=$vn if($update);                  # SNOOPYJC
        $cut=2
    }elsif( $s2 eq '^'  ){
        $s3=substr($source,2,1);
        $cut=3;
        $ValType[$tno]="X";
-       $ValPerl[$tno]=substr($source,0,3) if($update);  # SNOOPYJC
+       my $vn = substr($source,0,3);                    # SNOOPYJC
+       $SpecialVarsUsed{$vn} = 1;                       # SNOOPYJC
+       $ValPerl[$tno]=$vn if($update);                  # SNOOPYJC
        if( $s3=~/\w/  ){
           if( exists($SPECIAL_VAR2{$s3}) ){
             $ValPy[$tno]=$SPECIAL_VAR2{$s3};
@@ -1547,10 +1563,15 @@ my $rc=-1;
       $ValPy[$tno]=$SPECIAL_VAR{$s2};
       $cut=2;
       $ValType[$tno]="X";
+      my $vn = substr($source,0,2);                    # SNOOPYJC
+      $SpecialVarsUsed{$vn} = 1;                       # SNOOPYJC
+      $ValPerl[$tno]=$vn if($update);                  # SNOOPYJC
    }elsif( $s2 =~ /\d/ ){
        $source=~/^.(\d+)/;
+       my $vn=substr($source,0,1).$1;                   # SNOOPYJC
+       $SpecialVarsUsed{$vn} = 1;                       # SNOOPYJC
        if( $update ){
-          $ValPerl[$tno]=substr($source,0,1).$1;        # SNOOPYJC
+          $ValPerl[$tno]=$vn;                          # SNOOPYJC
           $ValType[$tno]="X";
        }
        if( $s2 eq '0' ){
@@ -1571,6 +1592,8 @@ my $rc=-1;
       }
       if( $1 eq 'ARGV'  ){                      # SNOOPYJC: Generate proper code for $#ARGV
           $ValPy[$tno] ='(len(sys.argv)-2)';    # SNOOPYJC
+      } elsif($1 eq '_') {                      # issue 107
+          $ValPy[$tno] ="(len($PERL_ARG_ARRAY)-1)";    # issue 107
       } else {                                  # SNOOPYJC
           $ValPy[$tno]='(len('.$1.')-1)';       # SNOOPYJC
       }
@@ -1615,9 +1638,15 @@ my $rc=-1;
             if( $source=~/^(._\s*\[\s*(\d+)\s*\])/  ){
                $ValPy[$tno]="$PERL_ARG_ARRAY".'['.$2.']';	# issue 32
                $cut=length($1);
+               $SpecialVarsUsed{'@_'} = 1;                      # SNOOPYJC
+            }elsif(substr($source,2,1) eq '[') {                # issue 107: Vararg
+               $ValPy[$tno]=$PERL_ARG_ARRAY;                    # issue 107
+               $cut=2;                                          # issue 107
+               $SpecialVarsUsed{'@_'} = 1;                      # issue 107
             }else{
                $ValPy[$tno]="$DEFAULT_VAR";			# issue 32
                $cut=2;
+               $SpecialVarsUsed{'$_'} = 1;                      # SNOOPYJC
             }
          }elsif( $s2 eq 'a' || $s2 eq 'b' ){
             $ValType[$tno]="X";
@@ -1634,11 +1663,14 @@ my $rc=-1;
            if( $1 eq 'ENV'  ){
               $ValType[$tno]="X";
               $ValPy[$tno]='os.environ';
+              $SpecialVarsUsed{'%ENV'} = 1;                       # SNOOPYJC
            }elsif( $1 eq 'ARGV'  ){
               $ValType[$tno]="X";
               if($cut < length($source) && substr($source,$cut,1) eq '[') {    # $ARGV[...] is a reference to @ARGV
+                  $SpecialVarsUsed{'@ARGV'} = 1;                       # SNOOPYJC
 	          $ValPy[$tno]='sys.argv[1:]';
               } else {
+                  $SpecialVarsUsed{'$ARGV'} = 1;                       # SNOOPYJC
                   $ValPy[$tno]='fileinput.filename()';	# issue 49: Differentiate @ARGV from $ARGV, issue 66
               }
            }else{

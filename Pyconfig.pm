@@ -5,11 +5,11 @@
 use strict;
 use warnings;
 
-package config;
+package Pyconfig;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name label_exception_name $ELSIF_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP);
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name label_exception_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP);
 
 # use Readonly;		# Readonly is not installed by default so skip it!
 
@@ -30,6 +30,7 @@ our $PERL_ARG_ARRAY = "_args";
 our $PERL_SORT_ = "";
 our $ARG_PARSER = "_parser";
 our $ELSIF_TEMP = "_e";                         # issue 58: used to capture complicated assignment in elsif, for and while loops
+our $INDEX_TEMP = "_i";                         # SNOOPYJC: Used as a loop index for temp expressions
 our $SUBSCRIPT_TEMP = "_s";                     # Used to capture complicated expressions in subscripts for arrays that need type conversion involved in ++/-- or +=/-= etc
 our $DIAMOND = "_dia";                          # issue 66: for the <> operator
 our $EVAL_RESULT = "_eval_result";              # issue 42
@@ -56,17 +57,20 @@ our %CONSTANT_MAP = (%flocks, %os_opens, %sigs);
 # SNOOPYJC: Globals to be generated in the code header
 my $open_mode_map = "{'<': 'r', '>': 'w', '+<': 'r+', '+>': 'w+', '>>': 'a', '+>>': 'a+', '|': '|-'}";
 my $dup_map = "dict(STDIN=0, STDOUT=1, STDERR=2)";
-# NOTE: When adding a new global, remember to define it's type below!!
+# **********
+# ********** NOTE: When adding a new global, remember to define it's type below!! **********
+# **********
 our %GLOBALS = ($SCRIPT_START=>'tm_py.time()', 
                 LIST_SEPARATOR=>"' '", 
                 INPUT_RECORD_SEPARATOR=>'"\n"',
                 OS_ERROR=>"''", 
+                OUTPUT_AUTOFLUSH=>0,
                 $SUBPROCESS_RC=>0, 
                 AUTODIE=>0, 
                 TRACEBACK=>0, 
                 _OPEN_MODE_MAP=>$open_mode_map, 
                 _DUP_MAP=>$dup_map);
-our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_RECORD_SEPARATOR=>'S', OS_ERROR=>'S', $SUBPROCESS_RC=>'I',
+our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_RECORD_SEPARATOR=>'S', OS_ERROR=>'S', OUTPUT_AUTOFLUSH=>'I', $SUBPROCESS_RC=>'I',
                      AUTODIE=>'I', TRACEBACK=>'I');
 
 sub hash_var_name                       # issue 92
