@@ -1,5 +1,12 @@
+def _create_fh_methods(fh):
+    """Create special methods for filehandles"""
+    try:
+        fh.autoflush = types.MethodType(_autoflush, fh)
+    except NameError:  # _autoflush is only brought in if we reference it
+        pass
+    return fh
 
-def _open(file,mode,encoding=None,errors=None):
+def _open(file,mode,encoding=None,errors=None,checked=True):
     """Replacement for perl built-in open function when the mode is known."""
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
@@ -15,14 +22,15 @@ def _open(file,mode,encoding=None,errors=None):
             return sp.stdout
         if file is None:
             return tempfile.TemporaryFile(mode=mode, encoding=encoding)
-        return open(file,mode,encoding=encoding,errors=errors)
+        return _create_fh_methods(open(file,mode,encoding=encoding,errors=errors))
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:
             traceback.print_exc()
         if AUTODIE:
             raise
+        if checked:     # e.g. used in if(...)
+            return None
         fh = io.StringIO()
         fh.close()
-        return fh
-
+        return _create_fh_methods(fh)

@@ -26,7 +26,7 @@ use strict 'subs';
 use feature 'state';
 use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType %token_precedence %SPECIAL_FUNCTION_MAPPINGS destroy);  # SNOOPYJC
 use Softpano qw(abend logme out getopts standard_options);
-use config;				# issue 32
+use Pyconfig;				# issue 32
 use Data::Dumper;       # SNOOPYJC
 require Exporter;
 
@@ -304,7 +304,7 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
       # If we determine it's a mixed type ('m'), then stop checking
       if(scalar(@ValClass) == 0) {                              # SNOOPYJC
           $PriorExprType = 'm';                 # We couldn't have inserted a "return" here
-      } elsif(exists $VarType{$CurSubName}{main} && $VarType{$CurSubName}{main} eq 'm') {   # SNOOPYJC: not worth checking
+      } elsif(exists $VarType{$CurSubName} && exists $VarType{$CurSubName}{main} && $VarType{$CurSubName}{main} eq 'm') {   # SNOOPYJC: not worth checking
           $PriorExprType = 'm';
       } else {
          $typ = 'm';                    # mixed by default
@@ -344,13 +344,28 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
       $var_usage_in_subs=scalar(keys %{$VarSubMap{$varname}} );
       # SNOOPYJC if(  $var_usage_in_subs>1){
          # Varible that is present in multiple subs assumed to be global
+         # Pick one common type for the variable and propagate it to all the subs
+         my $common_type = undef;
+         foreach $subname (keys %{$VarType{$varname}}) {
+             if(defined $common_type) {
+                 $common_type = merge_types($varname, $subname, $common_type);
+             } else {
+                 $common_type = $VarType{$varname}{$subname}
+             }
+         }
+         $DB::single = 1 if(!defined $common_type);
+         if(defined $common_type && exists $VarType{$varname} && exists $VarType{$varname}{main} && $common_type ne $VarType{$varname}{main} && $::debug>=3) {
+                 say STDERR "get_globals: Merging to common type $common_type for global var $varname";
+         }
          foreach $subname (keys %{$VarSubMap{$varname}} ){
             if($var_usage_in_subs>1 || exists $NeedsInitializing{$subname}{$varname}) { # SNOOPYJC
                 $GlobalVar{$subname}.=','.$varname;
                 # SNOOPYJC: Since this var exists in $VarSubMap, it's not a "my" variable and if
                 # it needs initializing, we need to do it in the top-level scope, not in the sub
+                $common_type =  $NeedsInitializing{$subname}{$varname} if(!defined $common_type);
+                $VarType{$varname}{$subname} = $common_type;
                 if($subname ne 'main' && exists $NeedsInitializing{$subname}{$varname}) {     # SNOOPYJC
-                    $VarType{$varname}{main} = merge_types($varname, $subname, $NeedsInitializing{$subname}{$varname});        # SNOOPYJC
+                    $VarType{$varname}{main} = merge_types($varname, $subname, $common_type);        # SNOOPYJC
                     $VarSubMap{$varname}{main} = '+';                   # SNOOPYJC
                     $NeedsInitializing{main}{$varname} = $NeedsInitializing{$subname}{$varname};        # SNOOPYJC
                     delete $NeedsInitializing{$subname}{$varname};      # SNOOPYJC
@@ -531,9 +546,12 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
         # Don't override an assigned type with a referenced type, since normally
         # we will change references to use _num() or _str(), but if this var
         # is not initialized, then we can set it's type here, e.g. if it's used as an array ref.
-        if(!exists $VarType{$name}{$CurSub} || $VarType{$name}{$CurSub} eq 'u') {
-            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
-        }
+        #
+        # Actually, this causes more problems than it's worth by setting wrong types of things
+        # which omit conversion functions!
+        #if(!exists $VarType{$name}{$CurSub} || $VarType{$name}{$CurSub} eq 'u') {
+        #$VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
+        #}
         if(!exists $NeedsInitializing{$CurSub}{$name}) {
             $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
         }
@@ -663,6 +681,9 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
     if(!defined $type) {
         $type = 'u';
     }
+    if(!exists $VarType{$name}) {
+        return $type;
+    }
     if(!exists $VarType{$name}{$CurSub}) {
         return $type;
     }
@@ -760,7 +781,7 @@ sub _expr_type           # Attempt to determine the type of the expression
             }
             return 'F';                 # Float
         } elsif($class eq 's') {        # Scalar
-            return $VarType{$ValPy[$k]}{$CurSub} if(exists $VarType{$ValPy[$k]}{$CurSub});
+            return $VarType{$ValPy[$k]}{$CurSub} if(exists $VarType{$ValPy[$k]} && exists $VarType{$ValPy[$k]}{$CurSub});
             my $v = substr($ValPerl[$k], 1);
             if(exists $Perlscan::SpecialVarType{$v}) {
                 my $typ = $Perlscan::SpecialVarType{$v};
@@ -771,7 +792,7 @@ sub _expr_type           # Attempt to determine the type of the expression
             return 's';                 # scalar
         } elsif($class eq 'a') {        # array
             return 'I' if($ValPy[$k] =~ /^len\(/);      # Scalar context
-            return $VarType{$ValPy[$k]}{$CurSub} if(exists $VarType{$ValPy[$k]}{$CurSub});
+            return $VarType{$ValPy[$k]}{$CurSub} if(exists $VarType{$ValPy[$k]} && exists $VarType{$ValPy[$k]}{$CurSub});
             my $v = substr($ValPerl[$k], 1);
             if(exists $Perlscan::SpecialArrayType{$v}) {
                 my $typ = $Perlscan::SpecialArrayType{$v};
@@ -782,7 +803,7 @@ sub _expr_type           # Attempt to determine the type of the expression
             return 'a of u';
         } elsif($class eq 'h') {        # hash
             return 'I' if($ValPy[$k] =~ /^len\(/);      # Scalar context
-            return $VarType{$ValPy[$k]}{$CurSub} if(exists $VarType{$ValPy[$k]}{$CurSub});
+            return $VarType{$ValPy[$k]}{$CurSub} if(exists $VarType{$ValPy[$k]} && exists $VarType{$ValPy[$k]}{$CurSub});
             my $v = substr($ValPerl[$k], 1);
             if(exists $Perlscan::SpecialHashType{$v}) {
                 my $typ = $Perlscan::SpecialHashType{$v};
@@ -798,8 +819,8 @@ sub _expr_type           # Attempt to determine the type of the expression
             if(substr($ValPerl[$k],0,1) eq '<') {   # Diamond operator
                 return 'a of S' if($k-2 >= 0 && $ValClass[$k-2] eq 'a' && $ValClass[$k-1] eq '=');
                 return 'S';
-            } elsif($LocalSub{$name} || exists $VarType{$name}{main}) { # Local sub with no args
-                return $VarType{$name}{main} if(exists $VarType{$name}{main});
+            } elsif($LocalSub{$name} || (exists $VarType{$name} && exists $VarType{$name}{main})) { # Local sub with no args
+                return $VarType{$name}{main} if(exists $VarType{$name} && exists $VarType{$name}{main});
                 return 'm';
             } else {
                 return 'S';
@@ -815,11 +836,11 @@ sub _expr_type           # Attempt to determine the type of the expression
         if(substr($ValPerl[$k],0,1) eq '<') {   # Diamond operator
             return 'a of S' if($k-2 >= 0 && $ValClass[$k-2] eq 'a' && $ValClass[$k-1] eq '=');
             return 'S';
-        } elsif($LocalSub{$name} || exists $VarType{$name}{main}) {
-            return $VarType{$name}{main} if(exists $VarType{$name}{main});
+        } elsif($LocalSub{$name} || (exists $VarType{$name} && exists $VarType{$name}{main})) {
+            return $VarType{$name}{main} if(exists $VarType{$name} && exists $VarType{$name}{main});
             return 'm';
         } elsif($k+1 <= $#ValClass && $ValClass[$k+1] eq '(') {
-            return $VarType{$name}{main} if(exists $VarType{$name}{main});
+            return $VarType{$name}{main} if(exists $VarType{$name} && exists $VarType{$name}{main});
             return 'm';
         }
         return 'S';             # will be changed to a string
@@ -838,7 +859,7 @@ sub _expr_type           # Attempt to determine the type of the expression
             return 'N';         # Numeric
         } elsif($class eq 's' && $k+1 <= $#ValClass && $ValClass[$k+1] eq '(') {    # An array with possible subscript or hash with key
             my $name = $ValPy[$k];
-            if(exists $VarType{$name}{$CurSub} && index($VarType{$name}{$CurSub}, ' of ') > 0) {
+            if(exists $VarType{$name} && exists $VarType{$name}{$CurSub} && index($VarType{$name}{$CurSub}, ' of ') > 0) {
                 my $typ = $VarType{$name}{$CurSub};
                 my $p = $k+1;
                 while($ValClass[$p] eq '(') {
@@ -1514,47 +1535,68 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     }
     # Pass 2 - find all the refs
     my @words = keys %defs;
-    #say STDERR "Defs: @words";
+    say STDERR "move_defs_before_refs: Defs @{[%defs]}" if($::debug >= 3);
     my %refs = ();
     my $insertion_point = 0;
     $lno = 0;
-    my $in_def = 0;
+    my $in_def = undef;
+    my %f_refs=();
     for my $Line (@lines) {
         $lno++;
         $insertion_point = $lno+1 if($Line =~ /^$PERL_ARG_ARRAY = sys.argv/ && !$insertion_point);
         #say STDERR "$lno: $line";
         $line = eat_strings($Line);     # we change variables so eat_strings doesn't modify @lines
         if($in_def) {
-            $in_def = 0 if($line !~ /^def / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/ && !$multiline_string_sep);
+            $in_def = undef if($line !~ /^def / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/ && !$multiline_string_sep);
             #say STDERR "Not in_def on $line" if(!$in_def);
-        } else {
-            $in_def = 1 if($line =~ /^def /);
-            #say STDERR "in_def on $line" if($in_def);
+        }
+        if($line =~ /^def ([A-Za-z0-9_]+)/) {
+            $in_def = $1;
+            #say STDERR "in_def $in_def on $line";
         }
         ### YES THEY DO!!  next if($in_def);               # Refs inside of defs don't matter
+        next if($line =~ /^def /);
         next if($line =~ /^\s*#/);      # ignore comments
         my @found = grep { $line =~ /\b$_\b/ } @words;
+        #say STDERR "found @found in $lno: $line" if(@found);
         foreach $f (@found) {
+            if($in_def) {
+                #say STDERR "Adding f_refs{$in_def}{$f} = 1 on $lno: $line";
+                $f_refs{$in_def}{$f} = 1;
+            }
             if(!defined $refs{$f}) {    # Only put in the first one
                 $refs{$f} = $lno;
             }
         }
     }
-    #say STDERR "Refs @{[%refs]}";
+    say STDERR "move_defs_before_refs: Refs @{[%refs]}" if($::debug >= 3);
     return if(!$insertion_point);
     # Create the move group
     my %to_move = ();
+    my %to_move_first = ();
     for my $ref (keys %refs) {
         $ref_lno = $refs{$ref};
         $def_lno = $defs{$ref};
         if($ref_lno < $def_lno) {
             $to_move{$ref} = 1;
+            if(exists $f_refs{$ref}) {
+                foreach my $f (keys %{$f_refs{$ref}}) {
+                    #say STDERR "setting to_move_first{$f} = 1";
+                    $to_move_first{$f} = 1;
+                }
+            }
         }
     }
-    my $size = keys %to_move;
+    my @ordered_to_move = ();
+    foreach $f (keys %to_move_first) {
+        delete $to_move{$f};
+    }
+    push @ordered_to_move, keys %to_move_first;
+    push @ordered_to_move, keys %to_move;
+    my $size = scalar(@ordered_to_move);
     return if(!cleanup_imports(\@lines) && $size == 0);      # nothing to do
-    #say STDERR "to_move: @{[%to_move]}";
-    #say STDERR "defs @{[%defs]}";
+    say STDERR "to_move_first: @{[%to_move_first]}" if($::debug >= 3);
+    say STDERR "to_move: @{[%to_move]}" if($::debug >= 3);
     # Pass 3 - regenerate the output file in the right order
     open($sysout,'>',$output_file);
     $lno = 0;
@@ -1566,7 +1608,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
            pep8($sysout, $line);
            next
         }
-        for my $func (keys %to_move) {
+        for my $func (@ordered_to_move) {
             $start_line = $defs{$func};
             for(my $i=$start_line-1; $i<scalar(@lines); $i++) {
                 if($multiline_string_sep) {

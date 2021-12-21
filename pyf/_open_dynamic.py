@@ -1,5 +1,5 @@
 
-def _open_dynamic(file,mode=None):
+def _open_dynamic(file,mode=None,checked=True):
     """Replacement for perl built-in open function when the mode is unknown."""
     dup = None
     pipe = None
@@ -28,8 +28,8 @@ def _open_dynamic(file,mode=None):
                 encoding = 'UTF-8'
                 errors = 'ignore'
         if dup:
-            return _dup(file, mode,encoding=encoding,errors=errors)
-        return _open(file, mode,encoding=encoding,errors=errors)
+            return _dup(file, mode,encoding=encoding,errors=errors,checked=checked)
+        return _open(file, mode,encoding=encoding,errors=errors,checked=checked)
     if pipe:
         return _open(file, '-|')
     return _open(file, 'r')
