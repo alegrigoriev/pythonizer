@@ -426,7 +426,11 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
 
     if($k > 0) {
         if($ValClass[$k-1] eq '^') {      # pre ++ or --
-            $type = 'I';
+            if($k+1 <= $#ValClass && $ValPerl[$k+1] eq '[') {
+                $type = 'a of I';         # ++ $arr[$ndx]
+            } else {
+                $type = 'I';
+            }
             $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
         } elsif($ValClass[$k-1] eq 'f' && $ValPerl[$k-1] eq 'defined') {
             # If they are checking if this var is defined, then we have to init it to "None" if
@@ -523,7 +527,7 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
                 $rhs_type = 'I';
             } elsif($ValClass[$p] eq '~') {
                 $rhs_type = 'S';
-            } elsif(index(")x*/%+-.HI>&|0r?:,Ao", $ValClass[$p]) >= 0) {
+            } elsif(index(')x*/%+-.HI>&|0r?:,Ao"', $ValClass[$p]) >= 0) {
                 return;         # Just a reference to the array
             }
         } else {
@@ -765,13 +769,13 @@ sub _expr_type           # Attempt to determine the type of the expression
                 if($ValPerl[$k+1] eq '{') {
                     my $ep = matching_br($k+1);
                     return expr_type($ep+1, $e, $CurSub) if($ep>$k && $ep+1 <= $e);
-                } elsif($ValClass[$k+1] =~ /fi/) {      # sort f a
+                } elsif($ValClass[$k+1] =~ /[fi]/) {      # sort f a
                     return expr_type($k+2, $e, $CurSub) if($k+2 <= $e);
                 } else {                                # sort a
                     return expr_type($k+1, $e, $CurSub) if($k+1 <= $e);
                 }
             } elsif($ValPerl[$k] =~ /map/) {
-                if($ValClass[$k+1] =~ /fi/) {      # map f a
+                if($ValClass[$k+1] =~ /[fi]/) {      # map f a
                     return 'a of ' . expr_type($k+1, $k+1, $CurSub);
                 }
             } elsif($ValPerl[$k] =~ /reverse/) {
@@ -880,6 +884,8 @@ sub _expr_type           # Attempt to determine the type of the expression
         } elsif($class eq 's' && $k+2 <= $#ValClass && $ValClass[$k+1] eq '~' &&        # Pattern match
                 $ValClass[$k+2] eq 'q' && capturing_pattern($ValPerl[$k+2])) {
                 return 'a of S';
+        } elsif($class eq '"') {        # We split interpolated strings into many tokens like "s(s)", but it's still a string at the end!
+            return 'S';
         }
         return 'm';
     } else {                    # '('

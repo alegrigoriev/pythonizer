@@ -116,6 +116,7 @@
 # 0.928  2021/12/19  SNOOPYJC  Rename vars that clash with built-in functions like len, etc., fix _each, issue 103, issue 104, implement automatic type conversion, issue 105, issue 106
 # 0.929  2021/12/20  SNOOPYJC  issue 107, fix _open if result is checked, implement $| and FD->autoflush(), fix problem with vartypes for globals vars, use _i as temp loop index instead of _
 # 0.930  2021/12/21  SNOOPYJC  Check var references in interpolated strings for auto-init
+# 0.931  2021/12/22  SNOOPYJC  Interpolate in HERE strings, issue 92
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -155,7 +156,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context); # SNOOPYJC
 
-   $VERSION='0.930';
+   $VERSION='0.931';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -4587,9 +4588,13 @@ sub handle_incr_decr                    # issue 74: handle ++ and -- in expressi
         } else {
             replace($op_pos, '=', "$op= 1", "$op= 1");      # Not actually used but it tells expression() that we're on the LHS
         }
+        my $adj = fix_type_issues($lvalue_start, $lvalue_end, undef);
+        $lvalue_end += $adj;
         $k = expression($lvalue_start, $lvalue_end, 0);
         if($pre_op) {
             destroy($lvalue_end+1, 1);      # remove the extra '=' we put in
+        } else {
+            $op_pos += $adj;
         }
         gen_chunk(" $op= 1");            # += 1 or -= 1
         gen_statement();
@@ -4600,18 +4605,18 @@ sub handle_incr_decr                    # issue 74: handle ++ and -- in expressi
         destroy($op_pos, 1);            # remove the ++ or --
         if($pre_op) {
             if($debug >= 3) {
-                say STDERR " = ". (-1+$inc)." (arr/hash)"." now =|$TokenStr|=";
+                say STDERR " = ". (-1+$inc+$adj)." (arr/hash)"." now =|$TokenStr|=";
             }
-            return -1+$inc;
+            return -1+$inc+$adj;
         } else {                # post op
             insert($lvalue_end+1, ')', ')', ')');
             insert($lvalue_end+1, 'd', '1', '1');
             insert($lvalue_end+1, $rop, $rop, $rop);
             insert($lvalue_start, '(', '(', '(');
             if($debug >= 3) {
-                say STDERR " = ".(3+$inc)." now =|$TokenStr|=";
+                say STDERR " = ".(3+$inc+$adj)." now =|$TokenStr|=";
             }
-            return 3+$inc;
+            return 3+$inc+$adj;
         }
     }
 }

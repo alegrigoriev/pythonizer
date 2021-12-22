@@ -9,7 +9,7 @@ package Pyconfig;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name label_exception_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP);
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP);
 
 # use Readonly;		# Readonly is not installed by default so skip it!
 
@@ -74,18 +74,25 @@ our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_RECORD_SEPAR
                      AUTODIE=>'I', TRACEBACK=>'I');
 
 sub hash_var_name                       # issue 92
-# Given the name of a %hash, return the python name for it
+# Given the name of a %hash, return the python name for it.  Only used if there is a name conflict.
 # Required because they can also define a scalar of the same name, which needs to be distinct
 {
     my $name = shift;
     return "${name}_h";
 }
 sub array_var_name                      # issue 92
-# Given the name of an @array, return the python name for it
+# Given the name of an @array, return the python name for it.  Only used if there is a name conflict.
 # Required because they can also define a scalar of the same name, which needs to be distinct
 {
     my $name = shift;
     return "${name}_a";
+}
+sub scalar_var_name                      # issue 92
+# Given the name of a $scalar, return the python name for it.  Only used if there is a name conflict.
+# Required because they can also define a sub of the same name, which needs to be distinct
+{
+    my $name = shift;
+    return "${name}_v";
 }
 
 sub label_exception_name                # issue 94
