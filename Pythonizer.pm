@@ -362,7 +362,7 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
                 $GlobalVar{$subname}.=','.$varname;
                 # SNOOPYJC: Since this var exists in $VarSubMap, it's not a "my" variable and if
                 # it needs initializing, we need to do it in the top-level scope, not in the sub
-                $common_type =  $NeedsInitializing{$subname}{$varname} if(!defined $common_type);
+                $common_type = $NeedsInitializing{$subname}{$varname} if(!defined $common_type);
                 $VarType{$varname}{$subname} = $common_type;
                 if($subname ne 'main' && exists $NeedsInitializing{$subname}{$varname}) {     # SNOOPYJC
                     $VarType{$varname}{main} = merge_types($varname, $subname, $common_type);        # SNOOPYJC
@@ -404,7 +404,7 @@ sub init_val            # SNOOPYJC: Get the initializer value for the var, given
    my $val = 'None';
    $val = '0' if($type =~ /[IN]/);      # Integer or Number
    $val = '0.0' if($type eq 'F');       # Float
-   $val = "''" if($type eq 'S');        # String
+   $val = "''" if($type eq 'S' || $type eq 's');        # String or scalar
    $val = '[]' if($type eq 'a');        # array
    $val = '{}' if($type eq 'h');        # hash 
    return $val;
@@ -535,7 +535,13 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of m");
         }
    } elsif($class eq 'a' || $class eq 'h') {    # e.g. if(@arr) or if(%hash) or push @arr, ...
-        $NeedsInitializing{$CurSub}{$name} = $class if(!exists $initialized{$CurSub}{$name});
+       $type = $class;
+       if($k-1 >= 0 && $ValClass[$k-1] eq 'f' && ($ValPerl[$k-1] eq 'push' || $ValPerl[$k-1] eq 'unshift') && $k+2 <= $#ValClass) {
+            $type = expr_type($k+2, $#ValClass, $CurSub);
+            $type = "$class of $type";
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
+        }
+        $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
    } elsif(($typ = expr_type($k, $k, $CurSub)) && $typ ne 's') {
         $NeedsInitializing{$CurSub}{$name} = $typ if(!exists $initialized{$CurSub}{$name});
    } elsif(!defined $type) {                            # Scalar reference - try to find what type it needs to be
@@ -637,7 +643,7 @@ sub scalar_reference_type       # given a reference to a scalar, try to infer th
     } elsif($op ne '') {
         return 'N';         # Numeric
     }
-    return 'u';
+    return 's';         # Unknown scalar
 }
 
 sub arg_type            # Given the name of a built-in function, and the arg#, return the required type
@@ -645,12 +651,12 @@ sub arg_type            # Given the name of a built-in function, and the arg#, r
     my $name = shift;
     my $arg = shift;
 
-    return 'u' if(!exists $Perlscan::FuncType{$name});
+    return 's' if(!exists $Perlscan::FuncType{$name});
     my $ft = $Perlscan::FuncType{$name};
     my $argc = 0;
     for(my $i = 0; $i < length($ft); $i++) {
         my $c = substr($ft,$i,1);
-        return 'u' if($c eq ':');       # We reached the end
+        return 's' if($c eq ':');       # We reached the end
         if($c eq 'H' && substr($ft,$i+1,1) eq '?') {
             $i++;
             $argc++;
@@ -691,10 +697,10 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
     if($::debug >= 3) {
         say STDERR "merge_types: otype=$otype";
     }
-    if($otype eq 'u') {         # unknown - treat like we have no info yet
+    if($otype eq 'u' || $otype eq 's') {         # undef or scalar - treat like we have no info yet
         return $type;
     }
-    if($type eq 'u') {
+    if($type eq 'u' || $type eq 's') {
         return $otype;
     }
     return $type if($type eq $otype);   # Same type

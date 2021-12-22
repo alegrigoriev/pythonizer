@@ -115,6 +115,7 @@
 # 0.927  2021/12/16  SNOOPYJC  Revamp the time functions, use *arr for passing arrays, use map(str,...) for join of int array
 # 0.928  2021/12/19  SNOOPYJC  Rename vars that clash with built-in functions like len, etc., fix _each, issue 103, issue 104, implement automatic type conversion, issue 105, issue 106
 # 0.929  2021/12/20  SNOOPYJC  issue 107, fix _open if result is checked, implement $| and FD->autoflush(), fix problem with vartypes for globals vars, use _i as temp loop index instead of _
+# 0.930  2021/12/21  SNOOPYJC  Check var references in interpolated strings for auto-init
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -154,7 +155,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context); # SNOOPYJC
 
-   $VERSION='0.929';
+   $VERSION='0.930';
    $SCRIPT_NAME='pythonizer';
 #
 # options
