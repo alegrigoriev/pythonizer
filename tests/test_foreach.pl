@@ -204,7 +204,7 @@ sub aeq_unordered {
         eval {
             $found = 0;
             for(my $j = 0; $j < scalar(@$a_ref2); $j++) {
-                if($a_ref1[$i] eq $a_ref2[$j]) {
+                if($a_ref1->[$i] eq $a_ref2->[$j]) {
                     $found = 1;
                     last;
                 }

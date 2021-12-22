@@ -58,7 +58,7 @@ require Exporter;
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw(Exporter);
-@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence %SpecialVarsUsed @EndBlocks);	# issue 41, issue 65, issue 74, issue 93
+@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords name_map %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence %SpecialVarsUsed @EndBlocks);	# issue 41, issue 65, issue 74, issue 92, issue 93
 #our (@ValClass,  @ValPerl,  @ValPy, $TokenStr); # those are from main::
 
   $VERSION = '0.93';
@@ -68,6 +68,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
   #%is_numeric=();
 
   %SpecialVarsUsed=();                  # SNOOPYJC: Keep track of special vars used so we can generate better code if you don't use some feature
+  %NameMap=();                          # issue 92: Map names to python names
   @EndBlocks=();                        # SNOOPYJC: List of END blocks with their unique names
 #
 # List of Perl special variables
@@ -388,7 +389,9 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                '>'=>1, '>='=>1, '<'=>1, '<='=>1, '=='=>1, '!='=>1,
                '|='=>1, '&='=>1, '^='=>1, '>>='=>1, '<<='=>1, '**='=>1, '//='=>1); # SNOOPYJC - always generate a space before and after these
 
-my ($source,$cut,$tno)=('',0,0);
+# issue 39 my ($source,$cut,$tno)=('',0,0);
+my ($source,$tno)=('',0);       # issue 39
+$cut=0;                         # issue 39
 @PythonCode=(); # array for generated code chunks
 $PREV_HAD_COLON=1;               # SNOOPYJC
 @SavePythonCode=();     # issue 74
@@ -785,10 +788,11 @@ my ($l,$m);
             $tno-- if($has_squiggle);
 	    # issue 39 $ValClass[$tno]="'";
             $ValClass[$tno]='"';		# issue 39
-            $ValPerl[$tno]=substr($source,1,$cut-2); # FIXME: we do not allow variables is here string.
+            $ValPerl[$tno]=substr($source,1,$cut-2);
 	    # issue 39 $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno]);
             $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno], $has_squiggle);	# issue 39
-            # FIXME: Interpolate the result!
+            my $quote = substr($ValPy[$tno],3,length($ValPy[$tno])-6);  # issue 39: remove the """ and """
+            interpolate_strings($quote, $quote, 0, 0);     # issue 39
             popup();                            # issue 39
             popup() if($has_squiggle);
 	    $TokenStr=join('',@ValClass);       # issue 39
@@ -846,6 +850,12 @@ my ($l,$m);
          $ValPerl[$tno]=$w;
          $ValClass[$tno]='i';
          $ValPy[$tno]=$w;
+         if($tno != 0 && ($ValClass[$tno-1] eq 'k' && $ValPerl[$tno-1] eq 'sub') ||
+             ($ValClass[$tno-1] eq 'f' && ($ValPerl[$tno-1] eq 'open' || $ValPerl[$tno-1] eq 'opendir')) ||
+             ($tno-2>=0 && $ValClass[$tno-1] eq '(' && $ValClass[$tno-2] eq 'f' &&
+                ($ValPerl[$tno-1] eq 'open' || $ValPerl[$tno-1] eq 'opendir'))) {       # issue 92
+            remap_conflicting_names($w, '', '');      # issue 92: sub takes the name from other vars
+         }
          $ValPy[$tno]=~tr/:/./s;                # SNOOPYJC
          $ValPy[$tno]=~tr/'/./s;                # SNOOPYJC
          $ValCom[$tno]='';                      # SNOOPYJC
@@ -938,7 +948,7 @@ my ($l,$m);
                   # decompose doublke quote populate $ValPy[$tno] as a side effect
                   $cut=double_quoted_literal($delim,length($w)+1); # side affect populates $ValPy[$tno] and $ValPerl[$tno]
                   $ValClass[$tno]='"';
-	 	  if(index($ValPy[$tno], "\n") >= 0) {		# issue 39 - multi-line string
+	 	  if(index($ValPy[$tno], "\n") >= 0 && $ValPy[$tno] !~ /^f"""/) { # issue 39 - multi-line string
             	      $ValPy[$tno] =~ s/^f"/f"""/;		# issue 39
 	    	      $ValPy[$tno] .= '""';			# issue 39
 		   }						# issue 39
@@ -1079,9 +1089,10 @@ my ($l,$m);
             $tno--; # overwrite previous token; Dec 20, 2019 --NNB
             $tno-- if($has_squiggle);           # overwrite that one too!
             $ValClass[$tno]='"';		# issue 39
-            $ValPerl[$tno]=substr($source,0,$cut); # FIXME: we do not allow variables is here string.
+            $ValPerl[$tno]=substr($source,0,$cut);
             $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno], $has_squiggle);	# issue 39
-            # FIXME: Interpolate the result!
+            my $quote = substr($ValPy[$tno],3,length($ValPy[$tno])-6);  # issue 39: remove the """ and """
+            interpolate_strings($quote, $quote, 0, 0);     # issue 39
 	    popup();                                                                            # issue 39
 	    popup() if($has_squiggle);
          }
@@ -1097,21 +1108,23 @@ my ($l,$m);
             substr($source,0,$cut)='perl_trace()'; # remove non-tranlatable part.
             $cut=length('perl_trace');
          }else{
-	    if($tno!=0 && 
-               (($ValClass[$tno-1] eq 's' && $ValPerl[$tno-1] eq '$') || # issue 50
-                $ValClass[$tno-1] eq '@' || 
-                ($ValClass[$tno-1] eq '%' && !$had_space))) {	# issue 50
-               # Change $$xxx to $xxx, @$xxx to $xxx and %$yyy to $yyy but NOT % $yyy as that's a MOD operator!
-	       popup();                         # issue 50
-	       $tno--;				# issue 50 - no need to change hashref to hash or arrayref to array in python
-      	       $ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
-	    }
             $end_br = 0;                                # issue 43
             if(substr($source,1,1) eq '{') {		# issue 43: ${...}
                 $end_br = matching_curly_br($source, 1); # issue 43
                 $source = '$'.substr($source,2);	# issue 43: eat the '{'. At this point, $end_br points after the '}'
             }
             decode_scalar($source,1);
+	    if($tno!=0 &&                               # issue 50, issue 92
+               (($ValClass[$tno-1] eq 's' && $ValPerl[$tno-1] eq '$') || # issue 50
+                $ValClass[$tno-1] eq '@' || 
+                ($ValClass[$tno-1] eq '%' && !$had_space))) {	# issue 50
+               # Change $$xxx to $xxx, @$xxx to $xxx and %$yyy to $yyy but NOT % $yyy as that's a MOD operator!
+               $TokenStr = join('',@ValClass);             # issue 50: replace doesn't work w/o $TokenStr
+               replace($tno-1, $ValClass[$tno], $ValPerl[$tno], $ValPy[$tno]);  # issue 50
+               popup();                         # issue 50
+	       $tno--;				# issue 50 - no need to change hashref to hash or arrayref to array in python
+               #$ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
+	    }
             if( $ValPy[$tno] eq 'SIG' ) {              # issue 81 - implement signals
                $ValClass[$tno] = 'f';
                if($::debug >= 3) {
@@ -1164,7 +1177,8 @@ my ($l,$m);
                   $ValType[$tno]="X";
                   $SpecialVarsUsed{'@ARGV'} = 1;                       # SNOOPYJC
             }else{
-	       my $arg2 = escape_keywords($arg1);		# issue 41
+               my $arg2 = remap_conflicting_names($arg1, '@', substr($source,length($arg1)+1,1));      # issue 92
+	       $arg2 = escape_keywords($arg2);		# issue 41
                if( $tno>=2 && $ValClass[$tno-2] =~ /[sd'"q]/  && $ValClass[$tno-1] eq '>'  ){
                   $ValPy[$tno]='len('.$arg2.')'; # scalar context   # issue 41
                   $ValType[$tno]="X";
@@ -1195,6 +1209,7 @@ my ($l,$m);
             $ValPy[$tno]=$1;
             $ValPy[$tno]=~tr/:/./s;
             $ValPy[$tno]=~tr/'/./s;             # SNOOPYJC
+            $ValPy[$tno] = remap_conflicting_names($ValPy[$tno], '%', '');      # issue 92
 	    $ValPy[$tno] = escape_keywords($ValPy[$tno]);
             if( substr($ValPy[$tno],0,1) eq '.' ){
                $ValCom[$tno]='X';
@@ -1217,6 +1232,7 @@ my ($l,$m);
             $ValPy[$tno]=$1;
             $ValPy[$tno]=~tr/:/./s;
             $ValPy[$tno]=~tr/'/./s;             # SNOOPYJC
+            $ValPy[$tno] = remap_conflicting_names($ValPy[$tno], '&', '');      # issue 92
 	    $ValPy[$tno] = escape_keywords($ValPy[$tno]);
             if( substr($ValPy[$tno],0,1) eq '.' ){
                $ValCom[$tno]='X';
@@ -1271,9 +1287,14 @@ my ($l,$m);
                }
                $cut=2;
             }
-            if($digram eq '=>' && $tno != 0 && $ValClass[$tno-1] eq 'f' && $ValPerl[$tno-1] eq 'delete') {    # issue delete
-                $ValClass[$tno-1] = '"';        # delete => '...' - make it into 'delete' => '...'
-                $ValPy[$tno-1] = "'delete'";
+            if($digram eq '=>' && $tno != 0) {
+               if($ValClass[$tno-1] eq 'f' && $ValPerl[$tno-1] eq 'delete') {    # issue delete
+                    $ValClass[$tno-1] = '"';        # delete => '...' - make it into 'delete' => '...'
+                    $ValPy[$tno-1] = "'delete'";
+               } elsif($ValClass[$tno-1] eq 'd') {      # Hash keys are strings in perl
+                   $ValClass[$tno-1] = '"';
+                   $ValPy[$tno-1] = "'" . $ValPy[$tno-1] . "'";
+               }
             }
          }elsif( $s eq '='  ){
             $TokenStr = join('',@ValClass);             # issue 93
@@ -1639,6 +1660,13 @@ my $rc=-1;
       if( $update ){
          $ValPerl[$tno]=substr($source,0,$cut);
       }
+      my $next_c = '';
+      if($tno!=0 &&                               # issue 50, issue 92
+               ($ValClass[$tno-1] eq 's' && $ValPerl[$tno-1] eq '$')) {
+          ;             # Do nothing if this is like $$h_ref{key}
+      } else {
+          $next_c = substr($source,$cut,1);
+      }
       if( ($k=index($name,'::')) > -1 ){
          $ValType[$tno]="X";
          if( $k==0 || substr($name,$k) eq 'main' ){
@@ -1647,6 +1675,7 @@ my $rc=-1;
             $rc=1 #regular var
          }else{
             substr($name,$k,2)='.';
+            $name = remap_conflicting_names($name, '$', $next_c);      # issue 92
 	    $name = escape_keywords($name);
 	    $ValPy[$tno]=$name;
             $rc=1 #regular var
@@ -1659,6 +1688,7 @@ my $rc=-1;
             $rc=1 #regular var
          }else{
             substr($name,$k,1)='.';
+            $name = remap_conflicting_names($name, '$', $next_c);      # issue 92
 	    $name = escape_keywords($name);
 	    $ValPy[$tno]=$name;
             $rc=1 #regular var
@@ -1686,6 +1716,7 @@ my $rc=-1;
             $ValPy[$tno]="$PERL_SORT_$s2";	# issue 32
             $cut=2;
          }else{
+            $ValPy[$tno] = remap_conflicting_names($ValPy[$tno], '$', $next_c);      # issue 92
             $rc=1 #regular var
          }
       }else{
@@ -1706,6 +1737,7 @@ my $rc=-1;
                   $ValPy[$tno]='fileinput.filename()';	# issue 49: Differentiate @ARGV from $ARGV, issue 66
               }
            }else{
+             $ValPy[$tno] = remap_conflicting_names($ValPy[$tno], '$', $next_c);      # issue 92
 	     $ValPy[$tno] = escape_keywords($ValPy[$tno]);	# issue 41
              $rc=1; # regular variable
            }
@@ -1904,6 +1936,25 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
       $ValPy[$tno]=escape_quotes($quote,2);
       return $close_pos;
    }
+   return interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset);     # issue 39
+}
+
+sub interpolate_strings                                         # issue 39
+# Interpolate variable references in strings
+{
+# Args:
+   my $quote = shift;                   # The value WITHOUT the quotes
+   my $pre_escaped_quote = shift;       # Same but with any \" inside not escaped
+   my $close_pos = shift;               # First position AFTER the closing quotes
+   my $offset = shift;                  # How long the opening is, e.g. 1 for ", 3 for qq/
+# Result = normally $close_pos, but can point earlier in the string if we need to tokenize part of it
+# in order to check for references (in the first pass only).
+
+   if($::debug >= 3) {
+       say STDERR ">interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset)";
+   }
+   my ($k, $ind, $result, $pc);
+   local $cut;                  # Save the global version of this!
    #
    # decompose all scalar variables, if any, Array and hashes are left "as is"
    #
@@ -1912,13 +1963,16 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
       # case when double quotes are used for a simple literal that does not reaure interpolation
       # Python equvalence between single and doble quotes alows some flexibility
       $ValPy[$tno]=escape_quotes($quote,2); # always generate with quotes --same for Python 2 and 3
+      say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset)=$close_pos, ValPy[$tno]=$ValPy[$tno]" if($::debug >=3);
       return $close_pos;
    }
    # SNOOPYJC: In the first pass, extract all variable references and return them as separate tokens
    # so we can mark their references, and add things like initialization.
-   if($Pythonizer::PassNo == 0) {                       # SNOOPYJC
-       my $pos = extract_tokens_from_double_quoted_string(substr($pre_escaped_quote,0,$close_pos-1))+$offset;
+   # If we're handling a here_is document, we don't do this (but we probably should: $close_pos == 0)
+   if($Pythonizer::PassNo == 0 && $close_pos != 0) {                       # SNOOPYJC
+       my $pos = extract_tokens_from_double_quoted_string($pre_escaped_quote)+$offset;
        $ExtractingTokensFromDoubleQuotedStringEnd += $offset;
+       say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset)=$pos (begin extract mode)" if($::debug >=3);
        return $pos;
    }
 
@@ -1955,7 +2009,7 @@ my  $outer_delim;
       $result.='{';  # we always need '{' for f-strings
       $quote=substr($quote,$k);
       #say STDERR "quote1=$quote\n";
-      $end_br = -1;				# issue 43
+      my $end_br = -1;				# issue 43
       if(substr($quote,1,1) eq '{') {		# issue 43: ${...}
          $end_br = matching_curly_br($quote, 1); # issue 43
          $quote = '$'.substr($quote,2);		# issue 43: eat the '{'. At this point, $end_br points after the '}'
@@ -1978,7 +2032,7 @@ my  $outer_delim;
       #if( $quote=~/^([\[\{].+?[\]\}])/  ){              # issue 98: Don't allow spaces before the [ or {
          #HACK element of the array of hash. Here we cut corners and do not process expressions as index.
          #$ind=$1;
-      $quote2 = $quote;
+      my $quote2 = $quote;
       if($ind = extract_bracketed($quote2, '{}[]', '')) {        # issue 53, issue 98
          $cut=length($ind);
          $ind =~ tr/$//d;               # FIXME: We need to decode_scalar on each one!
@@ -2061,6 +2115,7 @@ my  $outer_delim;
    $result.=$outer_delim;
    #say STDERR "double_quoted_literal: result=$result";
    $ValPy[$tno]=$result;
+   say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset)=$close_pos, ValPy[$tno]=$ValPy[$tno]" if($::debug >=3);
    return $close_pos;
 }
 
@@ -2219,12 +2274,13 @@ sub decode_array                # issue 47
               $ValPy[$tno]='sys.argv[1:]';	# issue 49
               #$ValType[$tno]="X";
         }else{
-           $arg1 = escape_keywords($arg1);		# issue 41
+           my $arg2 = remap_conflicting_names($arg1, '@', '');     # issue 92
+           $arg2 = escape_keywords($arg2);		# issue 41
            #if( $tno>=2 && $ValClass[$tno-2] =~ /[sd'"q]/  && $ValClass[$tno-1] eq '>'  ){
               #$ValPy[$tno]='len('.$arg1.')'; # scalar context
               #$ValType[$tno]="X";
               #}else{
-              $ValPy[$tno]=$arg1;
+              $ValPy[$tno]=$arg2;
               #}
            $ValPy[$tno]=~tr/:/./s;
            if( substr($ValPy[$tno],0,1) eq '.' ){
@@ -2250,6 +2306,7 @@ sub decode_hash                 # issue 47
         #$ValPerl[$tno]=$1;
         $ValPy[$tno]=$1;
         $ValPy[$tno]=~tr/:/./s;
+        $ValPy[$tno] = remap_conflicting_names($ValPy[$tno], '%', '');     # issue 92
         $ValPy[$tno] = escape_keywords($ValPy[$tno]);
         if( substr($ValPy[$tno],0,1) eq '.' ){
             #$ValCom[$tno]='X';
@@ -2599,6 +2656,115 @@ sub escape_keywords		# issue 41
            push @result, $id;
 	}
 	return join('.', @result);
+}
+
+sub name_map                    # issue 92
+# Accepts a name, the sigil, and trailing char and produces the python name for it.  Modifies names only if need be.
+# The name can also be a period separated list of names, in which case it only potentially modifies
+# the last one.
+{
+    my $name = shift;
+    my $sigil = shift;          # @, %, $, & or '' for FH
+    my $trailer = shift;
+
+    my @ids = split/[.]/, $name;
+    my $id = $ids[-1];
+    $sigil = actual_sigil($sigil, $trailer);
+    if(exists $NameMap{$id} && exists $NameMap{$id}{$sigil}) {
+        $ids[-1] = $NameMap{$id}{$sigil};
+    }
+    return join('.', @ids);
+}
+
+sub mapped_name                         # issue 92
+{
+    my $name = shift;
+    my $sigil = shift;                  # @, %, $, & or '' for FH
+    my $trailer = shift;                # [ or { or ''
+
+    $sigil = actual_sigil($sigil, $trailer);
+    return array_var_name($name) if($sigil eq '@');
+    return hash_var_name($name) if($sigil eq '%');
+    return scalar_var_name($name) if($sigil eq '$');
+    return $name;
+}
+
+sub actual_sigil                        # issue 92
+{
+    my $sigil = shift;
+    my $trailer = shift;
+
+    return '@' if($trailer eq '[');
+    return '%' if($trailer eq '{');
+    return $sigil;
+}
+
+sub remap_conflicting_names                  # issue 92
+# Call this when you see a new name - it looks at what names are already used and sees if this
+# name must be remapped.  If so, it returns the new name.
+{
+    my $name = shift;
+    my $sigil = shift;                          # @, %, $, & or '' for FH
+    my $trailer = shift;                        # [ or { or ''
+
+    return $name if(!$name);
+    my @ids = split/[.]/, $name;
+    my $id = $ids[-1];
+    my $s = $sigil;
+    $sigil = actual_sigil($sigil, $trailer);
+    my $mid = mapped_name($id, $sigil, $trailer);
+    if(exists $NameMap{$id} && exists $NameMap{$id}{$sigil} && $NameMap{$id}{$sigil} ne $id) {
+        return $NameMap{$id}{$sigil};
+    }
+    if($sigil ne '' && $sigil ne '&') {
+        for $sig (('', '&', '@', '%', '$')) {
+            next if($sig eq $sigil);
+            last if(!exists $NameMap{$id});
+            next if(!exists $NameMap{$id}{$sig});
+            if($NameMap{$id}{$sig} eq $id) {    # If somebody's using the plain ID then we have to map ours
+                $ids[-1] = $mid;
+                say STDERR "remap_conflicting_names($name,$s,$trailer): Remapping new $sigil$id to $mid due to $sig$id" if($::debug >= 3);
+                last;
+            }
+        }
+        $NameMap{$id}{$sigil} = $ids[-1];
+        return (join('.', @ids));
+    }
+    # We have a sub or a FH at this point - map other names and leave him alone
+    for $sig (('@', '%', '$')) {
+        if($sig ne $sigil) {
+            last if(!exists $NameMap{$id});
+            next if(!exists $NameMap{$id}{$sig});
+            if($NameMap{$id}{$sig} eq $id) {
+                my $mn = mapped_name($id, $sig, '');
+                say STDERR "remap_conflicting_names($name,$s,$trailer): Remapping old $sig$id to $mn due to $sigil$id" if($::debug >= 3);
+                $NameMap{$id}{$sig} = $mn;
+                if(exists $Pythonizer::VarSubMap{$id}) {
+                    $Pythonizer::VarSubMap{$mn} = $Pythonizer::VarSubMap{$id};
+                    delete $Pythonizer::VarSubMap{$id};
+                }
+                if(exists $Pythonizer::VarType{$id}) {
+                    $Pythonizer::VarType{$mn} = $Pythonizer::VarType{$id};
+                    delete $Pythonizer::VarType{$id};
+                }
+                for $sub (keys %Pythonizer::NeedsInitializing) {
+                    my $subh = $Pythonizer::NeedsInitializing{$sub};
+                    if(exists $subh->{$id}) {
+                        $subh->{$mn} = $subh->{$id};
+                        delete $Pythonizer::NeedsInitializing{$sub}{$id};
+                    }
+                }
+                for $sub (keys %Pythonizer::initialized) {
+                    my $subh = $Pythonizer::initialized{$sub};
+                    if(exists $subh->{$id}) {
+                        $subh->{$mn} = $subh->{$id};
+                        delete $Pythonizer::initialized{$sub}{$id};
+                    }
+                }
+            }
+        }
+    }
+    return $name;
 }
 
 sub parens_are_balanced         # issue 85 - return 1 if the parens are balanced in the token stream
