@@ -52,6 +52,7 @@ use feature 'state';
 use Softpano qw(abend logme out);
 #use Pythonizer qw(correct_nest getline prolog epilog output_line);
 use Pyconfig;				# issue 32
+use Text::Balanced qw{extract_bracketed};       # issue 53
 require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
@@ -85,8 +86,11 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 '@'=>'EVAL_ERROR',              # SNOOPYC
 		'"'=>'LIST_SEPARATOR',		# issue 46
                 '|'=>'OUTPUT_AUTOFLUSH',        # SNOOPYJC
-		'`'=>'string_preceeeding_last_match',"'"=>'post_last_match_string',
-                '+'=>'last_capture_group','/'=>'INPUT_RECORD_SEPARATOR',','=>'OUTPUT_FIELD_SEPARATOR','\\'=>'OUTPUT_RECORD_SEPARATOR',
+		'`'=>"$DEFAULT_MATCH.string[:$DEFAULT_MATCH.start()]",  # SNOOPYJC
+                "'"=>"$DEFAULT_MATCH.string[$DEFAULT_MATCH.end()]",     # SNOOPYJC
+                '-'=>"$DEFAULT_MATCH.start",    # SNOOPYJC
+                '+'=>"$DEFAULT_MATCH.end",      # SNOOPYJC
+                '/'=>'INPUT_RECORD_SEPARATOR',','=>'OUTPUT_FIELD_SEPARATOR','\\'=>'OUTPUT_RECORD_SEPARATOR',
                 );
    %SPECIAL_VAR2=('O'=>'os.name','T'=>'OS_BASETIME', 'V'=>'sys.version[0]', 'X'=>'sys.executable()', # $^O and friends
                   'W'=>'WARNING');              # SNOOPYJC
@@ -96,6 +100,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                     '^O'=>'S', '^T'=>'S', '^V'=>'S', '^X'=>'S', '^W'=>'I',
                     '&'=>'S', '1'=>'S', '2'=>'S', '3'=>'S', '4'=>'S',
                     '5'=>'S', '6'=>'S', '7'=>'S', '8'=>'S', '9'=>'S',
+                    '-'=>'I', '+'=>'I',
                     '_'=>'s');
    %SpecialArrayType=('ARGV'=>'a of S', '_'=>'a of m');
    %SpecialHashType=('ENV'=>'h of S');
@@ -569,6 +574,9 @@ my ($l,$m);
    $tno=0;
    @ValClass=@ValCom=@ValPerl=@ValPy=@ValType=(); # "Token Type", token comment, Perl value, Py analog (if exists)
    $TokenStr='';
+   $ExtractingTokensFromDoubleQuotedTokensEnd = -1;     # SNOOPYJC
+   $ExtractingTokensFromDoubleQuotedStringEnd = 0;      # SNOOPYJC
+   
    if( $::debug > 3 && $main::breakpoint >= $.  ){
       $DB::single = 1;
    }
@@ -780,6 +788,7 @@ my ($l,$m);
             $ValPerl[$tno]=substr($source,1,$cut-2); # FIXME: we do not allow variables is here string.
 	    # issue 39 $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno]);
             $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno], $has_squiggle);	# issue 39
+            # FIXME: Interpolate the result!
             popup();                            # issue 39
             popup() if($has_squiggle);
 	    $TokenStr=join('',@ValClass);       # issue 39
@@ -1072,6 +1081,7 @@ my ($l,$m);
             $ValClass[$tno]='"';		# issue 39
             $ValPerl[$tno]=substr($source,0,$cut); # FIXME: we do not allow variables is here string.
             $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno], $has_squiggle);	# issue 39
+            # FIXME: Interpolate the result!
 	    popup();                                                                            # issue 39
 	    popup() if($has_squiggle);
          }
@@ -1441,7 +1451,9 @@ my $original;
       logme('S',"The value of cut ($cut) exceeded the length (".length($source).") of the string: $source ");
       $source='';
    }elsif( $cut>0 ){
+       #say STDERR "finish: source=$source, cut=$cut";
       substr($source,0,$cut)='';
+      #say STDERR "finish: source=$source (after cut)";
    }
    if( length($source)==0  ){
        # the current line ended but ; or ){ } were not reached
@@ -1457,10 +1469,30 @@ my $original;
          $Pythonizer::IntactLine=$original;
        }
    }
+   if($ExtractingTokensFromDoubleQuotedStringEnd > 0 && $ValClass[$tno] eq '"') {               # SNOOPYJC
+       # Correct the ValPerl because we unfortunately get it wrong, exp if $cut-2 is negative!
+       $ValPerl[$tno] = substr($ValPy[$tno], 4, length($ValPy[$tno])-7);
+   }
    if( $::debug > 3  ){
      say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
    }
    $tno++;
+   if($ExtractingTokensFromDoubleQuotedStringEnd > 0) {               # SNOOPYJC
+       $ExtractingTokensFromDoubleQuotedTokensEnd -= $cut;
+       $ExtractingTokensFromDoubleQuotedStringEnd -= $cut;
+       #say STDERR "finish2: ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd" if($::debug>=5);
+       if($ExtractingTokensFromDoubleQuotedTokensEnd <= 0) {
+           $ValClass[$tno] = '"';
+           my $quote=substr($source,0,$ExtractingTokensFromDoubleQuotedStringEnd);
+           $cut = extract_tokens_from_double_quoted_string($quote);
+           #say STDERR "finish2: source=$source, cut=$cut";
+           substr($source,0,$cut)='';
+           #say STDERR "finish2: source=$source (after cut)";
+           $ExtractingTokensFromDoubleQuotedStringEnd -= $cut;
+           #say STDERR "finish2: ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd (after cut)" if($::debug>=5);
+        }
+    }
+
 }
 sub bash_style_or_and_fix
 # On level zero those are used instead of if statement
@@ -1531,7 +1563,7 @@ my $rc=-1;
    if ( $update  ){
       $ValClass[$tno]='s'; # we do not need to set it if we are analysing double wuoted literal
    }
-   my $specials = q(!?<>()!;]&`'+"@$|/,\\);             # issue 50
+   my $specials = q(!?<>()!;]&`'+-"@$|/,\\);             # issue 50
    if($s2 eq '$' && substr($source,2,1) =~ /[\w:']/) {   # issue 50: $$ is a special var, but not $$a or $$: or $$'
        $specials = '!';
    }
@@ -1865,6 +1897,7 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
    }
    $close_pos=single_quoted_literal($closing_delim,$offset); # first position after quote
    $quote=substr($source,$offset,$close_pos-1-$offset); # extract literal
+   my $pre_escaped_quote = $quote;                               # SNOOPYJC
    $quote=remove_escaped_delimiters($closing_delim, $quote);     # issue 51
    $ValPerl[$tno]=$quote; # also will serve as original
    if (length($quote) == 1 ){
@@ -1881,6 +1914,14 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
       $ValPy[$tno]=escape_quotes($quote,2); # always generate with quotes --same for Python 2 and 3
       return $close_pos;
    }
+   # SNOOPYJC: In the first pass, extract all variable references and return them as separate tokens
+   # so we can mark their references, and add things like initialization.
+   if($Pythonizer::PassNo == 0) {                       # SNOOPYJC
+       my $pos = extract_tokens_from_double_quoted_string(substr($pre_escaped_quote,0,$close_pos-1))+$offset;
+       $ExtractingTokensFromDoubleQuotedStringEnd += $offset;
+       return $pos;
+   }
+
    #
    #decode each part. Double quote literals in Perl are ver difficult to decode
    # This is a parcial implementation of the most common cases
@@ -1934,11 +1975,13 @@ my  $outer_delim;
       }                                                 # issue 13, 43
       #say STDERR "quote3=$quote";
       # issue 98 if( $quote=~/^\s*([\[\{].+?[\]\}])/  ){
-      if( $quote=~/^([\[\{].+?[\]\}])/  ){              # issue 98: Don't allow spaces before the [ or {
+      #if( $quote=~/^([\[\{].+?[\]\}])/  ){              # issue 98: Don't allow spaces before the [ or {
          #HACK element of the array of hash. Here we cut corners and do not process expressions as index.
-         $ind=$1;
+         #$ind=$1;
+      $quote2 = $quote;
+      if($ind = extract_bracketed($quote2, '{}[]', '')) {        # issue 53, issue 98
          $cut=length($ind);
-         $ind =~ tr/$//d;
+         $ind =~ tr/$//d;               # FIXME: We need to decode_scalar on each one!
 	 # issue 53 $ind =~ tr/{}/[]/;
          #say "looking for '{' in $ind";
 	 for(my $i = 0; $i < length($ind); $i++) {	# issue 53: change hash ref {...} to use .get(...) instead
@@ -1972,7 +2015,7 @@ my  $outer_delim;
             substr($quote,$k-1,1) = '';         # issue 51 - eat the escape
             $k=index($quote,'@',$k);            # issue 51
             next;
-         }elsif( $pc =~ /\w/ ) {        # Probable email address xyz@abc.com - don't interpret the '@'
+         }elsif( $pc =~ /\w/ && index($quote,'.')!=-1) { # Probable email address xyz@abc.com - don't interpret the '@'
             $k = index($quote,'@',$k+1);
             next;
          }else{
@@ -1986,7 +2029,7 @@ my  $outer_delim;
       $end_br = -1;				# issue 43
       if(substr($quote,1,1) eq '{') {		# issue 43: @{...}
          $end_br = matching_curly_br($quote, 1); # issue 43
-         $quote = '@'.substr($quote,2);		# issue 43: eat the '{'. At this point, $end_br points after the '}'
+         $quote = '@' . substr($quote,2);	# issue 43: eat the '{'. At this point, $end_br points after the '}'
          #say STDERR "quote1a=$quote, end_br=$end_br\n";
       }
       if($end_br > 0 && substr($quote,0,3) eq '@[%') {  # @{[%hash]}
@@ -2019,6 +2062,83 @@ my  $outer_delim;
    #say STDERR "double_quoted_literal: result=$result";
    $ValPy[$tno]=$result;
    return $close_pos;
+}
+
+sub extract_tokens_from_double_quoted_string
+# In the first pass, extract variable references from double-quoted strings as separate tokens
+# so we can mark references to them, etc.
+#
+# arg = contents of the string
+#
+# Adds the tokens directly to $ValXXX[$tno] and increments $tno.
+# Surrounds the tokens with a " (string) token, even if empty so that
+# the expression analyzer doesn't try to match neighboring operators.
+# When we come in, $ValClass[$tno] is already set to "
+{
+    my $quote = shift;
+
+    say STDERR ">extract_tokens_from_double_quoted_string($quote)" if($::debug>=3);
+    if($quote =~ /[\$\@]/) {
+        my $pos = $-[0];
+        $ValPy[$tno] = 'f"""' . substr($quote,0,$pos) . '"""';
+        if($ExtractingTokensFromDoubleQuotedStringEnd <= 0) {
+            # First time around, just get things ready for the next time
+            $ExtractingTokensFromDoubleQuotedStringEnd = length($quote);
+            say STDERR " ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd" if($::debug>=5);
+            say STDERR "<extract_tokens_from_double_quoted_string($quote) result=$pos" if($::debug>=3);
+            return $pos;
+        } elsif($pos != 0) {
+            # We have some stuff before the next sigil
+            $ValPerl[$tno] = substr($quote,0,$pos);
+            if( $::debug > 3  ){
+                say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
+            }
+            $tno++;
+            say STDERR "<extract_tokens_from_double_quoted_string($quote) result=$pos" if($::debug>=3);
+            return $pos;
+        }
+        my $sigil = substr($quote,$pos,1);
+        my $end_br = -1;
+        if(substr($quote,$pos+1,1) eq '{') {		# issue 43: ${...}
+            $end_br = matching_curly_br($quote, $pos+1); # issue 43
+            $quote = '$'.substr($quote,2);		# issue 43: eat the '{'. At this point, $end_br points after the '}'
+        }
+        if($sigil eq '$') {
+            decode_scalar($quote, 1);
+        } else {
+            decode_array($quote);
+            $ValClass[$tno] = 'a';
+        }
+        $ValPerl[$tno] = substr($quote, 0, $cut);
+        my $m;
+        my $d = substr($quote,$cut,1);
+        while($d eq '[' || $d eq '{') {
+            $m = matching_curly_br($quote,$cut) if ($d eq '{');
+            $m = matching_square_br($quote,$cut) if ($d eq '[');
+            $d = substr($quote,$m,1);
+            $cut=$m+1;
+        }
+        if($end_br != -1) {
+            $cut++;                     # Point past the extra '}'
+        }
+        $ExtractingTokensFromDoubleQuotedTokensEnd = $cut;
+        $ExtractingTokensFromDoubleQuotedStringEnd = length($quote);
+        say STDERR " ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd" if($::debug>=5);
+        say STDERR "<extract_tokens_from_double_quoted_string($quote) end=$cut, result=$pos" if($::debug>=3);
+        return $pos;
+    } else {
+        $ValPerl[$tno] = $quote;
+        $ValPy[$tno] = 'f"""' . $ValPerl[$tno] . '"""';
+        $ExtractingTokensFromDoubleQuotedTokensEnd = -1;
+        $ExtractingTokensFromDoubleQuotedStringEnd = 0;
+        if( $::debug > 3  ){
+           say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
+        }
+        $tno++;
+        say STDERR " ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd" if($::debug>=5);
+        say STDERR "<extract_tokens_from_double_quoted_string($quote) end=-1, result=".(length($quote)+1) if($::debug>=3);
+        return length($quote)+1;
+    }
 }
 
 sub escape_curly_braces                 # issue 51
