@@ -70,7 +70,7 @@ our %GLOBALS = ($SCRIPT_START=>'tm_py.time()',
                 TRACEBACK=>0, 
                 _OPEN_MODE_MAP=>$open_mode_map, 
                 _DUP_MAP=>$dup_map);
-our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_RECORD_SEPARATOR=>'S', OS_ERROR=>'S', OUTPUT_AUTOFLUSH=>'I', $SUBPROCESS_RC=>'I',
+our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_RECORD_SEPARATOR=>'S', OS_ERROR=>'S', OUTPUT_AUTOFLUSH=>'I', $SUBPROCESS_RC=>'I', _OPEN_MODE_MAP=>'h of S', _DUP_MAP=>'h of I',
                      AUTODIE=>'I', TRACEBACK=>'I');
 
 sub hash_var_name                       # issue 92
