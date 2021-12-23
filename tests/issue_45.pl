@@ -32,4 +32,31 @@ sub iffy {
 	}
 }
 #assert(iffy == 13);
+
+sub preadd {
+    my $arg = shift;
+    ++$arg;
+}
+
+assert(preadd(1) == 2);
+
+sub presub {
+    my $arg = shift;
+    --$arg;
+}
+assert(presub(1) == 0);
+
+sub postadd {
+    my $arg = shift;
+    $arg++;
+}
+
+assert(postadd(1) == 1);
+
+sub postsub {
+    my $arg = shift;
+    $arg--;
+}
+assert(postsub(1) == 1);
+
 print "$0 - test passed!\n";

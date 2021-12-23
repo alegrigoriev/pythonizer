@@ -1349,7 +1349,7 @@ my ($l,$m);
                #
 	       # issue 62 if( $tno==2 && $ValClass[0] eq 'a' && $ValClass[1] eq '='){
                if( $tno>=2 && $ValClass[$tno-2] eq 'a' && $ValClass[$tno-1] eq '='){	# issue 62: handle "my @a=<FH>;" and "chomp(my @a=<FH>);"
-                   if(length($fh)==0){         # issue 66
+                   if(length($fh)==0){         # issue 66: Pure diamond
                      insert(0, 'W', "<>", "with fileinput.input() as $DIAMOND:");    # issue 66
                      $tno++;
                      $ValPy[$tno]="list($DIAMOND)";     # issue 66
@@ -1369,20 +1369,26 @@ my ($l,$m);
                        $ValPy[$tno]="next($DIAMOND, None)";        # issue 66: Allows for $.
                    }else{
                        # issue 66: use a context manager so it's automatically closed
-                       insert(0, 'W', "<$fh>", qq{with fileinput.input("<$fh>",openhook=lambda _,__:$fh) as $DIAMOND:});    # issue 66
-                       $tno++;                                     # issue 66
-                       $ValPy[$tno]="next($DIAMOND, None)";        # issue 66: Allows for $.
+                       # issue 66 insert(0, 'W', "<$fh>", qq{with fileinput.input("<$fh>",openhook=lambda _,__:$fh) as $DIAMOND:});    # issue 66
+                       # issue 66 $tno++;                                     # issue 66
+                       # issue 66 $ValPy[$tno]="next($DIAMOND, None)";        # issue 66: Allows for $.
+                       $::Pyf{_readline} = 1;                           # issue 66
+                       $ValPy[$tno]="_readline($fh)";                   # issue 66
                    }
                }else{           # we're just reading one line so we can't use the context manager as it closes the file handle
                    if(length($fh)==0){         # issue 66
                        $ValPy[$tno]="next(fileinput.input(), None)";        # issue 66: Allows for $.
                    }elsif($fh eq 'STDIN' ){     # issue 66
                        # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
-                       $ValPy[$tno]='sys.stdin().readline()';
+                       # issue 66 $ValPy[$tno]='sys.stdin().readline()';
+                       $::Pyf{_readline} = 1;                           # issue 66
+                       $ValPy[$tno]='_readline(sys.stdin())';           # issue 66: support $/
                        # $ValPy[$tno]="next(with fileinput.input('-'), None)";        # issue 66: Allows for $.
                    }else{
                        # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
-                       $ValPy[$tno]="$fh.readline()";
+                       # issue 66 $ValPy[$tno]="$fh.readline()";
+                       $::Pyf{_readline} = 1;                           # issue 66
+                       $ValPy[$tno]="_readline($fh)";           # issue 66: support $/
                        #insert(0, 'W', "<$fh>", qq{with fileinput.input("<$fh>",openhook=lambda _,__:$fh) as $DIAMOND:});    # issue 66
                        #$tno++;                                     # issue 66
                        #$ValPy[$tno]=qq{next(with fileinput.input("<$fh>",openhook=lambda _,__:$fh), None)};        # issue 66: Allows for $.
@@ -1399,12 +1405,16 @@ my ($l,$m);
                if( $tno>=2 && $ValClass[$tno-2] eq 'a' && $ValClass[$tno-1] eq '='){	# issue 62: handle "my @a=<FH>;" and "chomp(my @a=<FH>);"
                    $ValPy[$tno]="$1.readlines()";
                }elsif($ValClass[0] eq 'c' and $ValPerl[0] eq 'while') { # issue 66
-                   insert(0, 'W', "<$1>", qq{with fileinput.input("<$1>",openhook=lambda _,__:$1) as $DIAMOND:});    # issue 66
-                   $tno++;                                     # issue 66
-                   $ValPy[$tno]="next($DIAMOND, None)";        # issue 66: Allows for $.
+                   # issue 66 insert(0, 'W', "<$1>", qq{with fileinput.input("<$1>",openhook=lambda _,__:$1) as $DIAMOND:});    # issue 66
+                   # issue 66 $tno++;                                     # issue 66
+                   # issue 66 $ValPy[$tno]="next($DIAMOND, None)";        # issue 66: Allows for $.
+                   $::Pyf{_readline} = 1;                           # issue 66
+                   $ValPy[$tno]="_readline($1)";                # issue 66: Support $/, $.
                }else{
                    # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
-                   $ValPy[$tno]="$1.readline()";
+                   # issue 66 $ValPy[$tno]="$1.readline()";
+                   $::Pyf{_readline} = 1;                           # issue 66
+                   $ValPy[$tno]="_readline($1)";                # issue 66: Support $/, $.
                    # issue 66: use a context manager so it's automatically closed
                    #insert(0, 'W', "<$1>", qq{with fileinput.input("<$1>",openhook=lambda _,__:$1) as $DIAMOND:});    # issue 66
                    #$tno++;                                     # issue 66
@@ -1541,11 +1551,13 @@ my $split=$_[0];
    if(join('',@ValClass) =~ /^t?[ahs](?:\(.*\))*=/ && 
       !$is_low_prec &&
       substr($source,$split) !~ /^\s*(?:return|next|last|assert|delete|require|die)\b/) {       # issue 93
-       if($::debug >= 3) {
-          say STDERR "bash_style_or_and_fix($split) returning 0 - does not need transforming";
-       }
-       return 0;
+      say STDERR "bash_style_or_and_fix($split) returning 0 - does not need transforming" if($::debug>=3);
+      return 0;
+   } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'return') {            # issue 110
+      say STDERR "bash_style_or_and_fix($split) returning 0 - return does not need transforming" if($::debug>=3);
+      return 0;
    }
+
    Pythonizer::getline('{');
    # issue 86 $delayed_block_closure=1;
    $delayed_block_closure++;            # issue 86
@@ -1593,7 +1605,9 @@ my $rc=-1;
    if( $s2 eq '.'  ){
       # file line number
       # issue 66 $ValPy[$tno]='fileinput.filelineno()';
-       $ValPy[$tno]='fileinput.lineno()';       # issue 66: Mimic the perl behavior
+      # issue 66 $ValPy[$tno]='fileinput.lineno()';       # issue 66: Mimic the perl behavior
+       $::Pyf{_nr} = 1;              # issue 66
+       $ValPy[$tno]='_nr()';         # issue 66: Mimic the perl behavior, no matter if we're using fileinput or not
        $ValType[$tno]="X";
        my $vn = substr($source,0,2);                    # SNOOPYJC
        $SpecialVarsUsed{$vn} = 1;                       # SNOOPYJC

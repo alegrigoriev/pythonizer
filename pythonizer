@@ -118,6 +118,7 @@
 # 0.930  2021/12/21  SNOOPYJC  Check var references in interpolated strings for auto-init
 # 0.931  2021/12/22  SNOOPYJC  Interpolate in HERE strings, issue 92
 # 0.932  2021/12/23  SNOOPYJC  Fix foreach loop with array range, fix range index to include last, addl fix for issue 92, issue 109, remove blank lines at start of output, change not X is not None => X is None
+# 0.933  2021/12/23  SNOOPYJC  Additional fix for issue 106, issue 110, addl fix for issue 45, handle $/, $. with issue 66
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -157,7 +158,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context); # SNOOPYJC
 
-   $VERSION='0.932';
+   $VERSION='0.933';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -1011,7 +1012,7 @@ my ($start,$token_buffer_active);
            $TrStatus=expression(0,$#ValClass); # this will scan till ')'
          }
       }elsif( ($split=index($TokenStr,'~'))>-1) {       # issue 73
-         $k=regex_and_translate(0,0,$split,0);          # issue 73
+         $k=regex_and_translate(0,0,$split,$#ValClass); # issue 73, issue 106
          if($k < 0) {                                   # issue 73
              $TrStatus=-1;                              # issue 73
          }                                              # issue 73
@@ -1810,8 +1811,23 @@ sub finish
         } elsif(index($TokenStr,'=') > 0) {                     # issue 45
             $prev_line =~ s/^\s*my\s+//;                        # issue 45
             $prev_line =~ s/^\s*own\s+//;                       # issue 45
-            $line = "return ".substr($prev_line, 0, index($prev_line,'='));     # issue 45
-            $line =~ s/\s*[.+*\/\|\&-]$//;                      # issue 45: remove char prior to '=', like in '+='
+            $prev_line =~ s/[+*\/\|\&.-]=/=/;                   # issue 45: Remove + from +=, etc
+            my $p = index($prev_line,'=');                      # issue 45
+            if($p < 0) {                                        # issue 45
+                if($prev_line =~ s/^\s*(?:(?:\+\+)|(?:--))//) { # issue 45: pre-incr/pre-decr
+                    $line = "return $prev_line";                # issue 45
+                    $line =~ s/;.*$//;                          # issue 45
+                } elsif($prev_line =~ /\+\+\s*;/) {             # issue 45: post-incr
+                    $line = $prev_line;                         # issue 45
+                    $line =~ s/^(.*)\+\+\s*;.*$/return $1-1/;   # issue 45
+                } elsif($prev_line =~ /--\s*;/) {               # issue 45: post-decr
+                    $line = $prev_line;                         # issue 45
+                    $line =~ s/^(.*)--\s*;.*$/return $1+1/;     # issue 45
+                }                                               # issue 45
+            } else {                                            # issue 45
+                $line = "return ".substr($prev_line, 0, $p);    # issue 45
+                $line =~ s/\s*[.+*\/\|\&-]$//;                  # issue 45: remove char prior to '=', like in '+='
+            }                                                   # issue 45
             $line .=';';                                        # issue 45
             getline('}');                                       # issue 45
         }                                                       # issue 45
@@ -2239,7 +2255,7 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
          }
       }
    }elsif( ($split=index($TokenStr,'~',$k))>-1) {
-      $k=regex_and_translate($start,$k,$split,0);
+      $k=regex_and_translate($start,$k,$split,$limit);  # issue 106
       return $k+1;
   }elsif(index($TokenStr,'D')>-1) {         # SNOOPYJC: Some sort of OO construct such as $fh->autoflush(1); or $obj->method(args)
        $k = expression($start,$#ValClass,0);            # SNOOPYJC
@@ -2353,8 +2369,8 @@ sub regex_and_translate
 # process very tricky regex and tranlate function
 #
 {
-my($start,$k,$split)=@_;
-   say STDERR "regex_and_translate($start,$k,$split)" if($debug >= 3);  # SNOOPYJC
+my($start,$k,$split,$limit)=@_;         # issue 106
+   say STDERR "regex_and_translate($start,$k,$split,$limit)" if($debug >= 3);  # SNOOPYJC
    if( $ValClass[$split+1] eq 'f' && $ValPerl[$split+1] eq 'tr'){
       # tr is a special case -- this is not regular expression
       if( $split-$k==1 ){
@@ -2433,13 +2449,17 @@ my($start,$k,$split)=@_;
          }
          # next token
          $k=$split+1;
-      }elsif($ValClass[$split+1] eq '"') {                      # issue 106
-          gen_chunk($ValPy[$split+1], 'in');
+      }else{                                            # issue 106
+          my $end_pos = next_lower_or_equal_precedent_token('~', $split+2, $limit)-1;
+          $end_pos = $limit if($end_pos < 0);
+          $k=expression($split+1, $end_pos, 0);
+          return -255 if( $k<0 );
+          gen_chunk('in');
           $k=expression($start,$split-1,0);
           return -255 if( $k<0 );
-          $k = $split+1;
-      }else{
-        return -255;
+          $k = $end_pos;
+      # issue 106 }else{
+      # issue 106 return -255;
       }
    }
    return $k+1;
@@ -4202,7 +4222,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
       $pos = next_same_level_tokens('o0~,', $cur_pos, $limit);  # issue 101
       if($pos != -1) {                                          # issue 101
          if($ValClass[$pos] eq '~') {                           # issue 101
-            $cur_pos=regex_and_translate($cur_pos,$cur_pos,$pos); # issue 101
+            $cur_pos=regex_and_translate($cur_pos,$cur_pos,$pos,$limit); # issue 101, issue 106
             next;                                               # issue 101
          }                                                      # issue 101: do nothing if we hit the 0 (or/and) or comma first
       }                                                         # issue 101
@@ -4259,7 +4279,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
             # REGEX processing $line=~/abc/
             # issue 90 $cur_pos=regex_and_translate($start,$cur_pos,$cur_pos+$split); # split is index from $cur_pos not abs index
             # issue 99 $cur_pos=regex_and_translate($start,$cur_pos,$split); # issue 90
-            $cur_pos=regex_and_translate($cur_pos,$cur_pos,$split); # issue 90, issue 99
+            $cur_pos=regex_and_translate($cur_pos,$cur_pos,$split,$limit); # issue 90, issue 99, issue 106
          }elsif( $ValClass[$cur_pos] eq 'f'){
             $cur_pos=function($cur_pos,$end_pos);
             ($cur_pos<0) && return -255;
@@ -4271,7 +4291,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
       }elsif( $cur_pos<$#ValClass && $ValClass[$cur_pos] eq 'i' && $ValClass[$cur_pos+1] eq '(' ){ # issue uninit
          $end_pos=matching_br($cur_pos+1); # find balanced bracket for the current bracket
          if($end_pos+1<=$limit && $ValClass[$end_pos+1] eq '~') {            # issue 99
-            $cur_pos=regex_and_translate($cur_pos,$cur_pos,$end_pos+1);         # issue 99
+            $cur_pos=regex_and_translate($cur_pos,$cur_pos,$end_pos+1,$limit);         # issue 99, issue 106
          } else {
              # issue 41 gen_chunk($ValPy[$cur_pos]);
              gen_chunk(escape_keywords($ValPy[$cur_pos]));
@@ -4300,7 +4320,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
          $pos=next_same_level_tokens('o0>~)',$cur_pos,$limit);           # issue 13, issue 99
          $end_pos=( $pos>-1 )? $pos-1 : (($bracketed ==1) ? $limit-1 : $limit);      # issue 13: limit scan to next && or ||, issue 99
          if($pos>-1 && $ValClass[$pos] eq '~') {                                   # issue 99
-            $cur_pos=regex_and_translate($cur_pos,$cur_pos,$pos)-1;       # issue 99 (-1 is because we add 1 to it below)
+            $cur_pos=regex_and_translate($cur_pos,$cur_pos,$pos,$limit)-1;       # issue 99 (-1 is because we add 1 to it below), issue 106
          } elsif( $LocalSub{$ValPy[$cur_pos]} && ($cur_pos+1 > $#ValClass || $ValPerl[$cur_pos+1] ne '=>')){		# issue 13: local sub call with no parens
             if($cur_pos+1 <= $end_pos && $ValClass[$cur_pos+1] eq 'i' && 
                !$LocalSub{$ValPy[$cur_pos+1]} && !$Constants{$ValPy[$cur_pos+1]}) {    # SNOOPYJC: like new Package()

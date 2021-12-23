@@ -52,15 +52,25 @@ assert(($i <=> $j) == -1);      # Not a diamond operator!
 
 open(FD, THISFILE);
 while(<FD>) {
-    assert($_ =~ /issue 66/) if($. eq 1);
+    assert($_ =~ /issue 66/) if($. == 1);
     last;
 }
 close FD;
 open($fd, '<', THISFILE);
 while(<$fd>) {
-    assert($_ =~ /issue 66/) if($. eq 1);
+    assert($_ =~ /issue 66/) if($. == 1);
     last;
 }
+close $fd;
+
+open(FD, THISFILE);
+undef $/;               # Enable slurp mode
+my $file = <FD>;           # Read entire file into this string variable
+$/="\n";                # Disable slurp mode
+my @lines = split /\n/, $file;
+assert(@lines > 50);
+assert($lines[0] =~ /issue 66/);
+
 @ARGV = (THISFILE);
 # This is the emulation of what actually happens, from perldoc perlop
 #$did_one = 0;
@@ -68,7 +78,7 @@ while(<$fd>) {
 #while ($ARGV_ = shift) {
 #open(ARGV, $ARGV_);
 #while (<ARGV>) {
-#assert($_ =~ /issue 66/) if($. eq 1);
+#assert($_ =~ /issue 66/) if($. == 1);
 #assert($ARGV_ =~ /issue_66.pl/);
 #$did_one = 1;
 #last;
@@ -79,8 +89,8 @@ while(<$fd>) {
 
 $did_one = 0;
 while(<>) {		# reads THISFILE, not STDIN
-    if($. eq 1) {
-        assert($_ =~ /issue 66/) if($. eq 1);
+    if($. == 1) {
+        assert($_ =~ /issue 66/) if($. == 1);
         assert($ARGV =~ /issue_66.pl/);
     }
     $did_one = 1;
@@ -90,8 +100,8 @@ assert($did_one);
 @ARGV = (THISFILE);
 $did_one = 0;
 while(<<>>) {		# only can be a literal filename, not a pipe
-    if($. eq 1) {
-        assert($_ =~ /issue 66/) if($. eq 1);
+    if($. == 1) {
+        assert($_ =~ /issue 66/) if($. == 1);
         assert($ARGV =~ /issue_66.pl/);
     }
     $did_one = 1;
