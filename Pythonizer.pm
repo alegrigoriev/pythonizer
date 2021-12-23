@@ -331,6 +331,8 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
        print STDERR "NeedsInitializing = ";
        $Data::Dumper::Indent=1;
        say STDERR Dumper(\%NeedsInitializing);
+       print STDERR "NameMap = ";
+       say STDERR Dumper(\%Perlscan::NameMap);
        print STDERR "sub_external_last_nexts = ";
        say STDERR Dumper(\%Perlscan::sub_external_last_nexts);
        print STDERR "line_needs_try_block = ";
@@ -343,7 +345,7 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
       next if($varname !~ /^[A-Za-z_][A-Za-z0-9_]*$/);   # SNOOPYJC: has to be a valid python var name
       $var_usage_in_subs=scalar(keys %{$VarSubMap{$varname}} );
       # SNOOPYJC if(  $var_usage_in_subs>1){
-         # Varible that is present in multiple subs assumed to be global
+         # Variable that is present in multiple subs assumed to be global
          # Pick one common type for the variable and propagate it to all the subs
          my $common_type = undef;
          foreach $subname (keys %{$VarType{$varname}}) {
@@ -1616,6 +1618,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     $multiline_string_sep = '';
     for my $line (@lines) {
         $lno++;
+        next if($line eq '^');          # This means "delete this line"
         if($lno < $insertion_point) {
            pep8($sysout, $line);
            next
@@ -1796,30 +1799,30 @@ sub cleanup_imports
         if($size) {
             $line_ref->[$import_lno-1] = 'import ' . join(',', keys %referenced_imports);
         } else {
-            $line_ref->[$import_lno-1] = '';
+            $line_ref->[$import_lno-1] = '^';
         }
         if($import_as_lno && !$import_as_referenced) {
-            $line_ref->[$import_as_lno-1] = '';
+            $line_ref->[$import_as_lno-1] = '^';
         }
         if($die_def_lno && !$die_referenced) {
-            $line_ref->[$die_def_lno-1] = '';   # class Die(Exception):
-            $line_ref->[$die_def_lno] = '';     #     pass or def __init__(...):
-            $line_ref->[$die_def_lno+1] = '' if($::traceback);     #     traceback
+            $line_ref->[$die_def_lno-1] = '^';   # class Die(Exception):
+            $line_ref->[$die_def_lno] = '^';     #     pass or def __init__(...):
+            $line_ref->[$die_def_lno+1] = '^' if($::traceback);     #     traceback
         }
         if($_str_lno && !$_str_referenced) {
-            $line_ref->[$_str_lno-1] = '';
+            $line_ref->[$_str_lno-1] = '^';
         }
         if($loop_control_def_lno && !$loop_control_referenced) {
-            $line_ref->[$loop_control_def_lno-1] = '';   # class LoopControl(Exception):
-            $line_ref->[$loop_control_def_lno] = '';     #     pass
+            $line_ref->[$loop_control_def_lno-1] = '^';   # class LoopControl(Exception):
+            $line_ref->[$loop_control_def_lno] = '^';     #     pass
         }
         if($eval_return_lno && !$eval_referenced) {
-            $line_ref->[$eval_return_lno-1] = '';   # class $EVAL_RETURN_EXCEPTION(Exception):
-            $line_ref->[$eval_return_lno] = '';     #     pass
+            $line_ref->[$eval_return_lno-1] = '^';   # class $EVAL_RETURN_EXCEPTION(Exception):
+            $line_ref->[$eval_return_lno] = '^';     #     pass
         }
         foreach my $g (keys %global_lnos) {
             if(!exists $referenced_globals{$g}) {
-                $line_ref->[$global_lnos{$g}-1] = '';
+                $line_ref->[$global_lnos{$g}-1] = '^';
             }
         }
         return 1;

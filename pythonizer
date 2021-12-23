@@ -117,6 +117,7 @@
 # 0.929  2021/12/20  SNOOPYJC  issue 107, fix _open if result is checked, implement $| and FD->autoflush(), fix problem with vartypes for globals vars, use _i as temp loop index instead of _
 # 0.930  2021/12/21  SNOOPYJC  Check var references in interpolated strings for auto-init
 # 0.931  2021/12/22  SNOOPYJC  Interpolate in HERE strings, issue 92
+# 0.932  2021/12/23  SNOOPYJC  Fix foreach loop with array range, fix range index to include last, addl fix for issue 92, issue 109, remove blank lines at start of output, change not X is not None => X is None
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -156,7 +157,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context); # SNOOPYJC
 
-   $VERSION='0.931';
+   $VERSION='0.932';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -2654,7 +2655,8 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
       }elsif( index($TokenStr,';',$begin+1) < 0 ) {	# issue foreach: Expression returning an iterable
          gen_chunk($ValPy[$begin]);			# issue foreach
 	 gen_chunk("$DEFAULT_VAR in ");			# issue foreach, issue 32
-         if( ($range=index($TokenStr,'r',$begin+1)) != -1) {	# issue range
+         # issue range if( ($range=index($TokenStr,'r',$begin+1)) != -1) {	# issue range
+         if( ($range=next_same_level_token('r',$begin+2,$limit-1)) != -1) {	# issue range
             gen_chunk('range(');				# issue range
 	    $k=expression($begin+1,$range-1,0);			# issue range
             return -255 if ($k<0);				# issue range
@@ -2777,7 +2779,8 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
            $tempvar.=$ValPy[$i];
          }
          gen_chunk($tempvar,']');
-      }elsif( ($range=index($TokenStr,'r',$start)) != -1) {	# issue range
+      # issue range }elsif( ($range=index($TokenStr,'r',$start)) != -1) {	# issue range
+      }elsif( ($range=next_same_level_token('r',$start+1,$#ValClass-1)) != -1) {	# issue range
          gen_chunk('range(');					# issue range
 	 $k=expression($start+1,$range-1,0);			# issue range
          return -255 if ($k<0);					# issue range
@@ -4348,7 +4351,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
       }elsif($ValClass[$cur_pos] eq 'r') {		# issue range
          # See if this looks like a slice, then we can implement it
          if(inSubscript($cur_pos)) {                    # issue range/slice
-             gen_chunk(':');                            # issue range/slice
+             gen_chunk(':1+');                            # issue range/slice
          } else {
             logme('E',"'..' range operator not implemented outside of for loop");		# issue range
             gen_chunk($ValPy[$cur_pos]);							# issue range

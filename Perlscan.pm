@@ -854,7 +854,9 @@ my ($l,$m);
              ($ValClass[$tno-1] eq 'f' && ($ValPerl[$tno-1] eq 'open' || $ValPerl[$tno-1] eq 'opendir')) ||
              ($tno-2>=0 && $ValClass[$tno-1] eq '(' && $ValClass[$tno-2] eq 'f' &&
                 ($ValPerl[$tno-1] eq 'open' || $ValPerl[$tno-1] eq 'opendir'))) {       # issue 92
-            remap_conflicting_names($w, '', '');      # issue 92: sub takes the name from other vars
+            my $sigil = '';
+            $sigil = '&' if($ValPerl[$tno-1] eq 'sub');   # issue 92, 108: Differentiate between sub and FH
+            remap_conflicting_names($w, $sigil, '');      # issue 92: sub takes the name from other vars
          }
          $ValPy[$tno]=~tr/:/./s;                # SNOOPYJC
          $ValPy[$tno]=~tr/'/./s;                # SNOOPYJC
@@ -2034,23 +2036,30 @@ my  $outer_delim;
          #$ind=$1;
       my $quote2 = $quote;
       if($ind = extract_bracketed($quote2, '{}[]', '')) {        # issue 53, issue 98
-         $cut=length($ind);
-         $ind =~ tr/$//d;               # FIXME: We need to decode_scalar on each one!
+         # issue 109 $cut=length($ind);
+         my $ind_cut=length($ind);
+         # issue 109 $ind =~ tr/$//d;               # FIXME: We need to decode_scalar on each one!
 	 # issue 53 $ind =~ tr/{}/[]/;
          #say "looking for '{' in $ind";
 	 for(my $i = 0; $i < length($ind); $i++) {	# issue 53: change hash ref {...} to use .get(...) instead
-	     if(substr($ind,$i,1) eq '{') {		# issue 53
+             my $c = substr($ind,$i,1);                 # issue 109
+	     if($c eq '{') {		# issue 53
 	         $l = matching_curly_br($ind, $i);	# issue 53
                  #say "found '{' in $ind at $i, l=$l";
 		 next if($l < 0);			# issue 53
 		 $ind = substr($ind,0,$i).'.get('.substr($ind,$i+1,$l-($i+1)).",'')".substr($ind,$l+1);	# issue 53: splice in the call to get
                  #say "ind=$ind";
-		 $i = $l+7;				# issue 53: 7 is length('.get') + length(",''")
-	     }
+                 # issue 109 $i = $l+7;				# issue 53: 7 is length('.get') + length(",''")
+	     } elsif($c eq '$') {                       # issue 109: decode special vars in subscripts/hash keys
+                 decode_scalar(substr($ind, $i),0);     # issue 109
+                 substr($ind,$i,$cut) = $ValPy[$tno];   # issue 109
+                 $i += (length($ValPy[$tno])-$cut);     # issue 109
+             }
 	 }						# issue 53
          $result.=$ind; # add string Variable part of the string
-         $quote=substr($quote,$cut);
-         $end_br -= $cut;			# issue 43
+         # issue 109 $quote=substr($quote,$cut);
+         $quote=substr($quote,$ind_cut);        # issue 109
+         $end_br -= $ind_cut;			# issue 43
          #say STDERR "quote4=$quote, end_br=$end_br";
       }
       #say STDERR "quote5=$quote, end_br=$end_br";
@@ -2373,6 +2382,20 @@ my $result=$string;
    } # for
    return $result;
 }
+
+sub remove_oddities
+# Remove some oddities from the generated code to make it easier to read/understand
+{
+    my $line = shift;
+
+    # Change "not X is not None" to "X is None"
+    $line =~ s/\bnot (\w+(?:\[[\w\']+\])*) is not None\b/$1 is None/g;
+    # FIXME: Change "_list_of_n((7, 7, 7), 3" to "(7, 7, 7)"
+    # if($line =~ /\b_list_of_n\(\(.*\), (\d+)\)/) {
+
+    return $line;
+}
+
 #
 # Typically used without arguments as it openates on PythonCode array
 # NOTE: Can have one or more argument and in this case each of the members of the list  will be passed to output_line.
@@ -2437,6 +2460,7 @@ my $line='';
             $line.=$PythonCode[$i];
          }
       } # for
+      $line = remove_oddities($line);                   # SNOOPYJC
       $PREV_HAD_COLON = (substr($line, -1, 1) eq ':') ? 1 : 0;      # SNOOPYJC
       if( defined $ValCom[-1]  && length($ValCom[-1]) > 1  ){
          # single symbol ValCom will be used as additional determinator of the token in pass 0 -- Sept 18, 200 -- NNB
@@ -2595,6 +2619,30 @@ my $wart_pos;
        $ValPy[$wart_pos+1]='';
    }
 } # preprocessing
+
+sub matching_paren
+# Find matching paren, if found.
+# Arg1 - the string to scan
+# Arg2 - starting position for scan
+# Arg3 - (optional) -- balance from whichto start (allows to skip opening paren)
+{
+my $str=$_[0];
+my $scan_start=$_[1];
+my $balance=(scalar(@_)>2) ? $_[2] : 0; # case where opening bracket is missing for some reason or was skipped.
+   for( my $k=$scan_start; $k<length($str); $k++ ){
+     $s=substr($str,$k,1);
+     if( $s eq '(' ){
+        $balance++;
+     }elsif( $s eq ')' ){
+        $balance--;
+        if( $balance==0  ){
+           return $k;
+        }
+     }
+  } # for
+  return $#str;
+} # matching_paren
+
 sub matching_curly_br			# issue 43
 # Find matching curly bracket, aka closing curly bracket, if found.
 # Arg1 - the string to scan
@@ -2731,6 +2779,7 @@ sub remap_conflicting_names                  # issue 92
         return (join('.', @ids));
     }
     # We have a sub or a FH at this point - map other names and leave him alone
+    $NameMap{$id}{$sigil} = $id;
     for $sig (('@', '%', '$')) {
         if($sig ne $sigil) {
             last if(!exists $NameMap{$id});
