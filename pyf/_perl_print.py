@@ -4,6 +4,8 @@ def _perl_print(*args, **kwargs):
     where it must return True if successful"""
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
+        if 'file' in kwargs and kwargs['file'] is None:
+            raise Die('print() on unopened filehandle')
         print(*args, **kwargs)
         return True
     except Exception as _e:
