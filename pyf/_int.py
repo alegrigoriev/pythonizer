@@ -9,6 +9,8 @@ def _int(expr):
         return int(expr)
     except Exception:
         pass
+    if not isinstance(expr, (str, bytes)):
+        return expr
     if (m:=re.match(r'^\s*([+-]?(?:\d+))', expr)):
         return int(m.group(1))
     caller = inspect.getframeinfo(inspect.stack()[1][0])

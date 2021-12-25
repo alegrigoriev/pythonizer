@@ -18,6 +18,8 @@ def _num(expr):
             return f
         except Exception:
             pass
+        if not isinstance(expr, (str, bytes)):
+            return expr
         if not (m:=re.match(r'^\s*([+-]?(?:\d+(?:[.]\d*)?(?:[eE][+-]?\d+)?|[.]\d+(?:[eE][+-]?\d+)?))', expr)):
             break
         expr = m.group(1);

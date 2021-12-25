@@ -185,6 +185,7 @@ for my $g (keys %GLOBAL_TYPES) {                # SNOOPYJC
     $VarType{$g}{main} = $t;
 }
 
+%VarSubMap=(); # issue 108: matrix  var/sub that allows to create list of global for each sub
 
 sub get_globals
 #
@@ -199,7 +200,7 @@ sub get_globals
 my ( $varname, $subname, $CurSubName,$i,$k,$var_usage_in_subs);
 
 my %DeclaredVarH=(); # list of my varibles in the current subroute
-my %VarSubMap=(); # matrix  var/sub that allows to create list of global for each sub
+# issue 108 my %VarSubMap=(); # matrix  var/sub that allows to create list of global for each sub
    $CurSubName='main';
    $LocalSub{'main'}=1;
    foreach my $g (keys %GLOBALS) {             # SNOOPYJC
@@ -320,16 +321,18 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
       correct_nest();                           # issue 45
    } # while
 
-   if($::debug == 5) {
+   &Perlscan::prepare_locals();         # issue 108: Prepare all 'local' vars for code generation
+
+   if($::debug >= 5) {
        print STDERR "VarSubMap = ";
        $Data::Dumper::Indent=1;
+       $Data::Dumper::Terse = 1;
        say STDERR Dumper(\%VarSubMap);
        print STDERR "VarType = ";
        say STDERR Dumper(\%VarType);
        print STDERR "initialized = ";
        say STDERR Dumper(\%initialized);
        print STDERR "NeedsInitializing = ";
-       $Data::Dumper::Indent=1;
        say STDERR Dumper(\%NeedsInitializing);
        print STDERR "NameMap = ";
        say STDERR Dumper(\%Perlscan::NameMap);
@@ -350,26 +353,32 @@ my %VarSubMap=(); # matrix  var/sub that allows to create list of global for eac
          my $common_type = undef;
          foreach $subname (keys %{$VarType{$varname}}) {
              if(defined $common_type) {
-                 $common_type = merge_types($varname, $subname, $common_type);
+                 $common_type = common_type($common_type, $VarType{$varname}{$subname});
              } else {
                  $common_type = $VarType{$varname}{$subname}
              }
          }
-         $DB::single = 1 if(!defined $common_type);
+         #$DB::single = 1 if(!defined $common_type);
          if(defined $common_type && exists $VarType{$varname} && exists $VarType{$varname}{main} && $common_type ne $VarType{$varname}{main} && $::debug>=3) {
                  say STDERR "get_globals: Merging to common type $common_type for global var $varname";
          }
          foreach $subname (keys %{$VarSubMap{$varname}} ){
             if($var_usage_in_subs>1 || exists $NeedsInitializing{$subname}{$varname}) { # SNOOPYJC
+                next if($varname !~ /^[A-Za-z_][A-Za-z0-9_]*$/);   # Has to be a valid python var name
                 $GlobalVar{$subname}.=','.$varname;
                 # SNOOPYJC: Since this var exists in $VarSubMap, it's not a "my" variable and if
                 # it needs initializing, we need to do it in the top-level scope, not in the sub
                 $common_type = $NeedsInitializing{$subname}{$varname} if(!defined $common_type);
                 $VarType{$varname}{$subname} = $common_type;
                 if($subname ne 'main' && exists $NeedsInitializing{$subname}{$varname}) {     # SNOOPYJC
-                    $VarType{$varname}{main} = merge_types($varname, $subname, $common_type);        # SNOOPYJC
+                    # $VarType{$varname}{main} = merge_types($varname, $subname, $common_type);        # SNOOPYJC
+                    $VarType{$varname}{main} = $common_type;            # SNOOPYJC
                     $VarSubMap{$varname}{main} = '+';                   # SNOOPYJC
-                    $NeedsInitializing{main}{$varname} = $NeedsInitializing{$subname}{$varname};        # SNOOPYJC
+                    if(exists $NeedsInitializing{main}{$varname}) {
+                        $NeedsInitializing{main}{$varname} = $common_type;
+                    } else {
+                        $NeedsInitializing{main}{$varname} = $NeedsInitializing{$subname}{$varname};        # SNOOPYJC
+                    }
                     delete $NeedsInitializing{$subname}{$varname};      # SNOOPYJC
                 }                                                       # SNOOPYJC
             }
@@ -1679,6 +1688,7 @@ sub pep8                # Generate blank lines where they should be, and elimina
     my $out = shift;
     my $line = shift;
 
+    $DB::single = 1;
     $this_is_blank = $line =~ /^\s*$/;
     $this_is_comment = $line =~ /^\s*#/;
     $line =~ /^(\s*)/;
@@ -1701,7 +1711,8 @@ sub pep8                # Generate blank lines where they should be, and elimina
     }
     say $out $line;
     $last_was_blank = $this_is_blank;
-    $last_indent = $this_indent if(!$this_is_blank);
+    #$last_indent = $this_indent if(!$this_is_blank);
+    $last_indent = $this_indent;
 }
 
 sub cleanup_imports

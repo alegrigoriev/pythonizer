@@ -9,7 +9,7 @@ package Pyconfig;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP);
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP);
 
 # use Readonly;		# Readonly is not installed by default so skip it!
 
@@ -39,6 +39,7 @@ our $SUBPROCESS_RC = "CHILD_ERROR";
 our $ANONYMOUS_SUB = "_f";                      # issue 81
 our $DIE_TRACEBACK = "TRACEBACK";        # issue 81
 our $SCRIPT_START = "_script_start";    # Warning: if you change this, then also change pyf/_get*.py (now in lib/pythonizer.py)
+our $LOCALS_STACK = "_locals_stack";    # issue 108
 our $DO_CONTROL = "_do_";
 #
 # Put contants here that need to be recognized literally and translated to python references.
@@ -69,9 +70,11 @@ our %GLOBALS = ($SCRIPT_START=>'tm_py.time()',
                 $SUBPROCESS_RC=>0, 
                 AUTODIE=>0, 
                 TRACEBACK=>0, 
+                $LOCALS_STACK=>'[]',            # issue 108
                 _OPEN_MODE_MAP=>$open_mode_map, 
                 _DUP_MAP=>$dup_map);
 our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_LINE_NUMBER=>'I', INPUT_RECORD_SEPARATOR=>'m', OS_ERROR=>'S', OUTPUT_AUTOFLUSH=>'I', $SUBPROCESS_RC=>'I', _OPEN_MODE_MAP=>'h of S', _DUP_MAP=>'h of I',
+                    $LOCALS_STACK=>'h of S',            # issue 108
                      AUTODIE=>'I', TRACEBACK=>'I');
 
 sub hash_var_name                       # issue 92
@@ -113,5 +116,6 @@ our %PYTHON_KEYWORD_SET = map { $_ => 1 } @PYTHON_KEYWORDS;
 our %PYTHON_RESERVED_SET = map { $_ => 1 } (@PYTHON_KEYWORDS, @PYTHON_BUILTINS);
 
 our %CONVERTER_MAP = (I=>'_int', N=>'_num', S=>'_str');
+our %SIGIL_MAP = ('$'=>'s', '%'=>'h', '@'=>'a', ''=>'H');
 
 1;

@@ -54,6 +54,7 @@ use Softpano qw(abend logme out);
 use Pyconfig;				# issue 32
 use Text::Balanced qw{extract_bracketed};       # issue 53
 require Exporter;
+use Data::Dumper;                       # issue 108
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
@@ -221,6 +222,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
        # A => => (arrow)
        # C => More control like default, else, elsif
        # D => -> (dot in python)
+       # F => Named Unary Operators (not generated, but used in calls to next_lower_or_equal_precedent_token)
+       # G => TypeGlob *name
        # H => Here doc <<
        # I => >>
        # P => :: (package reference)
@@ -241,13 +244,13 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
        %token_precedence=(
 			# Prec    Assoc       Token       Desc
 			# 25      left        ashi        terms and list operators (leftward)
-                        a=>25, s=>25, h=>25, i=>25, '('=>25, ')'=>25, '"'=>25, q=>25, x=>25,
+                        a=>25, s=>25, h=>25, i=>25, '('=>25, ')'=>25, '"'=>25, q=>25, x=>25, f=>25, G=>25,
 			# 24      left        D           ->
                         D=>24,
 			# 23      nonassoc    ^           ++ --
                         '^'=>23,
 			# 22      right       *           **
-                        '*'=>22,
+                        #'*'=>22,
 			# 21      right       !~\+-       ! ~ ~. \ and unary + and -
                         '!'=>21, '\\'=>21,
 			# 20      left        ~           =~ !~
@@ -259,7 +262,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 			# 17      left        HI          << >>
                         H=>17, I=>17,
 			# 16      nonassoc    f           named unary operators
-                        f=>16,
+                        F=>16,      # Not real in the code, but used in a call to next_lower_or_equal_precedent_token
 			# 15      nonassoc    N/A         isa
 			# 14      chained     >           < > <= >= lt gt le ge
                         '>'=>14,
@@ -390,8 +393,9 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                '|='=>1, '&='=>1, '^='=>1, '>>='=>1, '<<='=>1, '**='=>1, '//='=>1); # SNOOPYJC - always generate a space before and after these
 
 # issue 39 my ($source,$cut,$tno)=('',0,0);
-my ($source,$tno)=('',0);       # issue 39
+my $source='';                  # issue 39, issue 108
 $cut=0;                         # issue 39
+$tno=0;                         # issue 108
 @PythonCode=(); # array for generated code chunks
 $PREV_HAD_COLON=1;               # SNOOPYJC
 @SavePythonCode=();     # issue 74
@@ -406,7 +410,12 @@ $last_block_lno=0;              # issue 94
 $last_label=undef;              # issue 94
 %all_labels=(''=>1);            # issue 94: all labels seen in this file
 %sub_external_last_nexts=();    # issue 94: Map of subnames to set of all last/next labels that propagate out ('' if no label)
-%line_needs_try_block=();       # issue 94: Map from line number to 1 if that line needs a try block
+sub TRY_BLOCK_EXCEPTION { 1 }
+sub TRY_BLOCK_FINALLY { 2 }
+%line_needs_try_block=();       # issue 94, issue 108: Map from line number to TRY_BLOCK_EXCEPTION|TRY_BLOCK_FINALLY if that line needs a try block
+%line_locals=();                # issue 108: Map from line number to a list of locals
+%line_locals_map=();            # issue 108: Map from line number to a map from perl name to python name
+%line_sub=();                   # issue 108: Map from line number to sub name
 sub initialize                  # issue 94
 {
     $nesting_level = 0;
@@ -426,8 +435,9 @@ sub def_label                   # issue 94
 sub enter_block                 # issue 94
 {
     # FIXME: Use a different character like ^ all alone or (开 = open in Chinese) to replace the '{' for the second round
-    return if($last_block_lno == $. && scalar(@ValPerl) <= 1);       # We see the '{' twice on like if(...) {
+    # SNOOPYJC return if($last_block_lno == $. && scalar(@ValPerl) <= 1);       # We see the '{' twice on like if(...) {
     if($::debug >= 4) {
+        no warnings;
         say STDERR "enter_block at line $., prior nesting_level=$nesting_level, ValPerl=@ValPerl";
     }
     $last_block_lno = $.;
@@ -480,7 +490,7 @@ sub exit_block                  # issue 94
         for $sub (keys %{$nesting_last->{can_call}}) {
             if(exists $sub_external_last_nexts{$sub} && exists $sub_external_last_nexts{$sub}{$label}) {
                 say STDERR "exit_block: setting line_needs_try_block{$nesting_last->{lno}} from call to $sub" if($::debug >= 5);
-                $line_needs_try_block{$nesting_last->{lno}} = 1;
+                $line_needs_try_block{$nesting_last->{lno}} |= TRY_BLOCK_EXCEPTION;
             }
         }
     }
@@ -502,7 +512,7 @@ sub last_next_propagates        # issue 94
                 if($ndx != $#nesting_stack) {           # No need to use exception for last/next inner;
                     $nesting_stack[$ndx]->{needs_try_block} = 1;
                     say STDERR "last_next_propagates: setting line_needs_try_block{$nesting_stack[$ndx]->{lno}} from last/next at line $." if($::debug >= 5);
-                    $line_needs_try_block{$nesting_stack[$ndx]->{lno}} = 1;
+                    $line_needs_try_block{$nesting_stack[$ndx]->{lno}} |= TRY_BLOCK_EXCEPTION;
                 }
                 return 0;
             }
@@ -542,7 +552,7 @@ sub track_potential_sub_call    # issue 94
     }
 }
 
-sub loop_needs_try_block                # issue 94
+sub needs_try_block                # issue 94, issue 108
 {
     my $at_bottom = shift;
 
@@ -553,10 +563,71 @@ sub loop_needs_try_block                # issue 94
     }
     if($::debug >= 4) {
         no warnings 'uninitialized';
-        say STDERR "loop_needs_try_block($at_bottom), top=@{[%$top]}";
+        say STDERR "needs_try_block($at_bottom), top=@{[%$top]}";
     }
     return 1 if(exists $line_needs_try_block{$top->{lno}});
     return 0;
+}
+
+sub cur_loop_label                     # issue 94
+# Get the label of the current block, if any
+{
+    for $ndx (reverse 0 .. $#nesting_stack) {
+        next if(!$nesting_stack[$ndx]->{is_loop});
+        if(exists $nesting_stack[$ndx]->{label}) {
+            return $nesting_stack[$ndx]->{label};
+        }
+        return '';
+    }
+    return '';
+}
+
+sub try_block_exception_label           # issue 94
+# What is the exception label for this try block?  Called at the bottom of the block only.
+# Returns undef if no exception needs to be caught
+{
+    my $top = $nesting_last;
+    return undef if(!($line_needs_try_block{$top->{lno}} & TRY_BLOCK_EXCEPTION));
+    return '' if(!exists $top->{label} || !defined $top->{label});      # issue 108
+    return $top->{label};
+}
+
+sub gen_try_block_finally               # issue 108
+# If this try block needs a finally clause, generate it
+{
+    my $top = $nesting_last;
+    return if(!($line_needs_try_block{$top->{lno}} & TRY_BLOCK_FINALLY));
+    gen_statement();
+    &Pythonizer::correct_nest(-1,-1);
+    gen_statement('finally:');
+    &Pythonizer::correct_nest(1,1);
+    my $lno = $top->{lno};
+    my $code_generated = 0;
+    for my $local (reverse @{$line_locals{$lno}}) {
+        my $sigil = substr($local,0,1);
+        if($sigil eq '*') {         # We appended the ones we need to the name
+            # We have like *id,$%@ - split out each of the "$%@".  We encode a
+            # bare one as '^'.
+            my ($quote, $sigils) = split /,/, $local;
+            my $id = substr($quote,1);
+            $sigils = '' if(!defined $sigils);
+            for(my $i=length($sigils)-1; $i >= 0; $i--) {       # Grab them in reverse order
+                my $sig = substr($sigils,$i,1);
+                $sig = '' if($sig eq '^');
+                $quote = $sig . $id;
+                $pyname = $line_locals_map{$lno}{$quote};
+                gen_statement("$pyname = $LOCALS_STACK.pop()");
+                $code_generated = 1;
+            }
+        } else {
+            $pyname = $line_locals_map{$lno}{$local};
+            gen_statement("$pyname = $LOCALS_STACK.pop()");
+            $code_generated = 1;
+        }
+    }
+    if(!$code_generated) {
+        gen_statement('pass');
+    }
 }
 
 sub next_last_needs_raise               # issue 94
@@ -565,6 +636,218 @@ sub next_last_needs_raise               # issue 94
     return 1 if($nesting_level == 0);           # Generate an exception instead of a syntax error
     my $top = $nesting_stack[-1];
     return 1 if(!$top->{in_loop});
+}
+
+sub handle_local                        # issue 108
+# Called in the first pass when we see a 'local' statement
+{
+    # local EXPR
+    # A local modifies the listed variables to be local to the enclosing block, file, or eval. If more than one value is listed, the list must be placed in parentheses.
+    # local $foo;                # make $foo dynamically local
+    # local (@wid, %get);        # make list of variables local
+    # local $foo = "flurp";      # make $foo dynamic, and init it
+    # local @oof = @bar;         # make @oof dynamic, and init it
+    # local *FH;                 # localize $FH, @FH, %FH, &FH  ...
+    #
+    # NOT SUPPORTED:
+    #
+    # local $hash{key} = "val";  # sets a local value for this hash entry
+    # delete local $hash{key};   # delete this entry for the current block
+    # local ($cond ? $v1 : $v2); # several types of lvalues support localization
+
+    my @locals = ();
+
+    my $i;
+    for($i = 1; $i<=$#ValClass; $i++) {
+        last if($ValClass[$i] eq '=');
+        if($ValClass[$i] =~ /[ashG]/) {
+            if($i+1 <= $#ValClass && $ValClass[$i+1] eq '(') {
+                logme('W',"A 'local' statement with a subscript or hash key is not implemented for $ValPerl[$i]");
+                $i = &Pythonizer::matching_br($i+1);
+                last if($i < 0);
+                next;
+            }
+            push @locals, $ValPerl[$i];
+        }
+    }
+    $top = $nesting_stack[-1];
+    my $lno = $top->{lno};
+    if($::debug >=5) {
+        say STDERR "handle_local for line $. pushed @locals to block on line $lno";
+    }
+    if(exists $line_locals{$lno}) {
+        push @{$line_locals{$lno}}, @locals;
+    } else {
+        $line_locals{$lno} = \@locals;
+    }
+    $line_sub{$lno} = (defined $top->{cur_sub} ? $top->{cur_sub} : 'main');
+    $line_needs_try_block{$top->{lno}} |= TRY_BLOCK_FINALLY;
+}
+
+sub prepare_local
+{
+    my $quote = shift;
+    my $lno = shift;
+
+    my $sigil = substr($quote,0,1);
+    my $sub = $line_sub{$lno};
+
+    if($sigil eq '$') {
+        decode_scalar($quote,0);
+    } elsif($sigil eq '@') {
+        decode_array($quote);
+    } elsif($sigil eq '%') {
+        decode_hash($quote);
+    } elsif($sigil =~ /[A-Za-z_]/) {
+        decode_bare($quote);
+        $Pythonizer::VarSubMap{$quote}{$sub} = '+';    # We don't detect it because it's normally an 'i' token like FH
+    } else {
+        return;
+    }
+    $line_locals_map{$lno}{$quote} = $ValPy[0];
+    if(!exists $Pythonizer::NeedsInitializing{$sub}{$ValPy[0]}) {
+        $Pythonizer::NeedsInitializing{$sub}{$ValPy[0]} = 'm';
+    }
+}
+
+sub prepare_locals              # issue 108
+# Prepare all locals for code generation.  Call this once before the second pass.
+# We map the perl names to the python names and decide which of the *XXXX variables
+# we need to push on the stack.
+{
+    local $cut;
+    local @ValPy;
+    local @ValType;
+    local $tno = 0;
+    foreach my $lno (keys %line_locals) {
+        for(my $i = 0; $i < scalar(@{$line_locals{$lno}}); $i++) {
+            my $quote = $line_locals{$lno}->[$i];
+            my $sigil = substr($quote,0,1);
+            prepare_local($quote, $lno);
+            if($sigil eq '*') {
+                my $id = substr($quote,1);
+                $line_locals{$lno}->[$i] .= ',';
+                if(exists $NameMap{$id}) {
+                    for my $sig (keys %{$NameMap{$id}}) {
+                        next if($sig eq '&');
+                        #push @{$line_locals{$lno}}, ($sig . $id);
+                        prepare_local("$sig$id", $lno);
+                        $sig = '^' if(!$sig);
+                        $line_locals{$lno}->[$i] .= $sig;       # Append a little char list of the ones we need
+                    }
+                }
+            }
+        }
+    }
+    if($::debug >= 5) {
+       $Data::Dumper::Indent=1;
+       $Data::Dumper::Terse = 1;
+       print STDERR "line_locals = ";
+       say STDERR Dumper(\%line_locals);
+       print STDERR "line_locals_map = ";
+       say STDERR Dumper(\%line_locals_map);
+       print STDERR "line_sub = ";
+       say STDERR Dumper(\%line_sub);
+    }
+}
+
+sub push_locals               # issue 108
+# Push all locals declared in this block
+{
+    my $cursub = shift;
+
+    my $top = $nesting_stack[-1];
+    return if(!($line_needs_try_block{$top->{lno}} & TRY_BLOCK_FINALLY));
+    gen_statement();
+    my $globals_decl = $Pythonizer::GlobalVar{$cursub};
+    my @globals = split /,/, substr($globals_decl,length('global '));
+    my %globals_set = map { $_ => 1 } @globals;
+    my $lno = $top->{lno};
+    for my $local (@{$line_locals{$lno}}) {
+        my $sigil = substr($local,0,1);
+        if($sigil eq '*') {         # We appended the ones we need to the name
+            # We have like *id,$%@ - split out each of the "$%@".  We encode a
+            # bare one as '^'.
+            my ($quote, $sigils) = split /,/, $local;
+            my $id = substr($quote,1);
+            $sigils = '' if(!defined $sigils);
+            for(my $i=0; $i < length($sigils); $i++) {
+                my $sig = substr($sigils,$i,1);
+                $sig = '' if($sig eq '^');
+                $quote = $sig . $id;
+                $pyname = $line_locals_map{$lno}{$quote};
+                if(!exists $globals_set{$pyname} && $pyname =~ /^[A-Za-z_][A-Za-z0-9_]*$/) {
+                    gen_statement("global $pyname") 
+                }
+                gen_statement("$LOCALS_STACK.append($pyname)");
+            }
+        } else {
+            $pyname = $line_locals_map{$lno}{$local};
+            if(!exists $globals_set{$pyname} && $pyname =~ /^[A-Za-z_][A-Za-z0-9_]*$/) {
+                gen_statement("global $pyname") 
+            }
+            gen_statement("$LOCALS_STACK.append($pyname)");
+        }
+    }
+}
+
+sub init_local_typeglobs                         # issue 108
+#  Initialize all the typeglob (*XXXX) locals declared on this statement
+{
+    my $cursub = shift;
+
+    my $top = $nesting_stack[-1];
+    my $lno = $top->{lno};
+
+    # In the case of a conditional local statement, like local x if(y);, we won't
+    # have a mapping for the line number of that block we inserted, and we
+    # already generated the code to push the locals, so we skip it.
+    return if(!exists $line_locals_map{$lno});
+
+    my $eq = &Pythonizer::next_same_level_token('=', 1, $#ValClass);
+    return if($eq >= 0);
+
+    for(my $i = 1; $i<=$#ValClass; $i++) {
+        last if($ValClass[$i] eq '=');
+        if($ValClass[$i] eq 'G') { # typeglob
+            my $id = substr($ValPerl[$i],1);
+            for my $sig (keys %{$NameMap{$id}}) {
+                next if($sig eq '&');
+                my $pyname = $line_locals_map{$lno}{$sig.$id};
+                say STDERR "ERROR: Can't find line_locals_map{$lno}{$sig$id}!!" if(!defined $pyname);
+                # Initialize typeglobs
+                my $type = $SIGIL_MAP{$sig};
+                $type = $Pythonizer::VarType{$pyname}{$cursub} if(exists $Pythonizer::VarType{$pyname}{$cursub});
+                gen_statement("$pyname = " . &Pythonizer::init_val($type));
+            }
+        }
+    }
+}
+
+sub choose_glob                 # issue 108
+# Given a reference (probably an assignment to) a *typeglob, choose one of it's components to assign to
+# Give a warning if there was more than one possibility
+# arg1 = ValPerl
+# arg2 = ValPy = default if not found
+# result = ValPy
+{
+    my $perl = shift;
+    my $py = shift;
+
+    my $id = substr($perl,1);           # Remove the '*'
+    return $py if(!exists $NameMap{$id});
+    my @keys = keys %{$NameMap{$id}};
+    return $py if(scalar(@keys) == 0);
+    return $NameMap{$id}{$keys[0]} if(scalar(@keys) == 1);      # That was easy!
+    my @selection = ('%', '@', '$', '');
+    foreach my $sel (@selection) {
+        if(exists $NameMap{$id}{$sel}) {
+            $result = $NameMap{$id}{$sel};
+            logme('W',"Choosing $sel$id ($result) for $perl typeglob");
+            return $result;
+        }
+    }
+    return $NameMap{$id}{$keys[0]};
 }
 
 #
@@ -579,6 +862,7 @@ my ($l,$m);
    $TokenStr='';
    $ExtractingTokensFromDoubleQuotedTokensEnd = -1;     # SNOOPYJC
    $ExtractingTokensFromDoubleQuotedStringEnd = 0;      # SNOOPYJC
+   my $end_br;                  # issue 43
    
    if( $::debug > 3 && $main::breakpoint >= $.  ){
       $DB::single = 1;
@@ -655,6 +939,18 @@ my ($l,$m);
       # This is a meaningful symbol which tranlates into some token.
       $ValClass[$tno]=$ValPerl[$tno]=$ValPy[$tno]=$s;
       $ValCom[$tno]='';
+      if(index('$@%&*', $s) >= 0 && substr($source,1,1) eq '{' &&
+         length($source) >= 4 &&
+         index('$@%&*', substr($source,2,1)) < 0) {     # issue 43 - Look for ${...} and delete the brackets
+                                                        # Don't do this on @{$...}, etc.
+         $end_br = matching_curly_br($source, 1);       # issue 43
+         if($end_br > 0) {                              # issue 43
+            if(index(substr($source,0,$end_br), '(') < 0) {    # issue 43: Don't do this on @{myFunc()}
+               substr($source,$end_br,1) = '';          # issue 43
+               substr($source,1,1) = '';                # issue 43
+            }
+         }                                              # issue 43
+      }
       if( $s eq '}' ){
          # we treat '}' as a separate "dummy" statement -- eauvant to ';' plus change of nest -- Aug 7, 2020
          #say STDERR "Got }, tno=$tno, source=$source";
@@ -697,11 +993,15 @@ my ($l,$m);
          $ValPy[$tno]=']';
          $cut=1;
 
-      }elsif( $s eq '{' ){
+      }elsif( $s eq '{' || ($s eq '^' && $tno==0) ){    # SNOOPYJC
           #say STDERR "got {, tno=$tno, source=$source, ValPerl=@ValPerl";
          # we treat '{' as the beginning of the block if it is the first or the last symbol on the line or is preceeded by ')' -- Aug 7, 2020
           if( $tno==0 ){
-             enter_block();                 # issue 94
+             if($s eq '{') {    # SNOOPYJC: We swap '{' for '^' the second time around so we know if we need to call enter_block
+                enter_block();                 # issue 94
+             } else {
+                $ValClass[$tno]=$ValPerl[$tno]=$ValPy[$tno]='{';
+             }
              if( length($source)>1  ){
                 Pythonizer::getline(substr($source,1)); # save tail
              }
@@ -710,8 +1010,9 @@ my ($l,$m);
           }elsif( length($source)==1 && $ValClass[$tno-1] ne '='){      # issue 82
              # $tno>0 but line may came from buffer.
              # We recognize end of statemt only if previous token eq ')' to avod collision with #h{$s}
-             enter_block();                 # issue 94
-             Pythonizer::getline('{'); # make $tno==0 on the next iteration
+             enter_block() if($s eq '{');                 # issue 94
+             # SNOOPYJC Pythonizer::getline('{'); # make $tno==0 on the next iteration
+             Pythonizer::getline('^'); # SNOOPYJC: make $tno==0 on the next iteration
              popup(); # eliminate '{' as it does not have tno==0
              last;
 	  # issue 35 }elsif( $ValClass[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1){
@@ -721,8 +1022,9 @@ my ($l,$m);
                   ($tno == 2 && $ValPerl[0] eq 'sub') ||
                   ($tno == 1 && ($ValPerl[0] eq 'BEGIN' || $ValPerl[0] eq 'END')))){	# issue 35, 45
              # $tno>0 this is the case when curvy bracket has comments'
-             enter_block();                 # issue 94
-             Pythonizer::getline('{',substr($source,1)); # make it a new line to be proceeed later
+             enter_block() if($s eq '{');                 # issue 94
+             # SNOOPYJC Pythonizer::getline('{',substr($source,1)); # make it a new line to be proceeed later
+             Pythonizer::getline('^',substr($source,1)); # SNOOPYJC: make it a new line to be proceeed later
              popup(); # eliminate '{' as it does not have tno==0
              last;
           }elsif($ValClass[$tno-1] eq 'D') {	# issue 50, issue 93
@@ -853,7 +1155,7 @@ my ($l,$m);
          if($tno != 0 && ($ValClass[$tno-1] eq 'k' && $ValPerl[$tno-1] eq 'sub') ||
              ($ValClass[$tno-1] eq 'f' && ($ValPerl[$tno-1] eq 'open' || $ValPerl[$tno-1] eq 'opendir')) ||
              ($tno-2>=0 && $ValClass[$tno-1] eq '(' && $ValClass[$tno-2] eq 'f' &&
-                ($ValPerl[$tno-1] eq 'open' || $ValPerl[$tno-1] eq 'opendir'))) {       # issue 92
+                ($ValPerl[$tno-2] eq 'open' || $ValPerl[$tno-2] eq 'opendir'))) {       # issue 92
             my $sigil = '';
             $sigil = '&' if($ValPerl[$tno-1] eq 'sub');   # issue 92, 108: Differentiate between sub and FH
             remap_conflicting_names($w, $sigil, '');      # issue 92: sub takes the name from other vars
@@ -875,12 +1177,20 @@ my ($l,$m);
                 $ValPy[$tno] = $w;              # issue 89
             }                                   # issue 89
             $ValClass[$tno]=$class;
-            if( $class eq 'c' && $tno > 0 && $Pythonizer::PassNo && ($ValClass[0] ne 'C' || $ValPerl[0] ne 'do')){ # Control statement, like if # SNOOPYJC: do
+            if( $class eq 'c' && $tno > 0 && $Pythonizer::PassNo && ($ValClass[0] ne 'C' || $ValPerl[0] ne 'do')){ # Control statement, like if # SNOOPYJC: and do
                # The current solution is pretty britle but works
                # You can't recreate Perl source from ValPerl as it does not have 100% correspondence.
                # So the token buffer implemented Oct 08, 2020 --NNB
                # Note you can't use both getline buffer and token buffer, so you can't add '{' to the end of if statement
                # You need to jump thoou the hoops in Pythonizer to inject '{' and '}' into the stream
+               #
+               # Issue 108: If we have a conditional "local" statement, we need to do the init of
+               # the typeglob locals here since we won't generate the code inside the new 'if' block we 
+               # are making because we won't be able to find the variables in the new line number.
+               #
+               if($ValClass[0] eq 't' && $ValPerl[0] eq 'local') {      # issue 108
+                  init_local_typeglobs($::CurSub);                      # issue 108
+               }
                pop(@ValClass); pop(@ValCom); pop(@ValPerl); pop(@ValPy);
                # issue 37 - we don't pop ValType since we haven't set it
                @BufferValClass=@ValClass; @BufferValCom=@ValCom; @BufferValPerl=@ValPerl; @BufferValPy=@ValPy;
@@ -1111,10 +1421,10 @@ my ($l,$m);
             $cut=length('perl_trace');
          }else{
             $end_br = 0;                                # issue 43
-            if(substr($source,1,1) eq '{') {		# issue 43: ${...}
-                $end_br = matching_curly_br($source, 1); # issue 43
-                $source = '$'.substr($source,2);	# issue 43: eat the '{'. At this point, $end_br points after the '}'
-            }
+            #if(substr($source,1,1) eq '{') {		# issue 43: ${...}
+            #$end_br = matching_curly_br($source, 1); # issue 43
+            #$source = '$'.substr($source,2);	# issue 43: eat the '{'. At this point, $end_br points after the '}'
+            #}
             decode_scalar($source,1);
 	    if($tno!=0 &&                               # issue 50, issue 92
                (($ValClass[$tno-1] eq 's' && $ValPerl[$tno-1] eq '$') || # issue 50
@@ -1162,7 +1472,7 @@ my ($l,$m);
             }
             if($end_br) {                               # issue 43
                 $cut = $end_br;                         # issue 43
-                $ValPerl[$tno] = '{'.$ValPerl[$tno].'}'; # issue 43: remember we had ${var} for where we care (like <${var}>)
+                # NOT NEEDED!  $ValPerl[$tno] = '{'.$ValPerl[$tno].'}'; # issue 43: remember we had ${var} for where we care (like <${var}>)
             }
          }
       }elsif( $s eq '@'  ){
@@ -1241,6 +1551,24 @@ my ($l,$m);
                $ValPy[$tno]='__main__'.$ValPy[$tno];
             }
             $Pythonizer::LocalSub{$ValPerl[$tno]} = 1;
+         }else{
+           $cut=1;
+         }
+      }elsif( $s eq '*' && ($ch = substr($source,1,1)) ne '*' && $ch ne '='){  # issue 108: typeglob
+         # the problem here is that *2 can be in i=k*2, so we need to exclude digits from regex
+         # if( substr($source,1)=~/^(\:?\:?[_a-zA-Z]\w*(\:\:[_a-zA-Z]\w*)*)/ ){
+         if( substr($source,1)=~/^(\:?\:?\'?[_a-zA-Z]\w*((?:(?:\:\:)|\')[_a-zA-Z]\w*)*)/ ){
+            $cut=length($1)+1;
+            $ValClass[$tno]='G'; # typeglob
+            $ValPerl[$tno]='*'.$1;
+            $ValPy[$tno]=$1;
+            $ValPy[$tno]=~tr/:/./s;
+            $ValPy[$tno]=~tr/'/./s;             # SNOOPYJC
+	    $ValPy[$tno] = escape_keywords($ValPy[$tno]);
+            if( substr($ValPy[$tno],0,1) eq '.' ){
+               $ValCom[$tno]='X';
+               $ValPy[$tno]='__main__'.$ValPy[$tno];
+            }
          }else{
            $cut=1;
          }
@@ -1372,8 +1700,8 @@ my ($l,$m);
                        # issue 66 insert(0, 'W', "<$fh>", qq{with fileinput.input("<$fh>",openhook=lambda _,__:$fh) as $DIAMOND:});    # issue 66
                        # issue 66 $tno++;                                     # issue 66
                        # issue 66 $ValPy[$tno]="next($DIAMOND, None)";        # issue 66: Allows for $.
-                       $::Pyf{_readline} = 1;                           # issue 66
-                       $ValPy[$tno]="_readline($fh)";                   # issue 66
+                       my $rl = select_readline();                      # issue 66
+                       $ValPy[$tno]="$rl($fh)";                         # issue 66
                    }
                }else{           # we're just reading one line so we can't use the context manager as it closes the file handle
                    if(length($fh)==0){         # issue 66
@@ -1381,14 +1709,14 @@ my ($l,$m);
                    }elsif($fh eq 'STDIN' ){     # issue 66
                        # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
                        # issue 66 $ValPy[$tno]='sys.stdin().readline()';
-                       $::Pyf{_readline} = 1;                           # issue 66
-                       $ValPy[$tno]='_readline(sys.stdin())';           # issue 66: support $/
+                       my $rl = select_readline();                      # issue 66
+                       $ValPy[$tno]="$rl(sys.stdin())";                 # issue 66: support $/
                        # $ValPy[$tno]="next(with fileinput.input('-'), None)";        # issue 66: Allows for $.
                    }else{
                        # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
                        # issue 66 $ValPy[$tno]="$fh.readline()";
-                       $::Pyf{_readline} = 1;                           # issue 66
-                       $ValPy[$tno]="_readline($fh)";           # issue 66: support $/
+                       my $rl = select_readline();                      # issue 66
+                       $ValPy[$tno]="$rl($fh)";           # issue 66: support $/
                        #insert(0, 'W', "<$fh>", qq{with fileinput.input("<$fh>",openhook=lambda _,__:$fh) as $DIAMOND:});    # issue 66
                        #$tno++;                                     # issue 66
                        #$ValPy[$tno]=qq{next(with fileinput.input("<$fh>",openhook=lambda _,__:$fh), None)};        # issue 66: Allows for $.
@@ -1408,13 +1736,13 @@ my ($l,$m);
                    # issue 66 insert(0, 'W', "<$1>", qq{with fileinput.input("<$1>",openhook=lambda _,__:$1) as $DIAMOND:});    # issue 66
                    # issue 66 $tno++;                                     # issue 66
                    # issue 66 $ValPy[$tno]="next($DIAMOND, None)";        # issue 66: Allows for $.
-                   $::Pyf{_readline} = 1;                           # issue 66
-                   $ValPy[$tno]="_readline($1)";                # issue 66: Support $/, $.
+                   my $rl = select_readline();                      # issue 66
+                   $ValPy[$tno]="$rl($1)";                # issue 66: Support $/, $.
                }else{
                    # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
                    # issue 66 $ValPy[$tno]="$1.readline()";
-                   $::Pyf{_readline} = 1;                           # issue 66
-                   $ValPy[$tno]="_readline($1)";                # issue 66: Support $/, $.
+                   my $rl = select_readline();                      # issue 66
+                   $ValPy[$tno]="$rl($1)";                # issue 66: Support $/, $.
                    # issue 66: use a context manager so it's automatically closed
                    #insert(0, 'W', "<$1>", qq{with fileinput.input("<$1>",openhook=lambda _,__:$1) as $DIAMOND:});    # issue 66
                    #$tno++;                                     # issue 66
@@ -1463,8 +1791,12 @@ my ($l,$m);
       }
       finish(); # subroutine that prepeares the next cycle
    } # while
-   if($tno > 0 && $ValClass[0] eq 'k' && ($ValPerl[0] eq 'last' || $ValPerl[0] eq 'next')) {    # issue 94
-       handle_last_next();                              # issue 94
+   if($tno > 0) {                                       # issue 94
+        if($ValClass[0] eq 'k' && ($ValPerl[0] eq 'last' || $ValPerl[0] eq 'next')) {    # issue 94
+            handle_last_next();                              # issue 94
+        } elsif($ValClass[0] eq 't' && $ValPerl[0] eq 'local' && !$Pythonizer::PassNo) {        # issue 108
+            handle_local();                                     # issue 108
+        }
    }
 
    $TokenStr=join('',@ValClass);
@@ -1527,6 +1859,16 @@ my $original;
     }
 
 }
+
+sub select_readline
+# Select either the simple or the full version of readline depending on if $. and $/ are used or not
+{
+    my $rl = "_readline";
+    $rl = "_readline_full" if(exists $SpecialVarsUsed{'$/'} || exists $SpecialVarsUsed{'$.'});
+    $::Pyf{$rl} = 1; 
+    return $rl;
+}
+
 sub bash_style_or_and_fix
 # On level zero those are used instead of if statement
 {
@@ -2111,12 +2453,12 @@ my  $outer_delim;
       }
       if($end_br > 0 && substr($quote,0,3) eq '@[%') {  # @{[%hash]}
           $quote = substr($quote, 2);
-          decode_hash($quote,0);
+          decode_hash($quote);
           $ValPy[$tno] = 'functools.reduce(lambda x,y:x+y,'.$ValPy[$tno].'.items())';
           $end_br -= 2;    # 2 to account for the 2 we ate
           #say STDERR "quote1b=$quote, end_br=$end_br\n";
       } else {
-          decode_array($quote,0); #get's us scalar or system var
+          decode_array($quote); #get's us array or system var
       }
       #does not matter what type of veriable this is: regular or special variable
       $result.="LIST_SEPARATOR.join($ValPy[$tno])"; # copy string provided by decode_array. ValPy[$tno] changes if Perl contained :: like in $::debug
@@ -2197,9 +2539,12 @@ sub extract_tokens_from_double_quoted_string
             $cut=$m+1;
         }
         if($end_br != -1) {
-            $cut++;                     # Point past the extra '}'
+            #$cut++;                     # Point past the extra '}'
+            $ExtractingTokensFromDoubleQuotedTokensEnd = $cut-2;
+            $cut = $end_br;
+        } else {
+            $ExtractingTokensFromDoubleQuotedTokensEnd = $cut;
         }
-        $ExtractingTokensFromDoubleQuotedTokensEnd = $cut;
         $ExtractingTokensFromDoubleQuotedStringEnd = length($quote);
         say STDERR " ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd" if($::debug>=5);
         say STDERR "<extract_tokens_from_double_quoted_string($quote) end=$cut, result=$pos" if($::debug>=3);
@@ -2341,6 +2686,22 @@ sub decode_hash                 # issue 47
      }else{
        $cut=1;
      }
+}
+
+sub decode_bare         # issue 108
+{
+     my $w = shift;
+
+     $ValPy[$tno]=$w;
+     $cut = length($w);
+     $ValPy[$tno]=~tr/:/./s;
+     $ValPy[$tno]=~tr/'/./s;
+     if( exists($keyword_tr{$w}) ){
+        $ValPy[$tno]=$keyword_tr{$w};
+     }
+     if( exists($CONSTANT_MAP{$w}) ) {      # SNOOPYJC
+         $ValPy[$tno] = $CONSTANT_MAP{$w};  # SNOOPYJC
+     }                                      # SNOOPYJC
 }
 
 #
@@ -2644,7 +3005,7 @@ my $str=$_[0];
 my $scan_start=$_[1];
 my $balance=(scalar(@_)>2) ? $_[2] : 0; # case where opening bracket is missing for some reason or was skipped.
    for( my $k=$scan_start; $k<length($str); $k++ ){
-     $s=substr($str,$k,1);
+     my $s=substr($str,$k,1);
      if( $s eq '(' ){
         $balance++;
      }elsif( $s eq ')' ){
@@ -2667,7 +3028,7 @@ my $str=$_[0];
 my $scan_start=$_[1];
 my $balance=(scalar(@_)>2) ? $_[2] : 0; # case where opening bracket is missing for some reason or was skipped.
    for( my $k=$scan_start; $k<length($str); $k++ ){
-     $s=substr($str,$k,1);
+     my $s=substr($str,$k,1);
      if( $s eq '{' ){
         $balance++;
      }elsif( $s eq '}' ){
@@ -2690,7 +3051,7 @@ my $str=$_[0];
 my $scan_start=$_[1];
 my $balance=(scalar(@_)>2) ? $_[2] : 0; # case where opening bracket is missing for some reason or was skipped.
    for( my $k=$scan_start; $k<length($str); $k++ ){
-     $s=substr($str,$k,1);
+     my $s=substr($str,$k,1);
      if( $s eq '[' ){
         $balance++;
      }elsif( $s eq ']' ){
