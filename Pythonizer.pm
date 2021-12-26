@@ -32,7 +32,7 @@ require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context); # SNOOPYJC
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes); # SNOOPYJC
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname);
    # issue 32 $::TabSize=3;
    $::TabSize=$TABSIZE;         # issue 32
@@ -46,6 +46,7 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname);
    %LocalSub=(); # list of local subs
    %GlobalVar=(); # generated "external" declaration with the list of global variables.
    %InitVar=(); # SNOOPYJC: generated initialization
+   %SubAttributes=();   # SNOOPYJC: Map of sub to hash of attributes
    # issue 32 $maxlinelen=188;
    $maxlinelen=$MAXLINELEN;
    $GeneratedCode=0;    # issue 96: used to see if we generated any real code between { and }
@@ -171,13 +172,13 @@ sub prolog
 %VarType = ('sys.argv'=>{main=>'a of S'},
             'os.name'=>{main=>'S'},
             EVAL_ERROR=>{main=>'S'},
-            'os.environ'=>{main=>'h of S'}); # SNOOPYJC: {varname}{sub} = type (a, h, s, I, S, F, N, u, m)
+            'os.environ'=>{main=>'h of s'}); # SNOOPYJC: {varname}{sub} = type (a, h, s, I, S, F, N, u, m)
 %NeedsInitializing = ();        # SNOOPYJC: {sub}{varname} = type
 # SNOOPYJC: initialized means it is set before it's being used
 %initialized = (main=>{'sys.argv'=>'a of S',
                        'os.name'=>'S',
                        EVAL_ERROR=>'S',
-                       'os.environ'=>'h of S'});       # {sub}{varname} = type
+                       'os.environ'=>'h of s'});       # {sub}{varname} = type
 
 for my $g (keys %GLOBAL_TYPES) {                # SNOOPYJC
     my $t = $GLOBAL_TYPES{$g};
@@ -243,6 +244,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                   next if exists($DeclaredVarH{$ValPy[$k]});
                   next if( defined($ValType[$k]) && $ValType[$k] eq 'X');
                   $VarSubMap{$ValPy[$k]}{$CurSubName}='+';
+               } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 'shift' || $ValPerl[$k] eq 'pop') &&        # SNOOPYJC
+                      ($k == $#ValClass || $ValPerl[$k+1] eq '@_' || $ValClass[$k+1] !~ /[ahfi]/)) {        # SNOOPYJC
+                  $SubAttributes{$CurSubName}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args
                }
             } # for
          }
@@ -288,6 +292,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                    say "=== Pass 1 INTERNAL ERROR in processing line $InLineNo Special variable is $ValPerl[$k] as $ValPy[$k], k=$k, ValType=@ValType";
                    $DB::single = 1;
                 }
+              } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 'shift' || $ValPerl[$k] eq 'pop') &&        # SNOOPYJC
+                      ($k == $#ValClass || $ValPerl[$k+1] eq '@_' || $ValClass[$k+1] !~ /[ahfi]/)) {       # SNOOPYJC
+                 $SubAttributes{$CurSubName}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args
               }
           } # for
           if(scalar(@ValClass) > 0 && $ValClass[0] eq 'k' && $ValPerl[0] eq 'return') {         # SNOOPYJC: return statement
@@ -340,6 +347,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        say STDERR Dumper(\%Perlscan::sub_external_last_nexts);
        print STDERR "line_needs_try_block = ";
        say STDERR Dumper(\%Perlscan::line_needs_try_block);
+       print STDERR "SubAttributes = ";
+       say STDERR Dumper(\%SubAttributes);
    }
 
    foreach $varname (keys %VarSubMap ){
@@ -1566,7 +1575,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     my %f_refs=();
     for my $Line (@lines) {
         $lno++;
-        $insertion_point = $lno+1 if($Line =~ /^$PERL_ARG_ARRAY = sys.argv/ && !$insertion_point);
+        $insertion_point = $lno+1 if($Line =~ /^$PERL_ARG_ARRAY = sys.argv/ && !$insertion_point);              # SNOOPYJC
         #say STDERR "$lno: $line";
         $line = eat_strings($Line);     # we change variables so eat_strings doesn't modify @lines
         if($in_def) {

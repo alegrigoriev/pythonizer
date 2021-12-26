@@ -105,7 +105,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                     '-'=>'I', '+'=>'I',
                     '_'=>'s');
    %SpecialArrayType=('ARGV'=>'a of S', '_'=>'a of m');
-   %SpecialHashType=('ENV'=>'h of S');
+   %SpecialHashType=('ENV'=>'h of m');          # Not 'h of S' as when we pull a non-existant key we get None!
 
    # Map of functions to python where the mapping is different for scalar and list context
    %SPECIAL_FUNCTION_MAPPINGS=('localtime'=>{scalar=>'tm_py.ctime', list=>'_localtime'},        # issue times
@@ -363,7 +363,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:m', 'each'=>'h:a', 'exists'=>'u:I', 'exit'=>'S:m', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':I',
                   'fileparse'=>'SS?:a of S',
                   'glob'=>'S:a of S', 'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 'lc'=>'S:S',
-                  'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'S:I', 'oct'=>'s:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
+                  'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'SI?:I', 'oct'=>'s:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
 		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'rename'=>'SS:I', 'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:m',
                   'push'=>'aa:I', 'pop'=>'a:s', 'print'=>'H?a:I', 'printf'=>'H?Sa:I', 'rindex'=>'SSI?:I','read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
                   'say'=>'H?a:I','scalar'=>'a:I','shift'=>'a?:s', 'sleep'=>'I:I', 'split'=>'SSI?:a of S', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
@@ -455,11 +455,13 @@ sub enter_block                 # issue 94
     $nesting_info{is_eval} = ($begin <= $#ValClass && $ValPerl[$begin] eq 'eval');
     $nesting_info{is_sub} = ($begin <= $#ValClass && $ValPerl[$begin] eq 'sub');
     $nesting_info{cur_sub} = (($begin+1 <= $#ValClass && $nesting_info{is_sub}) ? $ValPerl[$begin+1] : undef);
+    $nesting_info{sub_ndx} = scalar(@nesting_stack) if($nesting_info{is_sub});
 
     $nesting_info{in_loop} = ($nesting_info{is_loop} || (scalar(@nesting_stack) && $nesting_stack[-1]{in_loop}));
     $nesting_info{in_sub} = ($nesting_info{is_sub} || (scalar(@nesting_stack) && $nesting_stack[-1]{in_sub}));
     if($nesting_info{in_sub} && !$nesting_info{is_sub}) {
         $nesting_info{cur_sub} = $nesting_stack[-1]{cur_sub};
+        $nesting_info{sub_ndx} = $nesting_stack[-1]{sub_ndx};
     }
     if(defined $last_label) {
         $nesting_info{label} = $last_label;
@@ -2640,6 +2642,7 @@ sub decode_array                # issue 47
         }elsif( $arg1 eq 'ARGV'  ){
                 # issue 49 $ValPy[$tno]='sys.argv';
               $ValPy[$tno]='sys.argv[1:]';	# issue 49
+              $SpecialVarsUsed{'@ARGV'} = 1;                       # SNOOPYJC
               #$ValType[$tno]="X";
         }else{
            my $arg2 = remap_conflicting_names($arg1, '@', '');     # issue 92
@@ -2682,6 +2685,7 @@ sub decode_hash                 # issue 47
         } elsif($ValPy[$tno] eq 'ENV') {                # issue 103
            $ValType[$tno]="X";
            $ValPy[$tno]='os.environ';
+           $SpecialVarsUsed{'%ENV'} = 1;                       # SNOOPYJC
         }
      }else{
        $cut=1;

@@ -54,7 +54,7 @@ sub postadd {
 assert(postadd(1) == 1);
 
 sub postsub {
-    my $arg = shift;
+    my $arg = $_[0];
     $arg--;
 }
 assert(postsub(1) == 1);
