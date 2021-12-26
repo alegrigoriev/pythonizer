@@ -1,6 +1,7 @@
 
 def _nr():
     """Get the current INPUT_LINE_NUMBER"""
+    global INPUT_LINE_NUMBER
     try:
         return fileinput.lineno()
     except RuntimeError:
