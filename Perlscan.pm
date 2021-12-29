@@ -170,6 +170,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'sqrt'=>'math.sqrt',		# SNOOPYJC
 		'sort'=>'sorted', 		# issue 34
 		'state'=>'global',
+                'rand'=>'_rand',                # SNOOPYJC
                 'read'=>'.read',                # issue 10
                    'stat'=>'os.stat','sysread'=>'.read',
                    'substr'=>'','sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','sprintf'=>'',
@@ -334,6 +335,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'opendir'=>'f', 'closedir'=>'f', 'readdir'=>'f', 'seekdir'=>'f', 'telldir'=>'f', 'rewinddir'=>'f',	# SNOOPYJC
                   'push'=>'f', 'pop'=>'f', 'print'=>'f', 'package'=>'c',
                   'printf'=>'f',                # SNOOPYJC
+                  'rand'=>'f',                  # SNOOPYJC
                   'rindex'=>'f','read'=>'f', 
                   'rename'=>'f',                # SNOOPYJC
 		  # issue 61 'return'=>'f', 
@@ -365,7 +367,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'glob'=>'S:a of S', 'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 'lc'=>'S:S',
                   'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'SI?:I', 'oct'=>'s:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
 		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'rename'=>'SS:I', 'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:m',
-                  'push'=>'aa:I', 'pop'=>'a:s', 'print'=>'H?a:I', 'printf'=>'H?Sa:I', 'rindex'=>'SSI?:I','read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
+                  'push'=>'aa:I', 'pop'=>'a:s', 'print'=>'H?a:I', 'printf'=>'H?Sa:I', 'rand'=>'F?:F',
+                  'rindex'=>'SSI?:I','read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
                   'say'=>'H?a:I','scalar'=>'a:I','shift'=>'a?:s', 'sleep'=>'I:I', 'split'=>'SSI?:a of S', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
                   'sqrt'=>'N:F', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timegm'=>'IIIIII:I',
                   'timelocal'=>'IIIIII:I', 'unlink'=>'a?:I', 'values'=>'h:a', 'warn'=>'a:I', 'undef'=>'a?:u', 'unshift'=>'aa:I', 'uc'=>'S:S',
@@ -455,13 +458,11 @@ sub enter_block                 # issue 94
     $nesting_info{is_eval} = ($begin <= $#ValClass && $ValPerl[$begin] eq 'eval');
     $nesting_info{is_sub} = ($begin <= $#ValClass && $ValPerl[$begin] eq 'sub');
     $nesting_info{cur_sub} = (($begin+1 <= $#ValClass && $nesting_info{is_sub}) ? $ValPerl[$begin+1] : undef);
-    $nesting_info{sub_ndx} = scalar(@nesting_stack) if($nesting_info{is_sub});
 
     $nesting_info{in_loop} = ($nesting_info{is_loop} || (scalar(@nesting_stack) && $nesting_stack[-1]{in_loop}));
     $nesting_info{in_sub} = ($nesting_info{is_sub} || (scalar(@nesting_stack) && $nesting_stack[-1]{in_sub}));
     if($nesting_info{in_sub} && !$nesting_info{is_sub}) {
         $nesting_info{cur_sub} = $nesting_stack[-1]{cur_sub};
-        $nesting_info{sub_ndx} = $nesting_stack[-1]{sub_ndx};
     }
     if(defined $last_label) {
         $nesting_info{label} = $last_label;
@@ -1121,7 +1122,7 @@ my ($l,$m);
             #binary
             $val=$1;
             #$ValType[$tno]='b';
-         }elsif( $source=~/(^\d+(?:[.]\d*)?(?:e[+-]?\d+)?)/  ){	# issue 23
+         }elsif( $source=~/(^\d+(?:[.]\d*)?(?:[Ee][+-]?\d+)?)/  ){	# issue 23
              $val=$1;
              if(substr($val,-1,1) eq '.' && substr($source,length($val),1) eq '.') { # issue range: change 0.. to 0
                  substr($val, -1, 1) = '';              # issue range
@@ -1763,7 +1764,7 @@ my ($l,$m);
             $ValClass[$tno]=$ValPerl[$tno]=$ValPy[$tno]=$s;
             if( $s eq '.'  ){
                $ValPy[$tno]=' + ';
-	       if( $source=~/(^[.]\d+(?:e[+-]?\d+)?)/  ){	# issue 23
+	       if( $source=~/(^[.]\d+(?:[Ee][+-]?\d+)?)/  ){	# issue 23
 	          $ValClass[$tno] = 'd';			# issue 23
 		  $ValPy[$tno] = $ValPerl[$tno] = $1;		# issue 23
 		  $cut=length($1);				# issue 23
@@ -2396,7 +2397,7 @@ my  $outer_delim;
       if($ind = extract_bracketed($quote2, '{}[]', '')) {        # issue 53, issue 98
          # issue 109 $cut=length($ind);
          my $ind_cut=length($ind);
-         # issue 109 $ind =~ tr/$//d;               # FIXME: We need to decode_scalar on each one!
+         # issue 109 $ind =~ tr/$//d;               # We need to decode_scalar on each one!
 	 # issue 53 $ind =~ tr/{}/[]/;
          #say "looking for '{' in $ind";
 	 for(my $i = 0; $i < length($ind); $i++) {	# issue 53: change hash ref {...} to use .get(...) instead
