@@ -121,6 +121,7 @@
 # 0.933  2021/12/23  SNOOPYJC  Additional fix for issue 106, issue 110, addl fix for issue 45, handle $/, $. with issue 66
 # 0.934  2021/12/25  SNOOPYJC  One more fix for issue 106, issue 108 (implement local), addl fix for issue 43 with @ and %, use a simpler _readline if the program does not use $. or $/, suppress generation of EVAL_ERROR if $@ is not used
 # 0.935  2021/12/26  SNOOPYJC  Chg type of optional second arg to mkdir to int, chg type of ENV and os.environ so _str() is called, remove [] on args and only copy to a list if used in shift or pop, only die on return outside a function in main.
+# 0.936  2021/12/29  SNOOPYJC  Fix issue 84 with 2 subscripts, fix caller to return None if in main, allow E in float exponent, shift(@arr) caused extra ), fix @_ in assignment where it's still a tuple, proper code generation for sub call statement with array arg, implement rand
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -160,7 +161,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes); # SNOOPYJC
 
-   $VERSION='0.935';
+   $VERSION='0.936';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -226,7 +227,7 @@ BEGIN {                                                 # SNOOPYJC
     def __init(self, arg):
         traceback.print_stack()" if($traceback);
    # NOTE: This import line gets rewritten in Pythonizer.pm!
-   my @headers = ('import sys,os,re,fcntl,math,fileinput,subprocess,inspect,collections.abc,argparse,glob,warnings,inspect,functools,signal,traceback,io,tempfile,atexit,calendar,types,pdb',
+   my @headers = ('import sys,os,re,fcntl,math,fileinput,subprocess,inspect,collections.abc,argparse,glob,warnings,inspect,functools,signal,traceback,io,tempfile,atexit,calendar,types,pdb,random',
 	   'import time as tm_py',                              # SNOOPYJC
            "_str = lambda s: '' if s is None else str(s)",      # SNOOPYJC
                  );
@@ -757,7 +758,12 @@ my ($start,$token_buffer_active);
              if( $#ValClass==2 && $ValClass[2] eq 'a'){
                 # Special case array to array copy
 		# issue 31 gen_chunk("$ValPy[0]=$ValPy[2].copy");
-                gen_chunk("$ValPy[0] = $ValPy[2].copy()");	# issue 31
+                if($ValPerl[2] eq '@_' && $CurSub ne 'main' && !exists $SubAttributes{$CurSub}{modifies_arglist}) {  # SNOOPYJC
+                    # In this case our args are still a tuple, which has no ".copy()" operation
+                    gen_chunk("$ValPy[0] = list($ValPy[2])");
+                } else {
+                    gen_chunk("$ValPy[0] = $ValPy[2].copy()");	# issue 31
+                }
                 finish();
                 next;
              } elsif($#ValClass==2 && $ValClass[2] eq 'h') {    # SNOOPYJC: @arr = %hash
@@ -821,7 +827,12 @@ my ($start,$token_buffer_active);
                   }
                   if( $last_eq+1==@ValClass ){
 		     # issue 31 gen_statement("$ValPy[$i]=$ValPy[-1].copy"); # last array is the source
-                     gen_statement("$ValPy[$i] = $ValPy[-1].copy()"); # last array is the source	# issue 31
+                    if($ValPerl[-1] eq '@_' && $CurSub ne 'main' && !exists $SubAttributes{$CurSub}{modifies_arglist}) {  # SNOOPYJC
+                        # In this case our args are still a tuple, which has no ".copy()" operation
+                        gen_statement("$ValPy[$i] = list($ValPy[-1])");
+                    } else {
+                        gen_statement("$ValPy[$i] = $ValPy[-1].copy()"); # last array is the source	# issue 31
+                    }
                   }elsif( $ValPerl[$last_eq+1] eq '(' ){
                      #left side is the list $a=@b=(1,2,3)
                      gen_chunk("$ValPy[$i] = ");
@@ -1025,10 +1036,11 @@ my ($start,$token_buffer_active);
                gen_chunk(')');
             }else{
                # In all other cases we will put sqare bracket, even if they are redundant: they can be manually deleted.
-               gen_chunk(escape_keywords($ValPy[0]));           # issue 13
-               gen_chunk('(');
-               $TrStatus=expression(2,$#ValClass-1,-1); # this will scan till ')' and should eliminate ')' due to -1 as 3-d arg
-               gen_chunk(')');
+               # SNOOPYJC gen_chunk(escape_keywords($ValPy[0]));           # issue 13
+               # SNOOPYJC gen_chunk('(');
+               # SNOOPYJC $TrStatus=expression(2,$#ValClass-1,-1); # this will scan till ')' and should eliminate ')' due to -1 as 3-d arg
+               # SNOOPYJC gen_chunk(')');
+               $TrStatus=expression(0,$#ValClass,0);            # Generate the entire function call in expression so *arr can be handled
             }
          }elsif($#ValClass == 1 && $ValClass[1] eq ':') {       # SNOOPYJC: Label
              output_line('',"# $ValPerl[0]");                   # issue 94
@@ -1662,7 +1674,7 @@ sub fix_multi_subscripts                                # issue 84
             for(my $j = $sub_start+1; $j < $sub_end; $j++) {
                 $commas++ if($ValClass[$j] eq ',');
             }
-            if($commas >= 2) {          # We have a winner!
+            if($commas >= 1) {          # We have a winner! - updated!
                 insert($sub_end+1,')',']',']');         # Add the ending ']'
                 insert($sub_start, 'y', 'multi', "[$INDEX_TEMP] for $INDEX_TEMP in ");      # 'y' is a special token type for "extra python code"
                 insert($i, '(', '[', '[');              # Add the opening '['
@@ -2617,7 +2629,7 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
        pre_assign($start);                              # issue 58
    }                                                    # issue 58
    $limit = $#ValClass;         # issue paren
-   $hadparens = 0;		# issue paren
+   my $hadparens = 0;		# issue paren
    if( $ValPerl[$start] eq '(' && $ValClass[-1] eq ')' && ($ValPerl[$begin] eq 'for' || $ValPerl[$begin] eq 'foreach' || $TokenStr !~ /=/)) {	# issue paren, issue 32 (walrus op has to be in parens - but skip the '=' in a 'for' loop)
       $hadparens = 1;		# issue paren
       Perlscan::destroy(-1); # eliminate last bracket  -- Perl does not enclose controlstatements in bralckts.
@@ -2766,12 +2778,12 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
          # find end of initialization
          $end_pos=next_same_level_token(';',$start,$limit); # end of expression
 
-         if( $end_pos-$start==1 ){
-             gen_chunk($ValPy[$start]);
-         }else{
-            $TrStatus=expression($start,$end_pos-1,0); # gen expression
-            if( $TrStatus < -1 ){return -255;}
-         }
+         # issue foreach: could be function call with no args!  if( $end_pos-$start==1 ){
+         # issue foreach: could be function call with no args!  gen_chunk($ValPy[$start]);
+         # issue foreach: could be function call with no args!  }else{
+         $TrStatus=expression($start,$end_pos-1,0); # gen expression
+         if( $TrStatus < -1 ){return -255;}
+         # issue foreach: could be function call with no args!  }
       }
       gen_chunk(',');
       #
@@ -2789,16 +2801,16 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
       # find end of loopexit condition
       $end_pos=next_same_level_token(';',$start,$limit);
       if( $end_pos == -1 ){$TrStatus=-1; return -255; }
-      if( $end_pos-$start==1 ){
-          if($ValClass[$start] eq 'a'){
-             gen_chunk($ValPy[$start]); # array as limit of the range
-          }else{
-             gen_chunk($ValPy[$start]); # all other cases of single limit of the range
-          }
-      }else{
-         $TrStatus=expression($start,$end_pos-1); # gen expression for the limit of the range
-         return -255 if ($TrStatus<0);
-      }
+      # issue foreach: could be function call with no args! if( $end_pos-$start==1 ){
+          # issue foreach: could be function call with no args! if($ValClass[$start] eq 'a'){
+             # issue foreach: could be function call with no args! gen_chunk($ValPy[$start]); # array as limit of the range
+          # issue foreach: could be function call with no args! }else{
+             # issue foreach: could be function call with no args! gen_chunk($ValPy[$start]); # all other cases of single limit of the range
+          # issue foreach: could be function call with no args! }
+      # issue foreach: could be function call with no args! }else{
+      $TrStatus=expression($start,$end_pos-1); # gen expression for the limit of the range
+      return -255 if ($TrStatus<0);
+      # issue foreach: could be function call with no args! }
       if( $inc ) {		# issue foreach
 	 gen_chunk($inc);	# issue foreach
       }				# issue foreach
@@ -2881,7 +2893,7 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
 } # control
 
 
-sub function
+sub _function
 # Built-in  functions processing
 {
 my $begin=$_[0];
@@ -2893,7 +2905,7 @@ my ($limit,$start );  # $limit is the position of closing bracket, if any
     $end_pos=$limit=$_[1];
   }
    if($debug >= 3) {
-	   say STDERR "function($begin, $limit) =|$TokenStr|= @ValPerl\n"
+	   say STDERR "function($begin, $limit) =|$TokenStr|= @ValPerl"
    }
 my $bracketed=0;  # nessesary for the proper call of expression.
   if( $begin==$#ValClass || (scalar(@_)>1 && $begin==$limit) ){
@@ -3309,6 +3321,7 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       } else {          # issue 28
 	 # issue 28 gen_chunk($ValPy[$start],$py_name);
          gen_chunk('(',$ValPy[$start],$py_name,"if",$ValPy[$start],"else", "None)");	# issue 28
+         return $limit+1 if($bracketed == 1);   # issue parens
          return $start+1;                       # issue 28
       # issue 28 }else{
       # issue 28    return -255;
@@ -3650,15 +3663,19 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
        $Pyf{'_binmode'} = 1;
        gen_statement("$ValPy[$fh] = _binmode($ValPy[$fh], mode=$mode, encoding=$encoding, errors=$errors)");
    }elsif($perl_name eq 'caller') {                     # SNOOPYJC
+       $Pyf{'_caller'} = 1;
        if($bracketed == -1) {                  # no args
-           gen_chunk(q(['main',__file__,sys._getframe(1).f_lineno]));
+           #gen_chunk(q(['main',__file__,sys._getframe(1).f_lineno]));
+           gen_chunk('_caller()');
        } else {
            # definition here: https://perldoc.perl.org/functions/caller
            # note we leave some stuff out!
-           gen_chunk("['main',__file__,(_f:=sys._getframe(");
-           $TrStatus=expression($start,$end_pos,0);
+           #gen_chunk("['main',__file__,(_f:=sys._getframe(");
+           gen_chunk('_caller(');
+           $TrStatus=expression($start,$end_pos,0) if($end_pos >= $start);
            return -255 if ($TrStatus<0);
-           gen_chunk(")).f_lineno,_f.f_code.co_name,_f.f_code.co_argcount,0,'',0,0,0,0]");
+           gen_chunk(')');
+           #gen_chunk(")).f_lineno,_f.f_code.co_name,_f.f_code.co_argcount,0,'',0,0,0,0]");
         }
    }elsif($py_name eq '.read') {                        # issue 10 - read or sysread
        my $fh = $start;
@@ -3703,6 +3720,13 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
    return $#ValClass+1 if(!defined $limit);             # SNOOPYJC
    return $limit+1; # limit_1 always represnt the fist not scanned symbol for this function.
 } #function
+
+sub function            # SNOOPYJC
+{
+    my $result = _function(@_);
+    say STDERR "function returns $result" if($debug >= 3);
+    return $result;
+}
 
 sub GetOptionsHandled           # issue 48: Can we handle this GetOptions call?
 {
