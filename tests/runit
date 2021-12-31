@@ -15,7 +15,7 @@ do
       status=1
       continue
    fi
-   ../pythonizer -v 0 $f
+   ../pythonizer $f
    if [ $? -ne 0 ]; then
       echo "$f run with pythonizer FAILED"
       ((failed++))

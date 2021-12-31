@@ -437,7 +437,7 @@ sub def_label                   # issue 94
 }
 sub enter_block                 # issue 94
 {
-    # FIXME: Use a different character like ^ all alone or (开 = open in Chinese) to replace the '{' for the second round
+    # SNOOPYJC: Now we use a different character (^ all alone) to replace the '{' for the second round
     # SNOOPYJC return if($last_block_lno == $. && scalar(@ValPerl) <= 1);       # We see the '{' twice on like if(...) {
     if($::debug >= 4) {
         no warnings;
@@ -1046,15 +1046,16 @@ my ($l,$m);
            $ValClass[$tno]='q';
            $cut=single_quoted_literal($s,1);
            # issue 51 $ValPerl[$tno]=substr($source,1,$cut-2);
-           $ValPerl[$tno]=remove_escaped_delimiters($s, substr($source,1,$cut-2));       # issue 51
+           $original_regex = substr($source,1,$cut-2);                          # issue 111
+           $ValPerl[$tno]=remove_escaped_delimiters($s, $original_regex);       # issue 51, issue 111
            substr($source,0,$cut)=''; # you need to provide modifiers to perl_match
            $cut=0;
            if( $tno>=1 && ( ($ValClass[$tno-2] eq 'f' && $ValPerl[$tno-2] !~ /^(?:chomp|chop|chr|shift)$/)      # issue 99: not a function that takes no args
                             || $ValPerl[$tno-1] eq 'split') ){
               # in split regex should be plain vanilla -- no re.match is needed.
-              $ValPy[$tno]=put_regex_in_quotes( $ValPerl[$tno]); #  double quotes neeed to be escaped just in case
+              $ValPy[$tno]=put_regex_in_quotes( $ValPerl[$tno], '/', $original_regex); # double quotes neeed to be escaped just in case, issue 111
            }else{
-              $ValPy[$tno]=perl_match($ValPerl[$tno]); # there can be modifiers after the literal.
+              $ValPy[$tno]=perl_match($ValPerl[$tno], '/', $original_regex); # there can be modifiers after the literal., issue 111
            }
       }elsif( $s eq "'"  ){
          #simple string, but backslashes of  are allowed
@@ -1097,7 +1098,7 @@ my ($l,$m);
 	    # issue 39 $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno]);
             $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno], $has_squiggle);	# issue 39
             my $quote = substr($ValPy[$tno],3,length($ValPy[$tno])-6);  # issue 39: remove the """ and """
-            interpolate_strings($quote, $quote, 0, 0);     # issue 39
+            interpolate_strings($quote, $quote, 0, 0, 0);     # issue 39
             popup();                            # issue 39
             popup() if($has_squiggle);
 	    $TokenStr=join('',@ValClass);       # issue 39
@@ -1276,12 +1277,13 @@ my ($l,$m);
                   $source=substr($source,length($w)+1); # cut the word and delimiter
                   $cut=single_quoted_literal($delim,0); # regex always ends before the delimiter
                   # issue 51 $arg1=substr($source,0,$cut-1);
-                  $arg1=remove_escaped_delimiters($delim, substr($source,0,$cut-1));     # issue 51
+                  $original_regex = substr($source,0,$cut-1);                            # issue 111
+                  $arg1=remove_escaped_delimiters($delim, $original_regex);     # issue 51, issue 111
                   $source=substr($source,$cut); #cut to symbol after the delimiter
                   $cut=0;
                   if( $w eq 'm' || ($w eq 'qr' &&  $ValClass[$tno-1] eq '~') ){
                      $ValClass[$tno]='q';
-                     $ValPy[$tno]=perl_match($arg1); # it calls is_regex internally
+                     $ValPy[$tno]=perl_match($arg1, $delim, $original_regex); # it calls is_regex internally, issue 111
                   }elsif( $w eq 'qr' && $tno>=2 && $ValClass[$tno-1] eq '(' && $ValPerl[$tno-2] eq 'split' ){
                       # in split regex should be  plain vanilla -- no re.match is needed.
                       $ValPy[$tno]='r'.$quoted_regex; #  double quotes neeed to be escaped just in case
@@ -1289,7 +1291,8 @@ my ($l,$m);
                      $ValPerl[$tno]='re';
                      $ValClass[$tno]='f';
                      # processing second part of 's'
-                     if( $delim=~tr/{([<'/{([<'/ ){
+                     # issue 113 if( $delim=~tr/{([<'/{([<'/ ){
+                     if( $delim=~tr/{([</{([</ ){               # issue 113
                         # case tr[abc][cde]
                         $delim=substr($source,0,1); # new delimiter can be different from the old, althouth this is raraly used in Perl.
                         $source=substr($source,1,0); # remove delimiter
@@ -1297,24 +1300,25 @@ my ($l,$m);
                      # now string is  /def/d or [def]
                      $cut=single_quoted_literal($delim,0);
                      # issue 51 $arg2=substr($source,0,$cut-1);
-                     $arg2=remove_escaped_delimiters($delim, substr($source,0,$cut-1));          # issue 51
+                     $original_regex2 = substr($source,0,$cut-1);                            # issue 111
+                     $arg2=remove_escaped_delimiters($delim, $original_regex2);          # issue 51, issue 111
                      $source=substr($source,$cut);
                      $cut=0;
                      ($modifier,undef)=is_regex($arg2); # modifies $source as a side effect
                      if( length($modifier) > 1 ){
                         #regex with modifiers
-                         $quoted_regex='re.compile('.put_regex_in_quotes($arg1)."$modifier)";
+                         $quoted_regex='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex)."$modifier)";   # issue 111
                      }else{
                         # No modifier
-                        $quoted_regex=put_regex_in_quotes($arg1);
+                        $quoted_regex=put_regex_in_quotes($arg1, $delim, $original_regex);       # issue 111
                      }
                      if( length($modifier)>0 ){
                         #this is regex
                         if( $tno>=1 && $ValClass[$tno-1] eq '~'   ){
                            # explisit s
-                            $ValPy[$tno]='re.sub('.$quoted_regex.','.put_regex_in_quotes($arg2).','; #  double quotes neeed to be escaped just in case
+                            $ValPy[$tno]='re.sub('.$quoted_regex.','.put_regex_in_quotes($arg2, $delim, $original_regex2).','; #  double quotes neeed to be escaped just in case; issue 111
                         }else{
-                            $ValPy[$tno]="re.sub($quoted_regex".','.put_regex_in_quotes($arg2).",$DEFAULT_VAR)";	# issue 32, 78
+                            $ValPy[$tno]="re.sub($quoted_regex".','.put_regex_in_quotes($arg2, $delim, $original_regex2).",$DEFAULT_VAR)";	# issue 32, issue 78, issue 111
                         }
                      }else{
                         # this is string replace operation coded in Perl as regex substitution
@@ -1323,7 +1327,7 @@ my ($l,$m);
                   } elsif( $w eq 'qr' ) {               # SNOOPYJC: qr in other context
                      ($modifier,$groups_are_present)=is_regex($arg1);                           # SNOOPYJC
                      $modifier='' if($modifier eq 'r');                                         # SNOOPYJC
-                     $ValPy[$tno]='re.compile('.put_regex_in_quotes($arg1).$modifier.')';       # SNOOPYJC
+                     $ValPy[$tno]='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex).$modifier.')';       # SNOOPYJC, issue 111
                   }else{
                      abend("Internal error while analysing $w in line $. : $_[0]");
                   }
@@ -1332,7 +1336,8 @@ my ($l,$m);
                   $source=substr($source,length($w)+1); # cut the word and delimiter
                   $cut=single_quoted_literal($delim,0);
                   # issue 51 $arg1=substr($source,0,$cut-1); # regex always ends before the delimiter
-                  $arg1=remove_escaped_delimiters($delim, substr($source,0,$cut-1)); # regex always ends before the delimiter # issue 51
+                  $original_regex1 = substr($source,0,$cut-1);                            # issue 111
+                  $arg1=remove_escaped_delimiters($delim, $original_regex1); # regex always ends before the delimiter # issue 51, issue 111
                   $source=substr($source,$cut); # remove first part of substitution exclufing including the delimeter
                   if( index('{([<',$delim) > -1 ){
                      # case tr[abc][cde]
@@ -1342,7 +1347,8 @@ my ($l,$m);
                   # now string is  /def/d or [def]
                   $cut=single_quoted_literal($delim,0);
                   # issue 51 $arg2=substr($source,0,$cut-1);
-                  $arg2=remove_escaped_delimiters($delim, substr($source,0,$cut-1));     # issue 51
+                  $original_regex2 = substr($source,0,$cut-1);                            # issue 111
+                  $arg2=remove_escaped_delimiters($delim, $original_regex2);     # issue 51, issue 111
                   $source=substr($source,$cut);
                   if( $source=~/^(\w+)/ ){
                      $tr_modifier=$1;
@@ -1355,26 +1361,26 @@ my ($l,$m);
                   $ValClass[$tno]='f';
                   $ValPerl[$tno]='tr';
                   if( $tr_modifier eq 'd' ){
-                          $ValPy[$tno]=".maketrans('','',".put_regex_in_quotes($arg1).')'; # deletion via none
+                          $ValPy[$tno]=".maketrans('','',".put_regex_in_quotes($arg1, $delim, $original_regex1).')'; # deletion via none, issue 111: add $delim
                   }elsif( $tr_modifier eq 's' ){
                        # sqeeze In Python should be done via Regular expressions
                          if( $arg2 eq '' || $arg1 eq $arg2  ){
                             $ValPerl[$tno]='re';
-                            $ValPy[$tno]='re.sub('.put_regex_in_quotes("([$arg1])(\\1+)").",r'\\1'),"; # needs to be translated into  two statements
+                            $ValPy[$tno]='re.sub('.put_regex_in_quotes("([$arg1])(\\1+)", $delim, $original_regex1).",r'\\1'),"; # needs to be translated into  two statements, issue 111: add $delim
                          }else{
                             $ValPerl[$tno]='re';
                             if( $ValClass[$tno-2] eq 's' ){
-                                $ValPy[$tno]="$ValPy[$tno-2].translate($ValPy[$tno-2].maketrans(".put_regex_in_quotes($arg1).','.put_regex_in_quotes($arg2).')); ';
-                                $ValPy[$tno].='re.sub('.put_regex_in_quotes("([$arg2])(\\1+)").",r'\\1'),"; # needs to be translated into  two statements
+                                $ValPy[$tno]="$ValPy[$tno-2].translate($ValPy[$tno-2].maketrans(".put_regex_in_quotes($arg1,$delim,$original_regex1).','.put_regex_in_quotes($arg2,$delim,$original_regex2).')); ';       # issue 111: Add $delim
+                                $ValPy[$tno].='re.sub('.put_regex_in_quotes("([$arg2])(\\1+)", $delim, $original_regex2).",r'\\1'),"; # needs to be translated into  two statements, issue 111: Add $delim
                             }else{
                                 $::TrStatus=-255;
-                                $ValPy[$tno].='re.sub('.put_regex_in_quotes("([$arg2])(\\1+)").",r'\\1'),";
+                                $ValPy[$tno].='re.sub('.put_regex_in_quotes("([$arg2])(\\1+)", $delim, $original_regex2).",r'\\1'),";     # issue 111
                                 logme('S',"The modifier $tr_modifier for tr function with non empty second arg ($arg2) requires preliminary invocation of translate. Please insert it manually ");
                             }
                          }
                   }elsif( $tr_modifier eq '' ){
                       #one typical case is usage of array element on the left side $main::tail[$a_end]=~tr/\n/ /;
-                      $ValPy[$tno]='.maketrans('.put_regex_in_quotes($arg1).','.put_regex_in_quotes($arg2).')'; # needs to be translated into  two statements
+                      $ValPy[$tno]='.maketrans('.put_regex_in_quotes($arg1, $delim, $original_regex1).','.put_regex_in_quotes($arg2, $delim, $original_regex2).')'; # needs to be translated into  two statements, issue 111
                   }else{
                       $::TrStatus=-255;
                       logme('S',"The modifier $tr_modifier for tr function currently is not translatable. Manual translation requred ");
@@ -1407,7 +1413,7 @@ my ($l,$m);
             $ValPerl[$tno]=substr($source,0,$cut);
             $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno], $has_squiggle);	# issue 39
             my $quote = substr($ValPy[$tno],3,length($ValPy[$tno])-6);  # issue 39: remove the """ and """
-            interpolate_strings($quote, $quote, 0, 0);     # issue 39
+            interpolate_strings($quote, $quote, 0, 0, 0);     # issue 39
 	    popup();                                                                            # issue 39
 	    popup() if($has_squiggle);
          }
@@ -2163,6 +2169,8 @@ my (@temp,$sym,$prev_sym,$i,$modifier,$meta_no);
 sub perl_match
 {
 my $myregex=$_[0];
+my $delim=$_[1];                # issue 111
+my $original_regex=$_[2];       # issue 111
 
 my  ($modifier, $i,$sym,$prev_sym,@temp);
 my  $is_regex=0;
@@ -2170,13 +2178,16 @@ my  $groups_are_present;
 #
 # Is this regex or a reguar string used in regex for search
 #
-   ($modifier,$groups_are_present)=is_regex($myregex);
+   ($modifier,$groups_are_present)=is_regex($myregex);          # Returns 'r' for modifier for regex with no flags
+   if($::debug > 3) {
+       say STDERR "perl_match($myregex, $delim, $original_regex): modifier=$modifier, groups_are_present=$groups_are_present";
+   }
    if( length($modifier) > 1 ){
       #regex with modifiers
-      $quoted_regex='re.compile('.put_regex_in_quotes($myregex).$modifier.')';
+      $quoted_regex='re.compile('.put_regex_in_quotes($myregex, $delim, $original_regex).$modifier.')';  # issue 111
    }else{
       # No modifier
-      $quoted_regex=put_regex_in_quotes($myregex);
+      $quoted_regex=put_regex_in_quotes($myregex, $delim, $original_regex);      # issue 111
    }
    if( length($modifier)>0 ){
       #this is regex
@@ -2297,7 +2308,7 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
       $ValPy[$tno]=escape_quotes($quote,2);
       return $close_pos;
    }
-   return interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset);     # issue 39
+   return interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, 0);     # issue 39
 }
 
 sub interpolate_strings                                         # issue 39
@@ -2308,11 +2319,14 @@ sub interpolate_strings                                         # issue 39
    my $pre_escaped_quote = shift;       # Same but with any \" inside not escaped
    my $close_pos = shift;               # First position AFTER the closing quotes
    my $offset = shift;                  # How long the opening is, e.g. 1 for ", 3 for qq/
+   my $in_regex = shift;                # 1 if we're in a regex and \$ needs to remain as \$
 # Result = normally $close_pos, but can point earlier in the string if we need to tokenize part of it
 # in order to check for references (in the first pass only).
+#
+# Also $ValPy[$tno] is set to the code to be generated for this string
 
    if($::debug >= 3) {
-       say STDERR ">interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset)";
+       say STDERR ">interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex)";
    }
    my ($k, $ind, $result, $pc);
    local $cut;                  # Save the global version of this!
@@ -2324,16 +2338,16 @@ sub interpolate_strings                                         # issue 39
       # case when double quotes are used for a simple literal that does not reaure interpolation
       # Python equvalence between single and doble quotes alows some flexibility
       $ValPy[$tno]=escape_quotes($quote,2); # always generate with quotes --same for Python 2 and 3
-      say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset)=$close_pos, ValPy[$tno]=$ValPy[$tno]" if($::debug >=3);
+      say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex)=$close_pos, ValPy[$tno]=$ValPy[$tno]" if($::debug >=3);
       return $close_pos;
    }
    # SNOOPYJC: In the first pass, extract all variable references and return them as separate tokens
    # so we can mark their references, and add things like initialization.
-   # If we're handling a here_is document, we don't do this (but we probably should: $close_pos == 0)
+   # If we're handling a here_is document, or a regex, we don't do this (but we probably should: $close_pos == 0)
    if($Pythonizer::PassNo == 0 && $close_pos != 0) {                       # SNOOPYJC
        my $pos = extract_tokens_from_double_quoted_string($pre_escaped_quote)+$offset;
        $ExtractingTokensFromDoubleQuotedStringEnd += $offset;
-       say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset)=$pos (begin extract mode)" if($::debug >=3);
+       say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex)=$pos (begin extract mode)" if($::debug >=3);
        return $pos;
    }
 
@@ -2343,7 +2357,11 @@ sub interpolate_strings                                         # issue 39
    # Full implementation is possible only in two pass scheme
 my  $outer_delim;
     $quote = escape_curly_braces($quote);        # issue 51
-    $k=index($quote,'$');                        # issue 51 - recompute in case it moved
+    # issue 47 $k=index($quote,'$');                        # issue 51 - recompute in case it moved
+    $k = -1;                            # issue 47
+    if($quote =~ m'[$@]') {             # issue 47
+        $k = $-[0];                     # issue 47: Match pos
+    }
 
     if (index($quote,'"')==-1 && index($quote, "\n")==-1){      # issue multi-line here
        $outer_delim='"'
@@ -2354,124 +2372,175 @@ my  $outer_delim;
       $outer_delim='"""';
     }
    $result='f'.$outer_delim; #For python 3 we need special opening quote
+   my ($sig, $dot);                     # issue 47
    while( $k > -1  ){
+      $sig = substr($quote,$k,1);       # issue 47
       if( $k > 0 ){
-         if( substr($quote,$k-1,1) eq '\\' ){
-            # escaped $
+         $pc = substr($quote,$k-1,1);   # issue 47
+         if(is_escaped($quote,$k)) {    # issue 47
+            # escaped $ or @
             # issue 51 $k=index($quote,'$',$k+1);
-            substr($quote,$k-1,1) = '';         # issue 51 - eat the escape
-            $k=index($quote,'$',$k);            # issue 51
+            if($in_regex && $sig eq '$') {                     # issue 111: \$ remains \$ in regex, but \@ changes to @
+                if(substr($quote,$k+1) =~ m'[$@]') {           # issue 47
+                    $k += 1+$-[0];                             # issue 47: Match pos
+                } else {                            # issue 47
+                    $k = -1;                        # issue 47
+                }                                   # issue 47
+            } else {
+                substr($quote,$k-1,1) = '';         # issue 51 - eat the escape
+                # issue 47 $k=index($quote,'$',$k);            # issue 51
+                if(substr($quote,$k) =~ m'[$@]') {             # issue 47
+                    $k += $-[0];                               # issue 47: Match pos
+                } else {                            # issue 47
+                    $k = -1;                        # issue 47
+                }                                   # issue 47
+            }
             next;
          }else{
+            if( $sig eq '@' && $pc =~ /\w/ && ($dot=index($quote,'.'))!=-1) { # Probable email address xyz@abc.com
+                logme('W',"Possible unintended interpolation of " . substr($quote,$k,$dot-$k) . " in string");
+            }
             # we have the first literal string  before varible
             $result.=substr($quote,0,$k); # with or without quotes depending on version.
          }
       }
-      $result.='{';  # we always need '{' for f-strings
       $quote=substr($quote,$k);
+      if($quote eq $sig) {               # issue 111: Handle "...$"
+          $result.=$quote;
+          $quote = '';
+          last;
+      }
+      $result.='{';  # we always need '{' for f-strings
       #say STDERR "quote1=$quote\n";
       my $end_br = -1;				# issue 43
       if(substr($quote,1,1) eq '{') {		# issue 43: ${...}
          $end_br = matching_curly_br($quote, 1); # issue 43
-         $quote = '$'.substr($quote,2);		# issue 43: eat the '{'. At this point, $end_br points after the '}'
+         $quote = $sig . substr($quote,2);	# issue 43: eat the '{'. At this point, $end_br points after the '}', issue 47
          #say STDERR "quote1a=$quote, end_br=$end_br\n";
       }
-      decode_scalar($quote,0); #get's us scalar or system var
-      #does not matter what type of veriable this is: regular or special variable
-      $result.=$ValPy[$tno]; # copy string provided by decode_scalar. ValPy[$tno] changes if Perl contained :: like in $::debug
+      if($sig eq '$') {                 # issue 47
+         decode_scalar($quote,0); #get's us scalar or system var
+         #does not matter what type of veriable this is: regular or special variable
+         $result.=$ValPy[$tno]; # copy string provided by decode_scalar. ValPy[$tno] changes if Perl contained :: like in $::debug
+      } else {                          # issue 47: '@'
+          #say STDERR "end_br=$end_br, quote=$quote";
+         if($end_br > 0 && substr($quote,0,3) eq '@[%') {  # @{[%hash]}
+            $quote = substr($quote, 2);
+            decode_hash($quote);
+            $ValPy[$tno] = 'functools.reduce(lambda x,y:x+y,'.$ValPy[$tno].'.items())';
+            $end_br -= 2;    # 2 to account for the 2 we ate
+            #say STDERR "quote1b=$quote, end_br=$end_br\n";
+         } else {
+            decode_array($quote); #get's us array or system var
+         }
+         #does not matter what type of veriable this is: regular or special variable
+         $result.="LIST_SEPARATOR.join($ValPy[$tno])"; # copy string provided by decode_array. ValPy[$tno] changes if Perl contained :: like in $::debug
+      }
+
       $quote=substr($quote,$cut); # cure the nesserary number of symbol determined by decode_scalar.
       $end_br -= $cut;			# issue 43
-      #say STDERR "quote2=$quote, result1=$result, end_br=$end_br";
-      my $p_len = length($quote);                       # issue 13, 43
-      $quote =~ s/(?<!\$)\{([A-Za-z_][A-Za-z0-9_]*)\}/\{\'$1\'\}/g;     # issue 13: Remove bare words in $hash{...}
-      my $n_len = length($quote);
-      if($end_br >= 0 && $n_len > $p_len) {             # issue 13, 43  it grew so move the pointer over
-          $end_br += ($n_len - $p_len);                 # issue 13, 43
-      }                                                 # issue 13, 43
-      #say STDERR "quote3=$quote";
-      # issue 98 if( $quote=~/^\s*([\[\{].+?[\]\}])/  ){
-      #if( $quote=~/^([\[\{].+?[\]\}])/  ){              # issue 98: Don't allow spaces before the [ or {
-         #HACK element of the array of hash. Here we cut corners and do not process expressions as index.
-         #$ind=$1;
-      my $quote2 = $quote;
-      if($ind = extract_bracketed($quote2, '{}[]', '')) {        # issue 53, issue 98
-         # issue 109 $cut=length($ind);
-         my $ind_cut=length($ind);
-         # issue 109 $ind =~ tr/$//d;               # We need to decode_scalar on each one!
-	 # issue 53 $ind =~ tr/{}/[]/;
-         #say "looking for '{' in $ind";
-	 for(my $i = 0; $i < length($ind); $i++) {	# issue 53: change hash ref {...} to use .get(...) instead
-             my $c = substr($ind,$i,1);                 # issue 109
-	     if($c eq '{') {		# issue 53
-	         $l = matching_curly_br($ind, $i);	# issue 53
-                 #say "found '{' in $ind at $i, l=$l";
-		 next if($l < 0);			# issue 53
-		 $ind = substr($ind,0,$i).'.get('.substr($ind,$i+1,$l-($i+1)).",'')".substr($ind,$l+1);	# issue 53: splice in the call to get
-                 #say "ind=$ind";
-                 # issue 109 $i = $l+7;				# issue 53: 7 is length('.get') + length(",''")
-	     } elsif($c eq '$') {                       # issue 109: decode special vars in subscripts/hash keys
-                 decode_scalar(substr($ind, $i),0);     # issue 109
-                 substr($ind,$i,$cut) = $ValPy[$tno];   # issue 109
-                 $i += (length($ValPy[$tno])-$cut);     # issue 109
-             }
-	 }						# issue 53
-         $result.=$ind; # add string Variable part of the string
-         # issue 109 $quote=substr($quote,$cut);
-         $quote=substr($quote,$ind_cut);        # issue 109
-         $end_br -= $ind_cut;			# issue 43
-         #say STDERR "quote4=$quote, end_br=$end_br";
+      if($sig eq '$') {                 # issue 47
+          #say STDERR "quote2=$quote, result1=$result, end_br=$end_br";
+          my $p_len = length($quote);                       # issue 13, 43
+          $quote =~ s/(?<![{\$])\{([A-Za-z_][A-Za-z0-9_]*)\}/\{\'$1\'\}/g;     # issue 13: Remove bare words in $hash{...}
+          my $n_len = length($quote);
+          if($end_br >= 0 && $n_len > $p_len) {             # issue 13, 43  it grew so move the pointer over
+              $end_br += ($n_len - $p_len);                 # issue 13, 43
+          }                                                 # issue 13, 43
+          #say STDERR "quote3=$quote";
+          # issue 98 if( $quote=~/^\s*([\[\{].+?[\]\}])/  ){
+          #if( $quote=~/^([\[\{].+?[\]\}])/  ){              # issue 98: Don't allow spaces before the [ or {
+             #HACK element of the array of hash. Here we cut corners and do not process expressions as index.
+             #$ind=$1;
+          my $quote2 = $quote;
+          if($ind = extract_bracketed($quote2, '{}[]', '')) {        # issue 53, issue 98
+             # issue 109 $cut=length($ind);
+             my $ind_cut=length($ind);
+             # issue 109 $ind =~ tr/$//d;               # We need to decode_scalar on each one!
+             # issue 53 $ind =~ tr/{}/[]/;
+             #say "looking for '{' in $ind";
+             for(my $i = 0; $i < length($ind); $i++) {	# issue 53: change hash ref {...} to use .get(...) instead
+                 my $c = substr($ind,$i,1);                 # issue 109
+                 if($c eq '{') {		# issue 53
+                     $l = matching_curly_br($ind, $i);	# issue 53
+                     #say "found '{' in $ind at $i, l=$l";
+                     next if($l < 0);			# issue 53
+                     $ind = substr($ind,0,$i).'.get('.substr($ind,$i+1,$l-($i+1)).",'')".substr($ind,$l+1);	# issue 53: splice in the call to get
+                     #say "ind=$ind";
+                     # issue 109 $i = $l+7;				# issue 53: 7 is length('.get') + length(",''")
+                 } elsif($c eq '$') {                       # issue 109: decode special vars in subscripts/hash keys
+                     decode_scalar(substr($ind, $i),0);     # issue 109
+                     substr($ind,$i,$cut) = $ValPy[$tno];   # issue 109
+                     $i += (length($ValPy[$tno])-$cut);     # issue 109
+                 }
+             }						# issue 53
+             $result.=$ind; # add string Variable part of the string
+             # issue 109 $quote=substr($quote,$cut);
+             $quote=substr($quote,$ind_cut);        # issue 109
+             $end_br -= $ind_cut;			# issue 43
+             #say STDERR "quote4=$quote, end_br=$end_br";
+          }
       }
       #say STDERR "quote5=$quote, end_br=$end_br";
       $quote = substr($quote, $end_br) if($end_br > 0);	# issue 43
       $result.='}'; # end of variable
-      $k=index($quote,'$'); #next scalar
+      # issue 47 $k=index($quote,'$'); #next scalar
+      $k = -1;                            # issue 47
+      if($quote =~ m'[$@]') {             # issue 47
+          $k = $-[0];                     # issue 47: Match pos
+      }
    }
 
-   $k=index($quote,'@');                # issue 47
-   while( $k > -1  ){
-      if( $k > 0 ){
-         $pc = substr($quote,$k-1,1);
-         if( $pc eq '\\' ){
-            # escaped $
-            # issue 51 $k=index($quote,'$',$k+1);
-            substr($quote,$k-1,1) = '';         # issue 51 - eat the escape
-            $k=index($quote,'@',$k);            # issue 51
-            next;
-         }elsif( $pc =~ /\w/ && index($quote,'.')!=-1) { # Probable email address xyz@abc.com - don't interpret the '@'
-            $k = index($quote,'@',$k+1);
-            next;
-         }else{
-            # we have the first literal string  before varible
-            $result.=substr($quote,0,$k); # with or without quotes depending on version.
-         }
-      }
-      $result.='{';  # we always need '{' for f-strings
-      $quote=substr($quote,$k);
-      #say STDERR "quote1=$quote\n";
-      $end_br = -1;				# issue 43
-      if(substr($quote,1,1) eq '{') {		# issue 43: @{...}
-         $end_br = matching_curly_br($quote, 1); # issue 43
-         $quote = '@' . substr($quote,2);	# issue 43: eat the '{'. At this point, $end_br points after the '}'
-         #say STDERR "quote1a=$quote, end_br=$end_br\n";
-      }
-      if($end_br > 0 && substr($quote,0,3) eq '@[%') {  # @{[%hash]}
-          $quote = substr($quote, 2);
-          decode_hash($quote);
-          $ValPy[$tno] = 'functools.reduce(lambda x,y:x+y,'.$ValPy[$tno].'.items())';
-          $end_br -= 2;    # 2 to account for the 2 we ate
-          #say STDERR "quote1b=$quote, end_br=$end_br\n";
-      } else {
-          decode_array($quote); #get's us array or system var
-      }
-      #does not matter what type of veriable this is: regular or special variable
-      $result.="LIST_SEPARATOR.join($ValPy[$tno])"; # copy string provided by decode_array. ValPy[$tno] changes if Perl contained :: like in $::debug
-      $quote=substr($quote,$cut); # cure the nesserary number of symbol determined by decode_array.
-      $end_br -= $cut;			# issue 43
-      #say STDERR "quote2=$quote, result1=$result, end_br=$end_br";
-      $quote = substr($quote, $end_br) if($end_br > 0);	# issue 43
-      $result.='}'; # end of variable
-      $k=index($quote,'@'); #next array
-   }
+#   $k=index($quote,'@');                # issue 47
+#   while( $k > -1  ){
+#      if( $k > 0 ){
+#         $pc = substr($quote,$k-1,1);
+#         if( $pc eq '\\' ){
+#            # escaped $
+#            # issue 51 $k=index($quote,'$',$k+1);
+#            substr($quote,$k-1,1) = '';         # issue 51 - eat the escape
+#            $k=index($quote,'@',$k);            # issue 51
+#            next;
+#         }elsif( $pc =~ /\w/ && index($quote,'.')!=-1) { # Probable email address xyz@abc.com - don't interpret the '@'
+#            $k = index($quote,'@',$k+1);
+#            next;
+#         }else{
+#            # we have the first literal string  before varible
+#            $result.=substr($quote,0,$k); # with or without quotes depending on version.
+#         }
+#      }
+#      $quote=substr($quote,$k);
+#      if($quote eq '@') {               # issue 111: Handle "...@"
+#          $result.=$quote;
+#          $quote='';
+#          last;
+#      }
+#      $result.='{';  # we always need '{' for f-strings
+#      #say STDERR "quote1=$quote\n";
+#      $end_br = -1;				# issue 43
+#      if(substr($quote,1,1) eq '{') {		# issue 43: @{...}
+#         $end_br = matching_curly_br($quote, 1); # issue 43
+#         $quote = '@' . substr($quote,2);	# issue 43: eat the '{'. At this point, $end_br points after the '}'
+#         #say STDERR "quote1a=$quote, end_br=$end_br\n";
+#      }
+#      if($end_br > 0 && substr($quote,0,3) eq '@[%') {  # @{[%hash]}
+#          $quote = substr($quote, 2);
+#          decode_hash($quote);
+#          $ValPy[$tno] = 'functools.reduce(lambda x,y:x+y,'.$ValPy[$tno].'.items())';
+#          $end_br -= 2;    # 2 to account for the 2 we ate
+#          #say STDERR "quote1b=$quote, end_br=$end_br\n";
+#      } else {
+#          decode_array($quote); #get's us array or system var
+#      }
+#      #does not matter what type of veriable this is: regular or special variable
+#      $result.="LIST_SEPARATOR.join($ValPy[$tno])"; # copy string provided by decode_array. ValPy[$tno] changes if Perl contained :: like in $::debug
+#      $quote=substr($quote,$cut); # cure the nesserary number of symbol determined by decode_array.
+#      $end_br -= $cut;			# issue 43
+#      #say STDERR "quote2=$quote, result1=$result, end_br=$end_br";
+#      $quote = substr($quote, $end_br) if($end_br > 0);	# issue 43
+#      $result.='}'; # end of variable
+#      $k=index($quote,'@'); #next array
+#   }
    if( length($quote)>0  ){
        #the last part
        $result.=$quote;
@@ -2483,7 +2552,7 @@ my  $outer_delim;
    $result.=$outer_delim;
    #say STDERR "double_quoted_literal: result=$result";
    $ValPy[$tno]=$result;
-   say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset)=$close_pos, ValPy[$tno]=$ValPy[$tno]" if($::debug >=3);
+   say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex)=$close_pos, ValPy[$tno]=$ValPy[$tno]" if($::debug >=3);
    return $close_pos;
 }
 
@@ -2501,7 +2570,7 @@ sub extract_tokens_from_double_quoted_string
     my $quote = shift;
 
     say STDERR ">extract_tokens_from_double_quoted_string($quote)" if($::debug>=3);
-    if($quote =~ /[\$\@]/) {
+    if($quote =~ m'[$@]') {
         my $pos = $-[0];
         $ValPy[$tno] = 'f"""' . substr($quote,0,$pos) . '"""';
         if($ExtractingTokensFromDoubleQuotedStringEnd <= 0) {
@@ -2736,11 +2805,21 @@ my $result;
 sub put_regex_in_quotes
 {
 my $string=$_[0];
-   $string =~ s/\$\&/\\g<0>/g;	# issue 11
-   $string =~ s/\$(\d)/\\g<$1>/g; # issue 11
-   # SNOOPYJC if( $string =~/\$\w+/ ){
-   if( $string =~/^\$\w+/ ){    # SNOOPYJC: FIXME: We have to interpolate all $vars inside!! e.g. /DC_$year$month/ gen rf"..."
-      return substr($string,1); # this case of /$regex/ we return the variable.
+my $delim=$_[1];        # issue 111
+my $original_regex=$_[2]; # issue 111
+   if($::debug > 4) {
+       say STDERR "put_regex_in_quotes($string, $delim, $original_regex)";
+   }
+   if($delim ne "'") {  # issue 111
+       $string =~ s/\$\&/\\g<0>/g;	# issue 11
+       $string =~ s/\$(\d)/\\g<$1>/g; # issue 11
+       # SNOOPYJC if( $string =~/\$\w+/ ){
+       # issue 111 if( $string =~/^\$\w+/ ){    # SNOOPYJC: We have to interpolate all $vars inside!! e.g. /DC_$year$month/ gen rf"..."
+       # issue 111 return substr($string,1); # this case of /$regex/ we return the variable.
+       # issue 111 }
+       $ValPy[$tno] = $string;                                          # issue 111
+       interpolate_strings($string, $original_regex, 0, 0, 1);          # issue 111
+       return 'r'.$ValPy[$tno];                                         # issue 111
    }
    # SNOOPYJC return 'r'.escape_quotes($string);
    return 'r'.escape_quotes($string);   # SNOOPYJC
@@ -3204,6 +3283,21 @@ sub parens_are_balanced         # issue 85 - return 1 if the parens are balanced
         $balance-- if($ValClass[$i] eq ')');
     }
     return ($balance == 0);
+}
+
+sub is_escaped                          # SNOOPYJC
+# Is this character escaped?
+{
+    my $string = shift;
+    my $pos = shift;
+
+    return 0 if($pos == 0);                             # x
+    return 0 if(substr($string,$pos-1,1) ne "\\");      # .x
+    return 1 if($pos == 1);                             # \x
+    return 1 if(substr($string,$pos-2,1) ne "\\");      # .\x
+    return 0 if($pos == 2);                             # \\x
+    return 1 if(substr($string,$pos-3,1) eq "\\");      # \\\x
+    return 0;                                           # .\\x
 }
 1;
 

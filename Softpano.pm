@@ -28,7 +28,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @EXPORT = qw(autocommit abend banner logme summary out getopts standard_options);
 $VERSION = '1.10';
 state ($verbosity, $msg_cutlevel2, @ermessage_db, @ercounter); # remember they are statically scoped
-  $verbosity=3;
+  $verbosity=2;         # SNOOPYJC
 
 $syslog_opened = 0;	# issue 64
 #
@@ -213,7 +213,8 @@ my $prefix=defined($.) ? "LINE $." : '';
       }
       $ercounter[$severity]++; #Increase messages counter  for given severity (supressed messages are counted too)
       $ermessage_db[$severity] .= "\n\n$message"; #Error history for the ercodes E and S
-      ($severity >= 3-$verbosity ) && say STDERR $message;
+      # SNOOPYJC ($severity >= 3-$verbosity ) && say STDERR $message;
+      ($severity >= 2-$verbosity ) && say STDERR $message;      # SNOOPYJC
       say SYSLOG $message if($syslog_opened);	# issue 64
       return;
 } # logme
@@ -225,11 +226,11 @@ sub out
 {
       if( scalar(@_)==0 ){
 	 # issue 64 say STDERR;
-         say STDERR if($verbosity > 0);	# issue 64
+         say STDERR if($verbosity >= 3);	# issue 64
          say SYSLOG;
       }else{
 	 # issue 64 say STDERR @_;
-         say STDERR @_ if($verbosity > 0); # issue 64
+         say STDERR @_ if($verbosity >= 3); # issue 64
          say SYSLOG @_;
       }
 }
