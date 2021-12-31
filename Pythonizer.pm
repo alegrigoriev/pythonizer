@@ -1867,9 +1867,13 @@ sub eat_strings
         $ndx = index($line, "'''") if $ndx < 0;
         $mstring_sep = substr($line,$ndx,3);
         # if the string terminates on the same line, then it's not a multiline string
-        if($ndx > 0) {
+        while($ndx > 0) {
            my $c = substr($line,$ndx-1,1);
-           $ndx-- if($c eq 'f' || $c eq 'r');   # Eat the 'f' from f-strings, and 'r' likewise
+           if($c eq 'f' || $c eq 'r') {    # Eat the 'f' from f-strings, and 'r' likewise.  Also handles rf"..." and fr"..."
+              $ndx--;
+           } else {
+               last;
+           }
         }
         if(($ndx2 = index($line, $mstring_sep, $ndx+3)) >= 0) {
             $mstring_sep = '';
@@ -1887,9 +1891,13 @@ sub eat_strings
                 $ndx = index($line, $quote);
                 last if($ndx < 0);
                 my $start = $ndx;
-                if($start > 0) {
+                while($start > 0) {
                     my $c = substr($line,$start-1,1);
-                    $start-- if($c eq 'f' || $c eq 'r');   # Eat the 'f' from f-strings, and 'r' likewise
+                    if($c eq 'f' || $c eq 'r') {   # Eat the 'f' from f-strings, and 'r' likewise.  Also handles rf"..." and fr"..."
+                        $start--;
+                    } else {
+                        last;
+                    }
                 }
                 while(1) {
                     $ndx2 = index($line, $quote, $ndx+1);
