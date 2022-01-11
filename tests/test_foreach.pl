@@ -159,6 +159,16 @@ foreach $id (sort %tickets)
 }
 aeq(\@arr, ['t1', 't2', 't3', 'v1', 'v2', 'v3']);
 
+my $s = '';
+
+for (qw(One Two Three)) {
+    $s .= $_;
+}
+assert($s eq 'OneTwoThree');
+
+$s = '';
+$s .= $_ for qw(One Two Three);
+
 sub aeq {
     $a_ref1 = shift;
     $a_ref2 = shift;

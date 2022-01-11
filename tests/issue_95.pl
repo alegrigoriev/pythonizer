@@ -63,5 +63,28 @@ looper:{
         last if($ctr == 2)
     } until($hell_freezes_over);
 }
+assert($g == 21);
+
+$i = 0;
+do {
+    $i++;
+    $g++
+} unless $g < 0;
+assert($i == 1);
+assert($g == 22);
+
+do {
+    $i++;
+    $g++
+} if $i > 0;
+assert($i == 2);
+assert($g == 23);
+
+do {
+    $i++;
+    $g++
+} if $i < 0;
+assert($i == 2);
+assert($g == 23);
 
 print "$0 - test passed!\n";
