@@ -8,5 +8,5 @@ def _list_of_n(lst, n):
         return lst
     if la > n:
         return lst[:n]
-    return lst + [None for _ in range(n-la)]
+    return list(lst) + [None for _ in range(n-la)]
 

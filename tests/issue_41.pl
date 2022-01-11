@@ -1,6 +1,5 @@
 # If the perl variables happen to match python keywords, they should be escaped using a trailing '_'. Here are the ones that need to be escaped: False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise try while with yield.
 use Carp::Assert;
-
 sub False { 0; }
 assert(!False);
 sub True { 1; }

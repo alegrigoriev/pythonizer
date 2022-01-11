@@ -86,5 +86,14 @@ assert(maxit(-3,-4,0) == 0);
 @arr = (3,4,7,19,2,42,-1,3);
 assert(maxit(@arr) == 42);
 
+sub copy_args
+{
+    my @copy = @_;
+
+    return maxit(@copy);
+}
+assert(copy_args(@arr) == 42);
+
+
 print "$0 - test passed!\n";
 

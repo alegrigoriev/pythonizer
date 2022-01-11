@@ -1,7 +1,7 @@
 # Test the sort function using the examples on the definition page
 
 use Carp::Assert;
-use Data::Dumper;
+#use Data::Dumper;
 use feature 'fc';
 
 @files = ('d', 'e', 'c', 'a', 'b');

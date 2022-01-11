@@ -68,4 +68,64 @@ assert($@);
 eval;
 assert(!$@);
 
+# Some cases from our source code:
+
+$did_wais = 0;
+sub do_wais
+{
+    $did_wais = 1;
+}
+eval '&do_wais';
+assert(!$@);
+assert($did_wais);
+
+$did_eval_multipart = 0;
+$errflag = !(eval <<'END_MULTIPART');
+
+    local ($buf, $boundary);
+    $buf = '';
+
+    $did_eval_multipart = 1 if(!$buf);
+
+1;
+END_MULTIPART
+
+assert(!$errflag);
+assert(!$@);
+assert($did_eval_multipart);
+
+$k = 12;
+if(eval { $k = 14; }) {
+    assert($k == 14);
+} else {
+    assert(0);
+}
+assert($k == 14);
+
+$_bad_vsmg = defined &_vstring && (_vstring(~v0)||'') eq "v0";
+
+use constant _bad_vsmg => defined &_vstring && (_vstring(~v0)||'') eq "v0";
+
+sub _vstring
+{
+    my $arg = shift;
+    return $arg;
+}
+my $v = 'val';
+my $val = 'val';
+my $out = 'my';
+if(0) {
+    ;
+} 
+elsif (defined &_vstring and $v = _vstring($val)
+      and !_bad_vsmg || eval $v eq $val) {
+      $out .= $v;
+}
+elsif (!defined &_vstring
+       and ref $ref eq 'VSTRING' || eval{Scalar::Util::isvstring($val)}) {
+      $out .= sprintf "%vd", $val;
+}
+
+assert($out eq 'myval');
+
 print "$0 - test passed!\n";

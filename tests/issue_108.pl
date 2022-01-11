@@ -1,6 +1,18 @@
 # issue_108: Implement local
 use Carp::Assert;
 
+# Local at the file level is the same as 'my':
+
+local ($a, @b, %c);
+$a = 'a';
+@b = ('b');
+%c = (c=>'d');
+assert($a eq 'a');
+assert(@b == 1 && $b[0] eq 'b');
+assert($c{c} eq 'd');
+
+# Variables named 'local':
+
 $local = 'abc';
 @local = ('a', 'b', 'c');
 %local = (k1=>'v1');
