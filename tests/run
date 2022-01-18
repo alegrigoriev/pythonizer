@@ -1,11 +1,46 @@
 #!/bin/sh
-echo "Running pythonizer tests"
+# Run this once plain, and once with '-m' flag
+echo "Cleaning .py files"
+rm *.py
 status=0
 failed=0
 tests=0
 passed=0
+if [ "$1" != "-m" ]; then
+    echo
+    echo "Generating test modules"
+    for f in *.pm
+    do
+        echo "==================== $f ===================="
+        ../pythonizer $* $f
+        if [ $? -ne 0 ]; then
+           echo "$f run with pythonizer FAILED"
+           ((failed++))
+           status=1
+           continue
+        fi
+        pyf=${f%.pm}.py
+        python -m py_compile "$pyf"
+        if [ $? -ne 0 ]; then
+           echo "$pyf compile with python FAILED"
+           ((failed++))
+           status=1
+           continue
+        fi
+        ((passed++))
+    done;
+fi
+
+echo
+echo "Running pythonizer tests"
 for f in *.pl;
 do
+   if [ "$1" = "-m" ]; then
+       if grep -s "$f" skip_with_dash_m.txt; then
+           echo "========== $f skipped with -m =========="
+           continue
+       fi
+   fi
    echo "==================== $f ===================="
    ((tests++))
    perl $f
@@ -15,7 +50,7 @@ do
       status=1
       continue
    fi
-   ../pythonizer $f
+   ../pythonizer $* $f
    if [ $? -ne 0 ]; then
       echo "$f run with pythonizer FAILED"
       ((failed++))

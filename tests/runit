@@ -3,8 +3,13 @@ status=0
 failed=0
 tests=0
 passed=0
+flags=
 for f in $*
 do
+   if [ "$f" = '-m' ]; then
+       flags="-m"
+       continue
+   fi
    f=${f}.pl
    echo "==================== $f ===================="
    ((tests++))
@@ -15,7 +20,7 @@ do
       status=1
       continue
    fi
-   ../pythonizer $f
+   ../pythonizer $flags $f
    if [ $? -ne 0 ]; then
       echo "$f run with pythonizer FAILED"
       ((failed++))

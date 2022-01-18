@@ -1,0 +1,6 @@
+# List of which tests are allowed to fail with the -m flag, so we skip them
+test_global_namespace.pl
+test_global_namespacePackage.pl
+test_require.pl
+test_stmt_expr.pl
+test_use_require.pl

@@ -2,7 +2,10 @@
 
 use feature 'state';
 use Carp::Assert;
-use IO::Handle;
+eval {
+	use IO::Handle;
+};
+assert(!$@ || $@ =~ /No module named/);
 
 $j=0;
 my $k = 0;
@@ -32,7 +35,17 @@ assert(defined STDERR);
 assert(defined lc);
 open(NH, '>/dev/null');
 assert(defined NH);
+assert(defined NH->autoflush);
 
 mysub();
+
+use lib '.';
+use Exporting qw(munge);
+assert(defined munge);
+assert(munge('a') eq 'am');
+assert(!defined &Exporting::framice);
+assert(!defined &Export::munge);
+assert(defined &Exporting::frobnicate);
+assert(&Exporting::frobnicate('b') eq 'fb');
 
 print "$0 - test passed!\n";

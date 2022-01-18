@@ -9,7 +9,7 @@ package Pyconfig;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS);
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS);
 
 # use Readonly;		# Readonly is not installed by default so skip it!
 
@@ -23,7 +23,8 @@ our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $
 our $TABSIZE = 4;
 our $MAXNESTING = 16;
 our $MAXLINELEN = 188;
-our $MAX_CHUNKS = 1024;
+our $MAX_CHUNKS = 1024;		# Limit on gen_chunk
+our $MAX_DEPTH = 1024;		# Limit on expression recursion depth
 our $DEFAULT_VAR = "_d";
 our $DEFAULT_MATCH = "_m";
 our $GLOB_LIST = "_g";
@@ -45,6 +46,7 @@ our $DO_CONTROL = "_do_";
 our $IMPORT_PATH_TEMP = "_p";           # SNOOPYJC
 our $IMPORT_MODULE_TEMP = "_m";         # SNOOPYJC
 our $FUNCTION_RETURN_EXCEPTION="FunctionReturn";  # SNOOPYJC
+our $DEFAULT_PACKAGE='main_';           # SNOOPYJC: Default package name
 #
 # Put contants here that need to be recognized literally and translated to python references.
 #
@@ -127,14 +129,14 @@ our %PYTHON_RESERVED_SET = map { $_ => 1 } (@PYTHON_KEYWORDS, @PYTHON_BUILTINS);
 our %CONVERTER_MAP = (I=>'_int', N=>'_num', S=>'_str');
 our %SIGIL_MAP = ('$'=>'s', '%'=>'h', '@'=>'a', ''=>'H');
 
-our $MAIN_MODULE = 'sys.modules["__main__"]';
+our $MAIN_MODULE = 'sys.modules["__main__"]';	# Note this is changed to $DEFAULT_PACKAGE if the -m option is NOT passed (in Pythonizer.pm)
 
 # List of libraries that pythonizer knows about and handles as built-ins:
 our @BUILTIN_LIBRARIES = qw(strict warnings vars feature autodie Getopt::Long Time::Local File::Basename Fcntl Carp::Assert Exporter Carp File::stat);
 our %BUILTIN_LIBRARY_SET = map { $_ => 1 } @BUILTIN_LIBRARIES;
 
 our $MODULES_DIR = "PyModules"; # Where we copy system modules to run pythonizer on them (for use/require)
-our $SUBPROCESS_OPTIONS="-v 0"; # Options to pythonizer for when we run on use/require'd modules
+our $SUBPROCESS_OPTIONS="-M -v 0"; # Options to pythonizer for when we run on use/require'd modules
 
 our $PERL_VERSION=5.034;
 our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longmess', 
@@ -201,5 +203,12 @@ our %DASH_X=(                   # https://perldoc.perl.org/functions/-X
 #    platforms)
             C=>'_get_creation_age_days',
         );
+
+# These are used when an array index or hash ref is used as an lvalue in an expression
+our %ARRAY_INDEX_FUNCS = (''=>'_set_element', '+'=>'_add_element', '-'=>'_subtract_element',
+    '*'=>'_multiply_element', '/'=>'_divide_element', '**'=>'_exponentiate_element',
+    '.'=>'_concat_element', '%'=>'_mod_element', '^'=>'_xor_element',
+    '|'=>'_or_element', '&'=>'_and_element', '<<'=>'_shift_left_element',
+    '>>'=>'_shift_right_element', '~tr'=>'_translate_element', '~re'=>'_substitute_element');
 
 1;

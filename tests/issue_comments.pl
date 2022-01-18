@@ -47,7 +47,8 @@ while(<SRC>) {
 for(my $i=1; $i<=4; $i++) {
     assert($blocks{$i} eq '1234');
 }
-assert($lines eq '1234');
+assert(length($lines) == 4 && $lines =~ /1/ && $lines =~ /2/ &&
+	$lines =~ /3/ && $lines =~ /4/);
 
 print "$0 - test passed!\n";
 

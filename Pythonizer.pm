@@ -32,11 +32,12 @@ require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes); # SNOOPYJC
-our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname);
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages); # SNOOPYJC
+our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    # issue 32 $::TabSize=3;
    $::TabSize=$TABSIZE;         # issue 32
    $::breakpoint=0;
+   $breakpoint=99999;               # SNOOPYJC: for -B (first pass breakpoint)
    $NextNest=$CurNest=0;
    # issue 32 $MAXNESTING=9;
    $VERSION = '0.80';
@@ -51,6 +52,8 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname);
    # issue 32 $maxlinelen=188;
    $maxlinelen=$MAXLINELEN;
    $GeneratedCode=0;    # issue 96: used to see if we generated any real code between { and }
+   %Packages = ();      # SNOOPYJC: Set of all packages defined in this file (determined on the first pass)
+   @Packages = ();      # SNOOPYJC: List of all packages defined in this file in the order declared
 #
 #::prolog --  Decode parameter for the pythonizer. all parameters are exported
 #
@@ -62,7 +65,8 @@ sub prolog
       my $banner_msg = shift;                   # issue 64
       my $log_retention = shift;                # issue 64
       # SNOOPYJC getopts("AThd:v:r:b:t:l:",\%options);
-      getopts("mAThsSpPd:v:r:b:t:l:",\%options);     # SNOOPYJC
+      @orig_ARGV = @ARGV;                       # SNOOPYJC
+      getopts("mMAThsSpPd:v:r:b:B:t:l:",\%options);     # SNOOPYJC
 #
 # Three standard otpiotn -h, -v and -d
 #
@@ -102,6 +106,19 @@ sub prolog
            exit 255;
         }
       }
+      if(   exists $options{'B'}  ){            # SNOOPYJC
+        unless ($options{'B'}){
+          logme('S',"Option -B should have a numeric value. There is no default.");
+          exit 255;
+        }
+        if(  $options{'B'}>0  && $options{'B'}<9000 ){
+           $breakpoint=$options{'B'};
+           ($::debug) && logme('W',"Breakpoint set to line  $breakpoint");
+        }else{
+           logme('S',"Wrong value of option -B ( breakpoint): $options('B')\n");
+           exit 255;
+        }
+      }
       if(   exists $options{'t'}  ){
          $options{'t'}=1 if $options{'t'} eq '';
          if(  $options{'t'}>1  && $options{'t'}<10 ){
@@ -131,6 +148,8 @@ sub prolog
       }
       if( exists $options{'m'} ) {
           $::implicit_global_my = 1;
+      } else {
+          $MAIN_MODULE = $DEFAULT_PACKAGE;
       }
       if( exists $options{'s'} ) {
           $::pythonize_standard_library = 1;
@@ -232,6 +251,11 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
             say STDERR "\n\n === Line $. Perl source: $line ===\n";
             $DB::single = 1;
          }
+         say STDERR "\n === Pass1: Line_$. Perl source:".$line."===" if($::debug);
+         if( $.>=$breakpoint ){
+            logme('S', "First pass breakpoint was triggered at line $. in Pythonizer.pm");
+            $DB::single = 1;
+         }
          Perlscan::tokenize($line);
       }else{
          #process token buffer -- Oct 9, 2020 --NNB
@@ -276,6 +300,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
              say STDERR "get_globals: switching to '$CurSubName' at line $.";
          }
          correct_nest(0,0);                             # issue 45
+      } elsif($ValClass[0] eq 'c' && $ValPerl[0] eq 'package' && $#ValClass >= 1) {     # SNOOPYJC: Keep track of packages
+          $Packages{$ValPerl[1]} = 1;              # SNOOPYJC
+          push @Packages, $ValPerl[1];             # SNOOPYJC
       }elsif( $ValClass[0] eq '{') {                    # issue 45
           correct_nest(1);                              # issue 45
       }elsif( $ValClass[0] eq '}' && $#ValClass == 0) {	# issue 45
@@ -303,7 +330,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                 next if(  defined($ValType[$k]) && $ValType[$k] eq 'X');
                 next if($ValPy[$k] eq '');      # Undefined special var
                 $VarSubMap{$ValPy[$k]}{$CurSubName}='+';
-                if( $ValPy[$k] =~/[\[\(]/ && $ValPy[$k] !~ /^len\(/ && $ValPy[$k] ne 'globals()'){   # Issue 13
+                if( $ValPy[$k] =~/[\[\(]/ && $ValPy[$k] !~ /^len\(/ && $ValPy[$k] ne 'globals()' &&
+                    $ValPy[$k] !~ /\.__dict__$/ &&
+                    substr($ValPy[$k],0,4) ne 'sys.'){   # Issue 13
                    $InLineNo = $.;
                    say "=== Pass 1 INTERNAL ERROR in processing line $InLineNo Special variable is $ValPerl[$k] as $ValPy[$k], k=$k, ValType=@ValType";
                    $DB::single = 1;
@@ -396,6 +425,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
            print STDERR "line_substitutions = ";
            say STDERR Dumper(\%Perlscan::line_substitutions);
        }
+       print STDERR "sub_varclasses = ";
+       say STDERR Dumper(\%Perlscan::sub_varclasses);
        print STDERR "line_varclasses = ";
        say STDERR Dumper(\%Perlscan::line_varclasses);
        $Data::Dumper::Indent=0;
@@ -408,7 +439,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
    foreach $varname (keys %VarSubMap ){
       next if(  $varname=~/[\(\[]/ );
       # SNOOPYJC next if(  length($varname)==1 );
-      next if($varname !~ /^[A-Za-z_][A-Za-z0-9_]*$/);   # SNOOPYJC: has to be a valid python var name
+      next if($varname !~ /^[A-Za-z_][A-Za-z0-9._]*$/);   # SNOOPYJC: has to be a valid python var name or with a package
       $var_usage_in_subs=scalar(keys %{$VarSubMap{$varname}} );
       # SNOOPYJC if(  $var_usage_in_subs>1){
          # Variable that is present in multiple subs assumed to be global
@@ -427,8 +458,10 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          }
          foreach $subname (keys %{$VarSubMap{$varname}} ){
             if($var_usage_in_subs>1 || exists $NeedsInitializing{$subname}{$varname}) { # SNOOPYJC
-                next if($varname !~ /^[A-Za-z_][A-Za-z0-9_]*$/);   # Has to be a valid python var name
-                $GlobalVar{$subname}.=','.$varname;
+                next if($varname !~ /^[A-Za-z_][A-Za-z0-9._]*$/);   # Has to be a valid python var name or with a package
+                if($varname =~ /^[A-Za-z_][A-Za-z0-9_]*$/) {    # Valid python var name with NO package
+                    $GlobalVar{$subname}.=','.$varname;
+                }
                 # SNOOPYJC: Since this var exists in $VarSubMap, it's not a "my" variable and if
                 # it needs initializing, we need to do it in the top-level scope, not in the sub
                 $common_type = $NeedsInitializing{$subname}{$varname} if(!defined $common_type);
@@ -450,9 +483,16 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
    }
    foreach $subname (keys %NeedsInitializing) {         # SNOOPYJC
        foreach $varname (keys %{$NeedsInitializing{$subname}}) {
-           next if($varname !~ /^[A-Za-z_][A-Za-z0-9_]*$/);   # Has to be a valid python var name
            next if(!exists $VarSubMap{$varname}{$subname});   # if it's not in VarSubMap, then it's a "my" variable, which is handled in pythonizer
-           $InitVar{$subname} .= "\n$varname = ".init_val($NeedsInitializing{$subname}{$varname});
+           if($varname =~ /^[A-Za-z_][A-Za-z0-9_]*$/) {   # Has to be a valid python var name
+               $InitVar{$subname} .= "\n$varname = ".init_val($NeedsInitializing{$subname}{$varname});
+           } elsif($varname =~ /^[A-Za-z_][A-Za-z0-9._]*$/) {   # Has a package name
+               $::Pyf{_init_global} = 1;
+               my $dx = rindex($varname, '.');
+               my $packname = substr($varname,0,$dx);
+               my $vn = substr($varname, $dx+1);
+               $InitVar{$subname} .= "\n$varname = _init_global('$packname', '$vn', " .init_val($NeedsInitializing{$subname}{$varname}) . ')';
+           }
         }
     }
 
@@ -474,6 +514,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
 sub init_val            # SNOOPYJC: Get the initializer value for the var, given the type
 {
    $type = shift;
+
+   $type = substr($type,0,1);   # Handle 'h of S' by changing it to 'h'
 
    my $val = 'None';
    $val = '0' if($type =~ /[IN]/);      # Integer or Number
@@ -522,6 +564,17 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             my $lim = $#ValClass;
             if($k-1 >= 0 && $ValClass[$k-1] eq '(') {   # parens around assignment - stop at the )
                 $lim = matching_br($k-1)-1;
+            }
+            my $el = next_lower_or_equal_precedent_token('=', $k+2, $lim);
+            if($el != -1) {
+                if($ValClass[$el] eq '=') {     # Chain assignment - find the last one
+                    my $last_eq = rindex($TokenStr, '=');
+                    $k = $last_eq-1;
+                    $el = next_lower_or_equal_precedent_token('=', $k+2, $lim);
+                    $lim = $el-1 if($el != -1);
+                } else {
+                    $lim = $el-1;
+                }
             }
             $type = expr_type($k+2, $lim, $CurSub);
             if($class eq 'a' && $type !~ / of /) {
@@ -869,6 +922,14 @@ sub _expr_type           # Attempt to determine the type of the expression
             } elsif($ValPerl[$k] =~ /reverse/) {
                 return 'S' if(substr($ValPy[$k],0,1) eq '_');   # _reverse: scalar context
                 return expr_type($k+1, $e, $CurSub) if($k+1 <= $e);
+            } elsif($ValPerl[$k] eq '_assign_global' && $ValClass[$k+1] eq '(') {
+                # _assign_global('package', 'var', expr) => return the type of the expr
+                my $close = matching_br($k+1);
+                my $comma = next_same_level_token(',', $k+2, $close);
+                $comma = next_same_level_token(',', $comma+1, $close);
+                if($comma > $k && $close > $k) {
+                    return expr_type($comma+1, $close-1, $CurSub);
+                }
             }
         }
         return func_type($ValPerl[$k]);
@@ -891,6 +952,7 @@ sub _expr_type           # Attempt to determine the type of the expression
                 }
                 return $typ;
             }
+            return 'I' if(substr($ValPerl[$k],0,2) eq '$#');
             return 's';                 # scalar
         } elsif($class eq 'a') {        # array
             return 'I' if($ValPy[$k] =~ /^len\(/);      # Scalar context
@@ -944,6 +1006,8 @@ sub _expr_type           # Attempt to determine the type of the expression
         } elsif($k+1 <= $#ValClass && $ValClass[$k+1] eq '(') {
             return $VarType{$name}{main} if(exists $VarType{$name} && exists $VarType{$name}{main});
             return 'm';
+        } elsif($k+1 <= $#ValClass && $ValClass[$k+1] eq 'A') {         # key => value
+            return 'm';         # User can change it to any type of value
         }
         return 'S';             # will be changed to a string
     } elsif($class ne '(') {            # Non-parenthesized expression
@@ -957,6 +1021,13 @@ sub _expr_type           # Attempt to determine the type of the expression
             } elsif($ValClass[$m] =~ /0o/) {    # or || and &&
                 return common_type(expr_type($k, $m-1, $CurSub),
                                    expr_type($m+1, $e, $CurSub));
+            } elsif($ValClass[$m] eq '+' || $ValClass[$m] eq '-' || $ValClass[$m] eq '*') {
+                if($k == $m) { # It's a unary - or +
+                    return expr_type($m+1, $e, $CurSub);
+                }
+                my $result = common_type(expr_type($k, $m-1, $CurSub),
+                                   expr_type($m+1, $e, $CurSub));
+                return $result if($result eq 'I' || $result eq 'F');    # I or F is tighter than the N below
             }
             return 'N';         # Numeric
         } elsif($class eq 's' && $k+1 <= $#ValClass && $ValClass[$k+1] eq '(') {    # An array with possible subscript or hash with key
@@ -976,6 +1047,8 @@ sub _expr_type           # Attempt to determine the type of the expression
         } elsif($class eq 's' && $k+2 <= $#ValClass && $ValClass[$k+1] eq '~' &&        # Pattern match
                 $ValClass[$k+2] eq 'q' && capturing_pattern($ValPerl[$k+2])) {
                 return 'a of S';
+        } elsif($class eq '"' && $k+2 <= $#ValClass && $ValClass[$k+1] eq 'A') {
+            return 'm';                 # key => value - user can change the value to anything
         } elsif($class eq '"') {        # We split interpolated strings into many tokens like "s(s)", but it's still a string at the end!
             return 'S';
         }
@@ -1147,10 +1220,23 @@ sub next_matching_token                 # SNOOPYJC
 my $t=$_[0];
 my $scan_start=$_[1];
 my $scan_end=$_[2];
-    $k = index(substr($TokenStr, $scan_start, $scan_end-$scan_start+1), $t);
+    my $k = index(substr($TokenStr, $scan_start, $scan_end-$scan_start+1), $t);
     return $k if($k < 0);
     return $k + $scan_start;
 } # next_matching_token
+
+sub next_matching_tokens                 # SNOOPYJC
+# get the next matching token
+{
+my $t=$_[0];
+my $scan_start=$_[1];
+my $scan_end=$_[2];
+    
+    for(my $k = $scan_start; $k <= $scan_end; $k++) {
+        return $k if(index($t, $ValClass[$k]) >= 0);
+    }
+    return -1;
+} # next_matching_tokens
 
 sub next_same_level_token
 # get the next token on the same nesting level.
@@ -1170,6 +1256,8 @@ my $balance=0;
       if($t eq ')') {            # SNOOPYJC: if we're looking for a ')', the balance needs to be -1
           return $k if($s eq $t && $balance < 0);
       } elsif( $s eq $t && $balance<=0  ){
+          return $k;
+      } elsif($t eq '(' && $s eq $t && $balance == 1) {
           return $k;
       }
    } # for
@@ -1196,6 +1284,8 @@ my $balance=0;
           if($s eq ')') {       # SNOOPYJC: if we're looking for a ')', the balance needs to be -1
               return $k if($balance < 0);
           } elsif( $balance<=0  ){
+              return $k;
+          } elsif($s eq '(' && $balance == 1) {
               return $k;
           }
       }
@@ -1620,7 +1710,34 @@ my $delta;
    }
 }
 
+# based on https://www.geeksforgeeks.org/topological-sorting/
+sub toposort_util
+{
+    my ($deps, $node, $visited, $stack) = @_;
+
+    $visited->{$node} = 1;
+    my @depa = $deps->($node);
+    for my $i (@depa) {
+        toposort_util($deps, $i, $visited, $stack) unless($visited->{$i});
+    }
+    push @{$stack}, $node;
+}
+
 sub toposort
+{
+# Given a dependency graph $deps = ('a' => ['b', 'c'], b => ['d'], ... z=> []), and a list of elements ($in),
+# return a sorted list
+  my ($deps, $in) = @_;
+  my @stack = ();
+  my %visited = ();
+  for my $node (@{$in}) {
+      toposort_util($deps, $node, \%visited, \@stack) unless($visited{$node});
+  }
+  my @out = reverse @stack;
+  wantarray ? @out : \@out;
+}
+
+sub toposort_old
 # Ref: https://metacpan.org/dist/Data-Match/source/lib/Sort/Topological.pm
 {
 # Given a dependency graph $deps = ('a' => ['b', 'c'], b => ['d'], ... z=> []), and a list of elements ($in),
@@ -1629,10 +1746,10 @@ sub toposort
  
   # Assign the depth of traversal.
   my %depth;
-  #my $max_depth = 2 + scalar(@{$in});
-  #$max_depth = 20 if($max_depth > 20);
-  #say STDERR "max_depth=$max_depth" if($::debug);
-  #my $said_it = 0;
+  my $max_depth = 2 + scalar(@{$in});
+  $max_depth = 20 if($max_depth > 20);
+  say STDERR "max_depth=$max_depth" if($::debug);
+  my $said_it = 0;
   my %visited = ();
   {
     # Assign a base depth of traversal for the input.
@@ -1645,25 +1762,32 @@ sub toposort
       my $x = $q->[0];
       my $d = $q->[1];
 
-      #if($d > $max_depth) {
-      #say STDERR "toposort: Breaking DAG cycle: depth = $d" if($::debug && !$said_it);
-      #$said_it = 1;
-      #next;
-      #}
+      if($d > $max_depth) {
+          say STDERR "toposort: Breaking DAG cycle: depth = $d" if($::debug && !$said_it);
+          $said_it = 1;
+          next;
+      }
  
       # Remember current depth.
       if ( (! defined $depth{$x}) || $depth{$x} < $d ) {
         $depth{$x} = $d;
-        #warn "$x depth = $d";
+        warn "$x depth = $d";
       }
 
-      next if exists $visited{$x};              # SNOOPYJC: Break any cycles in the graph
-      $visited{$x} = 1;                         # SNOOPYJC
+      #next if exists $visited{$x};              # SNOOPYJC: Break any cycles in the graph
+      #$visited{$x} = 1;                         # SNOOPYJC
  
       # Push the next items along the graph, remembering the depth they were found at.
       if ( 1 ) {
         my @depa = $deps->($x);
-        unshift(@stack, reverse map([ $_, $d + 1 ], @depa));
+        #unshift(@stack, reverse map([ $_, $d + 1 ], @depa));
+        for my $dep (reverse @depa) {
+           my $key = "$x.$dep";
+           next if exists $visited{$key};
+           $visited{$key} = 1;
+           warn "\$visited{$key} = 1 at depth $d+1";
+           unshift(@stack, [$dep, $d+1]);
+        }
       }
     }
   }
@@ -1699,6 +1823,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     my @unsorted = ();
     my %dependencies = ('__main__'=>[]);
     my $insertion_point = 0;
+    my @init_package_lnos = ();
     for my $line (@lines){
         $lno++;
         $insertion_point = $lno+1 if($line =~ /^$PERL_ARG_ARRAY = sys.argv/ && !$insertion_point);              # SNOOPYJC
@@ -1718,6 +1843,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                 }
             }
             $defs{$func} = $i;
+        } elsif($line =~ /^_init_package\(/) {
+            push @init_package_lnos, $lno;
         }
     }
     # Pass 2 - find all the refs
@@ -1744,7 +1871,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         ### YES THEY DO!!  next if($in_def);               # Refs inside of defs don't matter
         next if($line =~ /^def / || $line =~ /^class /);
         next if($line =~ /^\s*#/);      # ignore comments
-        my @found = grep { $line =~ /\b$_\b/ } @words;
+        my @found = grep { $line =~ /\b$_\(/ } @words;  # Look for calls of this function only
         #say STDERR "found @found in $lno: $line" if(@found);
         foreach $f (@found) {
             if($in_def) {
@@ -1784,6 +1911,18 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
 #    }
 #    push @ordered_to_move, keys %to_move_first;
 #    push @ordered_to_move, keys %to_move;
+    #
+    # We need to put _init_package() first so we can insert all the calls to it right after the def,
+    # we do that by making it dependent on everything else
+    #
+
+    if(exists $refs{_init_package}) {
+        for my $f (@unsorted) {
+            next if($f eq '_init_package');
+            push @{$dependencies{_init_package}}, $f;
+        }
+    }
+
     if($::debug >= 3) {
         $Data::Dumper::Indent=0;
         $Data::Dumper::Terse = 1;
@@ -1800,7 +1939,9 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     #say STDERR "to_move_first: @{[%to_move_first]}" if($::debug >= 3);
     #say STDERR "to_move: @{[%to_move]}" if($::debug >= 3);
     say STDERR "ordered_to_move: @ordered_to_move" if($::debug >= 3);
+    
     # Pass 3 - regenerate the output file in the right order
+
     open($sysout,'>',$output_file);
     $lno = 0;
     my %moved_lines = ();
@@ -1833,7 +1974,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                     $multiline_string_sep = '' if(index($lines[$i], $multiline_string_sep, $ndx+3) >= 0);
                 }
                 if($lines[$i] =~ /^\s+/ || $lines[$i] =~ /^def $func\(/ || $lines[$i] =~ /^class $func[(:]/ ||
-                        $lines[$i] =~ /^\s*$/ || $lines[$i] =~ /^\s*#/ || $lines[$i] =~ m'^@') {
+                        $lines[$i] =~ /^\s*$/ || $lines[$i] =~ /^\s*#/ || $lines[$i] =~ m'^@' ||
+                        $lines[$i] =~ /[.]$func = $func$/) {     # e.g. main_.func = func
                         #say STDERR "Found def $func";
                     next if(exists $moved_lines{$i+1});         # Don't include it twice
                     last if($lines[$i] =~ m'^@' and $moved_def);
@@ -1843,6 +1985,13 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                     pep8($sysout, $lines[$i]);
                 } else {
                     last;
+                }
+            }
+            # Special case - move all _init_package calls right after it's definition
+            if($func eq '_init_package') {
+                for my $ip_lno (@init_package_lnos) {
+                    pep8($sysout, $lines[$ip_lno-1]);
+                    $moved_lines{$ip_lno} = 1;
                 }
             }
         }
@@ -1958,7 +2107,7 @@ sub cleanup_imports
                 $import_as_global = $g;
             }
         } elsif($import_lno) {
-            my @found = grep { $line =~ /\b$_\./ } @imports;
+            my @found = grep { $line =~ /\b$_[.,]/ } @imports;
             foreach my $f (@found) {
                 $referenced_imports{$f} = 1;
             }

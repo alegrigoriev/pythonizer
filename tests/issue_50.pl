@@ -28,7 +28,18 @@ assert(scalar(@thre) == scalar(@thr) &&
 my $hr = {name=>'Foo', email=>'foo@corp.com'};
 my %h = %$hr;
 assert($h{name} eq 'Foo' && $hr->{name} eq 'Foo' && $$hr{name} eq 'Foo');
+assert("$h{name}" eq 'Foo' && "$hr->{name}" eq 'Foo' && "$$hr{name}" eq 'Foo');
 my %s = %{$hr};
 assert($s{name} eq 'Foo');
+assert("$s{name}" eq 'Foo');
+
+$gr = {name=>'Foo', email=>'foo@corp.com'};
+%g = %$gr;
+assert($g{name} eq 'Foo' && $gr->{name} eq 'Foo' && $$gr{name} eq 'Foo');
+assert("$g{name}" eq 'Foo' && "$gr->{name}" eq 'Foo' && "$$gr{name}" eq 'Foo');
+%gs = %{$gr};
+assert($gs{name} eq 'Foo');
+assert("$gs{name}" eq 'Foo');
+
 
 print "$0 - test passed!\n";

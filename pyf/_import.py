@@ -1,5 +1,5 @@
 
-def _import(globals, path, module=None, fromlist='*', version=None):
+def _import(globals, path, module=None, fromlist=None, version=None):
     """Handle use/require statement from perl"""
     if module is None:
         [path, module] = os.path.split(os.path.splitext(os.path.abspath(path))[0])
@@ -45,10 +45,10 @@ def _import(globals, path, module=None, fromlist='*', version=None):
 
     if (fromlist[0] == '*' or fromlist[0] == ':all') and hasattr(mod, '__all__'):
         actual_imports = set(mod.__all__)
-    elif fromlist[0] == '*' and not hasattr(mod, 'EXPORT'):
-        for key in mod.__dict__.keys():
-            if key[0] != '_':
-                actual_imports.add(key)
+    #elif fromlist[0] == '*' and not hasattr(mod, 'EXPORT'):
+        #for key in mod.__dict__.keys():
+            #if key[0] != '_':
+                #actual_imports.add(key)
     else:
         for desired in fromlist:
             if (ch:=desired[0]) == '!':
