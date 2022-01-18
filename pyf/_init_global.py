@@ -1,7 +1,7 @@
 
-def _init_global(varname, value):
+def _init_global(packname, varname, value):
     """Return the proper value to initialize a package global variable only once"""
-    namespace = getattr(builtins, __PACKAGE__)
+    namespace = getattr(builtins, packname)
     if hasattr(namespace, varname):
         return getattr(namespace, varname)
     setattr(namespace, varname, value)
