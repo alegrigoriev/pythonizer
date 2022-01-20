@@ -68,6 +68,11 @@ assert($@);
 eval;
 assert(!$@);
 
+my $var = eval {
+    return 1;
+};
+assert($var == 1);
+
 # Some cases from our source code:
 
 $did_wais = 0;
