@@ -73,6 +73,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
   %NameMap=();                          # issue 92: Map names to python names
   @EndBlocks=();                        # SNOOPYJC: List of END blocks with their unique names
   %SpecialVarR2L=();                    # SNOOPYJC: Map from special var RHS to LHS
+  %FileHandles = ();			# SNOOPYJC: Set of file handles used in this file
 #
 # List of Perl special variables
 #
@@ -412,7 +413,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'SI?:I', 'oct'=>'s:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
 		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'rename'=>'SS:I', 'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:m',
                   'push'=>'aa:I', 'pop'=>'a:s', 'print'=>'H?a:I', 'printf'=>'H?Sa:I', 'quotemeta'=>'S:S', 'rand'=>'F?:F',
-                  'rindex'=>'SSI?:I','read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
+                  'rindex'=>'SSI?:I','read'=>'HsII?:I', '.read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
                   'say'=>'H?a:I','scalar'=>'a:I','seek'=>'HII:u', 'shift'=>'a?:s', 'sleep'=>'I:I', 'split'=>'SSI?:a of S', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
                   'sqrt'=>'N:F', 'stat'=>'S:a of I', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'tell'=>'H:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timegm'=>'IIIIII:I',
                   'timelocal'=>'IIIIII:I', 'unlink'=>'a?:I', 'values'=>'h:a', 'warn'=>'a:I', 'undef'=>'a?:u', 'unshift'=>'aa:I', 'uc'=>'S:S',
@@ -509,7 +510,7 @@ sub add_package_name
     }
     return unless(exists $line_varclasses{$.}{$name});
     return unless($line_varclasses{$.}{$name} =~ /global|local/);
-    if($ValPy[$tno] =~ /^\(len\((.*)\)-1\)$/) {
+    if($ValPy[$tno] =~ /^\(len\((.*)\)-1\)$/) {		# for $#arr
         $ValPy[$tno] = '(len(' . cur_package() . '.' . $1 . ')-1)';
     } else {
         $ValPy[$tno] = cur_package() . '.' . $ValPy[$tno];         # Add the package name
@@ -534,6 +535,30 @@ sub add_package_name_sub
     say STDERR "Changed $py to $ValPy[$tno] for non-local sub" if($::debug >= 5);
 }
 
+sub add_package_name_fh
+# Add a package name to a file handle
+# Arg: position of the 'i' token for the sub
+# Returns: Updates $ValPy[$pos] if a change is needed
+{
+    my $tno = shift;
+
+    my $perl_name = $ValPerl[$tno];
+    my $py = $ValPy[$tno];
+    return if($::implicit_global_my);
+    return if(index($py, '.') >= 0);
+    my $name = '*' . $perl_name;		# TypeGlob, e.g. local *FH;
+    if(!$Pythonizer::PassNo && $last_varclass_lno != $. && $last_varclass_lno) {
+	# We don't capture filehandles, so we need to propagate the last line down on the first pass
+        $line_varclasses{$.} = dclone($line_varclasses{$last_varclass_lno});
+        $last_varclass_lno = $.;
+    }
+    return if(exists $line_varclasses{$.} && exists $line_varclasses{$.}{$name} &&
+	      $line_varclasses{$.}{$name} !~ /global|local/);
+    return if($tno != 0 && $ValPy[$tno-1] eq '.');
+    $ValPy[$tno] = cur_package() . '.' . $ValPy[$tno];         # Add the package name
+    say STDERR "Changed $py to $ValPy[$tno] for file handle" if($::debug >= 5);
+}
+
 sub add_package_name_j
 # For <$fh>, add the package name if need be.  This is a little harder than the
 # normal case, because $ValPy[$tno] could be either like fh.readlines() -or- 
@@ -541,10 +566,21 @@ sub add_package_name_j
 # potentially replace it.
 {
     my $name = substr($ValPerl[$tno],1,length($ValPerl[$tno])-2);    # <$fh> -> $fh
+    my $tg = 0;
+    if(index($ValPerl[$tno], '$') < 0) {
+        return if(!$name);      # <>
+        $name = '*' . $name;	# TypeGlob
+	$tg = 1;
+    }
     return if($::implicit_global_my);
-    return unless(exists $line_varclasses{$.});
-    return unless(exists $line_varclasses{$.}{$name});
-    return unless($line_varclasses{$.}{$name} =~ /global|local/);
+    if($tg) {
+        return if(exists $line_varclasses{$.} && exists $line_varclasses{$.}{$name} &&
+	          $line_varclasses{$.}{$name} !~ /global|local/);
+    } else {
+    	return unless(exists $line_varclasses{$.});
+    	return unless(exists $line_varclasses{$.}{$name});
+    	return unless($line_varclasses{$.}{$name} =~ /global|local/);
+    }
 
     my $py = $ValPy[$tno];
     my $var = substr($name,1);          # fh
@@ -601,6 +637,7 @@ sub capture_varclass_j          # SNOOPYJC: Only called in the first pass
         $line_varclasses{$.} = dclone($line_varclasses{$last_varclass_lno});
     }
     $last_varclass_lno = $.;
+    return if(index($ValPerl[$tno], '$') < 0);
     if(exists $line_varclasses{$last_varclass_lno}{$name}) {
         $class = $line_varclasses{$last_varclass_lno}{$name};
     }
@@ -996,6 +1033,7 @@ sub prepare_local
     my $sub = $line_sub{$lno};
 
     my $bare = 0;
+    my $bare1 = 0;
     if($sigil eq '$') {
         decode_scalar($quote,0);
     } elsif($sigil eq '@') {
@@ -1004,19 +1042,20 @@ sub prepare_local
         decode_hash($quote);
     } elsif($sigil =~ /[A-Za-z_]/) {
         decode_bare($quote);
-        $Pythonizer::VarSubMap{$quote}{$sub} = '+';    # We don't detect it because it's normally an 'i' token like FH
-        $bare = 1;
+	$bare = 1 if($FileHandles{$quote});
+        $bare1 = 1 unless($FileHandles{$quote});
     } else {
         return;
     }
     #add_package_name(substr($quote,0,$cut));           # SNOOPYJC: Doesn't work here
-    if(!$::implicit_global_my && !$bare) {              # SNOOPYJC: Add the package name manually
+    if(!$::implicit_global_my && !$bare1) {             # SNOOPYJC: Add the package name manually
         if($ValPy[0] =~ /^\(len\((.*)\)-1\)$/) {
             $ValPy[0] = '(len(' . cur_package() . '.' . $1 . ')-1)';
         } else {
             $ValPy[0] = cur_package() . '.' . $ValPy[0];         # Add the package name
         }
     }
+    $Pythonizer::VarSubMap{$ValPy[0]}{$sub} = '+' if($bare);  # We don't detect it because it's normally an 'i' token like FH
     $line_locals_map{$lno}{$quote} = $ValPy[0];
     if(!exists $Pythonizer::NeedsInitializing{$sub}{$ValPy[0]}) {
         $Pythonizer::NeedsInitializing{$sub}{$ValPy[0]} = 'm';
@@ -1503,11 +1542,12 @@ my ($l,$m);
          $ValClass[$tno]='i';
          $ValPy[$tno]=$w;
          if($tno != 0 && ($ValClass[$tno-1] eq 'k' && $ValPerl[$tno-1] eq 'sub') ||
-             ($ValClass[$tno-1] eq 'f' && ($ValPerl[$tno-1] eq 'open' || $ValPerl[$tno-1] eq 'opendir')) ||
+             ($ValClass[$tno-1] eq 'f' && ($ValPerl[$tno-1] =~ m'^(?:opendir|open|closedir|close|printf|print|say|readdir|telldir|rewinddir|sysread|sysseek|syswrite|seek|tell|read|binmode|write)$')) ||
              ($tno-2>=0 && $ValClass[$tno-1] eq '(' && $ValClass[$tno-2] eq 'f' &&
-                ($ValPerl[$tno-2] eq 'open' || $ValPerl[$tno-2] eq 'opendir'))) {       # issue 92
+                ($ValPerl[$tno-2] =~ m'^(?:opendir|open|closedir|close|printf|print|say|readdir|telldir|rewinddir|sysread|sysseek|syswrite|seek|tell|read|binmode|write)$'))) {       # issue 92
             my $sigil = '';
             $sigil = '&' if($ValPerl[$tno-1] eq 'sub');   # issue 92, 108: Differentiate between sub and FH
+	    $FileHandles{$w} = 1 if($sigil eq '' && !exists $keyword_tr{$w});  # skip STDIN and friends
             remap_conflicting_names($w, $sigil, '');      # issue 92: sub takes the name from other vars
          }
          $ValPy[$tno]=~tr/:/./s;                # SNOOPYJC
@@ -1519,6 +1559,11 @@ my ($l,$m);
          if( exists($CONSTANT_MAP{$w}) ) {      # SNOOPYJC
              $ValPy[$tno] = $CONSTANT_MAP{$w};  # SNOOPYJC
          }                                      # SNOOPYJC
+	 if(exists $FileHandles{$w}) {		# SNOOPYJC
+             if($tno == 0 || $ValClass[$tno-1] ne 'k' || $ValPerl[$tno-1] ne 'sub') {	# SNOOPYJC
+	         add_package_name_fh($tno);	# SNOOPYJC
+	     }					# SNOOPYJC
+	 }					# SNOOPYJC
          if( exists($TokenType{$w}) ){
             $class=$TokenType{$w};
             if($tno != 0 && (($ValPerl[$tno-1] eq '{' && $source =~ /^[a-z0-9]+}/) ||   # issue 89: keyword in a hash like $hash{delete} or $hash{q}
@@ -2098,6 +2143,7 @@ my ($l,$m);
                    $cut=length($1)+2;
                    $ValPerl[$tno]="<$1>";
                    $fh = $1;
+		   $FileHandles{$fh} = 1 unless($fh eq '' || exists $keyword_tr{$fh});	# SNOOPYJC
                }                                # issue 66
                #
                # Let's try to determine the context
@@ -2239,7 +2285,7 @@ my ($l,$m);
           } else {
               capture_varclass();                # SNOOPYJC
           }
-      } elsif($ValClass[$tno] eq 'j' && index($ValPerl[$tno], '$') >= 0) {
+      } elsif($ValClass[$tno] eq 'j') {		# SNOOPYJC
           if($Pythonizer::PassNo) {
               add_package_name_j() unless ($::implicit_global_my);
           } else {
@@ -2480,7 +2526,8 @@ my $rc=-1;
       } elsif($1 eq '_') {                      # issue 107
           $ValPy[$tno] ="(len($PERL_ARG_ARRAY)-1)";    # issue 107
       } else {                                  # SNOOPYJC
-          $ValPy[$tno]='(len('.$1.')-1)';       # SNOOPYJC
+          my $mapped_name = remap_conflicting_names($1, '@', '');      # issue 92
+          $ValPy[$tno]='(len('.$mapped_name.')-1)';       # SNOOPYJC
       }
       # SNOOPYJC $cut=length($1)+2;
       $cut=length($&);                          # SNOOPYJC

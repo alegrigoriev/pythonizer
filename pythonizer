@@ -137,6 +137,7 @@
 # 0.937  2021/12/30  SNOOPYJC  issue 111, issue 112, issue 113, default to -v 2, print code on stdout only if -v 3, print warnings at -v 2
 # 0.938  2022/01/10  SNOOPYJC  Fix STMT for LIST and do{...} if/unless EXPR; fix _list_of_n() with short tuple as arg, implement dirname(), filepath(), replace basename(), splat out map() if used as arg, implement use and require, handle $. on LHS assignment, implement more special vars, handle goatse, set v5.034, implement use constant, handle names with multiple sets of ::, implement carp, $| needs to autoflush STDERR too, add seek, tell, reimplement stat and lstat, use full topological sort on sub placement, implement remaining -X operators, fix function return insertion if line has a comment, fix issue with order of comments being reversed, fix variable variables, fix assignment to ARGV[i], handle vNN version strings, handle ~ operator, handle default with no arg, exit takes an optional int - not a str, handle GLOB assignment and subrefs.  Add -s flag. Fix tr with [...][...].
 # 0.939  2022/01/18  SNOOPYJC  Implement package X and cross-file global vars, implement -m option.  Do a better job at handling various assignment operators in expressions, handle $arr_ref->[...] and $hash_ref->{...} in double quoted strings, fixes for use/require + look at the perl if we don't have the python, implement goto &sub, remove -u option to python as we have autoflush implemented, spit out the args to pythonizer in the py file, rewrite read to handle expressions and package names, handle s/.../.../ and tr/.../.../ without =~ and with complex arguments
+# 0.940  2022/01/18  SNOOPYJC  Fix issue where _num(...) is missing on for loop upper bound, make filehandles global unless declared otherwise
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -179,7 +180,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages); # SNOOPYJC
 
-   $VERSION='0.939';
+   $VERSION='0.940';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -1719,7 +1720,7 @@ sub fix_type_issues
             #$i += $adjust;
             #$k += $adjust;
             #$limit += $adjust;
-        } elsif($ValClass[$i] eq ';') {         # See it inside a anon sub
+        } elsif($ValClass[$i] eq ';' && $ValPy[0] ne 'for') {         # See it inside a anon sub
             return $total_adjust + fix_type_issues($i+1, $k, $type) if($i+1 >= $k);
             return $total_adjust;
         } else {
@@ -1925,23 +1926,23 @@ sub fix_expression_issues
         }
    }
 
+   # SNOOPYJC: Handle read in expressions
+   $st = $start;
+   while(($pos = next_matching_tokens('f', $st, $limit)) >= 0) {
+       if($ValPy[$pos] eq '.read') {
+       	  my $adjust = fixup_read_in_expression($pos);
+          $end_pos += $adjust;
+          $limit += $adjust;
+       }
+       $st = $pos+1;
+   }
+
    # SNOOPYJC: Handle assignment in expressions
    $st = $start;
    while(($pos = next_matching_tokens('=~', $st, $limit)) >= 0) {
        my $adjust = handle_assignment_in_expression($pos);
        $end_pos += $adjust;
        $limit += $adjust;
-       $st = $pos+1;
-   }
-
-   # SNOOPYJC: Handle read with 0 offset in expressions
-   $st = $start;
-   while(($pos = next_matching_tokens('f', $st, $limit)) >= 0) {
-       if($ValPy[$pos] eq '.read') {
-       	  my $adjust = fixup_read_with_offset($pos);
-          $end_pos += $adjust;
-          $limit += $adjust;
-       }
        $st = $pos+1;
    }
 
@@ -4209,36 +4210,14 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
        return -255 if ($TrStatus<0);
        gen_chunk($py_name); # add method
        gen_chunk('()');
-   }elsif($py_name eq '.read') {                        # issue 10 - read or sysread
-# SNOOPYJC        my $fh = $start;
-# SNOOPYJC        my $sc = $fh+2;
-# SNOOPYJC        my $ln = $sc+2;
-# SNOOPYJC        my $of = $ln+2;
-# SNOOPYJC        if($begin == 0) {                # We don't care about the result
-# SNOOPYJC            if($of < $#ValClass && $ValClass[$of-1] eq ',') {
-# SNOOPYJC                gen_chunk("$ValPy[$sc]"."[$ValPy[$of]:] = $ValPy[$fh]$py_name($ValPy[$ln])");
-# SNOOPYJC            } else {
-# SNOOPYJC                gen_chunk("$ValPy[$sc] = $ValPy[$fh]$py_name($ValPy[$ln])");
-# SNOOPYJC            }
-# SNOOPYJC        } else {
-# SNOOPYJC            if(index($ValPy[$sc], '.') >= 0) {   # a.b := read..., change to _assign_global('a', 'b', read...)
-# SNOOPYJC                my $dot = rindex($ValPy[$sc], '.');
-# SNOOPYJC                my $a = substr($ValPy[$sc], 0, $dot);
-# SNOOPYJC                my $b = substr($ValPy[$sc], $dot+1);
-# SNOOPYJC                $Pyf{_assign_global} = 1;
-# SNOOPYJC                gen_chunk("((_assign_global('$a', '$b', $ValPy[$fh]$py_name($ValPy[$ln]))), len($ValPy[$sc]))[1]");
-# SNOOPYJC            } else {
-# SNOOPYJC                gen_chunk("(($ValPy[$sc]:=$ValPy[$fh]$py_name($ValPy[$ln])), len($ValPy[$sc]))[1]");
-# SNOOPYJC            }
-# SNOOPYJC            if($of < $#ValClass && $ValClass[$of-1] eq ',') {
-# SNOOPYJC                logme('W',"Offset is not supported when the 'read' is in an expression. Translation is incorrect");
-# SNOOPYJC            }
-# SNOOPYJC        }
-       if(substr($perl_name,0,1) eq '.') {      # SNOOPYJC: Recursive call
-           gen_chunk($py_name);
-           return expression($begin+1, $limit, 0);
+   }elsif($py_name eq '.read') {     # issue 10 - read or sysread, not already transformed
+       if(substr($perl_name,0,1) eq '.') {  # SNOOPYJC: We already modified the function in fixup_read_in_expression
+          gen_chunk($py_name);
+          return expression($begin+1,$limit,1);
        }
-       # SNOOPYJC: Redo this whole thing to support complex args
+       # SNOOPYJC: Redid this whole thing to support complex args, though they are
+       #           mostly handled above in fixup_read_in_expression
+       #
        # read FILEHANDLE,SCALAR,LENGTH,OFFSET 
        # read FILEHANDLE,SCALAR,LENGTH
        my $fh0 = $start;
@@ -4288,56 +4267,13 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
             if(defined $of0) {
                 logme('W',"Offset is not supported when the 'read' is in an expression. Translation is incorrect");
             }
-            if($sc0 != $sc1 || index($ValPy[$sc0], '.') >= 0) {  # Complex scalar
-                replace($sc1+1, '=', '=', ':=');
-                insert($ln0, $ValClass[$begin], '.' . $ValPerl[$begin], $ValPy[$begin]);
-                my $j = 0;
-                for(my $i = $fh0; $i <= $fh1; $i++) {
-                    insert($ln0+$j++, $ValClass[$i], $ValPerl[$i], $ValPy[$i]);
-                }
-                destroy($fh0, ($fh1-$fh0)+1);
-                destroy($begin, 1);
-                $sc0 -= ($fh1-$fh0)+2;
-                $sc1 -= ($fh1-$fh0)+2;
-                say STDERR "Read: After moved fh =|$TokenStr|= ValPy=@ValPy, fh0=$fh0, fh1=$fh1, sc0=$sc0, sc1=$sc1, ln0=$ln0, ln1=$ln1, end_pos=$end_pos" if($debug >= 3);
-                insert($ln0, '(', '(', '(');
-                $ln0++;
-                $ln1++;
-                $end_pos++;
-                $limit++;
-                insert($ln1+1, ')', ')', ')');
-                insert($ln1+2, ',', ',', ',');
-                insert($ln1+3, 'f', 'len', 'len');
-                insert($ln1+4, '(', '(', '(');
-                say STDERR "Read: Before moving sc =|$TokenStr|= ValPy=@ValPy, fh0=$fh0, fh1=$fh1, sc0=$sc0, sc1=$sc1, ln0=$ln0, ln1=$ln1, end_pos=$end_pos" if($debug >= 3);
-                $j = 5;
-                for(my $i = $sc0; $i <= $sc1; $i++) {
-                    insert($ln1+$j++, $ValClass[$i], $ValPerl[$i], $ValPy[$i]);
-                }
-                insert($ln1+$j++, ')', ')', ')');
-                $end_pos += $j-1;
-                $limit += $j-1;
-                # gen_chunk("((_assign_global('$a', '$b', $ValPy[$fh]$py_name($ValPy[$ln]))), len($ValPy[$sc]))[1]")
-                say STDERR "Read: Before handle_assignment_in_expression =|$TokenStr|= ValPy=@ValPy, sc1=$sc1, end_pos=$end_pos" if($debug >= 3);
-                $adjust = handle_assignment_in_expression($sc1+1);
-                $end_pos += $adjust;
-                $limit += $adjust;
-                gen_chunk('(');
-                $TrStatus = expression($sc0,$end_pos,0);
-                return -255 if ($TrStatus<0);
-                gen_chunk(')[1]');
-                $end_pos++ if($bracketed == 1);
-                return expression($end_pos+1, $#ValClass, 0) if($end_pos+1 <= $#ValClass);      # Gen to the end since we added so many tokens
-            } else {
-                gen_chunk("($ValPy[$sc0]:=");
-                $TrStatus = expression($fh0,$fh1,0);
-                return -255 if ($TrStatus<0);
-                #$py_name($ValPy[$ln])), len($ValPy[$sc]))[1]");
-                gen_chunk($py_name, '(');
-                $TrStatus = expression($ln0,$ln1,0);
-                return -255 if ($TrStatus<0);
-                gen_chunk(')', ',', 'len(', $ValPy[$sc0], '))[1]');
-            }
+            gen_chunk("($ValPy[$sc0]:=");
+            $TrStatus = expression($fh0,$fh1,0);
+            return -255 if ($TrStatus<0);
+            gen_chunk($py_name, '(');
+            $TrStatus = expression($ln0,$ln1,0);
+            return -255 if ($TrStatus<0);
+            gen_chunk(')', ',', 'len(', $ValPy[$sc0], '))[1]');
         }
    }elsif($perl_name eq 're') {                 # SNOOPYJC: Regex without =~ or !~
       # $py_name is like re.sub(r'a',r'b',_d) -or- re.sub(re.compile(r'a',re.G),r'b',_d)
@@ -4798,6 +4734,7 @@ my($k,$myline, $target,$open_mode,$handle);
       $Perlscan::PREV_HAD_COLON = 1;
    } #if mode
    if($mode ne $orig_mode) {                    # SNOOPYJC: Handle complex handle like sys.stderr that can't appear in a :=
+       gen_statement();
        restore_code();
        if($orig_mode eq 'f') {
            gen_chunk($handle);
@@ -4839,6 +4776,11 @@ my($k,$myline, $target,$open_mode,$handle);
    }
    $Pyf{'opendir'} = 1;
 
+   my $orig_mode = $mode;               # SNOOPYJC: Handle complex handle
+   if($mode ne 's' && $handle !~ /^[A-Za-z0-9_]+$/) {
+       $mode = 's';
+       save_code();
+   }
    if( $mode eq 'f' ){
      #logme('E',"In case of error open function in Python raises the FileNotFoundError exception. The code should be revised");
      if(defined $target) {
@@ -4851,8 +4793,9 @@ my($k,$myline, $target,$open_mode,$handle);
      return $k+1 if ($ValClass[$k+1] eq ')');
      return $k;
    }elsif( $mode eq 's' ){
-      $k+=2;
-      if($autodie) {
+       # SNOOPYJC $k+=2;
+       # SNOOPYJC if($autodie) {
+      if(1) {           # SNOOPYJC: Our opendir does not normally raise exceptions
          if(defined $target) {
             output_line("$handle=opendir($target)");
          } else {
@@ -4878,7 +4821,8 @@ my($k,$myline, $target,$open_mode,$handle);
         correct_nest(-1,-1);
       }
    }elsif( $mode eq 'c' ){
-      if($autodie) {
+       # SNOOPYJC if($autodie) {
+      if(1) {           # SNOOPYJC: Our opendir does not normally raise exceptions
         if(defined $target) {
             output_line("if not($handle:=opendir($target)):");
         } else {
@@ -4907,7 +4851,17 @@ my($k,$myline, $target,$open_mode,$handle);
         $Perlscan::PREV_HAD_COLON = 1;
       }
    } #if ValPerl
-   return $#ValClass;
+   if($mode ne $orig_mode) {            # SNOOPYJC: Handle complex handle like main_.dirh that can't appear in a :=
+       gen_statement();
+       restore_code();
+       if($orig_mode eq 'f') {
+           gen_chunk($handle);
+       } else {
+           output_line("if not $handle:");
+           $Perlscan::PREV_HAD_COLON = 1;
+       }
+    }
+    return $#ValClass;
 } # open_dir
 
 
@@ -5610,31 +5564,103 @@ sub start_of_var
     return $end_pos;
 }
 
-sub fixup_read_with_offset                              # SNOOPYJC
-# Remove 0 offsets from read operations
+sub fixup_read_in_expression                              # SNOOPYJC
+# Remove 0 offsets from read operations and add the length calculation
 {
     my $pos = shift;
 
     # read FH,scalar,length,offset
     # read FH,scalar,length
+    return 0 if($pos == 0);               # Nothing to do if this is a read statement
+    my $begin = $pos;
     my $limit = $#ValClass;
+    return 0 if(substr($ValPerl[$begin],0,1) eq '.');   # We were already here
+    $ValPerl[$begin] = '.' . $ValPerl[$begin];  # Signal to function() that we already swapped out the scalar
     $pos++;     # Point to FH
+    my $bracketed = 0;
     if($pos <= $#ValClass && $ValClass[$pos] eq '(') {    # Skip any '('
         $limit = matching_br($pos) -1;
         return 0 if($limit < 0);
         $pos++;
+        $bracketed = 1;
     }
-    for(my $i = 0; $i < 3; $i++) {
-        my $comma = next_same_level_token(',', $pos, $limit);
-        return 0 if($comma < 0);
-        $pos = $comma+1;
+    my $fh0 = $pos;
+    my $comma = next_same_level_token(',', $pos, $limit);
+    return 0 if($comma < 0);
+    my $fh1 = $comma-1;
+    my $sc0 = $comma+1;
+    $comma = next_same_level_token(',', $sc0, $limit);
+    return 0 if($comma < 0);
+    my $sc1 = $comma-1;
+    my $ln0 = $comma+1;
+    $comma = next_same_level_token(',', $ln0, $limit);
+    my $ln1 = $comma-1;
+    my ($of0, $of1);
+    if($comma < 0) {
+        if(!$bracketed) {
+            my $lower = next_lower_or_equal_precedent_token('F', $comma+1, $limit);
+            $limit = $lower-1 if($lower != -1);
+        }
+        $ln1 = $limit;
+        $of0 = undef;
+    } else {
+        $of0 = $comma+1;
+        $of1 = $limit;
     }
-    return 0 if($pos > $limit);
-    if($ValClass[$pos] eq 'd' && $ValPy[$pos] eq '0') {
-        destroy($pos-1, 2);
-        return -2;
+    my $adjust = 0;
+    if(defined $of0 && $ValClass[$of0] eq 'd' && $ValPy[$of0] eq '0') {
+        destroy($of0-1, 2);
+        $adjust = -2;
+        $limit -= 2;
+        $of0 = undef;
     }
-    return 0;
+    if(defined $of0) {
+        logme('W',"Offset is not supported when the 'read' is in an expression. Translation is incorrect");
+    }
+# Change read(fh,scalar,length) -to- (scalar:=fh.read(length),len(scalar))[1]
+    replace($sc1+1, '=', '=', ':=');
+    insert($ln0, $ValClass[$begin], '.' . $ValPerl[$begin], $ValPy[$begin]);
+    my $j = 0;
+    for(my $i = $fh0; $i <= $fh1; $i++) {
+        insert($ln0+$j++, $ValClass[$i], $ValPerl[$i], $ValPy[$i]);
+    }
+    destroy($fh0, ($fh1-$fh0)+1);
+    destroy($begin, 1);
+    $sc0 -= ($fh1-$fh0)+2;
+    $sc1 -= ($fh1-$fh0)+2;
+    say STDERR "Read: After moved fh =|$TokenStr|= ValPy=@ValPy, fh0=$fh0, fh1=$fh1, sc0=$sc0, sc1=$sc1, ln0=$ln0, ln1=$ln1, limit=$limit" if($debug >= 3);
+    insert($ln0, '(', '(', '(');
+    $ln0++;
+    $ln1++;
+    $limit++;
+    $adjust++;
+    insert($ln1+1, ')', ')', ')');
+    insert($ln1+2, ',', ',', ',');
+    insert($ln1+3, 'f', 'length', 'len');
+    insert($ln1+4, '(', '(', '(');
+    say STDERR "Read: Before moving sc =|$TokenStr|= ValPy=@ValPy, fh0=$fh0, fh1=$fh1, sc0=$sc0, sc1=$sc1, ln0=$ln0, ln1=$ln1, limit=$limit" if($debug >= 3);
+    $j = 5;
+    for(my $i = $sc0; $i <= $sc1; $i++) {
+        insert($ln1+$j++, $ValClass[$i], $ValPerl[$i], $ValPy[$i]);
+    }
+    insert($ln1+$j++, ')', ')', ')');
+    $limit += $j-1;
+    $adjust += $j-1;
+    destroy($sc0-1, 1);         # Eat the comma before the scalar
+    $sc0--;
+    $limit--;
+    $adjust--;
+    if(!$bracketed) {
+        insert($limit+1,')',')',')');
+        insert($sc0,'(','(','(');
+        $limit += 2;
+        $adjust += 2;
+    }
+    insert($limit+2,'y','','[1]');
+    $limit++;
+    $adjust++;
+    say STDERR "Read: completed =|$TokenStr|= ValPy=@ValPy, sc1=$sc1, limit=$limit, adjust=$adjust" if($debug >= 3);
+    return $adjust;
 }
 
 sub add_parens

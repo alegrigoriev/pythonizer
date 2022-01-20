@@ -4,3 +4,4 @@ test_global_namespacePackage.pl
 test_require.pl
 test_stmt_expr.pl
 test_use_require.pl
+test_global_fh.pl

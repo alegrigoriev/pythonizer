@@ -434,6 +434,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        say STDERR Dumper(\%LocalSub);
        print STDERR "PotentialSub = ";
        say STDERR Dumper(\%PotentialSub);
+       print STDERR "FileHandles = ";
+       say STDERR Dumper(\%Perlscan::FileHandles);
    }
 
    foreach $varname (keys %VarSubMap ){
