@@ -91,6 +91,7 @@ $errflag = !(eval <<'END_MULTIPART');
     $buf = '';
 
     $did_eval_multipart = 1 if(!$buf);
+    return 1;
 
 1;
 END_MULTIPART
@@ -107,7 +108,7 @@ if(eval { $k = 14; }) {
 }
 assert($k == 14);
 
-$_bad_vsmg = defined &_vstring && (_vstring(~v0)||'') eq "v0";
+#$_bad_vsmg = defined &_vstring && (_vstring(~v0)||'') eq "v0";
 
 use constant _bad_vsmg => defined &_vstring && (_vstring(~v0)||'') eq "v0";
 
@@ -119,17 +120,14 @@ sub _vstring
 my $v = 'val';
 my $val = 'val';
 my $out = 'my';
-if(0) {
-    ;
-} 
-elsif (defined &_vstring and $v = _vstring($val)
+if (defined &_vstring and $v = _vstring($val)
       and !_bad_vsmg || eval $v eq $val) {
       $out .= $v;
 }
-elsif (!defined &_vstring
-       and ref $ref eq 'VSTRING' || eval{Scalar::Util::isvstring($val)}) {
-      $out .= sprintf "%vd", $val;
-}
+#elsif (!defined &_vstring
+#       and ref $ref eq 'VSTRING' || eval{Scalar::Util::isvstring($val)}) {
+#      $out .= sprintf "%vd", $val;
+#}
 
 assert($out eq 'myval');
 

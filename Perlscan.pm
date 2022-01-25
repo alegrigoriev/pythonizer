@@ -181,7 +181,9 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'printf'=>'print',
                 'quotemeta'=>'re.escape',       # SNOOPYJC
                 'rename'=>'os.replace',         # SNOOPYJC
-                'say'=>'print','scalar'=>'len', 'shift'=>'.pop(0)', 'split'=>'re.split', 
+                'say'=>'print','scalar'=>'len', 'shift'=>'.pop(0)', 
+                # SNOOPYJC 'split'=>'re.split', 
+                'split'=>'_split',      # SNOOPYJC perl split has different semantics on empty matches at the end
                 'seek'=>'.seek',                # SNOOPYJC
 		# issue 34 'sort'=>'sort', 
                 'sleep'=>'tm_py.sleep',         # SNOOPYJC
@@ -398,7 +400,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                       # NB: Use ValPerl[$i] as the key here!
        %FuncType=(    # a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, S=String, u=undef, f=function, H=FileHandle, ?=Optional, m=mixed
                   '_num'=>'m:N', '_int'=>'m:I', '_str'=>'m:S',
-                  '_assign_global'=>'SSm:m',
+                  '_assign_global'=>'SSm:m', '_read'=>'HsII?:s',
 		  'abs'=>'N:N', 'alarm'=>'N:N', 'atan2'=>'NN:F', 
                   'autoflush'=>'I?:I', 'basename'=>'S:S', 'binmode'=>'HS?:m',
                   'carp'=>'a:u', 'confess'=>'a:u', 'croak'=>'a:u', 'cluck'=>'a:u',   # SNOOPYJC
@@ -476,6 +478,7 @@ $uses_function_return_exception = 0;    # SNOOPYJC
 %sub_external_last_nexts=();    # issue 94: Map of subnames to set of all last/next labels that propagate out ('' if no label)
 sub TRY_BLOCK_EXCEPTION { 1 }
 sub TRY_BLOCK_FINALLY { 2 }
+%line_contains_for_loop_with_modified_counter=();       # SNOOPYJC
 %line_needs_try_block=();       # issue 94, issue 108: Map from line number to TRY_BLOCK_EXCEPTION|TRY_BLOCK_FINALLY if that line needs a try block
 %line_locals=();                # issue 108: Map from line number to a list of locals
 %line_locals_map=();            # issue 108: Map from line number to a map from perl name to python name
@@ -730,6 +733,30 @@ sub cur_sub                     # SNOOPYJC
     return (defined $top->{cur_sub} ? $top->{cur_sub} : 'main');
 }
 
+sub get_loop_ctr		# SNOOPYJC
+{
+    return undef if(!@nesting_stack);
+    $top = $nesting_stack[-1];
+    if(defined $top->{loop_ctr}) {
+    	return $top->{loop_ctr};
+    }
+    return undef;
+}
+
+sub set_loop_ctr_mod		# SNOOPYJC
+# Set that the loop counter is modified in the loop
+{
+    my $lc_name = shift;
+
+    for(my $i = $#nesting_stack; $i >= 0; $i--) {
+        if($nesting_stack[$i]->{type} eq 'for' && exists($nesting_stack[$i]->{loop_ctr}) && index($nesting_stack[$i]->{loop_ctr}, $lc_name) == 0) {
+            say STDERR "exit_block: setting line_contains_for_loop_with_modified_counter{$nesting_stack[$i]->{lno}} from assignment to $lc_name in line $." if($::debug >= 5);
+            $line_contains_for_loop_with_modified_counter{$nesting_stack[$i]->{lno}} = $lc_name;
+            last;
+        }
+    }
+}
+
 sub enter_block                 # issue 94
 {
     # SNOOPYJC: Now we use a different character (^ all alone) to replace the '{' for the second round
@@ -754,6 +781,17 @@ sub enter_block                 # issue 94
     $nesting_info{type} = '';
     $nesting_info{type} = $ValPy[$begin];
     $nesting_info{type} =~ s/:\s*$//;           # Change "else: " to "else"
+    $nesting_info{loop_ctr} = $nesting_stack[-1]{loop_ctr} if(scalar(@nesting_stack) && exists($nesting_stack[-1]{loop_ctr}));
+    if($nesting_info{type} eq 'for') {
+        my $lcx = index($TokenStr,'s=');
+        if($lcx > 0) {
+	    if(exists $nesting_info{loop_ctr}) {
+                $nesting_info{loop_ctr} = $ValPerl[$lcx] . ',' . $nesting_info{loop_ctr};
+	    } else {
+                $nesting_info{loop_ctr} = $ValPerl[$lcx];
+            }
+        }
+    }
     $nesting_info{lno} = $.;
     $nesting_info{varclasses} = dclone($line_varclasses{$last_block_lno}) if(!$Pythonizer::PassNo);
     $nesting_info{level} = $nesting_level;
@@ -1232,6 +1270,7 @@ my ($l,$m);
    while( $source ){
       $had_space = (substr($source,0,1) eq ' ');   # issue 50
       ($source)=split(' ',$source,1);  # truncate white space on the left (Perl treats ' ' like AWK. )
+      last unless($source);             # SNOOPYJC
       $s=substr($source,0,1);
       if(exists $line_substitutions{$.}) {              # SNOOPYJC: Used to handle do{...}if{...};
           while(my ($pattern, $substitution) = each(%{$line_substitutions{$.}})) {
@@ -1406,7 +1445,9 @@ my ($l,$m);
              # $tno>0 this is the case when curvy bracket has comments'
              enter_block() if($s eq '{');                 # issue 94
              # SNOOPYJC Pythonizer::getline('{',substr($source,1)); # make it a new line to be proceeed later
-             Pythonizer::getline('^',substr($source,1)); # SNOOPYJC: make it a new line to be proceeed later
+	     # issue 42 Pythonizer::getline('^',substr($source,1)); # SNOOPYJC: make it a new line to be proceeed later
+             Pythonizer::getline('^');			# issue 42: Send 1 line at a time
+	     Pythonizer::getline(substr($source,1));    # SNOOPYJC: make it a new line to be proceeed later
              popup(); # eliminate '{' as it does not have tno==0
              last;
           }elsif($ValClass[$tno-1] eq 'D') {	# issue 50, issue 93
@@ -1457,9 +1498,9 @@ my ($l,$m);
             popup() if($has_squiggle);
             # issue 39 $cut=length($source);
 	 }elsif(index($ValPerl[$tno], "\n") >= 0) {		# issue 39 - multi-line string
-            $ValPy[$tno]="'''".escape_backslash($ValPerl[$tno])."'''"; # only \n \t \r, etc needs to be  escaped # issue 39
+            $ValPy[$tno]="'''".escape_non_printables(escape_backslash($ValPerl[$tno]))."'''"; # only \n \t \r, etc needs to be  escaped # issue 39
          }else{
-            $ValPy[$tno]="'".escape_backslash($ValPerl[$tno])."'"; # only \n \t \r, etc needs to be  escaped
+            $ValPy[$tno]="'".escape_non_printables(escape_backslash($ValPerl[$tno]))."'"; # only \n \t \r, etc needs to be  escaped
          }
          #say STDERR "Simple String: ValPerl=$ValPerl[$tno], ValPy=$ValPy[$tno]";
       }elsif( $s eq '"'  ){
@@ -1482,7 +1523,7 @@ my ($l,$m);
             popup() if($has_squiggle);
 	    $TokenStr=join('',@ValClass);       # issue 39
 	    # issue 39 $cut=length($source);
-	 }elsif(index($ValPy[$tno], "\n") >= 0 && $ValPy[$tno] !~ /^f"""/) {	# issue 39 - multi-line string
+	 }elsif(index($ValPy[$tno], "\n") >= 0 && substr($ValPy[$tno],0,1) eq 'f' && $ValPy[$tno] !~ /^f"""/) {	# issue 39 - multi-line string
             $ValPy[$tno] =~ s/^f"/f"""/;			# issue 39
 	    $ValPy[$tno] .= '""';				# issue 39
          }
@@ -1675,13 +1716,13 @@ my ($l,$m);
                   #say STDERR "after single_quoted_literal, cut=$cut, length(\$w)=".length($w).", length(\$source)=".length($source);
                   $ValPerl[$tno]=remove_escaped_delimiters($delim, substr($source,length($w)+1,$cut-length($w)-2));      # issue 51
                   $w=escape_backslash($ValPerl[$tno]);
-                  $ValPy[$tno]=escape_quotes($w,2);
+                  $ValPy[$tno]=escape_quotes(escape_non_printables($w),2);      # SNOOPYJC
                   $ValClass[$tno]='"';
                }elsif( $w eq 'qq' ){
                   # decompose doublke quote populate $ValPy[$tno] as a side effect
                   $cut=double_quoted_literal($delim,length($w)+1); # side affect populates $ValPy[$tno] and $ValPerl[$tno]
                   $ValClass[$tno]='"';
-	 	  if(index($ValPy[$tno], "\n") >= 0 && $ValPy[$tno] !~ /^f"""/) { # issue 39 - multi-line string
+	 	  if(index($ValPy[$tno], "\n") >= 0 && substr($ValPy[$tno],0,1) eq 'f' && $ValPy[$tno] !~ /^f"""/) { # issue 39 - multi-line string
             	      $ValPy[$tno] =~ s/^f"/f"""/;		# issue 39
 	    	      $ValPy[$tno] .= '""';			# issue 39
 		   }						# issue 39
@@ -2333,7 +2374,7 @@ my $original;
       substr($source,0,$cut)='';
       #say STDERR "finish: source=$source (after cut)";
    }
-   if( length($source)==0  ){
+   if( length($source)==0  || $source =~ /^\s+$/){        # SNOOPYJC
        # the current line ended but ; or ){ } were not reached
        $original=$Pythonizer::IntactLine;
        my @tmpBuffer = @BufferValClass;	# Issue 7
@@ -2745,7 +2786,7 @@ my  $groups_are_present;
    }else{
       # this is a string
       $ValClass[$tno]="'";
-      return '.find('.escape_quotes($myregex).')';
+      return '.find('.escape_quotes(escape_non_printables($myregex)).')';
    }
 
 } # perl_match
@@ -2841,7 +2882,7 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
    $quote=remove_escaped_delimiters($closing_delim, $quote);     # issue 51
    $ValPerl[$tno]=$quote; # also will serve as original
    if (length($quote) == 1 ){
-      $ValPy[$tno]=escape_quotes($quote,2);
+      $ValPy[$tno]=escape_quotes(escape_non_printables($quote),2);
       return $close_pos;
    }
    return interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, 0);     # issue 39
@@ -2867,15 +2908,15 @@ sub interpolate_strings                                         # issue 39
    my ($k, $ind, $result, $pc, $prev);
    local $cut;                  # Save the global version of this!
    $prev = '';
-   $quote = interpolate_string_hex_escapes($quote);                     # SNOOPYJC: Replace \x{ddd...} with python equiv
+   $quote = interpolate_string_hex_escapes(escape_non_printables($quote));                     # SNOOPYJC: Replace \x{ddd...} with python equiv
    #
    # decompose all scalar variables, if any, Array and hashes are left "as is"
    #
    $k=index($quote,'$');
-   if( $k==-1 && index($quote, '@') == -1){             # issue 47
+   if( ($k==-1 || $k == length($quote)-1) && index($quote, '@') == -1){             # issue 47, SNOOPYJC: Skip if first '$' is the last char, like in a regex
       # case when double quotes are used for a simple literal that does not reaure interpolation
       # Python equvalence between single and doble quotes alows some flexibility
-      $ValPy[$tno]=escape_quotes($quote,2); # always generate with quotes --same for Python 2 and 3
+      $ValPy[$tno]=escape_quotes(escape_non_printables($quote),2); # always generate with quotes --same for Python 2 and 3
       say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex)=$close_pos, ValPy[$tno]=$ValPy[$tno]" if($::debug >=3);
       return $close_pos;
    }
@@ -3376,6 +3417,31 @@ sub interpolate_string_hex_escapes
     return $str;
 }
 
+sub escape_non_printables               # SNOOPYJC: Escape non-printable chars
+{
+    my $string = shift;
+
+    my %backslash_map = (10=>'\n', 13=>'\r', 9=>'\t', 12=>'\f', 7=>'\a', 11=>'\v');     # We don't map \b because it means something different in regex's
+    if($string =~ /[^[:print:]]/) {                      
+       my $new = '';
+       for(my $i = 0; $i < length($string); $i++) {
+           my $ch = substr($string, $i, 1);
+           if($ch !~ /[[:print:]]/ && $ch ne "\n") {    # enable newlines in multi-line strings to come thru but no other non-printable chars
+               my $ord = ord $ch;
+               if(exists $backslash_map{$ord}) {
+                   $new .= $backslash_map{$ord};
+               } else {
+                   $new .= "\\x{" . sprintf('%x', ord $ch) . '}';
+               }
+           } else {
+               $new .= $ch;
+           }
+       }
+       $string = interpolate_string_hex_escapes($new);
+   }
+   return $string;
+}
+
 
 #
 # Aug 20, 2020 -- we wilol use the hack -- if there are quotes in the string we will anclose it introple quotes.
@@ -3715,7 +3781,7 @@ my $balance=(scalar(@_)>2) ? $_[2] : 0; # case where opening bracket is missing 
         }
      }
   } # for
-  return $#str;
+  return -1;
 } # matching_paren
 
 sub matching_curly_br			# issue 43
@@ -3738,7 +3804,7 @@ my $balance=(scalar(@_)>2) ? $_[2] : 0; # case where opening bracket is missing 
         }
      }
   } # for
-  return $#str;
+  return -1;
 } # matching_curly_br
 
 sub matching_square_br			# issue 43
@@ -3761,7 +3827,7 @@ my $balance=(scalar(@_)>2) ? $_[2] : 0; # case where opening bracket is missing 
         }
      }
   } # for
-  return $#str;
+  return -1;
 } # matching_square_br
 
 sub escape_keywords		# issue 41

@@ -36,6 +36,10 @@ assert(defined lc);
 open(NH, '>/dev/null');
 assert(defined NH);
 assert(defined NH->autoflush);
+my %hash = (key=>'value');
+assert(defined $hash{key});
+assert(!defined $hash{nokey});
+assert(defined $hash{key} ? 1 : 0);
 
 mysub();
 

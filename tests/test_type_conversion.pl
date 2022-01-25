@@ -29,7 +29,7 @@ assert(substr(123,1,1) eq '2');
 assert(index(123,2) == 1);
 assert(ord 1 == 49);
 assert(chr '49' eq 1);
-#@sp = split 2, 123;            # Causes an issue
+#@sp = split 2, 123;    # Causes an issue
 @sp = split '2', 123;
 assert(@sp == 2 && $sp[0] eq '1' && $sp[1] == 3);
 assert(abs("-2") == 2);
@@ -38,6 +38,18 @@ assert(fc 7 == 7);
 assert(uc 88 == 88);
 assert(ucfirst 99 == 99);
 assert(sprintf 3 eq "3");
+assert(sprintf("%d", "4") eq "4");
+assert(sprintf("%f", "5") =~ /^5\.0/);
+assert(sprintf("%.2f", "6") eq "6.00");
+open(FH, ">tmp.tmp");
+printf FH 3;
+printf FH "%d%1d", "4", '5';
+printf FH "%.2f\n", "6";
+close(FH);
+open(FH, "<tmp.tmp");
+my $val = <FH>;
+assert($val eq "3456.00\n");
+close(FH);
 assert(sqrt("4") == 2);
 sleep "1";
 assert(1 . 0 eq "10");
@@ -120,3 +132,8 @@ assert($n2 == 1);
 assert($tstb[1] == 4);
 
 print("$0 - test passed!\n");
+
+END {
+	eval {close(FH)};
+	eval {unlink "tmp.tmp"};
+}

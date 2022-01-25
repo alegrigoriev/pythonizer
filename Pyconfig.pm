@@ -21,7 +21,7 @@ our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $
 # issue 32 - configure and shorten special variables
 
 our $TABSIZE = 4;
-our $MAXNESTING = 16;
+our $MAXNESTING = 32;
 our $MAXLINELEN = 188;
 our $MAX_CHUNKS = 1024;		# Limit on gen_chunk
 our $MAX_DEPTH = 1024;		# Limit on expression recursion depth
@@ -121,7 +121,7 @@ sub label_exception_name                # issue 94
 
 # issue 41
 
-our @PYTHON_KEYWORDS = qw(False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise try while with yield);
+our @PYTHON_KEYWORDS = qw(False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield);
 our @PYTHON_BUILTINS = qw(abs aiter all any anext ascii bin bool breakpoint bytearray bytes callable chr classmethod compile complex delattr dict dir divmod enumerate eval exec filter float format frozenset getattr globals hasattr hash help hex id input int isinstance issubclass iter len list locals map max memoryview min next object oct open ord pow print property range repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip);
 our %PYTHON_KEYWORD_SET = map { $_ => 1 } @PYTHON_KEYWORDS;
 our %PYTHON_RESERVED_SET = map { $_ => 1 } (@PYTHON_KEYWORDS, @PYTHON_BUILTINS);
@@ -132,7 +132,7 @@ our %SIGIL_MAP = ('$'=>'s', '%'=>'h', '@'=>'a', ''=>'H');
 our $MAIN_MODULE = 'sys.modules["__main__"]';	# Note this is changed to $DEFAULT_PACKAGE if the -m option is NOT passed (in Pythonizer.pm)
 
 # List of libraries that pythonizer knows about and handles as built-ins:
-our @BUILTIN_LIBRARIES = qw(strict warnings vars feature autodie Getopt::Long Time::Local File::Basename Fcntl Carp::Assert Exporter Carp File::stat);
+our @BUILTIN_LIBRARIES = qw(strict warnings vars feature autodie utf8 Getopt::Long Time::Local File::Basename Fcntl Carp::Assert Exporter Carp File::stat);
 our %BUILTIN_LIBRARY_SET = map { $_ => 1 } @BUILTIN_LIBRARIES;
 
 our $MODULES_DIR = "PyModules"; # Where we copy system modules to run pythonizer on them (for use/require)
@@ -140,6 +140,7 @@ our $SUBPROCESS_OPTIONS="-M -v 0"; # Options to pythonizer for when we run on us
 
 our $PERL_VERSION=5.034;
 our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longmess', 
+		_format=>'_int,_num',
                 _lstat=>'_stat', _looks_like_binary=>'_looks_like_text',
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
 our %STAT_SUB=('File::stat'=>'_fstat');                 # Substitution for stat if they use File::stat

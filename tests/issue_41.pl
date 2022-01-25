@@ -38,6 +38,8 @@ assert($if eq 'if' && $import eq 'import' && $in eq 'in' && $is eq 'is' &&
 	$or eq 'or' && $pass eq 'pass');
 %raise = (raise=>True);
 assert($raise{raise});
+$return = 'return';
+assert($return eq 'return');
 sub try { "try"; }
 assert(try eq 'try');
 @while = ('w', 'h', 'i', 'l', 'e');
