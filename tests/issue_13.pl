@@ -47,6 +47,17 @@ assert($aa eq $z[0] && $bb eq $z[1] && $cc eq $z[2]);
 assert($dd eq $z[0]);
 my @l = localtime();
 assert(@l == 9);
+my $l = () = localtime();
+assert($l == 9);
+
+sub mysub
+{
+    assert(@_ == 9);
+    return 1;
+}
+
+my $r = mysub(localtime());
+assert($r == 1);
 #say STDOUT @l;
 #say STDOUT localtime();
 print "$0 - test passed!\n";

@@ -20,6 +20,7 @@ use v5.10;
    use warnings;
    use strict 'subs';
    use feature 'state';
+use open qw(:std :utf8);	# SNOOPYJC
 
 require Exporter;
 

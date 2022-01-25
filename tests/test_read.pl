@@ -37,11 +37,37 @@ my $bytes = 4;
 my $pos = 1;
 read FH, $global, $bytes, $pos;
 assert($global eq '7EFGH');
+read FH, $global, 2, $pos+1;
+assert($global eq '7EIJ');
+read FH, $global, 2, 6;
+assert($global eq "7EIJ\0\0KL");
 close(FH);
+assert(!defined read(FH, $global, 1));
+assert($! =~ /Bad file descriptor/ || $! =~ /closed file/);
 
 open my $fh, '<tmp.tmp';
 assert(read($fh, $scalar, 2) == 2);
 assert($scalar eq '01');
+assert(read($fh, $scalar,2, 2) == 2);
+assert($scalar eq '0123');
+my $offset = 4;
+assert(($got = read($fh, $scalar, 2, $offset)) == 2);
+assert($got == 2);
+assert($scalar eq '012345');
+my %off = (key=>6);
+assert(read($fh, $scalar, 3, $off{key}) == 3);
+assert($scalar eq '012345678');
+assert(read($fh, $global, 2, 2) == 2);
+assert($global eq '7E9A');
+assert(read($fh, $global, 100, 8) == 26);
+assert($global eq "7E9A\0\0\0\0BCDEFGHIJKLMNOPQRSTUVWXYZ\n");
+$offset = 0;
+assert(read($fh, $global, 1, $offset) == 0);	# EOF
+assert($global eq '');
+assert(read($fh, $arr[0], 1, $offset) == 0);	# EOF
+assert($arr[0] eq '');
+assert(read($fh, $local, 1) == 0);		# EOF
+assert($local eq '');
 close($fh);
 
 # Currently 'open' doesn't support this!!
