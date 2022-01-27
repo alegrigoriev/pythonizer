@@ -48,4 +48,12 @@ sub with { "with"; }
 assert(with eq 'with');
 $yield = 13;
 assert($yield == 13);
+sub main { "main"; }
+assert(main eq 'main');
+$main = 4;
+assert($main == 4);
+@main = ('main', 'main');
+assert(@main == 2 && join('', @main) eq 'mainmain');
+%main = (mk=>'mv');
+assert($main{mk} eq 'mv');
 print "$0 - passed!\n";

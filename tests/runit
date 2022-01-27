@@ -6,10 +6,10 @@ passed=0
 flags=
 for f in $*
 do
-   if [ "$f" = '-m' ]; then
-       flags="-m"
-       continue
-   fi
+   case "$f" in
+   -*) flags="$flags $f"
+       continue;;
+   esac
    f=${f}.pl
    echo "==================== $f ===================="
    ((tests++))

@@ -8,4 +8,8 @@ def _ref(r):
     t = str(type(r))
     if t in _ref_map:
         return _ref_map[t]
+    elif '_ArrayHash' in t:
+        if r.isHash:
+            return 'HASH'
+        return 'ARRAY'
     return ''

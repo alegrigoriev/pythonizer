@@ -67,9 +67,9 @@ sub prolog
       my $log_retention = shift;                # issue 64
       # SNOOPYJC getopts("AThd:v:r:b:t:l:",\%options);
       @orig_ARGV = @ARGV;                       # SNOOPYJC
-      getopts("mMAThsSpPd:v:r:b:B:t:l:",\%options);     # SNOOPYJC
+      getopts("mMAVThsSpPd:v:r:b:B:t:l:",\%options);     # SNOOPYJC
 #
-# Three standard otpiotn -h, -v and -d
+# Three standard options -h, -v and -d
 #
       standard_options(\%options);
       Softpano::banner($log_dir, $script_name, $banner_msg, $log_retention);      # issue 64
@@ -164,6 +164,9 @@ sub prolog
       if( exists $options{'P'} ) {
           $::import_perl = 0;
       }
+      if( exists $options{'V'} ) {
+          $::autovivification = 0;
+      }
 #
 # Application arguments
 #
@@ -205,21 +208,21 @@ sub prolog
       return;
 } # prolog
 
-%VarType = ('sys.argv'=>{main=>'a of S'},
-            'os.name'=>{main=>'S'},
-            EVAL_ERROR=>{main=>'S'},
-            'os.environ'=>{main=>'h of s'}); # SNOOPYJC: {varname}{sub} = type (a, h, s, I, S, F, N, u, m)
+%VarType = ('sys.argv'=>{__main__=>'a of S'},   # issue 41
+            'os.name'=>{__main__=>'S'},
+            EVAL_ERROR=>{__main__=>'S'},
+            'os.environ'=>{__main__=>'h of s'}); # SNOOPYJC: {varname}{sub} = type (a, h, s, I, S, F, N, u, m)
 %NeedsInitializing = ();        # SNOOPYJC: {sub}{varname} = type
 # SNOOPYJC: initialized means it is set before it's being used
-%initialized = (main=>{'sys.argv'=>'a of S',
+%initialized = (__main__=>{'sys.argv'=>'a of S',
                        'os.name'=>'S',
                        EVAL_ERROR=>'S',
                        'os.environ'=>'h of s'});       # {sub}{varname} = type
 
 for my $g (keys %GLOBAL_TYPES) {                # SNOOPYJC
     my $t = $GLOBAL_TYPES{$g};
-    $initialized{main}{$g} = $t;
-    $VarType{$g}{main} = $t;
+    $initialized{__main__}{$g} = $t;
+    $VarType{$g}{__main__} = $t;
 }
 
 %VarSubMap=(); # issue 108: matrix  var/sub that allows to create list of global for each sub
@@ -238,8 +241,8 @@ my ( $varname, $subname, $CurSubName,$i,$k,$var_usage_in_subs);
 
 my %DeclaredVarH=(); # list of my varibles in the current subroute
 # issue 108 my %VarSubMap=(); # matrix  var/sub that allows to create list of global for each sub
-   $CurSubName='main';
-   $LocalSub{'main'}=1;
+   $CurSubName='__main__';
+   $LocalSub{'__main__'}=1;
    foreach my $g (keys %GLOBALS) {             # SNOOPYJC
       $VarSubMap{$g}{$CurSubName}='+';         # SNOOPYJC
    }                                           # SNOOPYJC
@@ -324,9 +327,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
              }
              my $typ = 'm';
              $typ = $PriorExprType if(defined $PriorExprType);
-             $VarType{$CurSubName}{main} = merge_types($CurSubName, 'main', $typ);
+             $VarType{$CurSubName}{__main__} = merge_types($CurSubName, '__main__', $typ);
 	     $we_are_in_sub_body = 0;		# issue 45
-	     $CurSubName='main';		# issue 45
+	     $CurSubName='__main__';		# issue 45
 	 }					# issue 45
       }else{
          for( $k=0; $k<@ValClass; $k++ ){
@@ -359,14 +362,14 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                   $end = $c-1 if(($c = next_same_level_token('c', 1, $end)) != -1);
                   $typ = expr_type(1, $end, $CurSubName);
               }
-              $VarType{$CurSubName}{main} = merge_types($CurSubName, 'main', $typ);
+              $VarType{$CurSubName}{__main__} = merge_types($CurSubName, '__main__', $typ);
           }
       } # statements
       # SNOOPYJC: Capture the prior expr type in case of implicit function return (as done by pythonizer::finish())
       # If we determine it's a mixed type ('m'), then stop checking
       if(scalar(@ValClass) == 0) {                              # SNOOPYJC
           $PriorExprType = 'm';                 # We couldn't have inserted a "return" here
-      } elsif(exists $VarType{$CurSubName} && exists $VarType{$CurSubName}{main} && $VarType{$CurSubName}{main} eq 'm') {   # SNOOPYJC: not worth checking
+      } elsif(exists $VarType{$CurSubName} && exists $VarType{$CurSubName}{__main__} && $VarType{$CurSubName}{__main__} eq 'm') {   # SNOOPYJC: not worth checking
           $PriorExprType = 'm';
       } else {
          $typ = 'm';                    # mixed by default
@@ -492,7 +495,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
              }
          }
          #$DB::single = 1 if(!defined $common_type);
-         if(defined $common_type && exists $VarType{$varname} && exists $VarType{$varname}{main} && $common_type ne $VarType{$varname}{main} && $::debug>=3) {
+         if(defined $common_type && exists $VarType{$varname} && exists $VarType{$varname}{__main__} && $common_type ne $VarType{$varname}{__main__} && $::debug>=3) {
                  say STDERR "get_globals: Merging to common type $common_type for global var $varname";
          }
          foreach $subname (keys %{$VarSubMap{$varname}} ){
@@ -505,14 +508,14 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                 # it needs initializing, we need to do it in the top-level scope, not in the sub
                 $common_type = $NeedsInitializing{$subname}{$varname} if(!defined $common_type);
                 $VarType{$varname}{$subname} = $common_type;
-                if($subname ne 'main' && exists $NeedsInitializing{$subname}{$varname}) {     # SNOOPYJC
+                if($subname ne '__main__' && exists $NeedsInitializing{$subname}{$varname}) {     # SNOOPYJC
                     # $VarType{$varname}{main} = merge_types($varname, $subname, $common_type);        # SNOOPYJC
-                    $VarType{$varname}{main} = $common_type;            # SNOOPYJC
-                    $VarSubMap{$varname}{main} = '+';                   # SNOOPYJC
-                    if(exists $NeedsInitializing{main}{$varname}) {
-                        $NeedsInitializing{main}{$varname} = $common_type;
+                    $VarType{$varname}{__main__} = $common_type;            # SNOOPYJC
+                    $VarSubMap{$varname}{__main__} = '+';                   # SNOOPYJC
+                    if(exists $NeedsInitializing{__main__}{$varname}) {
+                        $NeedsInitializing{__main__}{$varname} = $common_type;
                     } else {
-                        $NeedsInitializing{main}{$varname} = $NeedsInitializing{$subname}{$varname};        # SNOOPYJC
+                        $NeedsInitializing{__main__}{$varname} = $NeedsInitializing{$subname}{$varname};        # SNOOPYJC
                     }
                     delete $NeedsInitializing{$subname}{$varname};      # SNOOPYJC
                 }                                                       # SNOOPYJC
@@ -560,8 +563,21 @@ sub init_val            # SNOOPYJC: Get the initializer value for the var, given
    $val = '0' if($type =~ /[IN]/);      # Integer or Number
    $val = '0.0' if($type eq 'F');       # Float
    $val = "''" if($type eq 'S' || $type eq 's');        # String or scalar
-   $val = '[]' if($type eq 'a');        # array
-   $val = '{}' if($type eq 'h');        # hash 
+   if($type eq 'a') {        # array
+       if($::autovivification) {
+           $::Pyf{Array} = 1;
+           $val = 'Array()';
+       } else {
+           $val = '[]';
+       }
+   } elsif($type eq 'h') {        # hash 
+       if($::autovivification) {
+           $::Pyf{Hash} = 1;
+           $val = 'Hash()';
+       } else {
+           $val = '{}';
+       }
+   }
    return $val;
 }
 
@@ -728,6 +744,7 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
         }
         $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
+        $VarType{$name}{$CurSub} = $type if(!exists $VarType{$name} || !exists $VarType{$name}{$CurSub});
    } elsif(($typ = expr_type($k, $k, $CurSub)) && $typ ne 's') {
         $NeedsInitializing{$CurSub}{$name} = $typ if(!exists $initialized{$CurSub}{$name});
    } elsif(!defined $type) {                            # Scalar reference - try to find what type it needs to be
@@ -1122,8 +1139,8 @@ sub _expr_type           # Attempt to determine the type of the expression
             if(substr($ValPerl[$k],0,1) eq '<') {   # Diamond operator
                 return 'a of S' if($k-2 >= 0 && $ValClass[$k-2] eq 'a' && $ValClass[$k-1] eq '=');
                 return 'S';
-            } elsif($LocalSub{$name} || (exists $VarType{$name} && exists $VarType{$name}{main})) { # Local sub with no args
-                return $VarType{$name}{main} if(exists $VarType{$name} && exists $VarType{$name}{main});
+            } elsif($LocalSub{$name} || (exists $VarType{$name} && exists $VarType{$name}{__main__})) { # Local sub with no args
+                return $VarType{$name}{__main__} if(exists $VarType{$name} && exists $VarType{$name}{__main__});
                 return 'm';
             } else {
                 return 'S';
@@ -1139,11 +1156,11 @@ sub _expr_type           # Attempt to determine the type of the expression
         if(substr($ValPerl[$k],0,1) eq '<') {   # Diamond operator
             return 'a of S' if($k-2 >= 0 && $ValClass[$k-2] eq 'a' && $ValClass[$k-1] eq '=');
             return 'S';
-        } elsif($LocalSub{$name} || (exists $VarType{$name} && exists $VarType{$name}{main})) {
-            return $VarType{$name}{main} if(exists $VarType{$name} && exists $VarType{$name}{main});
+        } elsif($LocalSub{$name} || (exists $VarType{$name} && exists $VarType{$name}{__main__})) {
+            return $VarType{$name}{__main__} if(exists $VarType{$name} && exists $VarType{$name}{__main__});
             return 'm';
         } elsif($k+1 <= $#ValClass && $ValClass[$k+1] eq '(') {
-            return $VarType{$name}{main} if(exists $VarType{$name} && exists $VarType{$name}{main});
+            return $VarType{$name}{__main__} if(exists $VarType{$name} && exists $VarType{$name}{__main__});
             return 'm';
         } elsif($k+1 <= $#ValClass && $ValClass[$k+1] eq 'A') {         # key => value
             return 'm';         # User can change it to any type of value

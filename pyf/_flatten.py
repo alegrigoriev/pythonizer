@@ -3,11 +3,19 @@ def _flatten(list):
     """Flatten a list down to 1 level"""
     result = []
     for elem in list:
-        if isinstance(elem, collections.abc.Sequence) and not isinstance(elem, str):
-            for e in elem:
+        if hasattr(elem, 'isHash'):   # Array or Hash
+            result = Array(result)
+            if elem.isHash:
+                for e in itertools.chain.from_iterable(elem.items()):
+                    result.append(e)
+            else:
+                for e in elem:
+                    result.append(e)
+        elif isinstance(elem, collections.abc.Mapping):
+            for e in itertools.chain.from_iterable(elem.items()):
                 result.append(e)
-        elif isinstance(elem, dict):
-            for e in functools.reduce(lambda x,y:x+y,elem.items()):
+        elif isinstance(elem, collections.abc.Iterable) and not isinstance(elem, str):
+            for e in elem:
                 result.append(e)
         else:
             result.append(elem)

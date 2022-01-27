@@ -4,7 +4,7 @@ def _format(fmt, args=None):
     fmt = str(fmt)
     if args is None:
         return fmt % ()
-    if isinstance(args, collections.abc.Sequence) and not isinstance(args, str):
+    if isinstance(args, collections.abc.Iterable) and not isinstance(args, str):
         args = list(args)
     else:
         args = [args]

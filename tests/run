@@ -6,13 +6,22 @@ status=0
 failed=0
 tests=0
 passed=0
-if [ "$1" != "-m" ]; then
+flags=
+mflag=
+case "$1" in
+-*m*) flags="$flags $1" 
+      shift
+      mflag="-m";;
+ -*)  flags="$flags $1"
+      shift;;
+esac
+if [ "$mflag" != "-m" ]; then
     echo
     echo "Generating test modules"
     for f in *.pm
     do
         echo "==================== $f ===================="
-        ../pythonizer $* $f
+        ../pythonizer $flags $f
         if [ $? -ne 0 ]; then
            echo "$f run with pythonizer FAILED"
            ((failed++))
@@ -35,7 +44,7 @@ echo
 echo "Running pythonizer tests"
 for f in *.pl;
 do
-   if [ "$1" = "-m" ]; then
+   if [ "$mflag" = "-m" ]; then
        if grep -s "$f" skip_with_dash_m.txt; then
            echo "========== $f skipped with -m =========="
            continue
@@ -50,7 +59,7 @@ do
       status=1
       continue
    fi
-   ../pythonizer $* $f
+   ../pythonizer $flags $f
    if [ $? -ne 0 ]; then
       echo "$f run with pythonizer FAILED"
       ((failed++))

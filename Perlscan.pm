@@ -174,7 +174,9 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'localtime'=>'_localtime',		# issue times
                 'lstat'=>'_lstat',              # SNOOPYJC
                 'map'=>'map', 'mkdir'=>'os.mkdir', 'my'=>'',
-                'next'=>'continue', 'no'=>'NoTrans!',
+                'next'=>'continue', 
+                # SNOOPYJC 'no'=>'NoTrans!',
+                'no'=>'import',         # SNOOPYJC: for "no autovivification;";
                 'own'=>'global', 'oct'=>'oct', 'ord'=>'ord',
                 'our'=>'',                      # SNOOPYJC
                 'package'=>'package', 'pop'=>'.pop()', 'push'=>'.extend(',
@@ -628,7 +630,7 @@ sub cur_package
         $result = $Pythonizer::Packages[-1];
     }
     $Pythonizer::Packages{$result} = 1;
-    return $result;
+    return escape_keywords($result, 1);
 }
 
 sub capture_varclass_j          # SNOOPYJC: Only called in the first pass
@@ -728,9 +730,9 @@ sub in_sub                      # SNOOPYJC
 
 sub cur_sub                     # SNOOPYJC
 {
-    return 'main' if(!@nesting_stack);
+    return '__main__' if(!@nesting_stack);
     $top = $nesting_stack[-1];
-    return (defined $top->{cur_sub} ? $top->{cur_sub} : 'main');
+    return (defined $top->{cur_sub} ? $top->{cur_sub} : '__main__');
 }
 
 sub get_loop_ctr		# SNOOPYJC
@@ -1058,7 +1060,7 @@ sub handle_local                        # issue 108
     } else {
         $line_locals{$lno} = \@locals;
     }
-    $line_sub{$lno} = (defined $top->{cur_sub} ? $top->{cur_sub} : 'main');
+    $line_sub{$lno} = (defined $top->{cur_sub} ? $top->{cur_sub} : '__main__');
     $line_needs_try_block{$top->{lno}} |= TRY_BLOCK_FINALLY;
 }
 
@@ -1261,6 +1263,7 @@ my ($l,$m);
    $TokenStr='';
    $ExtractingTokensFromDoubleQuotedTokensEnd = -1;     # SNOOPYJC
    $ExtractingTokensFromDoubleQuotedStringEnd = 0;      # SNOOPYJC
+   $ExtractingTokensFromDoubleQuotedStringTnoStart = -1; # SNOOPYJC
    $ate_dollar = -1;                                    # issue 50
    my $end_br;                  # issue 43
    
@@ -3034,7 +3037,8 @@ my  $outer_delim;
             $quote = substr($quote, 2);
             decode_hash($quote);
             add_package_name(substr($quote,0,$cut));            # SNOOPYJC
-            $ValPy[$tno] = 'functools.reduce(lambda x,y:x+y,'.$ValPy[$tno].'.items())';
+            # SNOOPYJC $ValPy[$tno] = 'functools.reduce(lambda x,y:x+y,'.$ValPy[$tno].'.items())';
+            $ValPy[$tno] = "map(_str,itertools.chain.from_iterable($ValPy[$tno].items()))";     # SNOOPYJC
             $end_br -= 2;    # 2 to account for the 2 we ate
             #say STDERR "quote1b=$quote, end_br=$end_br\n";
          } else {
@@ -3081,7 +3085,7 @@ my  $outer_delim;
              my $ind_cut=length($ind);
              # issue 109 $ind =~ tr/$//d;               # We need to decode_scalar on each one!
              # issue 53 $ind =~ tr/{}/[]/;
-             #say "looking for '{' in $ind";
+             #say STDERR "looking for '{' in $ind";
              for(my $i = 0; $i < length($ind); $i++) {	# issue 53: change hash ref {...} to use .get(...) instead
                  my $c = substr($ind,$i,1);                 # issue 109
                  if($c eq '{') {		# issue 53
@@ -3093,6 +3097,16 @@ my  $outer_delim;
                      # issue 109 $i = $l+7;				# issue 53: 7 is length('.get') + length(",''")
                  } elsif($c eq '$') {                       # issue 109: decode special vars in subscripts/hash keys
                      my $var = substr($ind,$i);
+                     #say STDERR "var=$var";
+                     if(substr($var,1,1) eq '{') {      # SNOOPYJC: like ${i}
+                         $l = matching_curly_br($var, 1);
+                         if($l > 0) {                   # SNOOPYJC: Eat both the '{' and the '}'
+                             substr($ind,$l+1,1) = '';
+                             substr($ind,$i+1,1) = '';
+                             $var = substr($ind,$i);
+                         }
+                         #say STDERR "var=$var, ind=$ind";
+                     }
                      my $pr = '';
                      decode_scalar($var,0);     # issue 109
                      if($cut == 1) {     # Just a '$' with no variable
@@ -3127,8 +3141,7 @@ my  $outer_delim;
        #the last part
        $result.=$quote;
    }
-   if($outer_delim eq '"""' && substr($result,-1,1) eq '"' &&
-      (substr($result,-2,1) ne '\\' || substr($result,-3,1) eq '\\')) {    # SNOOPYJC: oops - we have to fix this!
+   if($outer_delim eq '"""' && substr($result,-1,1) eq '"' && !is_escaped($result, length($result)-1)) {  # SNOOPYJC: quote at end - we have to fix this!
        $result = substr($result,0,length($result)-1)."\\".'"';
    }
    $result.=$outer_delim;
@@ -3153,7 +3166,8 @@ sub extract_tokens_from_double_quoted_string
     my $quote = shift;
     my $initial = shift;
 
-    say STDERR ">extract_tokens_from_double_quoted_string($quote)" if($::debug>=3);
+    say STDERR ">extract_tokens_from_double_quoted_string($quote,$initial)" if($::debug>=3);
+    $ExtractingTokensFromDoubleQuotedStringTnoStart = $tno if($initial);
     if(($pos = unescaped_match($quote, qr'[$@]')) >= 0) {
     #if($quote =~ m'[$@]' && !is_escaped($quote, $-[0])) {
         #my $pos = $-[0];
@@ -3220,6 +3234,32 @@ sub extract_tokens_from_double_quoted_string
         say STDERR "<extract_tokens_from_double_quoted_string($quote) result=$pos (nothing to do)" if($::debug>=3);
         return $pos;
     } else {
+        my $balance = 0;                # We must generate a balance of brackets else the scanning gets messed up and doesn't stop on the ';'
+        for(my $i = $tno-1; $i >= 0; $i--) {
+            if($ValClass[$i] eq ')') {
+                $balance--;
+            } elsif($ValClass[$i] eq '(') {
+                $balance++;
+            }
+            last if($i eq $ExtractingTokensFromDoubleQuotedStringTnoStart);
+        }
+        while($balance > 0) {
+            $ValPerl[$tno] = $ValPy[$tno] = $ValClass[$tno] = ')';      # We don't care that it may not be the right kind of bracket
+            $balance--;
+            if( $::debug > 3  ){
+               say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
+            }
+            $tno++;
+        }
+        while($balance < 0) {
+            $ValPerl[$tno] = $ValPy[$tno] = $ValClass[$tno] = '(';      # We don't care that they are not in the right order
+            $balance++;
+            if( $::debug > 3  ){
+               say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
+            }
+            $tno++;
+        }
+        $ValClass[$tno] = '"';
         $ValPerl[$tno] = $quote;
         $ValPy[$tno] = 'f"""' . $ValPerl[$tno] . '"""';
         $ExtractingTokensFromDoubleQuotedTokensEnd = -1;
@@ -3460,10 +3500,11 @@ my $result;
    return qq(').$string.qq(') if(index($string,"'")==-1 ); # no need to escape any quotes.
    return q(").$string.qq(") if( index($string,'"')==-1 ); # no need to scape any quotes.
 #
-# We need to escape quotes
+# We need to escape quotes at the end
 #
-   if(substr($string,-1,1) eq '"') {    # SNOOPYJC: oops - we have to fix this!
-       return qq(""").substr($string,0,length($string)-1).qq(\"""");
+   if(substr($string,-1,1) eq '"' && !is_escaped($string, length($string)-1)) {  # SNOOPYJC: quote at end - we have to fix this!
+       #return q(""").substr($string,0,length($string)-1).q(\"""");
+       return q(''').$string.q(''');
    }
    return qq(""").$string.qq(""");
 }
@@ -3835,11 +3876,14 @@ sub escape_keywords		# issue 41
 # be a period separated list of names.  Returns the escaped name.
 # Note: We also escape the names of the built-in functions like len, etc
 {
-	my $name = shift;
+	my $name = $_[0];
+        my $is_package_name = (scalar(@_) >= 2) ? 1 : 0;
+
 	my @ids = split /[.]/, $name;
 	my @result = ();
-	for my $id (@ids) {
-	   if(exists $PYTHON_RESERVED_SET{$id}) {
+	for(my $i=0; $i<scalar(@ids); $i++) {
+           $id = $ids[$i];
+	   if(exists $PYTHON_RESERVED_SET{$id} || ($id eq $DEFAULT_PACKAGE && ($i != 0 || $id eq $name) && !$is_package_name && !$::implicit_global_my)) {
 	       $id = $id.'_';
 	   }
            push @result, $id;
