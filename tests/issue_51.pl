@@ -16,4 +16,5 @@ assert(substr($s4,1,1) eq "n");
 $s4 =~ s/\\//g;
 assert($s4 eq 'nrabcde');
 assert($s4 =~ /\b\w+\b/);
+
 print "$0 - test passed!\n";
