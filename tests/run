@@ -1,5 +1,10 @@
 #!/bin/sh
-# Run this once plain, and once with '-m' flag
+# Run this once plain, and once with '-m' flag, once with -P, and once with -mP
+echo "Building perllib"
+cd ../pyf
+python makelib.py
+cd ../tests
+
 echo "Cleaning .py files"
 rm *.py
 status=0

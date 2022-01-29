@@ -2427,6 +2427,9 @@ sub select_readline
     my $rl = "_readline";
     $rl = "_readline_full" if(exists $SpecialVarsUsed{'$/'} || exists $SpecialVarsUsed{'$.'});
     $::Pyf{$rl} = 1; 
+    if($::import_perllib) {
+        $rl = $PERLLIB . '.' . substr($rl, 1);
+    }
     return $rl;
 }
 
@@ -2511,8 +2514,13 @@ my $rc=-1;
       # issue 66 $ValPy[$tno]='fileinput.filelineno()';
       # issue 66 $ValPy[$tno]='fileinput.lineno()';       # issue 66: Mimic the perl behavior
        $::Pyf{_nr} = 1;              # issue 66
-       $ValPy[$tno]='_nr()';         # issue 66: Mimic the perl behavior, no matter if we're using fileinput or not
-       $SpecialVarR2L{$ValPy[$tno]} = 'INPUT_LINE_NUMBER';      # Name if used on LHS
+       if($::import_perllib) {
+           $ValPy[$tno]="$PERLLIB.nr()";         # issue 66: Mimic the perl behavior, no matter if we're using fileinput or not
+           $SpecialVarR2L{$ValPy[$tno]} = "$PERLLIB.INPUT_LINE_NUMBER";      # Name if used on LHS
+       } else {
+           $ValPy[$tno]='_nr()';         # issue 66: Mimic the perl behavior, no matter if we're using fileinput or not
+           $SpecialVarR2L{$ValPy[$tno]} = 'INPUT_LINE_NUMBER';      # Name if used on LHS
+       }
        $ValType[$tno]="X";
        my $vn = substr($source,0,2);                    # SNOOPYJC
        $SpecialVarsUsed{$vn} = 1;                       # SNOOPYJC
@@ -3057,7 +3065,9 @@ my  $outer_delim;
             add_package_name(substr($quote,0,$cut));            # SNOOPYJC
          }
          #does not matter what type of variable this is: regular or special variable
-         $result.="LIST_SEPARATOR.join($ValPy[$tno])"; # copy string provided by decode_array. ValPy[$tno] changes if Perl contained :: like in $::debug
+         my $ls = 'LIST_SEPARATOR';
+         $ls = $PERLLIB . '.' . $ls if($::import_perllib);
+         $result.="$ls.join($ValPy[$tno])"; # copy string provided by decode_array. ValPy[$tno] changes if Perl contained :: like in $::debug
       }
 
       $quote=substr($quote,$cut); # cure the nesserary number of symbol determined by decode_scalar.
@@ -3688,7 +3698,16 @@ my ($i,$k);
          logme('T',"First generated chunk is $PythonCode[0] . The last generated chunk before infinite loop is $PythonCode[$k]");
          abend("You might need to exclude or simplify the line. Please refer to the user guide as for how to troubleshoot this situation");
       }
-      push(@PythonCode,$_[$i]);
+      if($::import_perllib && exists $::Pyf{$_[$i]} && $::Pyf{$_[$i]} == 1 &&
+         substr($_[$i],0,length($PERLLIB)+1) ne "$PERLLIB.") {      # SNOOPYJC: Handle perllib option
+          my $chu = $_[$i];
+          if(substr($chu,0,1) eq '_') {
+              $chu = escape_keywords(substr($chu,1));       # SNOOPYJC: remove the initial '_' but change keywords like import to import_
+          }
+          push(@PythonCode, "$PERLLIB.$chu");
+      } else {
+          push(@PythonCode,$_[$i]);
+      }
    } #for
    ($::debug>4) && say 'Generated partial line ',join('',@PythonCode);
 }
@@ -4030,5 +4049,18 @@ sub is_escaped                          # SNOOPYJC
     return 1 if(substr($string,$pos-3,1) eq "\\");      # \\\x
     return 0;                                           # .\\x
 }
+
+sub init_perllib                        # SNOOPYJC
+# If we're using "import perllib;" then change up some variable names to prefix them with "perllib."
+{
+    foreach my $key (keys %SPECIAL_VAR) {
+        my $value = $SPECIAL_VAR{$key};
+        if(exists $GLOBALS{$value}) {
+            $SPECIAL_VAR{$key} = "$PERLLIB.$value";
+        }
+    }
+    #my @GLOBALS = keys %GLOBALS;
+}
+
 1;
 

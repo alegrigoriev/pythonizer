@@ -16,8 +16,3 @@ def _dirname(fullname):
         dirname = re.sub(r'(.)/*$', r'\1', dirname, flags=re.S)
 
     return dirname
-        
-
-
-
-
