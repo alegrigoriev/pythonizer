@@ -1,3 +1,4 @@
+
 def _create_fh_methods(fh):
     """Create special methods for filehandles"""
     try:

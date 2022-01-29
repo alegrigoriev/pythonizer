@@ -159,13 +159,17 @@ sub prolog
           $::pythonize_standard_library = 0;
       }
       if( exists $options{'p'} ) {
-          $::import_perl = 1;
+          $::import_perllib = 1;
       }
       if( exists $options{'P'} ) {
-          $::import_perl = 0;
+          $::import_perllib = 0;
       }
       if( exists $options{'V'} ) {
           $::autovivification = 0;
+      }
+
+      if($::import_perllib) {
+          &Perlscan::init_perllib();
       }
 #
 # Application arguments
@@ -219,11 +223,6 @@ sub prolog
                        EVAL_ERROR=>'S',
                        'os.environ'=>'h of s'});       # {sub}{varname} = type
 
-for my $g (keys %GLOBAL_TYPES) {                # SNOOPYJC
-    my $t = $GLOBAL_TYPES{$g};
-    $initialized{__main__}{$g} = $t;
-    $VarType{$g}{__main__} = $t;
-}
 
 %VarSubMap=(); # issue 108: matrix  var/sub that allows to create list of global for each sub
 
@@ -246,6 +245,15 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
    foreach my $g (keys %GLOBALS) {             # SNOOPYJC
       $VarSubMap{$g}{$CurSubName}='+';         # SNOOPYJC
    }                                           # SNOOPYJC
+   for my $g (keys %GLOBAL_TYPES) {            # SNOOPYJC
+      my $t = $GLOBAL_TYPES{$g};
+      $initialized{__main__}{$g} = $t;
+      $VarType{$g}{__main__} = $t;
+      if($::import_perllib) {
+         $initialized{__main__}{$PERLLIB.'.'.$g} = $t;
+         $VarType{$PERLLIB.'.'.$g}{__main__} = $t;
+      }
+   }
    my $PriorExprType = undef;                  # SNOOPYJC: used to type the function result
    while(1){
       if( scalar(@Perlscan::BufferValClass)==0 ){
@@ -533,7 +541,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                my $dx = rindex($varname, '.');
                my $packname = substr($varname,0,$dx);
                my $vn = substr($varname, $dx+1);
-               $InitVar{$subname} .= "\n$varname = _init_global('$packname', '$vn', " .init_val($NeedsInitializing{$subname}{$varname}) . ')';
+               my $ig = '_init_global';
+               $ig = "$PERLLIB.init_global" if($::import_perllib);
+               $InitVar{$subname} .= "\n$varname = $ig('$packname', '$vn', " .init_val($NeedsInitializing{$subname}{$varname}) . ')';
            }
         }
     }
@@ -567,6 +577,7 @@ sub init_val            # SNOOPYJC: Get the initializer value for the var, given
        if($::autovivification) {
            $::Pyf{Array} = 1;
            $val = 'Array()';
+           $val = "$PERLLIB.Array()" if($::import_perllib);
        } else {
            $val = '[]';
        }
@@ -574,6 +585,7 @@ sub init_val            # SNOOPYJC: Get the initializer value for the var, given
        if($::autovivification) {
            $::Pyf{Hash} = 1;
            $val = 'Hash()';
+           $val = "$PERLLIB.Hash()" if($::import_perllib);
        } else {
            $val = '{}';
        }
@@ -1967,7 +1979,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                 }
             }
             $defs{$func} = $i;
-        } elsif($line =~ /^_init_package\(/) {
+        } elsif($line =~ /^_init_package\(/ || $line =~ /^$PERLLIB\.init_package\(/) {
             push @init_package_lnos, $lno;
         }
     }
@@ -2076,6 +2088,13 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         if($lno < $insertion_point) {
            pep8($sysout, $line);
            next
+        }
+        if($::import_perllib) {
+            for my $ip_lno (@init_package_lnos) {
+                pep8($sysout, $lines[$ip_lno-1]);
+                $moved_lines{$ip_lno} = 1;
+            }
+            @init_package_lnos = ();
         }
         for my $func (@ordered_to_move) {
             next if $func eq '__main__';
