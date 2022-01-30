@@ -163,6 +163,29 @@ sub useCONDITIONAL
 useCONDITIONAL({in0=>'y', in1=>'y'}, \'use_in');
 useCONDITIONAL();
 
+@arr = (1,2,3);
+%hash = (key=>'value');
+%h2 = (cat=>'puddy');
+
+sub useArrHash
+{
+    local $arr[1] = 6;
+    local $hash{key} = "val";
+    local ($h2{cat}) = 'ralph';
+
+    assert(join('', @arr) eq '163');
+    assert($hash{key} eq 'val');
+    assert($h2{cat} eq 'ralph');
+}
+
+assert(join('', @arr) eq '123');
+assert($hash{key} eq 'value');
+assert($h2{cat} eq 'puddy');
+useArrHash();
+assert(join('', @arr) eq '123');
+assert($hash{key} eq 'value');
+assert($h2{cat} eq 'puddy');
+
 END {
     eval {unlink "tmp.tmp"};
 }

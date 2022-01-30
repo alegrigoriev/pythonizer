@@ -311,6 +311,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
             } # for
          }
       # SNOOPYJC }elsif(  $ValPerl[0] eq 'sub' && $#ValClass==1 ){
+      }elsif($ValPerl[0] eq 'sub' && 1 <= $#ValClass && exists $::nested_subs{$ValPerl[1]}) {   # issue 78: don't switch to nested sub
+          $LocalSub{$ValPy[1]}=1;
       }elsif(  $ValPerl[0] eq 'sub' && $#ValClass >= 1) {         # SNOOPYJC: handle sub xxx() (with parens)
          $CurSubName=$ValPy[1];
          $LocalSub{$CurSubName}=1;
@@ -405,7 +407,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
           }
       } elsif($TokenStr eq 'c(i)') {
           $PotentialSub{$ValPy[2]} = 1;
-      } elsif($ValPerl[0] ne 'use' && $ValPerl[0] ne 'require') {
+      } elsif($ValPerl[0] ne 'use' && $ValPerl[0] ne 'require' && $ValPerl[0] ne 'no') {
           for(my $i=0; $i <= $#ValClass; $i++) {
               if($ValClass[$i] eq 'i') {
                  next if($i+1 <= $#ValClass && $ValClass[$i+1] =~ /[AD]/);         # key=>, method->
@@ -440,6 +442,38 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                   getline($ln, 1);      # Push to special_buffer
               }
               getline('}', 1);  # Push to special_buffer
+          }
+      } elsif(!$::saved_eval_tokens) {                  # issue 78: e flag on regex
+          for(my $i = 0; $i <= $#ValClass; $i++) {
+              if($ValClass[$i] eq 'f' && $ValPerl[$i] eq 're' && $ValPy[$i] =~ /re\.E/) {
+                  $ValPy[$i] =~ /,e'''(.*)'''/s;
+                  my $expr = $1;
+                  my $subname = "$ANONYMOUS_SUB$.";
+                  $::nested_subs{$subname} = "$DEFAULT_MATCH";
+                  $::saved_eval_tokens = 1;
+                  $::saved_eval_lno = $.;
+                  my $t;
+                  while(($t = getline())) {
+                    push @::saved_eval_buffer, $t;
+                  }
+                  my @lines = split(/^/m, $expr);
+                  say STDERR "On line $., pushing " . scalar(@lines) . " lines + sub $subname { }" if($::debug);
+                  getline("sub $subname {");
+                  for my $ln (@lines) {
+                      getline($ln, 1);
+                  }
+                  getline('}', 1);
+                  last;
+                  #} elsif($ValClass[$i] eq 'k' && $ValPerl[$i] eq 'no' && $ValPerl[$i+1] eq 'warnings') {
+                  #$::saved_eval_tokens = 1;
+                  #$::saved_eval_lno = $.;
+                  #my $t;
+                  #while(($t = getline())) {
+                  #push @::saved_eval_buffer, $t;
+                  #}
+                  #getline("local ($^W) = 0;");
+                  #last;
+              }
           }
       }
 
@@ -484,6 +518,12 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        say STDERR Dumper(\%PotentialSub);
        print STDERR "FileHandles = ";
        say STDERR Dumper(\%Perlscan::FileHandles);
+       print STDERR "SpecialVarsUsed = ";
+       say STDERR Dumper(\%Perlscan::SpecialVarsUsed);
+       print STDERR "scalar_pos_gen_line = ";
+       say STDERR Dumper(\%Perlscan::scalar_pos_gen_line);
+       print STDERR "line_contains_pos_gen = ";
+       say STDERR Dumper(\%Perlscan::line_contains_pos_gen);
    }
 
    foreach $varname (keys %VarSubMap ){
@@ -734,7 +774,11 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             if($ValClass[$p] eq '=') {
                 $rhs_type = expr_type($p+1, $#ValClass, $CurSub);
             } elsif($ValClass[$p] eq '^') {
-                $rhs_type = 'I';
+                if(exists $VarType{$name} && exists $VarType{$name}{$CurSub}) {
+                    # We can't set this type if it doesn't have one because we read the
+                    # value before setting it.  Test case in test_regex.pl with main.chars
+                    $rhs_type = 'I';
+                }
             } elsif($ValClass[$p] eq '~') {
                 $rhs_type = 'S';
             } elsif(index(')x*/%+-.HI>&|0r?:,Ao"', $ValClass[$p]) >= 0) {
@@ -1018,10 +1062,10 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
     }
     return $type if($type eq $otype);   # Same type
     if(($otype eq 'a' || $otype eq 'h') && $type =~ /$otype of/) {
-        return $type;           # we have more specific info
+        return $otype;           # we have more specific info - must stick to the less specific
     }
     if(($type eq 'a' || $type eq 'h') && $otype =~ /$type of/) {
-        return $otype;           # we have less specific info
+        return $type;           # we have less specific info - stick with it
     }
     if(($otype =~ /[ah] of/) && ($type =~ /[ah] of/)) {
         @olist = split / of /,$otype;
@@ -2170,7 +2214,8 @@ sub pep8                # Generate blank lines where they should be, and elimina
     $this_is_comment = $line =~ /^\s*#/;
     $line =~ /^(\s*)/;
     $this_indent = length($1);
-    $this_indent = 0 if($this_is_blank);
+    #$this_indent = 0 if($this_is_blank);
+    $this_indent = $last_indent if($this_is_blank);
     if($this_is_comment) {              # Just ignore and spit out comment lines
         say $out $line;
         $last_was_blank = 0;

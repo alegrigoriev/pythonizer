@@ -19,7 +19,10 @@ my %h = (v65=>65);
 assert($h{v65} == 65);
 assert($h{'v65'} == 65);
 assert("\N{LATIN CAPITAL LETTER A}" eq 'A');
-my $i = ~v0;    # Just make sure this compiles
+{
+    no warnings;
+    my $i = ~v0;    # Just make sure this compiles
+}
 #print "" . (~v0) . "\n";
 
 print "$0 - test passed!\n";

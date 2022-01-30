@@ -110,6 +110,8 @@ assert($k == 14);
 
 #$_bad_vsmg = defined &_vstring && (_vstring(~v0)||'') eq "v0";
 
+$^W = 0;        # No warnings
+
 use constant _bad_vsmg => defined &_vstring && (_vstring(~v0)||'') eq "v0";
 
 sub _vstring

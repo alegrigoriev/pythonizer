@@ -26,7 +26,3 @@ def _range(var, pat1, flags1, pat2, flags2, key):
         seq = str(seq)+'E0'         # end marker
         setattr(_range, key, seq)
     return seq
-
-
-
-
