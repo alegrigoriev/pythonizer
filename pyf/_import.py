@@ -104,4 +104,9 @@ def _import(globals, path, module=None, fromlist=None, version=None):
     for imp in actual_imports:
         if hasattr(mod, imp):
             globals[imp] = getattr(mod, imp)
+            if hasattr(builtins, '__PACKAGE__'):
+                pkg = builtins.__PACKAGE__
+                if hasattr(builtins, pkg):
+                    namespace = builtins[pkg]
+                    setattr(namespace, imp, getattr(mod, imp))
 

@@ -23,6 +23,7 @@ def _num(expr):
         if not (m:=re.match(r'^\s*([+-]?(?:\d+(?:[.]\d*)?(?:[eE][+-]?\d+)?|[.]\d+(?:[eE][+-]?\d+)?))', expr)):
             break
         expr = m.group(1);
-    caller = inspect.getframeinfo(inspect.stack()[1][0])
-    warnings.warn(f"Argument \"{expr}\" isn't numeric in numeric context at {caller.filename}:{caller.lineno}")
+    if WARNING:
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        warnings.warn(f"Argument \"{expr}\" isn't numeric in numeric context at {caller.filename}:{caller.lineno}")
     return 0

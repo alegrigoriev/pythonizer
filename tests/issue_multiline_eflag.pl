@@ -24,5 +24,7 @@ sub myconfig {
 $summary_expanded = 'passed';
 
 assert(myconfig() eq 'passed');
-
 print "$0 - test passed\n";
+
+package Config;
+

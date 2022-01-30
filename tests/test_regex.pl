@@ -7,7 +7,9 @@ assert($-[0] == 6);
 assert($+[0] == 9);
 
 @positions = ();
-while($String =~ m/G/g) {
+while($String =~ m/G/g) 
+{
+    #pos($String) = pos($string);
     push @positions, pos($String);
 }
 assert(scalar(@positions) == 2 && $positions[0] == 1 && $positions[1] == 11);
@@ -61,10 +63,10 @@ $y = $x =~ s/elephants/cougars/r;
 assert($x eq 'I like dogs.');
 assert($y eq 'I like dogs.');
 
-$x = "Cats are great.";
-$y = $x =~ s/Cats/Dogs/r =~ s/Dogs/Frogs/r =~
-    s/Frogs/Hedgehogs/r, "\n";
-assert($y eq "Hedgehogs are great.");
+# Don't even think about it!  $x = "Cats are great.";
+# Don't even think about it!  $y = $x =~ s/Cats/Dogs/r =~ s/Dogs/Frogs/r =~
+# Don't even think about it!      s/Frogs/Hedgehogs/r;
+# Don't even think about it!  assert($y eq "Hedgehogs are great.");
 
 $x = "Bill the cat";
 $x =~ s/(.)/$chars{$1}++;$1/eg; # final $1 replaces char with itself
@@ -73,6 +75,27 @@ push @freqs, "frequency of '$_' is $chars{$_}\n"
 assert(scalar(@freqs) == 9);
 assert($freqs[0] =~ /frequency of '[\stl]' is 2/);
 assert($freqs[-1] =~ /frequency of '[cBaihe]' is 1/);
+
+# TDD: Set global and local vars from e-flag expr
+
+$x =~ s/cat/$cnt++; 'dog'/e;
+assert($x eq 'Bill the dog');
+assert($cnt == 1);
+
+sub mysub {
+	my $frog = shift;
+	my $counter;
+
+	$x =~ s/dog/$c++; $frog/e;
+	assert($x eq "Bill the $frog");
+	assert($c == 1);
+
+	$x =~ s/$frog/$counter++; 'cat'/e;
+	assert($x eq 'Bill the cat');
+	assert($counter == 1);
+
+}
+mysub('frog');
                        
 print "$0 - test passed!\n";
 

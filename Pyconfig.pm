@@ -79,12 +79,15 @@ our %GLOBALS = ($SCRIPT_START=>'tm_py.time()',
                 OS_ERROR=>"''", 
                 OUTPUT_AUTOFLUSH=>0,
                 $SUBPROCESS_RC=>0, 
+		WARNING=>1,
                 AUTODIE=>0, 
                 TRACEBACK=>0, 
                 $LOCALS_STACK=>'[]',            # issue 108
                 _OPEN_MODE_MAP=>$open_mode_map, 
                 _DUP_MAP=>$dup_map);
-our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_LINE_NUMBER=>'I', INPUT_RECORD_SEPARATOR=>'m', OS_ERROR=>'S', OUTPUT_AUTOFLUSH=>'I', $SUBPROCESS_RC=>'I', _OPEN_MODE_MAP=>'h of S', _DUP_MAP=>'h of I',
+our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_LINE_NUMBER=>'I', 
+		    INPUT_RECORD_SEPARATOR=>'m', OS_ERROR=>'S', OUTPUT_AUTOFLUSH=>'I', 
+		    $SUBPROCESS_RC=>'I', WARNING=>'I', _OPEN_MODE_MAP=>'h of S', _DUP_MAP=>'h of I',
                     $LOCALS_STACK=>'h of S',            # issue 108
                      AUTODIE=>'I', TRACEBACK=>'I');
 
