@@ -24,7 +24,7 @@ use v5.10.1;
 use warnings;
 use strict 'subs';
 use feature 'state';
-use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType %token_precedence %SPECIAL_FUNCTION_MAPPINGS destroy insert append);  # SNOOPYJC
+use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType %token_precedence %SPECIAL_FUNCTION_MAPPINGS destroy insert append replace);  # SNOOPYJC
 use Softpano qw(abend logme out getopts standard_options);
 use Pyconfig;				# issue 32
 use Data::Dumper;       # SNOOPYJC
@@ -33,7 +33,7 @@ require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    # issue 32 $::TabSize=3;
    $::TabSize=$TABSIZE;         # issue 32
@@ -46,6 +46,7 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $PassNo=0; # EXTERNAL VAR:  0 -- the first pass ( reading from @InputTextA); 1 -- the second pass(reading from STDIN)
    $InLineNo=0; # counter, pointing to the current like in InputTextA during the first pass
    %LocalSub=(); # list of local subs
+   %UseSub=();          # SNOOPYJC: list of subs declared on "use subs"
    %PotentialSub=();    # SNOOPYJC: List of potential sub calls
    %GlobalVar=(); # generated "external" declaration with the list of global variables.
    %InitVar=(); # SNOOPYJC: generated initialization
@@ -55,6 +56,7 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $GeneratedCode=0;    # issue 96: used to see if we generated any real code between { and }
    %Packages = ();      # SNOOPYJC: Set of all packages defined in this file (determined on the first pass)
    @Packages = ();      # SNOOPYJC: List of all packages defined in this file in the order declared
+   $CurPackage = undef; # SNOOPYJC
 #
 #::prolog --  Decode parameter for the pythonizer. all parameters are exported
 #
@@ -276,7 +278,14 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
             logme('S', "First pass breakpoint was triggered at line $. in Pythonizer.pm");
             $DB::single = 1;
          }
-         Perlscan::tokenize($line);
+         if(defined $::saved_sub_tokens && $::nested_sub_at_level < 0) {  # SNOOPYJC
+             &::unpackage_code($::saved_sub_tokens);
+             $::saved_sub_tokens = undef;
+             say STDERR "Continuing to scan tokens after handling sub with line=$line" if($::debug >= 3);
+             &Perlscan::tokenize($line, 1);     # continue where we left off
+         } else {
+            Perlscan::tokenize($line);
+         }
       }else{
          #process token buffer -- Oct 9, 2020 --NNB
          @ValClass=@Perlscan::BufferValClass;
@@ -288,6 +297,16 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
       unless(defined($ValClass[0])){
          next;
       }
+
+      if($ValClass[0] ne 'c' || $ValPerl[0] ne 'package') {     # SNOOPYJC: Set the default package unless
+                                                                # we start the file with a "package" stmt
+         if(!$implicit_global_my) {
+            push @Packages, $DEFAULT_PACKAGE unless(exists $Packages{$DEFAULT_PACKAGE});
+            $Packages{$DEFAULT_PACKAGE} = 1;
+            $CurPackage = $DEFAULT_PACKAGE;
+         }
+      }
+
       fix_scalar_context();                             # issue 37
       if( $ValClass[0] eq 't' && $ValPerl[0] eq 'my' ){
          for($i=1; $i<=$#ValClass; $i++ ){
@@ -313,6 +332,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
       # SNOOPYJC }elsif(  $ValPerl[0] eq 'sub' && $#ValClass==1 ){
       }elsif($ValPerl[0] eq 'sub' && 1 <= $#ValClass && exists $::nested_subs{$ValPerl[1]}) {   # issue 78: don't switch to nested sub
           $LocalSub{$ValPy[1]}=1;
+          $::nested_sub_at_level = $Perlscan::nesting_level;
       }elsif(  $ValPerl[0] eq 'sub' && $#ValClass >= 1) {         # SNOOPYJC: handle sub xxx() (with parens)
          $CurSubName=$ValPy[1];
          $LocalSub{$CurSubName}=1;
@@ -323,8 +343,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          }
          correct_nest(0,0);                             # issue 45
       } elsif($ValClass[0] eq 'c' && $ValPerl[0] eq 'package' && $#ValClass >= 1) {     # SNOOPYJC: Keep track of packages
-          $Packages{$ValPerl[1]} = 1;              # SNOOPYJC
-          push @Packages, $ValPerl[1];             # SNOOPYJC
+          $Packages{$ValPy[1]} = 1;              # SNOOPYJC
+          push @Packages, $ValPy[1];             # SNOOPYJC
+          $CurPackage = $ValPy[1];               # SNOOPYJC
       }elsif( $ValClass[0] eq '{') {                    # issue 45
           correct_nest(1);                              # issue 45
       }elsif( $ValClass[0] eq '}' && $#ValClass == 0) {	# issue 45
@@ -338,6 +359,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
              my $typ = 'm';
              $typ = $PriorExprType if(defined $PriorExprType);
              $VarType{$CurSubName}{__main__} = merge_types($CurSubName, '__main__', $typ);
+             my $pkg = 'sys.modules["__main__"]';
+             $pkg = $CurPackage if(defined $CurPackage);
+             $VarType{"$pkg.$CurSubName"}{__main__} = $VarType{$CurSubName}{__main__};
 	     $we_are_in_sub_body = 0;		# issue 45
 	     $CurSubName='__main__';		# issue 45
 	 }					# issue 45
@@ -345,6 +369,10 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          for( $k=0; $k<@ValClass; $k++ ){
              if(  $ValClass[$k]=~/[sah]/ ){
                 check_ref($CurSubName, $k);                  # SNOOPYJC
+                if($ValClass[$k] eq 's' && $ValPerl[$k] eq '$_' && $k+1 <= $#ValClass && $ValClass[$k+1] eq '=') {
+                    $SubAttributes{$CurSubName}{modifies_arglist} = 1;    # SNOOPYJC: This sub mods it's args
+                }
+
                 if($k != 0 && $ValClass[$k-1] eq 't' && $ValPerl[$k-1] eq 'my') {       # SNOOPYJC e.g. for(my $i=...)
                     $DeclaredVarH{$ValPy[$k]} = 1;
                 }
@@ -417,6 +445,22 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                  }
               }
           }
+      } elsif($#ValClass >= 2 && $ValPerl[0] eq 'use' && $ValPerl[1] eq 'subs') {
+          my @subs = ();
+          for(my $i=2; $i<=$#ValClass; $i++) {
+             if($ValClass[$i] eq '"') {         # Plain String
+                 push @subs, $ValPy[$i];
+             } elsif($ValClass[2] eq 'q') {
+                if(index(q('"), substr($ValPy[$i],0,1)) >= 0) {
+                    push @subs, $ValPy[$i];
+                } else {
+                    push @subs, map {'"'.$_.'"'} split(' ', $ValPy[$i]);         # qw(...) on use stmt doesn't generate the split
+                }
+             }
+          }
+          for my $sub (@subs) {
+              $UseSub{&::unquote_string($sub)} = 1;
+          }
       }
       if($TokenStr =~ m'C"' && !$::saved_eval_tokens) {     # issue 42 eval '...'
           # Parse the eval string into tokens
@@ -446,6 +490,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
       } elsif(!$::saved_eval_tokens) {                  # issue 78: e flag on regex
           for(my $i = 0; $i <= $#ValClass; $i++) {
               if($ValClass[$i] eq 'f' && $ValPerl[$i] eq 're' && $ValPy[$i] =~ /re\.E/) {
+                  if($ValPy[$i] =~ /re\.E\|re\.E/) {
+                      logme('W',"Regex substitute 'ee' flag is not supported");
+                  }
                   $ValPy[$i] =~ /,e'''(.*)'''/s;
                   my $expr = $1;
                   my $subname = "$ANONYMOUS_SUB$.";
@@ -476,8 +523,32 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
               }
           }
       }
+      if($#ValClass != 0 && $ValClass[$#ValClass] eq 'k' && $ValPerl[$#ValClass] eq 'sub') {
+         my $subname = "$ANONYMOUS_SUB$.";
+         $::nested_subs{$subname} = "\*$PERL_ARG_ARRAY";
+         $::saved_sub_tokens = &::package_code();
+         $::nested_sub_at_level = $Perlscan::nesting_level;
+         &::p_replace($::saved_sub_tokens, $#ValClass,'"',$subname,$subname);     # Change the 'sub' to the subname reference
+         destroy(0, $#ValClass);
+         append('i', $subname, $subname);
+         say STDERR "Creating nested_subs{$subname} for sub in expression" if($::debug);
+         # Since we already processed the '{' after the 'sub', adjust the nesting_info at the top of the stack
+         $top = $Perlscan::nesting_stack[-1];
+         $top->{is_sub} = 1;
+         $top->{in_sub} = 1;
+         $top->{cur_sub} = $subname;
+         $top->{type} = 'sub';
+         if($::debug >= 3) {
+            no warnings 'uninitialized';
+            say STDERR "updated nesting_info=@{[%{$top}]}";
+        }
+      }
 
       correct_nest();                           # issue 45
+      if($Perlscan::nesting_level < $::nested_sub_at_level) {       # issue 78
+          say STDERR "Setting nested_sub_at_level = -1" if($::debug >= 3);
+          $::nested_sub_at_level = -1;
+      }
    } # while
 
    &Perlscan::prepare_locals();         # issue 108: Prepare all 'local' vars for code generation
@@ -516,6 +587,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        say STDERR Dumper(\%LocalSub);
        print STDERR "PotentialSub = ";
        say STDERR Dumper(\%PotentialSub);
+       print STDERR "UseSub = ";
+       say STDERR Dumper(\%UseSub);
        print STDERR "FileHandles = ";
        say STDERR Dumper(\%Perlscan::FileHandles);
        print STDERR "SpecialVarsUsed = ";
@@ -1144,7 +1217,7 @@ sub _expr_type           # Attempt to determine the type of the expression
                 }
             }
         }
-        return func_type($ValPerl[$k]);
+        return func_type($ValPerl[$k], $ValPy[$k]);
     } elsif($k == $e) {      # we have one thing
         if($class eq 'd') {             # Digits
             if($ValPy[$k] =~ /^(?:0[xbo])?\d+$/) {
@@ -1392,11 +1465,16 @@ sub lcp {               # Longest common prefix - LOL don't ask me how it works!
 sub func_type                   # Get the result type of this built-in function
 {
     my $fname = shift;          # send us ValPerl
+    my $pname = shift;          # ValPy
 
     return 'u' if(!exists $Perlscan::FuncType{$fname});
     my $type = $Perlscan::FuncType{$fname};
     $type =~ s/^.*://;
-    return $type;       # FIXME: this may be off in scalar context (see %Perlscan::SPECIAL_FUNCTION_MAPPINGS)
+    if(exists $Perlscan::SPECIAL_FUNCTION_MAPPINGS{$fname} &&
+            $Perlscan::SPECIAL_FUNCTION_MAPPINGS{$fname}{list} ne $pname) {
+        $type = 's';
+    }
+    return $type;
 }
 
 sub matching_br
@@ -1562,16 +1640,76 @@ sub fix_scalar_context                          # issue 37
 {
     # Run over the statement and fix scalar context issues
     my $did_something = 0;
+    my $j;
+    # First handle "new" calls which map to functions so we can potentially apply scalar context to them
+    if($TokenStr =~ /ii/) {
+        # Case 1: new File::Temp
+        #          i      i
+        my $pos = $-[0];
+        my $name = $ValPerl[$pos+1] . '::' . $ValPerl[$pos];
+        if(exists $Perlscan::TokenType{$name}) {
+            replace($pos+1,'f',$name, $Perlscan::keyword_tr{$name});
+            destroy($pos,1);
+            $did_something = 1;
+        }
+    } elsif($TokenStr =~ /iDi/) {
+        # Case 2: File::Temp->new
+        #             i     D i
+        my $pos = $-[0];
+        my $name = $ValPerl[$pos] . '::' . $ValPerl[$pos+2];
+        if(exists $Perlscan::TokenType{$name}) {
+            replace($pos+2,'f',$name, $Perlscan::keyword_tr{$name});
+            destroy($pos,2);
+            $did_something = 1;
+        }
+    }
     if($TokenStr eq 's=a' || $TokenStr =~ /^s=f/ || $TokenStr =~ /^s=\(\)=/) {         # issue 65, goatse
         $did_something |= apply_scalar_context(2);
     } elsif($TokenStr eq 'ts=a' || $TokenStr =~ /^ts=f/ || $TokenStr =~ /^ts=\(\)=/) {    # issue 65, goatse
         $did_something |= apply_scalar_context(3);
     } elsif($#ValClass > 5 && $ValClass[1] eq '(' && $ValClass[0] eq 's') {    # Array subscript or hashref
-        $j=matching_br(1);
+        $j=&::end_of_variable(1);                      # Look for $arr[ndx]=@arr or $arr[ndx]=func()
         if($j+2 <= $#ValClass && $ValClass[$j+1] eq '=' && $ValClass[$j+2] =~ /[af]/) {
             $did_something |= apply_scalar_context($j+2);
         }
     }
+
+    # issue 13: Handle the ',' operator in scalar context
+    $j = 0;
+    if(($ValClass[0] eq 'c' && $ValPerl[0] =~ /if|while|until/) ||
+       ($ValClass[0] eq 'C' && $ValPerl[0] eq 'elsif') ||
+       ($#ValClass > 1 && $ValClass[0] eq 's' && $ValClass[1] eq '=') ||
+       ($#ValClass > 2 && $ValClass[0] eq 't' && $ValClass[1] eq 's' && $ValClass[2] eq '=') ||
+       ($#ValClass > 3 && $ValClass[0] eq 's' && $ValClass[1] eq '(' && ($j=&::end_of_variable(0)+1) < $#ValClass &&
+        $ValClass[$j] eq '=')) {
+        $j = next_same_level_token('(', 1, $#ValClass) - 1 if($j == 0);
+        if($ValClass[$j] =~ /[cC=]/ && $j+1 <= $#ValClass && $ValClass[$j+1] eq '(' && $ValPerl[$j+1] eq '(') {
+            my $pos = $j+2;
+            my $end_pos = next_same_level_tokens(',)', $pos, $#ValClass)-1;
+            my $found_comma = ($ValClass[$end_pos+1] eq ',');
+            while($end_pos >= $pos) {
+                if($ValClass[$pos] =~ /[af]/) {
+                    $did_something |= apply_scalar_context($pos);
+                }
+                last if($ValClass[$end_pos+1] eq ')');
+                $pos = $end_pos+2;
+                $end_pos = next_same_level_tokens(',)', $pos, $#ValClass)-1;
+            }
+            if($ValClass[$end_pos+1] eq ')' && $found_comma) {
+                if($ValClass[0] =~ /[Cc]/) {    # We have to insert an extra set of parens
+                    insert($end_pos+1,')',')',')');
+                    insert($j+1,'(','(','(');
+                    $end_pos++;
+                    $j++;
+                }
+                insert($end_pos+2,']',']',']');         # Subscript the tuple to get the last element
+                insert($end_pos+2,'d','-1','-1');
+                insert($end_pos+2,'[','[','[');
+                $did_something |= 1;
+            }
+        }
+    }
+
 
     for(my $i=0; $i<=$#ValClass; $i++) {
         if(index("+-*/.>",$ValClass[$i]) >= 0) {        # Scalar operator
@@ -2069,28 +2207,6 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     }
     say STDERR "move_defs_before_refs: Refs @{[%refs]}" if($::debug >= 3);
     return if(!$insertion_point);
-    # Create the move group
-#    my %to_move = ();
-#    my %to_move_first = ();
-#    for my $ref (keys %refs) {
-#        $ref_lno = $refs{$ref};
-#        $def_lno = $defs{$ref};
-#        if($ref_lno < $def_lno) {
-#            $to_move{$ref} = 1;
-#            if(exists $f_refs{$ref}) {
-#                foreach my $f (keys %{$f_refs{$ref}}) {
-#                    #say STDERR "setting to_move_first{$f} = 1";
-#                    $to_move_first{$f} = 1;
-#                }
-#            }
-#        }
-#    }
-#    my @ordered_to_move = ();
-#    foreach $f (keys %to_move_first) {
-#        delete $to_move{$f};
-#    }
-#    push @ordered_to_move, keys %to_move_first;
-#    push @ordered_to_move, keys %to_move;
     #
     # We need to put _init_package() first so we can insert all the calls to it right after the def,
     # we do that by making it dependent on everything else

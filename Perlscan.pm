@@ -60,7 +60,7 @@ use Storable qw(dclone);                # SNOOPYJC
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw(Exporter);
-@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence %SpecialVarsUsed @EndBlocks %SpecialVarR2L get_sub_vars_with_class);	# issue 41, issue 65, issue 74, issue 92, issue 93, issue 78
+@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence %SpecialVarsUsed @EndBlocks %SpecialVarR2L get_sub_vars_with_class %FileHandles);	# issue 41, issue 65, issue 74, issue 92, issue 93, issue 78
 #our (@ValClass,  @ValPerl,  @ValPy, $TokenStr); # those are from main::
 
   $VERSION = '0.93';
@@ -102,7 +102,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 '%'=>'FORMAT_PAGE_NUMBER', '='=>'FORMAT_LINES_PER_PAGE', '~'=>'FORMAT_NAME', '^'=>'FORMAT_TOP_NAME',    # SNOOPYJC
                 ':'=>'FORMAT_LINE_BREAK_CHARACTERS',
                 );
-   %SPECIAL_VAR2=('O'=>'os.name','T'=>'OS_BASETIME', 'V'=>'sys.version[0]', 'X'=>'sys.executable()', # $^O and friends
+   %SPECIAL_VAR2=('O'=>'_os_name',     # SNOOPYJC: was os.name
+                  'T'=>'OS_BASETIME', 'V'=>'sys.version[0]', 'X'=>'sys.executable()', # $^O and friends
                   'L'=>'FORMAT_FORMFEED',                       # SNOOPYJC
                   'T'=>'BASETIME',                         # SNOOPYJC
                   'W'=>'WARNING');              # SNOOPYJC
@@ -195,16 +196,19 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'state'=>'global',
                 'rand'=>'_rand',                # SNOOPYJC
                 'read'=>'.read',                # issue 10
-                   'stat'=>'_stat','sysread'=>'.read',
+                   'stat'=>'_stat','sysread'=>'.sysread',
                    'substr'=>'','sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','sprintf'=>'',
 		   'STDOUT'=>'sys.stdout',	# issue 10
                    'sysseek'=>'perl_sysseek',
                    'STDERR'=>'sys.stderr','STDIN'=>'sys.stdin', '__LINE__' =>'sys._getframe().f_lineno',
+                   '__FILE__'=>'__file__',      # SNOOPYJC
+                   '__SUB__'=>'_sub',           # SNOOPYJC
                 'reverse'=>'[::-1]',            # issue 65
                 'rindex'=>'.rfind', 
                 # SNOOPYJC 'ref'=>'type', 
                 'ref'=>'_ref',                  # SNOOPYJC
                 # SNOOPYJC 'require'=>'NoTrans!', 
+	        'opendir'=>'_opendir', 'closedir'=>'_closedir', 'readdir'=>'_readdir', 'seekdir'=>'_seekdir', 'telldir'=>'_telldir', 'rewinddir'=>'_rewinddir',	# SNOOPYJC
                 'require'=>'__import__',        # SNOOPYJC
                 'return'=>'return', 'rmdir'=>'os.rmdir',
                 'tell'=>'.tell',                # SNOOPYJC
@@ -382,6 +386,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'return'=>'k', 		# issue 61
                   'reverse'=>'f',               # issue 65
 		  'ref'=>'f',
+                  'rmdir'=>'f',         # SNOOPYJC
                   'say'=>'f','scalar'=>'f','shift'=>'f', 'split'=>'f', 'sprintf'=>'f', 'sort'=>'f','system'=>'f', 'state'=>'t',
                   'seek'=>'f',          # SNOOPYJC
 		  'sleep'=>'f',		# SNOOPYJC
@@ -401,6 +406,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'wait'=>'f',                   # SNOOPYJC
                   'waitpid'=>'f',                # SNOOPYJC
                   'wantarray'=>'d',              # SNOOPYJC
+                  '__FILE__'=>'"', '__LINE__'=>'d', '__PACKAGE__'=>'"', '__SUB__'=>'f', # SNOOPYJC
                   );
                       # NB: Use ValPerl[$i] as the key here!
        %FuncType=(    # a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, S=String, u=undef, f=function, H=FileHandle, ?=Optional, m=mixed
@@ -418,13 +424,14 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'glob'=>'S:a of S', 'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 
                   'kill'=>'II:u', 'lc'=>'S:S', 'lstat'=>'S:a of I',
                   'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'SI?:I', 'oct'=>'s:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
-		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'rename'=>'SS:I', 'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:m',
+		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'rename'=>'SS:I', 'rmdir'=>'S:I',
+                  'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:m',
                   'push'=>'aa:I', 'pop'=>'a:s', 'pos'=>'s:I', 'print'=>'H?a:I', 'printf'=>'H?Sa:I', 'quotemeta'=>'S:S', 'rand'=>'F?:F',
                   'rindex'=>'SSI?:I','read'=>'HsII?:I', '.read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
                   'say'=>'H?a:I','scalar'=>'a:I','seek'=>'HII:u', 'shift'=>'a?:s', 'sleep'=>'I:I', 'split'=>'SSI?:a of S', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
                   'sqrt'=>'N:F', 'stat'=>'S:a of I', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'tell'=>'H:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timegm'=>'IIIIII:I',
                   'timelocal'=>'IIIIII:I', 'unlink'=>'a?:I', 'values'=>'h:a', 'warn'=>'a:I', 'undef'=>'a?:u', 'unshift'=>'aa:I', 'uc'=>'S:S',
-                  'ucfirst'=>'S:S', 'umask'=>'I?:I'
+                  'ucfirst'=>'S:S', 'umask'=>'I?:I', '__SUB__'=>':f',
                   );
         for my $func (values %ARRAY_INDEX_FUNCS) {
             $FuncType{$func} = 'asN:N';
@@ -436,6 +443,36 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 $FuncType{$func} = 'ass:S';
             } elsif($func =~ /substitute/) {
                 $FuncType{$func} = 'asss:S';
+            }
+        }
+
+        for my $pkg (keys %PREDEFINED_PACKAGES) {       # See Pyconfig.pm
+            $BUILTIN_LIBRARY_SET{$pkg} = 1;
+            for my $func_info (@{$PREDEFINED_PACKAGES{$pkg}}) {
+                my $perl = $func_info->{perl};
+                my $type = $func_info->{type};
+                my $python = "_$perl";
+                $python = $func_info->{python} if(exists $func_info->{python});
+                if(exists $func_info->{calls}) {
+                    $PYF_CALLS{$python} = $func_info->{calls};
+                }
+                my $fullname = "${pkg}::$perl";
+                if(exists $func_info->{scalar}) {
+                    my $scalar = $func_info->{scalar};
+                    $SPECIAL_FUNCTION_MAPPINGS{$perl} = {scalar=>$scalar, list=>$python};
+                    $SPECIAL_FUNCTION_MAPPINGS{$fullname} = {scalar=>$scalar, list=>$python};
+                    if(exists $func_info->{scalar_calls}) {
+                        $PYF_CALLS{$scalar} = $func_info->{scalar_calls};
+                    }
+                }
+                if($perl ne 'new') {
+                    $FuncType{$perl} = $type;
+                    $TokenType{$perl} = 'f';
+                    $keyword_tr{$perl} = $python;
+                }
+                $TokenType{$fullname} = 'f';
+                $FuncType{$fullname} = $type;
+                $keyword_tr{$fullname} = $python;
             }
         }
 #
@@ -494,7 +531,7 @@ sub TRY_BLOCK_FINALLY { 2 }
 %line_varclasses=();            # SNOOPYJC: Map from line number to var classes (e.g. 'my', 'our', etc)
 %sub_varclasses=();             # SNOOPYJC: Map from sub to var classses
 $last_varclass_lno = 0;         # SNOOPYJC: Last entry in the above
-$last_varclass_sub = '__main__';        # SNOOPYJC: What sub were we in when we set the last %line_varclasses
+%last_varclass_sub=();             # SNOOPYJC: What sub were we in when we set the last %line_varclasses for this name
 $ate_dollar = -1;               # issue 50: if we ate a '$', where was it?
 sub initialize                  # issue 94
 {
@@ -668,13 +705,18 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
         $class = $ValPerl[0];
         $class = 'myfile' if($class eq 'my' && !in_sub());
         $declared_here = 1;
-    } elsif($ValClass[0] eq 'c' && $ValClass[1] eq '(' && $ValClass[2] eq 't') {      # e.g. for(my $i
+    } elsif($ValClass[0] eq 'c' && $ValClass[1] eq '(' && $ValClass[2] eq 't' && 
+            $ValClass[3] eq 's' && $ValPerl[3] eq $ValPerl[$tno]) {      # e.g. for(my $i
         $class = $ValPerl[2];
         $declared_here = 1;
-    } elsif($ValClass[0] eq 'f' && $ValPerl[0] eq 'open' && $ValClass[1] eq 't') {      # e.g. open my $fh
+    } elsif($ValClass[0] eq 'c' && $ValClass[1] eq 't' && $tno == 2) {  # e.g. foreach my $i (@arr)
         $class = $ValPerl[1];
         $declared_here = 1;
-    } elsif($ValClass[0] eq 'f' && $ValPerl[0] eq 'open' && $ValClass[1] eq '(' && $ValClass[2] eq 't') {  # e.g. open(my $fh
+    } elsif($ValClass[0] eq 'f' && $ValPerl[0] eq 'open' && $ValClass[1] eq 't' && $tno == 2) {  # e.g. open my $fh
+        $class = $ValPerl[1];
+        $declared_here = 1;
+    } elsif($ValClass[0] eq 'f' && $ValPerl[0] eq 'open' && $ValClass[1] eq '(' && 
+            $ValClass[2] eq 't' && $tno == 3) {                                                  # e.g. open(my $fh
         $class = $ValPerl[2];
         $declared_here = 1;
     }
@@ -693,20 +735,20 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
     if(!exists $line_varclasses{$last_varclass_lno}{$name} || $class eq 'my' || $class eq 'local') {
         my $cs = cur_sub();
         my $cls = $class;
-        if($last_varclass_sub ne $cs) {
+        if(!exists $last_varclass_sub{$name} || $last_varclass_sub{$name} ne $cs) {
             $cls = map_var_class_into_sub($class) if(!$declared_here);
-            $last_varclass_sub = $cs;
+            $last_varclass_sub{$name} = $cs;
         }
         $line_varclasses{$last_varclass_lno}{$name} = $class;
-        $sub_varclasses{$last_varclass_sub}{$name} = $cls;
+        $sub_varclasses{$cs}{$name} = $cls;
     } elsif(exists $line_varclasses{$last_varclass_lno}{$name}) {
         $class = $line_varclasses{$last_varclass_lno}{$name};
         my $cs = cur_sub();
         my $cls = $class;
-        if($last_varclass_sub ne $cs) {
+        if(!exists $last_varclass_sub{$name} || $last_varclass_sub{$name} ne $cs) {
             $cls = map_var_class_into_sub($class) if(!$declared_here);
-            $last_varclass_sub = $cs;
-            $sub_varclasses{$last_varclass_sub}{$name} = $cls;
+            $last_varclass_sub{$name} = $cs;
+            $sub_varclasses{$cs}{$name} = $cls;
         }
     }
     add_package_name($name) if($class eq 'global' || $class eq 'local');
@@ -831,7 +873,7 @@ sub enter_block                 # issue 94
 {
     # SNOOPYJC: Now we use a different character (^ all alone) to replace the '{' for the second round
     # SNOOPYJC return if($last_block_lno == $. && scalar(@ValPerl) <= 1);       # We see the '{' twice on like if(...) {
-    if($::debug >= 4) {
+    if($::debug >= 3) {
         no warnings;
         say STDERR "enter_block at line $., prior nesting_level=$nesting_level, ValPerl=@ValPerl";
     }
@@ -882,7 +924,7 @@ sub enter_block                 # issue 94
         $last_label = undef;            # We used it up
     }
     push @nesting_stack, \%nesting_info;
-    if($::debug >= 4) {
+    if($::debug >= 3) {
         no warnings 'uninitialized';
         say STDERR "nesting_info=@{[%nesting_info]}";
     }
@@ -897,7 +939,7 @@ sub exit_block                  # issue 94
         return;
     }
     $nesting_last = pop @nesting_stack;
-    if($::debug >= 4) {
+    if($::debug >= 3) {
         say STDERR "exit_block at line $., prior nesting_level=$nesting_level, nesting_last->{type} is now $nesting_last->{type}";
     }
     determine_varclass_keepers($nesting_last->{varclasses}, $nesting_last->{lno}) if(!$Pythonizer::PassNo);
@@ -1081,7 +1123,13 @@ sub gen_try_block_finally               # issue 108
         } else {
             $pyname = $line_locals_map{$lno}{$local};
             $pyname = $SpecialVarR2L{$pyname} if(exists $SpecialVarR2L{$pyname});       # Map _nr() to INPUT_LINE_NUMBER etc
-            gen_statement("$pyname = $LOCALS_STACK.pop()");
+            # For signals, $pyname is like "signal.signal(signal.SIGINT)"
+            if($pyname =~ /^signal\.signal\(/) {
+                $pyname =~ s/\)/, $LOCALS_STACK.pop())/;
+                gen_statement($pyname);
+            } else {
+                gen_statement("$pyname = $LOCALS_STACK.pop()");
+            }
             $code_generated = 1;
         }
     }
@@ -1115,6 +1163,9 @@ sub handle_local                        # issue 108
     # delete local $hash{key};   # delete this entry for the current block
     # local ($cond ? $v1 : $v2); # several types of lvalues support localization
 
+    if($ValClass[-1] eq 'k' && $ValPerl[-1] eq 'sub') {         # This line is like "local $SIG{__WARN__} = sub {"
+        return;                                                 # Skip it as we will see it again after handling the sub
+    }
     my @locals = ();
 
     my $i;
@@ -1123,17 +1174,25 @@ sub handle_local                        # issue 108
         if($ValClass[$i] =~ /[ashG]/) {
             if($i+1 <= $#ValClass && $ValClass[$i+1] eq '(') {
                 #logme('W',"A 'local' statement with a subscript or hash key is not implemented for $ValPerl[$i]");
-                $real_name = actual_sigil(substr($ValPerl[$i],0,1), $ValPerl[$i+1]) . substr($ValPerl[$i],1);
+                my $real_name = actual_sigil(substr($ValPerl[$i],0,1), $ValPerl[$i+1]) . substr($ValPerl[$i],1);
                 #say STDERR "local real_name=$real_name";
                 push @locals, $real_name;
                 $i = &::end_of_variable($i);
             } else {
                 push @locals, $ValPerl[$i];
             }
+        } elsif($ValClass[$i] eq 'f' && $ValPerl[$i] eq '%SIG' && $ValClass[$i+1] eq '(' &&
+                $ValClass[$i+2] eq 'i') {       # SNOOPYJC: Special handling for local $SIG{XXX}
+            my $real_name = "$ValPy[$i]($ValPy[$i+2])";
+            push @locals, $real_name;
+            last;
         }
     }
     return if(!@nesting_stack);       # Local at the outermost file level is treated like "my" so we can skip them
     $top = $nesting_stack[-1];
+    #if($ValClass[-1] eq 'k' && $ValPerl[-1] eq 'sub') {         # This line is like "local $SIG{__WARN__} = sub {"
+    #    $top = $nesting_stack[-2];                              # so these locals belong to the outer scope
+    #}
     my $lno = $top->{lno};
     if($::debug >=5) {
         say STDERR "handle_local for line $. pushed @locals to block on line $lno";
@@ -1268,6 +1327,8 @@ sub push_locals               # issue 108
             if(!exists $globals_set{$pyname} && $pyname =~ /^[A-Za-z_][A-Za-z0-9_]*$/) {
                 gen_statement("global $pyname") 
             }
+            # For signals, $pyname is like "signal.signal(signal.SIGINT)"
+            $pyname =~ s/^signal\.signal\(/signal.getsignal(/;
             gen_statement("$LOCALS_STACK.append($pyname)");
         }
     }
@@ -1344,9 +1405,14 @@ sub tokenize
 {
 my ($l,$m);
    $source=$line=$_[0];
-   $tno=0;
-   @ValClass=@ValCom=@ValPerl=@ValPy=@ValType=(); # "Token Type", token comment, Perl value, Py analog (if exists)
-   $TokenStr='';
+   if(scalar(@_) != 2) {        # 2nd arg means to continue where we left off
+       $tno=0;
+       @ValClass=@ValCom=@ValPerl=@ValPy=@ValType=(); # "Token Type", token comment, Perl value, Py analog (if exists)
+       $TokenStr='';
+   } else {
+       $tno = scalar(@ValClass);
+       $TokenStr=join('', @ValClass);
+   }
    $ExtractingTokensFromDoubleQuotedTokensEnd = -1;     # SNOOPYJC
    $ExtractingTokensFromDoubleQuotedStringEnd = 0;      # SNOOPYJC
    $ExtractingTokensFromDoubleQuotedStringTnoStart = -1; # SNOOPYJC
@@ -1498,7 +1564,15 @@ my ($l,$m);
          $ValClass[$tno]=')';
          $ValPy[$tno]=']';
          $cut=1;
-
+         # SNOOPYJC: If this is a hashref { x => y, ... }, then change the brackets from '[]' to '{}'
+         $TokenStr = join('',@ValClass);
+         my $sbr = &Pythonizer::reverse_matching_br($tno);
+         if($sbr != -1) {
+             if(&Pythonizer::next_same_level_token('A', $sbr+1, $tno-1) != -1) {
+                 $ValPy[$tno]='}';
+                 $ValPy[$sbr]='{';
+             }
+         }
       }elsif( $s eq '{' || ($s eq '^' && $tno==0) ){    # SNOOPYJC
           #say STDERR "got {, tno=$tno, source=$source, ValPerl=@ValPerl";
          # we treat '{' as the beginning of the block if it is the first or the last symbol on the line or is preceeded by ')' -- Aug 7, 2020
@@ -1516,7 +1590,8 @@ my ($l,$m);
           } elsif($tno == 2 && $ValClass[0] eq 'k' && $ValClass[1] eq 'i' &&    # SNOOPYJC
               $ValPerl[0] eq 'use' && $ValPerl[1] eq 'constant') {
               ;
-          }elsif( length($source)==1 && $ValClass[$tno-1] ne '=' && $ValClass[$tno-1] ne 'f'){      # issue 82, issue 60 (map/grep)
+          }elsif( (length($source)==1 || $source =~ /^{\s*#/) && $ValClass[$tno-1] ne '=' && $ValClass[$tno-1] ne 'f' && # issue 82, issue 60 (map/grep)
+                  $ValClass[$tno-1] ne '(' && $ValClass[$tno-1] ne ',') {       # SNOOPYJC
              # $tno>0 but line may came from buffer.
              # We recognize end of statemt only if previous token eq ')' to avod collision with #h{$s}
              enter_block() if($s eq '{');                 # issue 94
@@ -1527,6 +1602,7 @@ my ($l,$m);
 	  # issue 35 }elsif( $ValClass[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1){
           }elsif( $ValClass[$tno-1] ne '=' &&                   # issue 82
                   $ValClass[$tno-1] ne 'f' &&                   # issue 60 (map/grep)
+                  $ValClass[$tno-1] ne '(' && $ValClass[$tno-1] ne ',' &&       # SNOOPYJC
                  ($ValPerl[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1 || 
                   ($tno == 1 && $ValClass[0] eq 'C')||  # SNOOPYJC: do {...} until(...); else {...}; elsif {...}; eval {...};
                   ($tno == 2 && $ValPerl[0] eq 'sub') ||
@@ -1677,12 +1753,25 @@ my ($l,$m);
                 ($ValPerl[$tno-2] =~ m'^(?:opendir|open|closedir|close|printf|print|say|readdir|telldir|rewinddir|sysread|sysseek|syswrite|seek|tell|read|binmode|write)$'))) {       # issue 92
             my $sigil = '';
             $sigil = '&' if($ValPerl[$tno-1] eq 'sub');   # issue 92, 108: Differentiate between sub and FH
-	    $FileHandles{$w} = 1 if($sigil eq '' && !exists $keyword_tr{$w});  # skip STDIN and friends
+	    $FileHandles{$w} = $. if($sigil eq '' && !exists $keyword_tr{$w} && !exists $FileHandles{$w});  # skip STDIN and friends
             remap_conflicting_names($w, $sigil, '');      # issue 92: sub takes the name from other vars
          }
          $ValPy[$tno]=~tr/:/./s;                # SNOOPYJC
          $ValPy[$tno]=~tr/'/./s;                # SNOOPYJC
          $ValCom[$tno]='';                      # SNOOPYJC
+         my $core = 0;                          # SNOOPYJC
+         if(substr($w,0,5) eq "CORE'") {        # SNOOPYJC
+             $w = substr($w,5);
+             $core = 1;
+         } elsif(substr($w,0,6) eq 'CORE::') {  # SNOOPYJC
+             $w = substr($w,6);
+             $core = 1;
+         }
+         if(substr($w,0,5) eq "Carp'" && $w =~ /carp|confess|croak|cluck/) {    # SNOOPYJC
+             $w = substr($w,5);
+         } elsif(substr($w,0,6) eq 'Carp::' && $w =~ /carp|confess|croak|cluck/) {      # SNOOPYJC
+             $w = substr($w,6);
+         }
          if( exists($keyword_tr{$w}) ){
             $ValPy[$tno]=$keyword_tr{$w};
          }
@@ -1696,6 +1785,10 @@ my ($l,$m);
 	 }					# SNOOPYJC
          if( exists($TokenType{$w}) ){
             $class=$TokenType{$w};
+            if($class eq 'f' && !$core && exists $Pythonizer::UseSub{$w}) {     # SNOOPYJC
+                $class = 'i';
+                $ValPy[$tno] = $w;
+            }
             if($tno != 0 && (($ValPerl[$tno-1] eq '{' && $source =~ /^[a-z0-9]+}/) ||   # issue 89: keyword in a hash like $hash{delete} or $hash{q}
                 (index('(,', $ValPerl[$tno-1])>=0 && $source =~ /^[a-z0-9]+\s*=>/))) {  # issue 89: keyword in hash def like (qw=>14, use=>15)
                 $class = 'i';                   # issue 89
@@ -1712,7 +1805,7 @@ my ($l,$m);
                 remap_conflicting_names($ValPerl[1], '&', '');      # issue 92: sub takes the name from other vars
                 $class = 'i';
                 $tno--;
-                $Pythonizer::LocalSub{$ValPerl[$tno]} = 1;
+                $Pythonizer::LocalSub{$ValPy[$tno]} = 1;
             } elsif($tno != 0 && ($ValClass[$tno-1] eq 'D' || 
                 ($ValClass[$tno-1] eq 'k' && $ValPerl[$tno-1] eq 'sub'))) {    # SNOOPYJC: Part of an OO method ref or sub def - change this to an 'i' class
                 $class = 'i';
@@ -2043,11 +2136,13 @@ my ($l,$m);
                if($::debug >= 3) {
                   say STDERR "decode_scalar SIG source=$source";
                }
-               if($tno == 0) {                  # at start of line like $SIG{ALRM} = sub { die "timeout"; };
+               if($tno == 0 || ($tno == 1 && $ValClass[0] eq 't')) {   # at start of line like $SIG{ALRM} = sub { die "timeout"; };
+                   $source =~ s/\{['"](\w+)['"]\}/{$1}/;        # Change $SIG{'ALRM'} to $SIG{ALRM}
                    # Special case for __DIE__ - just set a flag
+                   $ValPerl[$tno] = '%SIG';
                    if($source =~ /\{\s*__DIE__/) {
                        $ValClass[$tno] = 's';
-                       if($source =~ /Carp::confess/) {
+                       if($source =~ /(?:Carp::)?confess/) {
                            $ValPy[$tno] = $DIE_TRACEBACK;
                            $ValPy[$tno] = "$PERLLIB.$DIE_TRACEBACK" if($::import_perllib);
                            $source =~ s/\{\s*__DIE__\s*\}\s*=.*$/=1;/;
@@ -2056,13 +2151,18 @@ my ($l,$m);
                            $ValPy[$tno] = "$PERLLIB.$DIE_TRACEBACK" if($::import_perllib);
                            $source =~ s/\{\s*__DIE__\s*\}\s*=.*$/=0;/;
                        }
+                       $ValPerl[$tno] = $ValPy[$tno];
+                   } elsif($source =~ /\{\s*__WARN__/) {
+                       $ValClass[$tno] = 's';
+                       $ValPerl[$tno] = $ValPy[$tno] = 'warnings.showwarning';
+                       $source =~ s/\{\s*__WARN__\s*\}\s*=/=/;
                    } else {
                        # Change to signal.signal(SIG, RHS);
                        $ValPy[$tno] = 'signal.signal';
                        $source =~ s/=\s*['"]DEFAULT['"]/=_DFL/;
                        $source =~ s/=\s*['"]IGNORE['"]/=_IGN/;
                        $source =~ s/\{\s*([A-Z_]+)\s*\}\s*=\s*(.*);/($1, $2);/;
-                       $source =~ s/Carp::confess\(\s*\@_\s*\)/traceback::print_stack(\$f)/;
+                       $source =~ s/(?:Carp::)?confess\(\s*\@_\s*\)/traceback::print_stack(\$_[1])/;
                    }
                 } else {
                    #$ValPy[$tno] = '_getsignal';        # Not sure to use this or that based on what the user's gonna do!
@@ -2162,7 +2262,7 @@ my ($l,$m);
                $ValCom[$tno]='X';
                $ValPy[$tno]="$MAIN_MODULE$ValPy[$tno]";
             }
-            $Pythonizer::LocalSub{$ValPerl[$tno]} = 1;
+            $Pythonizer::LocalSub{$ValPy[$tno]} = 1;
          }else{
            $cut=1;
          }
@@ -2189,9 +2289,21 @@ my ($l,$m);
 	    popup();                            # issue 50
 	    $tno--;				# issue 50 - no need to keep arrow operator in python
       	    $ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
-	 }
-         $ValClass[$tno]='('; # we treat anything inside curvy backets as expression
-         $cut=1;
+            $ValClass[$tno]='('; # we treat anything inside curvy backets as expression
+            $cut=1;
+         }elsif($s eq '(' && $tno == 2 && $ValClass[0] eq 'k' && $ValPerl[0] eq 'sub' && $ValClass[1] eq 'i') {      
+            # SNOOPYJC: Eat sub arg prototype because we can't currently handle it and it lexes wrong too!
+            $cut=1;
+            my $close = matching_paren($source, 0);
+            if($close != -1) {
+                $cut = $close+1;
+                popup();
+                $tno--;
+            }
+	 } else {
+            $ValClass[$tno]='('; # we treat anything inside curvy backets as expression
+            $cut=1;
+        }
       }elsif( $s eq ']' || $s eq ')' ){
          $ValClass[$tno]=')'; # we treat anything inside curvy backets as expression
          $cut=1;
@@ -2217,7 +2329,7 @@ my ($l,$m);
             $ValPerl[$tno]=$digram;
             if($ValClass[$tno] eq '0'){		# && or ||
                $balance=(join('',@ValClass)=~tr/()//);
-               # issue 93 if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && join('',@ValClass) !~ /^t?[ahs]=/ ){  # SNOOPYJC
+               # issue 93 if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && join('',@ValClass) !~ /^t?[ahs]=/ )  # SNOOPYJC
                if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && bash_style_or_and_fix(3)){  # issue 93
                   # postfix conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020,Oct 12, 2020 --NNB
                   # issue 93 bash_style_or_and_fix(3);
@@ -2293,7 +2405,7 @@ my ($l,$m);
                    $cut=length($1)+2;
                    $ValPerl[$tno]="<$1>";
                    $fh = $1;
-		   $FileHandles{$fh} = 1 unless($fh eq '' || exists $keyword_tr{$fh});	# SNOOPYJC
+		   $FileHandles{$fh} = $. unless($fh eq '' || exists $keyword_tr{$fh} || exists $FileHandles{$fh});	# SNOOPYJC
                }                                # issue 66
                #
                # Let's try to determine the context
@@ -2638,9 +2750,11 @@ sub decode_scalar
 # Has two modes of operation
 #    update=1 -- set ValClass and ValPerl
 #    update=0 -- set only ValPy
+#    in_string=1 - we are decoding in a string and $xxx [0] is different than $xxx[0]
 {
 my $source=$_[0];
 my $update=$_[1]; # if update is zero then only ValPy is updated
+my $in_string=(scalar(@_) >= 3 ? $_[2] : 0);
 my $rc=-1;
    $s2=substr($source,1,1);
    if ( $update  ){
@@ -2677,6 +2791,13 @@ my $rc=-1;
        if( $s3=~/\w/  ){
           if( exists($SPECIAL_VAR2{$s3}) ){
             $ValPy[$tno]=$SPECIAL_VAR2{$s3};
+            if(substr($SPECIAL_VAR2{$s3},0,1) eq '_') { # SNOOPYJC
+                $::Pyf{$SPECIAL_VAR2{$s3}} = 1;
+                if($::import_perllib) {
+                    $ValPy[$tno]="$PERLLIB.".substr($ValPy[$tno],1);
+                }
+                $ValPy[$tno] .= '()';   # call it
+            }
           }else{
             $ValPy[$tno]='unknown_perl_special_var'.$s3;
          }
@@ -2751,6 +2872,7 @@ my $rc=-1;
           ;             # Do nothing if this is like $$h_ref{key}
       } else {
           $next_c = substr($source,$cut,1);
+          $next_c = substr($source,$cut+1,1) if($next_c =~ /\s/ && !$in_string);  # Handle $var {...} but not "$var {...}"
       }
       if( ($k=index($name,'::')) > -1 ){
           # SNOOPYJC $ValType[$tno]="X";
@@ -3158,7 +3280,7 @@ my  $outer_delim;
          #say STDERR "quote1a=$quote, end_br=$end_br\n";
       }
       if($sig eq '$') {                 # issue 47
-         decode_scalar($quote,0); #get's us scalar or system var
+         decode_scalar($quote,0,1); #get's us scalar or system var, 0=don't update, 1=in_string
          if($cut == 1) {     # Just a '$' with no variable
             substr($result,-1,1) = '';      # Remove the '{'
             substr($quote,$end_br-1,1) = '' if($end_br >= 0);
@@ -3264,12 +3386,12 @@ my  $outer_delim;
                          #say STDERR "var=$var, ind=$ind";
                      }
                      my $pr = '';
-                     decode_scalar($var,0);     # issue 109
+                     decode_scalar($var,0,1);     # issue 109
                      if($cut == 1) {     # Just a '$' with no variable
                         $pr = '$';
                         $var = substr($ind,$i+1);
                         substr($ind,$i,1) = '';
-                        decode_scalar($var,0);          # Try again
+                        decode_scalar($var,0,1);          # Try again
                      }
                      add_package_name(get_perl_name(substr($var,0,$cut), substr($var,$cut,1), $pr));     # SNOOPYJC
                      substr($ind,$i,$cut) = $ValPy[$tno];   # issue 109
@@ -3351,7 +3473,7 @@ sub extract_tokens_from_double_quoted_string
             $quote = '$'.substr($quote,2);		# issue 43: eat the '{'. At this point, $end_br points after the '}'
         }
         if($sigil eq '$') {
-            decode_scalar($quote, 1);
+            decode_scalar($quote, 1,1);
         } else {
             decode_array($quote);
             $ValClass[$tno] = 'a';
@@ -3723,7 +3845,8 @@ sub remove_oddities
     my $line = shift;
 
     # Change "not X is not None" to "X is None"
-    $line =~ s/\bnot ([\w.]+(?:\[[\w\']+\])*) is not None\b/$1 is None/g;
+    # $line =~ s/\bnot ([\w.]+(?:\[[\w\']+\])*) is not None\b/$1 is None/g;
+    $line =~ s/\bnot ([\w.]+(?:[\[(][\w.\']*[\])])*) is not None\b/$1 is None/g;
 
     #  if not (childPid is not None):
     $line =~ s/\bnot \(([\w.]+(?:\[[\w\']+\])*) is not None\)/$1 is None/g;

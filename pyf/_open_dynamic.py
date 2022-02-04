@@ -1,5 +1,5 @@
 
-def _open_dynamic(file,mode=None,checked=True):
+def _open_dynamic(file,mode=None,encoding=None,errors=None,checked=True):
     """Replacement for perl built-in open function when the mode is unknown."""
     dup = None
     pipe = None
@@ -13,12 +13,11 @@ def _open_dynamic(file,mode=None,checked=True):
         return sys.stdin
     if mode == '->':
         return sys.stdout
-    ext = encoding = None
+    ext = None
     if ':' in mode:
         mode, ext = mode.split(':')
     if mode in _OPEN_MODE_MAP:
         mode = _OPEN_MODE_MAP[mode]
-        errors = None
         if ext:
             if ext == 'raw' or ext == 'bytes':
                 mode += 'b'
