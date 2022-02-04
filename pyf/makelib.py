@@ -57,16 +57,9 @@ class Die(Exception):
                 func += '_'
             with open(file, 'r') as fh:
                 for line in fh:
-                    #line = re.sub(r'\bint\(', 'builtins.int(', line)    # We have our own int (formerly _int)
-                    #line = re.sub(r'\bopen\(', 'builtins.open(', line)    # We have our own open (formerly _int)
-                    #line = re.sub(r', int\)', ', builtins.int)', line)    # Like isinstance(xxx, int)
-                    #line = re.sub(r'\(int,', '(builtins.int,', line)    # Like isinstance(xxx, (int, float))
-                    #line = re.sub(r': int$', ': builtins.int', line)    # Like dev: int
                     line = re.sub(r'\bstat[.]', r'st_py.', line)        # we have a 'stat' function, so we have to rename the stat class
                     if under_func.startswith('_') and re.match(r'def _', line):
                         line = line.replace(f'def {under_func}', f'def {func}')
-                    #elif re.match(r'\s+global ', line):
-                        #continue        # Eliminate 'global' lines
                     line = re.sub(under_functions_regex, under_repl, line)
                     print(line, file=of, end='')
 

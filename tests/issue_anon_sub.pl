@@ -2,24 +2,34 @@
 # Code from ./PyModules/LWP/Protocol.pm 
 use Carp::Assert;
 
-$SIG{ALRM} = sub { die "timeout"; };
+if($^O ne 'MSWin32') {
+	$SIG{ALRM} = sub { die "timeout"; };
+	$SIG{ALRM} = sub {
+       		die "timeout"; };
+}
 $SIG{ __DIE__ } = sub { Carp::confess( @_ ) }; # SNOOPYJC
 $SIG{ INT } = sub { Carp::confess( @_ ) };             # SNOOPYJC
 $SIG{ __DIE__ } = 'DEFAULT';
-$s = $SIG{ALRM};
-$SIG{ALRM} = sub { $my_flag = 1; };
-$SIG{ALRM} = sub { $my_flag++; };
-$SIG{ALRM} = $s;
-$SIG{ALRM} = 'WHO KNOWS';
-$SIG{ALRM} = 'IGNORE';
-$SIG{ALRM} = 'DEFAULT';
-$SIG{ALRM} = sub { die "timeout"; };
+if($^O ne 'MSWin32') {
+	$s = $SIG{ALRM};
+	$SIG{ALRM} = sub { $my_flag = 1; };
+	$SIG{ALRM} = sub { $my_flag++; };
+	$SIG{ALRM} = $s;
+	$SIG{ALRM} = 'WHO KNOWS';
+	$SIG{ALRM} = 'IGNORE';
+	$SIG{ALRM} = 'DEFAULT';
+}
 
 *mysub = sub { return 5; };
 
 sub locl
 {
     local $SIG {__WARN__} = \&__capture;
+    local $SIG{__WARN__} = sub { $@ = shift };
+    local $SIG{__WARN__} = sub { $w = shift };
+    local $SIG{__WARN__} = sub { $WARN = shift };
+    local $SIG{ __DIE__ } = sub { Carp::confess( @_ ) };
+    local $SIG{INT} = 'IGNORE';
 
     eval {
         local $SIG{'__WARN__'} = sub {
@@ -36,11 +46,8 @@ sub locl
             POSIX::_exit(1) if (defined(&POSIX::_exit));
             my $sig = $is_vms ? 'TERM' : 'KILL';
             kill($sig, $pid_to_kill);
-    };
+    } if $^O ne 'MSWin32';
 
-    local $SIG{__WARN__} = sub { $@ = shift };
-    local $SIG{__WARN__} = sub { $w = shift };
-    local $SIG{__WARN__} = sub { $WARN = shift };
 }
 
 *LOCAL = *GLOBAL = \&locl;

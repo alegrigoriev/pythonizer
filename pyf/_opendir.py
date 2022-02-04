@@ -1,5 +1,5 @@
 
-def opendir(DIR):
+def _opendir(DIR):
     """Replacement for perl built-in directory functions"""
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
@@ -11,24 +11,3 @@ def opendir(DIR):
         if AUTODIE:
             raise
         return None
-
-def readdir(DIR):
-    try:
-        result = (DIR[0])[DIR[1]]
-        DIR[1] += 1
-    except IndexError:
-        return None
-
-def telldir(DIR):
-    return DIR[1]
-
-def seekdir(DIR, pos):
-    DIR[1] = pos
-
-def rewinddir(DIR):
-    DIR[1] = 0
-
-def closedir(DIR):
-    DIR[0] = None
-    DIR[1] = None
-

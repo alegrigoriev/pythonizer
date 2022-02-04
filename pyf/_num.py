@@ -18,11 +18,16 @@ def _num(expr):
             return f
         except Exception:
             pass
-        if not isinstance(expr, (str, bytes)):
+        if isinstance(expr, str):
+            if not (m:=re.match(r'^\s*([+-]?(?:\d+(?:[.]\d*)?(?:[eE][+-]?\d+)?|[.]\d+(?:[eE][+-]?\d+)?))', expr)):
+                break
+            expr = m.group(1);
+        elif isinstance(expr, bytes):
+            if not (m:=re.match(br'^\s*([+-]?(?:\d+(?:[.]\d*)?(?:[eE][+-]?\d+)?|[.]\d+(?:[eE][+-]?\d+)?))', expr)):
+                break
+            expr = m.group(1);
+        else:
             return expr
-        if not (m:=re.match(r'^\s*([+-]?(?:\d+(?:[.]\d*)?(?:[eE][+-]?\d+)?|[.]\d+(?:[eE][+-]?\d+)?))', expr)):
-            break
-        expr = m.group(1);
     if WARNING:
         caller = inspect.getframeinfo(inspect.stack()[1][0])
         warnings.warn(f"Argument \"{expr}\" isn't numeric in numeric context at {caller.filename}:{caller.lineno}")

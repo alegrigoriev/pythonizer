@@ -32,6 +32,6 @@ def _open(file,mode,encoding=None,errors=None,checked=True):
             raise
         if checked:     # e.g. used in if(...)
             return None
-        fh = io.StringIO()
+        fh = io.TextIOWrapper(io.BufferedIOBase())
         fh.close()
         return _create_fh_methods(fh)

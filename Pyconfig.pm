@@ -9,7 +9,7 @@ package Pyconfig;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB);
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS);
 
 # use Readonly;		# Readonly is not installed by default so skip it!
 
@@ -138,7 +138,7 @@ our %SIGIL_MAP = ('$'=>'s', '%'=>'h', '@'=>'a', ''=>'H');
 our $MAIN_MODULE = 'sys.modules["__main__"]';	# Note this is changed to $DEFAULT_PACKAGE if the -m option is NOT passed (in Pythonizer.pm)
 
 # List of libraries that pythonizer knows about and handles as built-ins:
-our @BUILTIN_LIBRARIES = qw(strict warnings vars feature autodie utf8 autovivification Getopt::Long Time::Local File::Basename Fcntl Carp::Assert Exporter Carp File::stat);
+our @BUILTIN_LIBRARIES = qw(strict warnings vars feature autodie utf8 autovivification subs Getopt::Long Time::Local File::Basename Fcntl Carp::Assert Exporter Carp File::stat);
 our %BUILTIN_LIBRARY_SET = map { $_ => 1 } @BUILTIN_LIBRARIES;
 
 our $MODULES_DIR = "PyModules"; # Where we copy system modules to run pythonizer on them (for use/require)
@@ -218,5 +218,40 @@ our %ARRAY_INDEX_FUNCS = (''=>'_set_element', '+'=>'_add_element', '-'=>'_subtra
     '.'=>'_concat_element', '%'=>'_mod_element', '^'=>'_xor_element',
     '|'=>'_or_element', '&'=>'_and_element', '<<'=>'_shift_left_element',
     '>>'=>'_shift_right_element', '~tr'=>'_translate_element', '~re'=>'_substitute_element');
+
+# Standard perl libraries - if the "use" or "require" file path contains any of these names, then
+# we don't try to translate it unless the '-s' flag is given:
+
+our @STANDARD_LIBRARY_DIRS = qw(site_perl vendor_perl core_perl);
+
+# Predefined package with function implementation.  The default python name
+# for the function is "_perlName", unless python=>'...' is specified.  In perllib,
+# the '_' is removed.
+our %PREDEFINED_PACKAGES = (
+	'File::Temp'=> [{perl=>'tempfile', type=>'a?:a', python=>'_tempfile_', 
+			 scalar=>"_tempfile_s", scalar_type=>'a?:S', calls=>"_fileparse", scalar_calls=>"_tempfile_"},
+			{perl=>'tempdir', type=>'a?:a', calls=>"_fileparse"},
+			{perl=>'new', type=>'a?:H', python=>'_tempfile_s', calls=>"_fileparse,_tempfile_"},
+			#this is a method only: {perl=>'filename', type=>'H:S'},
+			{perl=>'newdir', type=>'a?:S', python=>'_tempdir'},
+			{perl=>'mkstemp', type=>'S:a', calls=>"_fileparse"},
+			{perl=>'mkstemps', type=>'SS:a', calls=>"_fileparse"},
+			{perl=>'mktemp', type=>'S:S', calls=>"_fileparse"},
+			{perl=>'mkdtemp', type=>'S:S', calls=>"_fileparse"},
+			{perl=>'tmpnam', type=>':a', scalar=>"_tmpnam_s", scalar_type=>':S'},
+			{perl=>'tmpfile', type=>':H'},
+			{perl=>'tempnam', type=>'SS:S'},
+		       ],
+        'IO::File'=>   [{perl=>'new', type=>'SI:H', python=>'_IOFile', 
+			 calls=>'_open,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+			{perl=>'new_tmpfile', type=>':H', python=>"_IOFile_tmpfile", 
+		         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+		       ],
+        'IO::Handle'=> [],
+	'POSIX'=>      [{perl=>'tmpnam', type=>':a', scalar=>'_tmpnam_s', scalar_type=>':S'},
+			{perl=>'tmpfile', type=>':H'},
+		       ],
+	       );
+
 
 1;

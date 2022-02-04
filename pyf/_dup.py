@@ -6,8 +6,8 @@ def _dup(file,mode,checked=True):
         if isinstance(file, io.IOBase):     # file handle
             file.flush()
             return os.fdopen(os.dup(file.fileno()), mode, encoding=file.encoding, errors=file.errors)
-        if re.match(r'\d+', file):
-            file = int(file)
+        if (_m:=re.match(r'=?(\d+)', file)):
+            file = int(_m.group(1))
         elif file in _DUP_MAP:
             file = _DUP_MAP[file]
         return _create_fh_methods(os.fdopen(os.dup(file), mode))
