@@ -136,11 +136,12 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'basename'=>'_basename',		# SNOOPYJC
                 'binmode'=>'_dup',                      # SNOOPYJC
                 'bless'=>'NoTrans!','BEGIN'=>'if True:',        # SNOOPYJC
+                'UNITCHECK'=>'if True:', 'CHECK'=>'if True:', 'INIT'=>'if True:',       # SNOOPYJC
                 # SNOOPYJC 'caller'=>q(['implementable_via_inspect',__file__,sys._getframe().f_lineno]),
 		# issue 54 'chdir'=>'.os.chdir','chmod'=>'.os.chmod',
                 'carp'=>'_carp', 'confess'=>'_confess', 'croak'=>'_croak', 'cluck'=>'_cluck',   # SNOOPYJC
                 'longmess'=>'_longmess', 'shortmess'=>'_shortmess',                             # SNOOPYJC
-		'chdir'=>'os.chdir','chmod'=>'os.chmod',	# issue 54
+		'chdir'=>'os.chdir','chmod'=>'_chmod',	# issue 54
 		'chomp'=>'.rstrip("\n")','chop'=>'[0:-1]','chr'=>'chr',
 		# issue close 'close'=>'.f.close',
 		'close'=>'.close()',	# issue close
@@ -209,6 +210,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'ref'=>'_ref',                  # SNOOPYJC
                 # SNOOPYJC 'require'=>'NoTrans!', 
 	        'opendir'=>'_opendir', 'closedir'=>'_closedir', 'readdir'=>'_readdir', 'seekdir'=>'_seekdir', 'telldir'=>'_telldir', 'rewinddir'=>'_rewinddir',	# SNOOPYJC
+                'redo'=>'continue',             # SNOOPYJC
                 'require'=>'__import__',        # SNOOPYJC
                 'return'=>'return', 'rmdir'=>'os.rmdir',
                 'tell'=>'.tell',                # SNOOPYJC
@@ -340,6 +342,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'basename'=>'f',	# SNOOPYJC
 		  'binmode'=>'f',	# SNOOPYJC
                   'caller'=>'f','chdir'=>'f','chomp'=>'f', 'chop'=>'f', 'chmod'=>'f','chr'=>'f','close'=>'f',
+                  'continue'=>'C',      # SNOOPYJC
                   'carp'=>'f', 'confess'=>'f', 'croak'=>'f', 'cluck'=>'f',   # SNOOPYJC
                   'longmess'=>'f', 'shortmess'=>'f',                         # SNOOPYJC
                   'cmp'=>'>',           # SNOOPYJC: comparison
@@ -379,6 +382,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'printf'=>'f',                # SNOOPYJC
                   'quotemeta'=>'f',             # SNOOPYJC
                   'rand'=>'f',                  # SNOOPYJC
+                  'redo'=>'k',                  # SNOOPYJC
                   'require'=>'k',               # SNOOPYJC
                   'rindex'=>'f','read'=>'f', 
                   'rename'=>'f',                # SNOOPYJC
@@ -416,7 +420,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'autoflush'=>'I?:I', 'basename'=>'S:S', 'binmode'=>'HS?:m',
                   'carp'=>'a:u', 'confess'=>'a:u', 'croak'=>'a:u', 'cluck'=>'a:u',   # SNOOPYJC
                   'longmess'=>'a:S', 'shortmess'=>'a:S',                             # SNOOPYJC
-                  'chdir'=>'S:I','chomp'=>'S:m', 'chop'=>'S:m', 'chmod'=>'Ia:m','chr'=>'I?:S','close'=>'H:I',
+                  'chdir'=>'S:I','chomp'=>'S:m', 'chop'=>'S:m', 'chmod'=>'Ia:I','chr'=>'I?:S','close'=>'H:I',
                   'cmp'=>'SS:I', '<=>'=>'NN:I',
                   'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:m', 'dirname'=>'S:S', 'each'=>'h:a', 'exists'=>'u:I', 
                   'exit'=>'I?:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':m',
@@ -518,8 +522,12 @@ $last_label=undef;              # issue 94
 %all_labels=(''=>1);            # issue 94: all labels seen in this file
 $uses_function_return_exception = 0;    # SNOOPYJC
 %sub_external_last_nexts=();    # issue 94: Map of subnames to set of all last/next labels that propagate out ('' if no label)
-sub TRY_BLOCK_EXCEPTION { 1 }
-sub TRY_BLOCK_FINALLY { 2 }
+sub TRY_BLOCK_EXCEPTION    { 1 }
+sub TRY_BLOCK_FINALLY      { 2 }
+sub TRY_BLOCK_HAS_CONTINUE { 4 }      # Has a 'continue' block
+sub TRY_BLOCK_HAS_NEXT     { 8 }         # Has a 'last' stmt for this loop
+sub TRY_BLOCK_HAS_LAST    { 16 }         # Has a 'next' stmt for this loop
+sub TRY_BLOCK_REDO_LOOP   { 32 }         # Needs a nested loop for 'redo'
 %line_contains_for_loop_with_modified_counter=();       # SNOOPYJC
 %line_contains_pos_gen=();      # SNOOPYJC: {lno=>scalar, ...} on any stmt that can generate the pos of this scalar
 %scalar_pos_gen_line=();        # SNOOPYJC: {scalar=>last_lno, ...} - opposite of prev hash
@@ -657,6 +665,8 @@ sub get_perl_name               # SNOOPYJC
         $name = '@' . substr($name,1);
     } elsif($next eq '{') {
         $name = '%' . substr($name,1);
+    } elsif(substr($name,0,2) eq '$#') {
+        $name = '@' . substr($name,2);
     }
     say STDERR "get_perl_name($oname, $next, $prev) = $name" if($::debug >= 5);
     return $name;
@@ -869,6 +879,66 @@ sub set_loop_ctr_mod		# SNOOPYJC
     }
 }
 
+sub is_continue_block
+# Return True if this is a continue block.  Pass "1" if calling at the bottom of the block
+{
+    my $at_bottom = shift;
+
+    my $top = $nesting_last;
+    if(!$at_bottom) {
+        return 0 if($nesting_level == 0);
+        $top = $nesting_stack[-1];
+    }
+    return 1 if($top->{type} eq 'continue');
+    return 0;
+}
+
+sub track_continue
+# Track a 'continue' statement as soon as we lex it in the first pass
+{
+    say STDERR "track_continue setting line_needs_try_block{$nesting_last->{lno}} to EXCEPTION|CONTINUE" if($::debug >= 5);
+    my $ex = 0;
+    if(exists $line_needs_try_block{$nesting_last->{lno}} &&
+        ($line_needs_try_block{$nesting_last->{lno}} & TRY_BLOCK_HAS_NEXT)) {
+       $ex = TRY_BLOCK_EXCEPTION;
+    }
+    $line_needs_try_block{$nesting_last->{lno}} |= $ex | TRY_BLOCK_HAS_CONTINUE;
+}
+
+sub track_redo
+# Track a 'redo' statement and warn if it's in a continue block
+# Called in the first pass after we lex the entire statement
+{
+    my $pos = shift;
+
+    my $label = undef;
+
+    if($#ValClass >= $pos+1 && $ValClass[$pos+1] eq 'i') {
+        $label = $ValPerl[$pos+1];
+    }
+    return if(!@nesting_stack);
+    $ndx = loop_ndx_with_label($label);
+    if($nesting_stack[$ndx]->{type} eq 'continue') {
+        logme('W',"A 'redo' statement in a continue block is not supported");
+        return;
+    } elsif(defined $label) {
+        logme('W',"A 'redo' statement with a label ($label) is not supported");
+        return;
+    }
+    say STDERR "track_redo setting line_needs_try_block{$nesting_stack[$ndx]->{lno}} to REDO" if($::debug >= 5);
+    $line_needs_try_block{$nesting_stack[$ndx]->{lno}} |= TRY_BLOCK_REDO_LOOP;
+}
+
+sub flag_next_in_continue
+# Flag a 'next' statement if it's in a continue block
+{
+    return if(!@nesting_stack);
+    $ndx = cur_loop_ndx();
+    if($nesting_stack[$ndx]->{type} eq 'continue') {
+        logme('W',"A 'next' statement in a continue block is not supported");
+    }
+}
+
 sub enter_block                 # issue 94
 {
     # SNOOPYJC: Now we use a different character (^ all alone) to replace the '{' for the second round
@@ -896,6 +966,7 @@ sub enter_block                 # issue 94
     $nesting_info{loop_ctr} = $nesting_stack[-1]{loop_ctr} if(scalar(@nesting_stack) && exists($nesting_stack[-1]{loop_ctr}));
     if($nesting_info{type} eq 'for') {
         my $lcx = index($TokenStr,'s=');
+        $lcx = index($TokenStr, 's^') if($lcx < 0);     # Loop for $i++ or $i-- if no loop ctr init
         if($lcx > 0) {
 	    if(exists $nesting_info{loop_ctr}) {
                 $nesting_info{loop_ctr} = $ValPerl[$lcx] . ',' . $nesting_info{loop_ctr};
@@ -908,8 +979,9 @@ sub enter_block                 # issue 94
     $nesting_info{varclasses} = dclone($line_varclasses{$last_block_lno}) if(!$Pythonizer::PassNo);
     $nesting_info{level} = $nesting_level;
     # Note a {...} block by itself is considered a loop
-    $nesting_info{is_loop} = ($begin <= $#ValClass && ($ValPy[$begin] eq '{' || $ValPerl[$begin] eq 'for' || $ValPerl[$begin] eq 'foreach' ||
-                                           $ValPerl[$begin] eq 'while' || $ValPerl[$begin] eq 'until'));
+    $nesting_info{is_loop} = ($begin <= $#ValClass && ($ValPy[$begin] eq '{' || $ValPerl[$begin] eq 'for' || 
+                                                       $ValPerl[$begin] eq 'foreach' || $ValPerl[$begin] eq 'continue' ||
+                                                       $ValPerl[$begin] eq 'while' || $ValPerl[$begin] eq 'until'));
     $nesting_info{is_eval} = ($begin <= $#ValClass && $ValPerl[$begin] eq 'eval');
     $nesting_info{is_sub} = ($begin <= $#ValClass && $ValPerl[$begin] eq 'sub');
     $nesting_info{cur_sub} = (($begin+1 <= $#ValClass && $nesting_info{is_sub}) ? $ValPerl[$begin+1] : undef);
@@ -930,6 +1002,7 @@ sub enter_block                 # issue 94
     }
     $nesting_level++;
 }
+
 sub exit_block                  # issue 94
 {
     if($nesting_level == 0) {
@@ -955,6 +1028,7 @@ sub exit_block                  # issue 94
     }
     $nesting_level--;
 }
+
 sub last_next_propagates        # issue 94
 # Does this last/next propagate out of this sub?
 # Side effect - sets {needs_try_block} on any loops we need to generate a try block for
@@ -965,12 +1039,16 @@ sub last_next_propagates        # issue 94
     if(!defined $label) {
         return 1 if($nesting_level == 0);
         $top = $nesting_stack[-1];
-        if($pos != 0 && $top->{in_loop}) {      # If this is NOT a stmt level last/next, we need the exception for it
+        if($top->{in_loop}) {      # If this is NOT a stmt level last/next, we need the exception for it
             for $ndx (reverse 0 .. $#nesting_stack) {
                 if($nesting_stack[$ndx]->{is_loop}) {
-                    $nesting_stack[$ndx]->{needs_try_block} = 1;
-                    say STDERR "last_next_propagates: setting line_needs_try_block{$nesting_stack[$ndx]->{lno}} from last/next at line $." if($::debug >= 5);
-                    $line_needs_try_block{$nesting_stack[$ndx]->{lno}} |= TRY_BLOCK_EXCEPTION;
+                    my $exc = ($pos == 0) ? 0 : TRY_BLOCK_EXCEPTION;
+                    if($exc) {
+                        $nesting_stack[$ndx]->{needs_try_block} = 1;
+                        say STDERR "last_next_propagates: setting line_needs_try_block{$nesting_stack[$ndx]->{lno}} from last/next at line $." if($::debug >= 5);
+                    }
+                    my $typ = ($ValPerl[$pos] eq 'last') ? TRY_BLOCK_HAS_LAST : TRY_BLOCK_HAS_NEXT;
+                    $line_needs_try_block{$nesting_stack[$ndx]->{lno}} |= $exc | $typ;
                     last;
                 }
             }
@@ -979,10 +1057,11 @@ sub last_next_propagates        # issue 94
     } elsif($Pythonizer::PassNo == 0) {         # only do this once
         for $ndx (reverse 0 .. $#nesting_stack) {
             if(exists $nesting_stack[$ndx]->{label} && $nesting_stack[$ndx]->{label} eq $label) {
-                if($pos != 0 || $ndx != $#nesting_stack) {           # No need to use exception for last/next inner if at stmt level;
+                if($ndx != $#nesting_stack) {           # No need to use exception for last/next inner if at stmt level;
                     $nesting_stack[$ndx]->{needs_try_block} = 1;
                     say STDERR "last_next_propagates: setting line_needs_try_block{$nesting_stack[$ndx]->{lno}} from last/next at line $." if($::debug >= 5);
-                    $line_needs_try_block{$nesting_stack[$ndx]->{lno}} |= TRY_BLOCK_EXCEPTION;
+                    my $typ = ($ValPerl[$pos] eq 'last') ? TRY_BLOCK_HAS_LAST : TRY_BLOCK_HAS_NEXT;
+                    $line_needs_try_block{$nesting_stack[$ndx]->{lno}} |= TRY_BLOCK_EXCEPTION | $typ;
                 }
                 return 0;
             }
@@ -1065,8 +1144,102 @@ sub needs_try_block                # issue 94, issue 108
         no warnings 'uninitialized';
         say STDERR "needs_try_block($at_bottom), top=@{[%$top]}";
     }
-    return 1 if(exists $line_needs_try_block{$top->{lno}});
+    return 1 if(exists $line_needs_try_block{$top->{lno}} && 
+        ($line_needs_try_block{$top->{lno}} & (TRY_BLOCK_EXCEPTION|TRY_BLOCK_FINALLY)));
     return 0;
+}
+
+sub has_continue                # SNOOPYJC
+{
+    my $at_bottom = shift;
+
+    my $top = $nesting_last;
+    if(!$at_bottom) {
+        return 0 if($nesting_level == 0);
+        $top = $nesting_stack[-1];
+    }
+    if($::debug >= 4) {
+        no warnings 'uninitialized';
+        say STDERR "has_continue($at_bottom), top=@{[%$top]}";
+    }
+    return 1 if(exists $line_needs_try_block{$top->{lno}} && 
+        ($line_needs_try_block{$top->{lno}} & TRY_BLOCK_HAS_CONTINUE));
+    return 0;
+}
+
+sub set_needs_implicit_continue
+{
+    my $saved_tokens = shift;
+
+    my $top = $nesting_stack[-1];
+    $top->{implicit_continue} = $saved_tokens;
+    my $exc = 0;
+    $exc = 1 if(exists $line_needs_try_block{$top->{lno}} && ($line_needs_try_block{$top->{lno}} & TRY_BLOCK_HAS_NEXT));
+    $line_needs_try_block{$top->{lno}} |= $exc | TRY_BLOCK_HAS_CONTINUE;
+    say STDERR "set_needs_implicit_continue, setting line_needs_try_block{$top->{lno}} to EXCEPTION|CONTINUE" if($::debug >= 3);
+    say STDERR "set_needs_implicit_continue = @{$saved_tokens->{py}}" if($::debug >= 3);
+}
+
+sub needs_implicit_continue
+{
+    my $at_bottom = shift;
+
+    my $top = $nesting_last;
+    if(!$at_bottom) {
+        return 0 if($nesting_level == 0);
+        $top = $nesting_stack[-1];
+    }
+    if($::debug >= 4) {
+        no warnings 'uninitialized';
+        say STDERR "needs_implicit_continue($at_bottom), top=@{[%$top]}";
+    }
+    return $top->{implicit_continue} if(exists $top->{implicit_continue});
+    return 0;
+}
+
+sub needs_redo_loop                # SNOOPYJC
+{
+    my $at_bottom = shift;
+
+    my $top = $nesting_last;
+    if(!$at_bottom) {
+        return 0 if($nesting_level == 0);
+        $top = $nesting_stack[-1];
+    }
+    if($::debug >= 4) {
+        no warnings 'uninitialized';
+        say STDERR "needs_try_block($at_bottom), top=@{[%$top]}";
+    }
+    return 1 if(exists $line_needs_try_block{$top->{lno}} && 
+                ($line_needs_try_block{$top->{lno}} & TRY_BLOCK_REDO_LOOP));
+    return 0;
+}
+
+sub cur_loop_ndx                     # SNOOPYJC
+# Get the index of the current loop block, if any
+{
+    for $ndx (reverse 0 .. $#nesting_stack) {
+        next if(!$nesting_stack[$ndx]->{is_loop});
+        return $ndx;
+    }
+    return -1;
+}
+
+sub loop_ndx_with_label                     # SNOOPYJC
+# Get the index of the current loop block, if any
+{
+    my $label = shift;
+
+    if(!defined $label) {
+        return cur_loop_ndx();
+    }
+    for $ndx (reverse 0 .. $#nesting_stack) {
+        next if(!$nesting_stack[$ndx]->{is_loop});
+        if(exists $nesting_stack[$ndx]->{label} && $nesting_stack[$ndx]->{label} eq $label) {
+            return $ndx;
+        }
+    }
+    return -1;
 }
 
 sub cur_loop_label                     # issue 94
@@ -1141,9 +1314,18 @@ sub gen_try_block_finally               # issue 108
 sub next_last_needs_raise               # issue 94
 # Do we need to generate a raise statement for this next/last?
 {
+    my $pos = shift;
+
     return 1 if($nesting_level == 0);           # Generate an exception instead of a syntax error
     my $top = $nesting_stack[-1];
     return 1 if(!$top->{in_loop});
+    my $ndx = cur_loop_ndx();
+    my $is_next = ($ValPerl[$pos] eq 'next');
+    return 1 if(exists $line_needs_try_block{$nesting_stack[$ndx]->{lno}} && $is_next &&
+                ($line_needs_try_block{$nesting_stack[$ndx]->{lno}} & (TRY_BLOCK_HAS_CONTINUE|TRY_BLOCK_REDO_LOOP)));
+    return 1 if(exists $line_needs_try_block{$nesting_stack[$ndx]->{lno}} && !$is_next &&
+                ($line_needs_try_block{$nesting_stack[$ndx]->{lno}} & TRY_BLOCK_REDO_LOOP));
+    return 0;
 }
 
 sub handle_local                        # issue 108
@@ -1606,7 +1788,7 @@ my ($l,$m);
                  ($ValPerl[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1 || 
                   ($tno == 1 && $ValClass[0] eq 'C')||  # SNOOPYJC: do {...} until(...); else {...}; elsif {...}; eval {...};
                   ($tno == 2 && $ValPerl[0] eq 'sub') ||
-                  ($tno == 1 && ($ValPerl[0] eq 'BEGIN' || $ValPerl[0] eq 'END')))){	# issue 35, 45
+                  ($tno == 1 && $ValPerl[0] =~ /BEGIN|END|UNITCHECK|CHECK|INIT/))){	# issue 35, 45
              # $tno>0 this is the case when curvy bracket has comments'
              enter_block() if($s eq '{');                 # issue 94
              # SNOOPYJC Pythonizer::getline('{',substr($source,1)); # make it a new line to be proceeed later
@@ -1859,6 +2041,10 @@ my ($l,$m);
                 $do_lno = $nesting_last->{lno};
                 $line_substitutions{$do_lno}{'\bdo\b'} = $condition;
                 $line_substitutions{$.}{'}\s*'.$w.'.*?;'} = '}';
+            } elsif($class eq 'C' && !$Pythonizer::PassNo && $w eq 'continue') {        # SNOOPYJC
+                track_continue($tno);
+            } elsif($class eq 'k' && !$Pythonizer::PassNo && $w eq 'next') {            # SNOOPYJC
+                flag_next_in_continue($tno);
 #           } elsif( $class eq 'k' && $w eq 'sub' && $tno > 0 && $Pythonizer::PassNo ){	# issue 81: anonymous sub
 #               $ValClass[$tno] = 'i';
 #               $ValPy[$tno] = $ValPerl[$tno] = "$ANONYMOUS_SUB$.";
@@ -2559,6 +2745,8 @@ my ($l,$m);
    if($tno > 0) {                                       # issue 94
         if($ValClass[0] eq 'k' && ($ValPerl[0] eq 'last' || $ValPerl[0] eq 'next')) {    # issue 94
             handle_last_next(0);                              # issue 94
+        } elsif($ValClass[0] eq 'k' && !$Pythonizer::PassNo && $ValPerl[0] eq 'redo') {            # SNOOPYJC
+            track_redo(0);
         } elsif($ValClass[0] eq 't' && $ValPerl[0] eq 'local' && !$Pythonizer::PassNo) {        # issue 108
             handle_local();                                     # issue 108
         } elsif($ValClass[0] eq 's' && ($ValPerl[0] eq '$-' || $ValPerl[0] eq '$+') && $ValClass[1] eq '(') {
@@ -2835,13 +3023,15 @@ my $rc=-1;
       #$source=~/^..(\w+)/;
       $source=~/^..\{(\w+)\}/ or $source=~/^..\$?(\w+)/ or $source=~/^..\{\$(\w+)\}/;  # Handle $#{var} $#var $#$var $#{$var}
       #say STDERR "decode_scalar: source='$source', \$1=$1";
-      $ValType[$tno]="X";
+      # issue 14 $ValType[$tno]="X";
       if( $update ){
          $ValPerl[$tno]=substr($source,0,2).$1; # SNOOPYJC
       }
       if( $1 eq 'ARGV'  ){                      # SNOOPYJC: Generate proper code for $#ARGV
+          $ValType[$tno]="X";                   # issue 14
           $ValPy[$tno] ='(len(sys.argv)-2)';    # SNOOPYJC
       } elsif($1 eq '_') {                      # issue 107
+          $ValType[$tno]="X";                   # issue 14
           $ValPy[$tno] ="(len($PERL_ARG_ARRAY)-1)";    # issue 107
       } else {                                  # SNOOPYJC
           my $mapped_name = remap_conflicting_names($1, '@', '');      # issue 92
@@ -3851,11 +4041,68 @@ sub remove_oddities
     #  if not (childPid is not None):
     $line =~ s/\bnot \(([\w.]+(?:\[[\w\']+\])*) is not None\)/$1 is None/g;
 
+    # Change "if not ( not X):" to "if X:"
+    $line =~ s/\bif not \( not ([\w.]+)\):$/if $1:/;
+
+    # Change "perllib.Array([])" to "perllib.Array()"
+    $line =~ s/\bperllib\.Array\(\[\]\)/perllib.Array()/g;
+
     # FIXME: Change "_list_of_n((7, 7, 7), 3" to "(7, 7, 7)"
     # if($line =~ /\b_list_of_n\(\(.*\), (\d+)\)/) {
 
+    # Change ((...)) to (...) unless there are ',' inside the "..."
+    my $pos = -1;
+    while(($pos = index($line, '((', $pos+1)) > 0) {
+        my $end_pos = python_matching_paren($line, $pos, 0, ',');
+        my $end_pos1 = python_matching_paren($line, $pos+1);    # Make sure this isn't like "((...)...)"
+        if($end_pos1+1 == $end_pos && $end_pos > $pos) {
+            substr($line,$end_pos,1) = '';
+            substr($line,$pos,1) = '';
+        }
+    }
+
     return $line;
 }
+
+sub python_matching_paren
+# Find matching paren in python code, if found.
+# Arg1 - the string to scan
+# Arg2 - starting position for scan
+# Arg3 - (optional) -- balance from whichto start (allows to skip opening paren)
+# Arg4 - (optional) -- return -1 if this char is found (not escaped and not in string)
+{
+my $str=$_[0];
+my $scan_start=$_[1];
+my $balance=(scalar(@_)>2) ? $_[2] : 0; # case where opening bracket is missing for some reason or was skipped.
+my $bad_char=(scalar(@_)>3) ? $_[3] : "\0";
+
+   for( my $k=$scan_start; $k<length($str); $k++ ){
+     my $s=substr($str,$k,1);
+     if( $s eq '(' ){
+        $balance++;
+     }elsif( $s eq ')' ){
+        $balance--;
+        if( $balance==0  ){
+           return $k;
+        }
+     }elsif($s eq "\\") {               # Skip escape chars
+         $k++;
+     }elsif($s eq $bad_char) {
+         return -1;
+     }elsif($s eq "'" || $s eq '"') {   # start of string, parse to end
+        my $quote = $s;
+        while(++$k < length($str)) {
+            $s=substr($str,$k,1);
+            if($s eq "\\") {    # Skip escape chars
+                $k++;
+            }
+            last if($s eq $quote);
+        }
+     }
+
+  } # for
+  return -1;
+} # python_matching_paren
 
 #
 # Typically used without arguments as it openates on PythonCode array
@@ -3983,12 +4230,14 @@ my ($i,$k);
 
 sub save_code           # issue 74: save the generated python code so we can insert some new code before it
 {
+    say STDERR "save_code(@PythonCode)" if($::debug >= 3);
     @SavePythonCode = @PythonCode;      # copy the code
     @PythonCode = ();
 }
 sub restore_code        # issue 74
 {
     @PythonCode = @SavePythonCode;
+    say STDERR "restore_code() = @PythonCode" if($::debug >= 3);
 }
 
 sub append

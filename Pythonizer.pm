@@ -382,6 +382,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                 $VarSubMap{$ValPy[$k]}{$CurSubName}='+';
                 if( $ValPy[$k] =~/[\[\(]/ && $ValPy[$k] !~ /^len\(/ && $ValPy[$k] ne 'globals()' &&
                     $ValPy[$k] !~ /\.__dict__$/ &&
+                    substr($ValPy[$k],0,5) ne '(len(' &&        # issue 14: $#x => (len(x)-1)
                     substr($ValPy[$k],0,4) ne 'sys.'){   # Issue 13
                    $InLineNo = $.;
                    say "=== Pass 1 INTERNAL ERROR in processing line $InLineNo Special variable is $ValPerl[$k] as $ValPy[$k], k=$k, ValType=@ValType";
@@ -729,7 +730,7 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             for $lc (@lcs) {
                 if($ValPerl[$k] eq $lc) {
                     &Perlscan::set_loop_ctr_mod($lc);
-                    logme('W',"Loop counter $lc modified in loop - generated code for 'for' loop may be incorrect");
+                    # issue for logme('W',"Loop counter $lc modified in loop - generated code for 'for' loop may be incorrect");
                     last;
                 }
             }
@@ -761,6 +762,8 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             if($k-1 >= 0 && $ValClass[$k-1] eq '(') {   # parens around assignment - stop at the )
                 $lim = matching_br($k-1)-1;
             }
+            my $semi = next_same_level_token(';', $k+2, $lim);  # like for($i=0; ...)
+            $lim = $semi-1 if($semi != -1);
             my $el = next_lower_or_equal_precedent_token('=', $k+2, $lim);
             if($el != -1) {
                 if($ValClass[$el] eq '=') {     # Chain assignment - find the last one
@@ -1188,6 +1191,13 @@ sub _expr_type           # Attempt to determine the type of the expression
     my $class = $ValClass[$k];
     if($::debug >= 3) {
         say STDERR "expr_type($k, $e, $CurSub)";
+    }
+    if($PassNo == 0) {
+        for(my $p=$k; $p <= $e; $p++) {
+            if($ValClass[$p] eq 'c' && $p != 0) {   # e.g. $i = 2 if(...) - stop at the 'if'
+                return expr_type($k, $p-1, $CurSub) if($k <= $p-1);
+            }
+        }
     }
     if($class eq 'f') {         # built-in function call
         if($k+1 <= $#ValClass) {
@@ -1617,7 +1627,8 @@ sub apply_scalar_context                        # issue 37
 {
     $pos = shift;
     return 0 if($pos < 0 || $pos > $#ValClass);
-    if($ValClass[$pos] eq 'a' && substr($ValPy[$pos],0,4) ne 'len(') {
+    # issue 30 if($ValClass[$pos] eq 'a' && substr($ValPy[$pos],0,4) ne 'len(') {
+    if($ValClass[$pos] =~ /[ah]/ && substr($ValPy[$pos],0,4) ne 'len(') {
         $ValPy[$pos] = 'len('.$ValPy[$pos].')';
         return 1;
     } elsif($ValClass[$pos] eq 'f' && exists $SPECIAL_FUNCTION_MAPPINGS{$ValPerl[$pos]}) {      # issue 65
@@ -1663,13 +1674,13 @@ sub fix_scalar_context                          # issue 37
             $did_something = 1;
         }
     }
-    if($TokenStr eq 's=a' || $TokenStr =~ /^s=f/ || $TokenStr =~ /^s=\(\)=/) {         # issue 65, goatse
+    if($TokenStr eq 's=a' || $TokenStr eq 's=h' || $TokenStr =~ /^s=f/ || $TokenStr =~ /^s=\(\)=/) {         # issue 65, goatse, issue 30
         $did_something |= apply_scalar_context(2);
-    } elsif($TokenStr eq 'ts=a' || $TokenStr =~ /^ts=f/ || $TokenStr =~ /^ts=\(\)=/) {    # issue 65, goatse
+    } elsif($TokenStr eq 'ts=a' || $TokenStr eq 'ts=h' || $TokenStr =~ /^ts=f/ || $TokenStr =~ /^ts=\(\)=/) {    # issue 65, goatse, issue 30
         $did_something |= apply_scalar_context(3);
     } elsif($#ValClass > 5 && $ValClass[1] eq '(' && $ValClass[0] eq 's') {    # Array subscript or hashref
-        $j=&::end_of_variable(1);                      # Look for $arr[ndx]=@arr or $arr[ndx]=func()
-        if($j+2 <= $#ValClass && $ValClass[$j+1] eq '=' && $ValClass[$j+2] =~ /[af]/) {
+        $j=&::end_of_variable(0);                      # Look for $arr[ndx]=@arr or $arr[ndx]=func()
+        if($j+2 <= $#ValClass && $ValClass[$j+1] eq '=' && $ValClass[$j+2] =~ /[ahf]/) {        # issue 30
             $did_something |= apply_scalar_context($j+2);
         }
     }
@@ -1688,7 +1699,7 @@ sub fix_scalar_context                          # issue 37
             my $end_pos = next_same_level_tokens(',)', $pos, $#ValClass)-1;
             my $found_comma = ($ValClass[$end_pos+1] eq ',');
             while($end_pos >= $pos) {
-                if($ValClass[$pos] =~ /[af]/) {
+                if($ValClass[$pos] =~ /[ahf]/) {        # issue 30
                     $did_something |= apply_scalar_context($pos);
                 }
                 last if($ValClass[$end_pos+1] eq ')');
@@ -1715,7 +1726,7 @@ sub fix_scalar_context                          # issue 37
         if(index("+-*/.>",$ValClass[$i]) >= 0) {        # Scalar operator
             if($i == 0) {
                 ;
-            } elsif($i-1 == 0 || $ValClass[$i-2] ne 'f') {   # function (like shift/pop) on an array - don't apply scalar context to the array
+            } elsif($i-1 == 0 || ($ValClass[$i-2] ne 'f' && $ValClass[$i-2] ne "\\")) {   # function (like shift/pop) on an array - don't apply scalar context to the array, also skip if we're getting a reference to the object
                 $did_something |= apply_scalar_context($i-1);
             }
             $did_something |= apply_scalar_context($i+1);
@@ -2144,7 +2155,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     my @init_package_lnos = ();
     for my $line (@lines){
         $lno++;
-        $insertion_point = $lno+1 if($line =~ /^$PERL_ARG_ARRAY = sys.argv/ && !$insertion_point);              # SNOOPYJC
+        # issue 24 $insertion_point = $lno+1 if($line =~ /^$PERL_ARG_ARRAY = sys.argv/ && !$insertion_point);              # SNOOPYJC
+        $insertion_point = $lno+1 if($line =~ /^pass # LAST_HEADER/ && !$insertion_point);          # issue 24
         next if(!$insertion_point);     # Ignore everything above our insertion point
         if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ) {
             my $i;
@@ -2175,7 +2187,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     my %f_refs=();
     for my $Line (@lines) {
         $lno++;
-        $insertion_point = $lno+1 if($Line =~ /^$PERL_ARG_ARRAY = sys.argv/ && !$insertion_point);              # SNOOPYJC
+        # issue 24 $insertion_point = $lno+1 if($Line =~ /^$PERL_ARG_ARRAY = sys.argv/ && !$insertion_point);              # SNOOPYJC
+        $insertion_point = $lno+1 if($Line =~ /^pass # LAST_HEADER/ && !$insertion_point);          # issue 24
         #say STDERR "$lno: $line";
         $line = eat_strings($Line);     # we change variables so eat_strings doesn't modify @lines
         if($in_def) {
@@ -2338,7 +2351,7 @@ sub pep8                # Generate blank lines where they should be, and elimina
         return;
     } elsif($this_is_blank && $last_was_blank) {        # eliminate multiple blank lines
         return;
-    } elsif($this_indent <= $last_indent && $line =~ /^\s*pass$/) {
+    } elsif($this_indent <= $last_indent && ($line =~ /^\s*pass$/ || $line =~ /^pass # LAST_HEADER$/)) {
         return;                 # Get rid of extra "pass" statements
     #} elsif($line =~ /^\s*def / && !$last_was_blank) {
     } elsif($this_indent < $last_indent && !$this_is_blank && $line !~ /^\s*except / &&
@@ -2364,6 +2377,7 @@ sub cleanup_imports
     my $import_lno = 0;
     my $import_as_lno = 0;              # import time as tm_py
     my $die_def_lno = 0;                # class Die(Exception):
+    my $die_import_lno = 0;             # from perllib import Die
     my $loop_control_def_lno = 0;       # class LoopControl(Exception):
     my $as_what = '';
     my @imports = ();
@@ -2398,6 +2412,8 @@ sub cleanup_imports
             }
         } elsif($line =~ /^class Die\(/) {
             $die_def_lno = $lno;
+        } elsif($line =~ /^from $PERLLIB import Die$/) {
+            $die_import_lno = $lno;
         } elsif($line =~ /^class $loop_control\(/) {      # issue 94
             $loop_control_def_lno = $lno;
         } elsif($line =~ /^class $EVAL_RETURN_EXCEPTION\(/) {
@@ -2453,7 +2469,9 @@ sub cleanup_imports
         if($import_as_lno && !$import_as_referenced) {
             $line_ref->[$import_as_lno-1] = '^';
         }
-        if($die_def_lno && !$die_referenced) {
+        if($die_import_lno && !$die_referenced) {
+            $line_ref->[$die_import_lno-1] = '^';   # from perllib import Die
+        } elsif($die_def_lno && !$die_referenced) {
             $line_ref->[$die_def_lno-1] = '^';   # class Die(Exception):
             $line_ref->[$die_def_lno] = '^';     #     pass or def __init__(...):
             $line_ref->[$die_def_lno+1] = '^' if($::traceback);     #     traceback
