@@ -1,4 +1,5 @@
 # List of which tests are allowed to fail with the -m flag, so we skip them
+issue_87.pl
 test_global_namespace.pl
 test_global_namespacePackage.pl
 test_require.pl

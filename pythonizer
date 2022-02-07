@@ -143,6 +143,7 @@
 # 0.943  2022/01/28  SNOOPYJC  Create makelib.py and get_globals.pl to build perllib, fix binmode, make -p the default, give warning on require stmt if using -m
 # 0.944  2022/01/30  SNOOPYJC  Addl fixes for issue 108: handle local with array elem or hash key, handle array elem and hash keys in paren list LHS expressions, fix issue 78 - s/regex/expr/e flag, handle g flag on regex, warn on wantarray use, handle 'no warnings' and assignments to $^W.
 # 0.945  2022/02/04  SNOOPYJC  Fix __LINE__, implement __FILE__, __PACKAGE__, fix missing _init_package('main') if the file has other packages but still uses main, handle dotted package name in _init_package, fixup wrong ++/-- code in trailing if, use proper {} brackets for hashref in expr, add File::Temp functions POSIX::tmpnam, and IO::File->new, fix UTF-8 in binmode and binmode in an expression, handle i=>x in func/sub calls, change opendir etc to _opendir and fix readdir(), do not try to write in perllib folders even if writable, use python package name - not the perl name, handle open as last line of sub producing the return value, addl fix for issue 13 - scalar context with comma operator, revamp stat now that all OO references are methods and not properties
+# 0.946  2022/02/06  SNOOPYJC  Implement redo and continue, fix push with scalar expression in parens, remove more oddities in the generated code like perllib.Array([]) and ((...)), add a couple dozen additional tests, fix issue 24, add UNITCHECK, CHECK, and INIT blocks, give warning if $? is set in an END block (not supported), issue 26, issue 30, issue 54, issue 76, handle for(;;), implement every type of for loop using while e.g. if the loop counter is modified or the increment can't be handled by range(...)
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -187,7 +188,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
 
-   $VERSION='0.945';
+   $VERSION='0.946';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -256,6 +257,7 @@ BEGIN {                                                 # SNOOPYJC
 
    $split_multiple_assignment = undef;          # issue 115
    $gen_open_data = 0;                          # SNOOPYJC
+   $continue_needed_try_block = 0;              # issue continue
 
 #
 # Skip initial block of comments
@@ -324,7 +326,8 @@ BEGIN {                                                 # SNOOPYJC
    #if(exists $InitVar{main}) {
    #   push @headers, $InitVar{main};
    #}
-   my $last_header = "$PERL_ARG_ARRAY = sys.argv[1:]";      # SNOOPYJC - must be last!!
+   # issue 24 my $last_header = "$PERL_ARG_ARRAY = sys.argv[1:]";      # SNOOPYJC - must be last!!
+   my $last_header = "pass # LAST_HEADER";      # issue 24 - must be last!!
    push @headers, $last_header;         # SNOOPYJC: Post-processor in Pythonizer.pm relies on this one being last
    foreach $l (@headers) {              # SNOOPYJC
        output_line('',$l); # to block reproducing the first source line
@@ -571,6 +574,14 @@ my ($start,$token_buffer_active);
              gen_statement('pass');             # issue 96: python doesn't allow empty blocks
          }                                      # issue 96
          gen_statement();
+         if(&Perlscan::is_continue_block(1)) {
+             correct_nest(-1,-1);
+         }
+
+         if(&Perlscan::needs_redo_loop(1)) {    # SNOOPYJC
+             gen_statement('break');
+             correct_nest(-1,-1);
+         }
          if(&Perlscan::needs_try_block(1)) {    # issue 94
              my $ex_name = &Perlscan::try_block_exception_name();
              if(defined $ex_name) {               # issue 108
@@ -580,6 +591,14 @@ my ($start,$token_buffer_active);
                     correct_nest(1,1);
                     gen_statement("return _r.args[0]");
                 } else {
+                    my $continue = 0;
+                    if(&Perlscan::has_continue(1)) {       # SNOOPYJC
+                        $continue = 1;
+                        correct_nest(1,1);
+                        gen_statement("raise $ex_name('continue')");
+                        correct_nest(-1,-1);
+                        $continue_needed_try_block = 1;
+                    }
                     gen_statement("except $ex_name as _l:");
                     correct_nest(1,1);
                     #gen_statement("if 'break' in str(_l):");
@@ -587,11 +606,15 @@ my ($start,$token_buffer_active);
                     correct_nest(1,1);
                     gen_statement('break');
                     correct_nest(-1,-1);
-                    gen_statement('continue');
+                    gen_statement('continue') if(!$continue);
+                    gen_implicit_continue();
                 }
              }
              &Perlscan::gen_try_block_finally();
              correct_nest(-1);
+         } elsif(!&Perlscan::is_continue_block(1)) {
+             $continue_needed_try_block = 0;
+             gen_implicit_continue();
          }
          correct_nest(-1); # next line will be de-indented
          if( $we_are_in_sub_body  && $Pythonizer::NextNest ==0  ){
@@ -610,7 +633,9 @@ my ($start,$token_buffer_active);
              #say STDERR "Got } on line $., nested_sub_at_level=$nested_sub_at_level, nesting_level=$Perlscan::nesting_level";
          #}
       }elsif( $ValClass[0] eq '{' ){
-         if(!$Perlscan::PREV_HAD_COLON) {                 # SNOOPYJC
+         if(&Perlscan::is_continue_block(0)) {
+             correct_nest(1,1) if($continue_needed_try_block);
+         } elsif(!$Perlscan::PREV_HAD_COLON) {                 # SNOOPYJC
              # The user opened a brace with nothing before it, so we have to generate some code for
              # the nesting to be correct
              gen_statement('for _ in range(1):');       # SNOOPYJC: Use a loop so you can last/next it
@@ -621,6 +646,11 @@ my ($start,$token_buffer_active);
              gen_statement();
              correct_nest(1,1);
              gen_statement('try:');
+         }
+         if(&Perlscan::needs_redo_loop(0)) {                # SNOOPYJC
+             gen_statement();
+             correct_nest(1,1);
+             gen_statement('while True:');
          }
          $Pythonizer::GeneratedCode = 0;                # issue 96
          correct_nest(1); # next line will be indented
@@ -709,9 +739,9 @@ my ($start,$token_buffer_active);
             }
             correct_nest(0,0);
          }
-      }elsif( $ValPerl[0] eq 'BEGIN' ){
+      }elsif( $ValPerl[0] =~ /BEGIN|UNITCHECK|CHECK|INIT/ ){    # SNOOPYJC
          correct_nest(0,0);
-         gen_chunk($ValPy[0],'    # BEGIN:'); # SNOOPYJC
+         gen_chunk($ValPy[0],"    # $ValPerl[0]:"); # SNOOPYJC
       }elsif(  $ValPerl[0] eq 'close' ){
          for( my $i=1; $i<@ValPy; $i++ ){
              if( $ValClass[$i] eq 'i' || $ValClass[$i] eq 's' ){        # issue 10
@@ -1296,7 +1326,7 @@ my ($start,$token_buffer_active);
          } else {
             if( $#ValClass == 0 ){
                 #say STDOUT "$ValPy[0], we_are_in_sub_body=$we_are_in_sub_body, CurNest=$Pythonizer::CurNest, NextNest=$Pythonizer::NextNest";
-                if(($ValPerl[0] eq 'next' || $ValPerl[0] eq 'last') && &Perlscan::next_last_needs_raise()) {
+                if(($ValPerl[0] eq 'next' || $ValPerl[0] eq 'last') && &Perlscan::next_last_needs_raise(0)) {
                     my $ex_name = label_exception_name(undef);
                     gen_chunk("raise $ex_name('$ValPy[0]')");
                 } else {
@@ -1304,8 +1334,8 @@ my ($start,$token_buffer_active);
                 }
             }elsif( $ValClass[1] eq '(' ){
                 $TrStatus=expression(0,$#ValClass,0); # Can be this will scan till ')'
-            }elsif($ValClass[1] eq 'i' && ($ValPerl[0] eq 'next' || $ValPerl[0] eq 'last')) {   # issue 94
-                if($ValPerl[1] eq &Perlscan::cur_loop_label()) {
+            }elsif($ValClass[1] eq 'i' && ($ValPerl[0] eq 'next' || $ValPerl[0] eq 'last' || $ValPerl[0] eq 'redo')) {   # issue 94
+                if($ValPerl[1] eq &Perlscan::cur_loop_label() && ($ValPerl[0] eq 'redo' || !&Perlscan::next_last_needs_raise(0))) {
                     gen_chunk($ValPy[0]);
                 } else {
                     # next LABEL or last LABEL, with LABEL not the last one we saw
@@ -1933,6 +1963,16 @@ sub fix_type_issues
         } elsif($ValClass[$i] eq ';' && $ValPy[0] ne 'for') {         # See it inside a anon sub
             return $total_adjust + fix_type_issues($i+1, $k, $type) if($i+1 >= $k);
             return $total_adjust;
+        } elsif($ValClass[$i] eq ':' && $ValPy[$i] eq 'if') {   # issue 90: Converted ? : operator - first part - next is bool expr
+            my $colon = next_same_level_token(':', $i+1, $limit);
+            if($colon != -1) {
+                $adjust = fix_type_issues($i+1, $colon-1, undef);
+                $colon += $adjust;
+                $limit += $adjust;
+                $total_adjust += $adjust;
+                $i = $colon;
+                next;
+            }
         } else {
             next;
         }
@@ -2686,6 +2726,9 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
 	 } else {				# issue 14
             # single token on the left side -- regular assignment;
             gen_chunk($ValPy[$k]); # simple scalar assignment -- varible of left side
+            if($ValPerl[$k] eq '$?' && substr($CurSub, 0, 7) eq '__END__') {    # SNOOPYJC
+                logme('W', "Sorry, python does not support setting the exit code in an END (atexit) block");
+            }
 	  }					# issue 14
        }elsif( $ValPerl[$k] eq '(' && $ValPerl[$k+1] eq ')') {  # SNOOPYJC: goatse
            $number_of_elements = 0;             # SNOOPYJC
@@ -3068,6 +3111,7 @@ sub gen_eval                    # issue 42
 sub package_code                 # issue 42
 # Package up all the code in a cute little ref so we can generate it later
 {
+    say STDERR "package_code( =|$TokenStr|= ) ValPy = @ValPy" if($debug >= 3);
     my @_ValClass = @ValClass;
     my @_ValPerl = @ValPerl;
     my @_ValPy = @ValPy;
@@ -3087,6 +3131,7 @@ sub unpackage_code              # issue 42
     @ValCom = @{$coderef->{com}};
     @ValType = @{$coderef->{type}};
     $TokenStr=join('',@ValClass);
+    say STDERR "unpackage_code() = =|$TokenStr|= ValPy = @ValPy" if($debug >= 3);
 }
 
 sub p_destroy
@@ -3670,18 +3715,29 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
    # issue paren }elsif( $ValPerl[$begin] eq 'for' && $ValPerl[$begin+1] eq '('  && $ValClass[$begin+2] !~ /[ahf]/ ){
    }elsif( ($ValPerl[$begin] eq 'for' || $ValPerl[$begin] eq 'foreach') && $hadparens == 1 && $ValClass[$begin+1] !~ /[ahf]/ ){	# issue paren, issue foreach
       # regular for loop but can be foreach loop too
-      if( $ValPerl[-1] eq '++'){
+      my $gen_while = 0;                # issue for
+      if( $ValPerl[-1] eq '++' && $ValClass[-2] eq 's' && $ValClass[-3] eq ';'){
          $increment='';
-      }elsif( $ValPerl[-1] eq '--'){
+      }elsif( $ValPerl[-1] eq '--' && $ValClass[-2] eq 's' && $ValClass[-3] eq ';'){
          $increment='-1';
-      } elsif(index($TokenStr, ';((s=s+d)-d)') > 0) {   # issue 74 - replacement code for ++
+      } elsif(($k=index($TokenStr, ';((s=s+d)-d)')) > 0 && $k+11 == $#ValClass) {   # issue 74 - replacement code for ++
          $increment='';                                 # issue 74
-      } elsif(index($TokenStr, ';((s=s-d)+d)') > 0) {   # issue 74 - replacement code for --
+      } elsif(($k=index($TokenStr, ';((s=s-d)+d)')) > 0 && $k+11 == $#ValClass) {   # issue 74 - replacement code for --
          $increment='-1';                               # issue 74
-      } elsif(index($TokenStr, ';((s=f(s)+d)-d)') > 0) {       # SNOOPYJC: Handle us putting a _num conversion in
+      } elsif(($k=index($TokenStr, ';((s=f(s)+d)-d)')) > 0 && $k+14 == $#ValClass) {       # SNOOPYJC: Handle us putting a _num conversion in
          $increment='';
-      } elsif(index($TokenStr, ';((s=f(s)-d)+d)') > 0) {       # SNOOPYJC: Handle us putting a _num conversion in
+      } elsif(($k=index($TokenStr, ';((s=f(s)-d)+d)')) > 0 && $k+14 == $#ValClass) {       # SNOOPYJC: Handle us putting a _num conversion in
          $increment='-1';
+      } elsif(($k=index($TokenStr, ';s=d')) > 0 && $ValPerl[$k+2] eq '+=' && $k+3 == $#ValClass) {
+          $increment=$ValPy[$k+3];
+      } elsif(($k=index($TokenStr, ';s=d')) > 0 && $ValPerl[$k+2] eq '-=' && $k+3 == $#ValClass) {
+          $increment= - $ValPy[$k+3];
+      } elsif(($k=index($TokenStr, ';s=f(s)+d')) > 0 && $ValPerl[$k+1] eq $ValPerl[$k+5] &&
+              $ValPy[$k+3] eq $CONVERTER_MAP{N} && $k+8 == $#ValClass) {
+          $increment=$ValPy[$k+8];
+      } elsif(($k=index($TokenStr, ';s=f(s)-d')) > 0 && $ValPerl[$k+1] eq $ValPerl[$k+5] &&
+              $ValPy[$k+3] eq $CONVERTER_MAP{N} && $k+8 == $#ValClass) {
+          $increment= - $ValPy[$k+8];
       }elsif( index($TokenStr,';',$begin+1) < 0 ) {	# issue foreach: Expression returning an iterable
          gen_chunk($ValPy[$begin]);			# issue foreach
 	 gen_chunk("$DEFAULT_VAR in ");			# issue foreach, issue 32
@@ -3702,19 +3758,72 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
          }							# issue range
          gen_chunk(':');				# issue foreach
          return $#ValClass;				# issue foreach
+      }elsif($TokenStr eq "c;;") {                      # issue for: handle for(;;)
+         gen_chunk('while True', ':');
+         return $#ValClass;
       }else{
-         logme('S', "In the current version more complex increment than ++ or -- requires manual translation");
-         $TrStatus=-1;
-         return -255;
+         $gen_while = 1;
+         #logme('S', "In the current version more complex increment than ++ or -- requires manual translation");
+         #$TrStatus=-1;
+         #return -255;
       }
+      $gen_while = 1 if($Perlscan::line_contains_for_loop_with_modified_counter{$.});
       $start=$begin;
+      if($gen_while) {                          # issue for
+          # Generate a 'while' loop instead to handle this case of a 'for' loop that
+          # can't be handled using a range, or mod's the loop counter.
+          my $semi1 = next_same_level_token(';', $start, $#ValClass);
+          my $semi2 = next_same_level_token(';', $semi1+1, $#ValClass);
+          if($semi1 < 0 || $semi2 < 0) {
+              $TrStatus=-1;
+              return -255;
+          }
+          if($semi1-$start != 1) {
+             # We need to initialize the loop counter just above the while loop:
+             # Temporarily save the tokens so we can pretend this is a stand-alone statement for fix_expression_issues
+             my $tmp_code = package_code();
+             destroy($semi1, (scalar(@ValClass)-$semi1));
+             destroy(0, $start+1);
+             fix_expression_issues();   # Run again here because we don't do much on "for" loops
+             if(next_same_level_token(',', 0, $#ValClass) == -1) {
+                my $eq = next_same_level_token('=', 0, $#ValClass);
+                $ValPy[$eq] = '=' if($eq != -1 && $ValPy[$eq] eq ':=');
+                $TrStatus=assignment(0, $#ValClass);
+             } else {
+                $TrStatus=expression(0, $#ValClass, 1);
+             }
+             gen_statement();
+             unpackage_code($tmp_code);
+          }
+          gen_chunk('while');
+          if($semi1+1 <= $semi2-1) {
+              $TrStatus = expression($semi1+1, $semi2-1, 0) 
+          } else {
+              gen_chunk('True');
+          }
+          gen_chunk(':');
+          gen_statement();
+          my $my_code = package_code();
+          p_destroy($my_code, 0, $semi2+1);
+          &Perlscan::set_needs_implicit_continue($my_code);
+          return($#ValClass);
+      }
       gen_chunk($ValPy[$start]);
       # issue parens if ($ValClass[$start+2] eq ';'){
       # issue parens gen_chunk($ValPy[$start+3],' in range(',$ValPy[$start+3]);
       # issue parens $end_pos=$start+2;
       if ($ValClass[$start+1] eq ';'){		# issue parens
-         gen_chunk($ValPy[$start+2],' in range(',$ValPy[$start+2]);		# issue parens
-         $end_pos=$start+1;		# issue parens
+         my $loop_ctr = $ValPy[$start+2];       # issue for: Handle converter
+         if($ValClass[$start+2] eq 'f' && ($loop_ctr eq $CONVERTER_MAP{N} || $loop_ctr eq $CONVERTER_MAP{I})) {
+             $ValPy[$start+2] = $CONVERTER_MAP{I};      # Switch it to an integer converter for loop counter
+             $loop_ctr = $ValPy[$start+4];
+         }
+         # issue for gen_chunk($ValPy[$start+2],' in range(',$ValPy[$start+2]);		# issue parens
+         gen_chunk($loop_ctr,' in range(');
+         my $condition = next_same_level_token('>', $start+2, $limit);
+         $TrStatus=expression($start+2, $condition-1, 0);
+         # issue for $end_pos=$start+1;		# issue parens
+         $end_pos=$condition;		# issue for, issue parens
       }else{
 	 # issue parens gen_chunk($ValPy[$start+2]); # index var
          gen_chunk($ValPy[$start+1]); # index var
@@ -3764,7 +3873,7 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
       }				# issue foreach
       # we already got increamnt at the begining
       if( $increment) {
-         gen_chunk(",$increment):");
+         gen_chunk(", $increment):");
       }else{
         gen_chunk('):');
       }
@@ -3946,16 +4055,16 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       #        0    1 2   3 4  5
       if( substr($TokenStr,$start,$end_pos-$start+1) =~ /^s,([-]?d),([-]?d)/ ){
          # the simplest case when start and length of the substring are constants: substr($test,-1,1);
-         $arg1=$ValPy[index($TokenStr,'d',$start)];
-         $arg2=$ValPy[$end_pos];
-         if( length($1) == 2 && substr($1,0,1) eq '-' ){ $arg1=-$arg1; }
-         if( length($2) == 2 && substr($2,0,1) eq '-' ){ $arg2=-$arg2; }
+         $arg1=$ValPy[index($TokenStr,'d',$start)];     # start
+         $arg2=$ValPy[$end_pos];                        # length
+         if( length($1) >= 2 && substr($1,0,1) eq '-' ){ $arg1=-$arg1; }
+         if( length($2) >= 2 && substr($2,0,1) eq '-' ){ $arg2=-$arg2; }
          # issue 76 if( length($arg2)==1){
          if( $arg2==1){         # issue 76
             gen_chunk("$ValPy[$start]\[$arg1\]"); # single symbol
          }elsif( $arg1<0 && -$arg1>=$arg2 ){
              gen_chunk("$ValPy[$start]\[$arg1:\]"); # last symbol
-         }elsif( $arg2>0 ){
+         }elsif( $arg2>=0 ){            # issue 76
              $arg2+=$arg1;
              gen_chunk("$ValPy[$start]\[$arg1:$arg2\]"); # positive length added to the first index
          }elsif($arg2<0) {
@@ -4346,7 +4455,15 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       $bracketed=-1 if($bracketed!=-1 && index('>0o+-*/',$ValClass[$start]) >= 0); # issue 28: pop has no arg if the next thing is an operator
       if( $bracketed==-1 ){
 	  # issue 28 gen_chunk("perl_arg_array$py_name");
-          gen_chunk("($PERL_ARG_ARRAY$py_name if $PERL_ARG_ARRAY else None)");	# issue 28, issue 32
+          if($CurSub eq '__main__' || substr($CurSub, 0, 7) eq '__END__') {     # issue 24
+              if($perl_name eq 'shift') {
+                  gen_chunk("(sys.argv.pop(1) if len(sys.argv)>1 else None)");	# issue 24
+              } else {
+                  gen_chunk("(sys.argv.pop() if len(sys.argv)>1 else None)");	# issue 24
+              }
+          } else {
+              gen_chunk("($PERL_ARG_ARRAY$py_name if $PERL_ARG_ARRAY else None)");	# issue 28, issue 32
+          }
           return $start;                       # issue 28
       # issue 28 }elsif( $end_pos==$start ){
       } else {          # issue 28
@@ -4518,6 +4635,9 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       if( $ValClass[$comma+1] eq 'a' ){
          gen_chunk($py_name,$ValPy[$comma+1],')'); # issue 9: push(@x,@y)
       }elsif($ValClass[$comma+1] eq '(' ){      # issue 9
+
+          my $type = &Pythonizer::expr_type($comma+1, matching_br($comma+1), $CurSub);  # SNOOPYJC
+          $py_name = '.append(' if(substr($type,0,1) !~ /[ah]/);        # SNOOPYJC: Use append if it's a scalar
           gen_chunk($py_name, $ValPy[$comma+1]); # issue 9
           $k=expression($comma+2,$end_pos-1,0);	# issue 9
           gen_chunk($ValPy[$end_pos], ')');     # issue 9
@@ -5031,7 +5151,6 @@ sub GetOptions_fun              # issue 48: Generate code for GetOptions
     my $start = shift;
     my $end_pos = shift;
 
-    #gen_statement("import argparse");
     gen_statement("$ARG_PARSER = argparse.ArgumentParser(argument_default=argparse.SUPPRESS)");
     if($type == 1) {            # Type 1: GetOptions(\%hash, str, str, str...);
         for(my $i = $start+2; $i <= $end_pos; $i+=2) {
@@ -5098,7 +5217,8 @@ sub GetOptions_fun              # issue 48: Generate code for GetOptions
         }
         gen_statement("(${ARG_PARSER}_res, ${ARG_PARSER}_rem) = $ARG_PARSER.parse_known_args()");
         gen_statement("$ValPy[$start+1].update(vars(${ARG_PARSER}_res))");
-        gen_statement("sys.argv[1:] = $PERL_ARG_ARRAY = ${ARG_PARSER}_rem");
+        # issue 24 gen_statement("sys.argv[1:] = $PERL_ARG_ARRAY = ${ARG_PARSER}_rem");
+        gen_statement("sys.argv[1:] = ${ARG_PARSER}_rem");      # issue 24
     } else {                    # Type 2:  GetOptions(str => \$var, str => \$var, ...);
         for(my $i = $start; $i <= $end_pos; $i+=5) {
             my ($keys, $op, $typ, $arr) = GetOptions_split($ValPerl[$i]);
@@ -5177,7 +5297,8 @@ sub GetOptions_fun              # issue 48: Generate code for GetOptions
             $key =~ s/^[-]+//;
             gen_statement("$dest = ${ARG_PARSER}_opts.get(\"$key\", $dest)");
         }
-        gen_statement("sys.argv[1:] = $PERL_ARG_ARRAY = ${ARG_PARSER}_rem");
+        # issue 24 gen_statement("sys.argv[1:] = $PERL_ARG_ARRAY = ${ARG_PARSER}_rem");
+        gen_statement("sys.argv[1:] = ${ARG_PARSER}_rem");      # issue 24
     }
 }
 
@@ -5349,10 +5470,11 @@ my($k,$myline, $target,$open_mode,$handle);
    if($mode ne $orig_mode) {                    # SNOOPYJC: Handle complex handle like sys.stderr that can't appear in a :=
        gen_statement();
        restore_code();
+       # issue 26: Since we are using "checked=False", we get back a closed file handle, not a "None"
        if($orig_mode eq 'f') {
-           gen_chunk($handle);
+           gen_chunk('not', $handle, '.closed');        # issue 26
        } else {
-           output_line("if not $handle:");
+           output_line("if $handle.closed:");           # issue 26
            $Perlscan::PREV_HAD_COLON = 1;
        }
     }
@@ -5935,7 +6057,10 @@ sub handle_incr_decr                    # issue 74: handle ++ and -- in expressi
     if($debug >= 3) {
         print STDERR "handle_incr_decr($start, $op_pos, $limit) with $ValPerl[$op_pos]";
     }
-    if($op_pos == 0) {
+    if($op_pos == 0 && !has_comma_operator($start, $limit)) {
+        print "\n" if($debug >= 3);
+        return 0;               # we handle this case natively
+    } elsif($ValClass[$op_pos-1] eq ';') {              # Like for(...;++i) { }
         print "\n" if($debug >= 3);
         return 0;               # we handle this case natively
     }
@@ -5956,7 +6081,9 @@ sub handle_incr_decr                    # issue 74: handle ++ and -- in expressi
         while($ValClass[$lvalue_start] eq ')') {        # Handle $num{$key}{$hour}++;
             $lvalue_start = reverse_matching_br($lvalue_start) - 1;
         }
-        if($lvalue_start == 0 && $lvalue_end == 0) {
+        if((($lvalue_start == 0 && $lvalue_end == 0) || $ValClass[$lvalue_end-1] eq ';') && # ';' is before 'for' loop incr
+           $op_pos == $limit) {
+            print "\n" if($debug >= 3);
             return 0;                   # we handle this case natively
         }
     }
@@ -6350,16 +6477,16 @@ sub split_up_multiple_assignment                # issue 115
     my $test_only = $_[0] if(scalar(@_) > 0);   # Don't do any conversion, just test if we will
 
     return undef if($ValClass[0] eq 't');       # Only handles global vars, no 'my', etc.
-    my $eq1 = next_same_level_tokens('=o0', 0, $#ValClass);
+    my $eq1 = next_same_level_tokens('=o0,', 0, $#ValClass);
     return undef if($eq1 < 0 || $ValClass[$eq1] ne '=');
-    my $eq2 = next_same_level_tokens('=o0', $eq1+1, $#ValClass);
+    my $eq2 = next_same_level_tokens('=o0,', $eq1+1, $#ValClass);
     return undef if($eq2 < 0 || $ValClass[$eq2] ne '=');
     # Find the last '=' and remember the one before that
     my $prev_eq = $eq1;
     my $last_eq = $eq2;
     my $eqn;
     while(1) {
-        $eqn = next_same_level_tokens('=o0', $last_eq+1, $#ValClass);
+        $eqn = next_same_level_tokens('=o0,', $last_eq+1, $#ValClass);
         last if($eqn < 0 || $ValClass[$eqn] ne '=');
         $prev_eq = $last_eq;
         $last_eq = $eqn;
@@ -6445,7 +6572,7 @@ sub handle_assignment_in_expression
     my $pos = shift;
 
     return 0 if($pos == 1 && $ValClass[0] =~ /[ashG]/ && !has_comma_operator(2,$#ValClass));    # $a = expr
-    return 0 if($pos == 2 && $ValClass[0] eq 't' && $ValClass[1] =~ /[ashG]/);    # my $a = expr;
+    return 0 if($pos == 2 && $ValClass[0] eq 't' && $ValClass[1] =~ /[ashG]/ && !has_comma_operator(3,$#ValClass));    # my $a = expr;
     return 0 if($pos >= 3 && $ValClass[$pos-1] eq ')' && reverse_matching_br($pos-1) == 0);     # (...) = expr;
     return 0 if($pos >= 4 && $ValClass[$pos-1] eq ')' && reverse_matching_br($pos-1) == 1 && $ValClass[0] eq 't');     # my (.,.) = expr;
     return 0 if($ValClass[0] eq 's' && next_same_level_token('=', 0, $#ValClass) == $pos &&
@@ -7550,6 +7677,34 @@ sub unlock_it
     $lockfile = _lock_file($lockfile);
     unlink $lockfile;
     say STDERR "Removed $lockfile for $fullpath" if($debug);
+}
+
+sub gen_implicit_continue               # issue for
+# For a 'for' loop where the loop counter is modified or we can't use the range(...)
+# operator, we generate a 'while' loop with an implicit 'continue' block where
+# we put the increment code.  Returns 1 if we generate such a thing.
+{
+    my $tokens;
+    if(($tokens = &Perlscan::needs_implicit_continue(1))) {
+        unpackage_code($tokens);
+        if($TokenStr eq '((s=f(s)+d)-d)' || $TokenStr eq '((s=f(s)-d)+d)' ||
+           $TokenStr eq '((s=s+d)-d)' || $TokenStr eq '((s=s-d)+d)') {
+           # Get rid of the extra non-needed reversal of the ++/--
+           destroy(length($TokenStr)-4, 4);
+           destroy(0, 2);
+        }
+        fix_expression_issues();
+        if($ValClass[0] eq 's' && next_same_level_token(',', 0, $#ValClass) == -1) {
+            my $eq = next_same_level_token('=', 0, $#ValClass);
+            $ValPy[$eq] = '=' if($eq != -1 && $ValPy[$eq] eq ':=');
+            $TrStatus=assignment(0, $#ValClass);
+        } else {
+            $TrStatus=expression(0, $#ValClass, 1);
+        }
+        gen_statement();
+        return 1;
+    }
+    return 0;
 }
 
 sub left_hand_substr
