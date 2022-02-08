@@ -31,6 +31,12 @@ $VERSION = '1.10';
 state ($verbosity, $msg_cutlevel2, @ermessage_db, @ercounter); # remember they are statically scoped
   $verbosity=2;         # SNOOPYJC
 
+sub get_verbosity	# SNOOPYJC
+{
+	#say STDERR "verbosity=$verbosity";
+	return $verbosity;
+}
+
 $syslog_opened = 0;	# issue 64
 #
 # NOTE: autocommit used only in debugging mode

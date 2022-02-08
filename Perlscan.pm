@@ -144,7 +144,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'chdir'=>'os.chdir','chmod'=>'_chmod',	# issue 54
 		'chomp'=>'.rstrip("\n")','chop'=>'[0:-1]','chr'=>'chr',
 		# issue close 'close'=>'.f.close',
-		'close'=>'.close()',	# issue close
+		'close'=>'_close',	# issue close, issue 72
                 'cmp'=>'_cmp',                          # SNOOPYJC
                 # issue 42 'die'=>'sys.exit', 
                 'die'=>'raise Die',     # issue 42
@@ -548,6 +548,7 @@ sub initialize                  # issue 94
     $last_label = undef;
     $last_block_lno=0;
     $ate_dollar = -1;
+    $nesting_last=undef;            # issue 94: Last thing we popped off the stack
 }
 
 
@@ -603,7 +604,7 @@ sub add_package_name_fh
     return if($::implicit_global_my);
     return if(index($py, '.') >= 0);
     my $name = '*' . $perl_name;		# TypeGlob, e.g. local *FH;
-    if(!$Pythonizer::PassNo && $last_varclass_lno != $. && $last_varclass_lno) {
+    if($Pythonizer::PassNo==&Pythonizer::PASS_1 && $last_varclass_lno != $. && $last_varclass_lno) {
 	# We don't capture filehandles, so we need to propagate the last line down on the first pass
         $line_varclasses{$.} = dclone($line_varclasses{$last_varclass_lno});
         $last_varclass_lno = $.;
@@ -675,7 +676,7 @@ sub get_perl_name               # SNOOPYJC
 sub cur_package
 {
     my $result;
-    if($Pythonizer::PassNo) {
+    if($Pythonizer::PassNo == &Pythonizer::PASS_2) {
         $result = $::CurPackage;
     } elsif(!@Pythonizer::Packages) {
         $result = $DEFAULT_PACKAGE;
@@ -943,11 +944,11 @@ sub enter_block                 # issue 94
 {
     # SNOOPYJC: Now we use a different character (^ all alone) to replace the '{' for the second round
     # SNOOPYJC return if($last_block_lno == $. && scalar(@ValPerl) <= 1);       # We see the '{' twice on like if(...) {
-    if($::debug >= 3) {
+    if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
         no warnings;
         say STDERR "enter_block at line $., prior nesting_level=$nesting_level, ValPerl=@ValPerl";
     }
-    if(!$Pythonizer::PassNo) {          # Do this in the first pass only
+    if($Pythonizer::PassNo == &Pythonizer::PASS_1) {          # Do this in the first pass only
         $last_block_lno = $.;
         if(!$last_varclass_lno) {
             $last_varclass_lno = $.;
@@ -976,17 +977,19 @@ sub enter_block                 # issue 94
         }
     }
     $nesting_info{lno} = $.;
-    $nesting_info{varclasses} = dclone($line_varclasses{$last_block_lno}) if(!$Pythonizer::PassNo);
+    $nesting_info{varclasses} = dclone($line_varclasses{$last_block_lno}) if($Pythonizer::PassNo == &Pythonizer::PASS_1);
     $nesting_info{level} = $nesting_level;
     # Note a {...} block by itself is considered a loop
     $nesting_info{is_loop} = ($begin <= $#ValClass && ($ValPy[$begin] eq '{' || $ValPerl[$begin] eq 'for' || 
                                                        $ValPerl[$begin] eq 'foreach' || $ValPerl[$begin] eq 'continue' ||
                                                        $ValPerl[$begin] eq 'while' || $ValPerl[$begin] eq 'until'));
-    $nesting_info{is_eval} = ($begin <= $#ValClass && $ValPerl[$begin] eq 'eval');
+    # SNOOPYJC: eval doesn't have to be first! $nesting_info{is_eval} = ($begin <= $#ValClass && $ValPerl[$begin] eq 'eval');
+    $nesting_info{is_eval} = is_eval();		# SNOOPYJC
     $nesting_info{is_sub} = ($begin <= $#ValClass && $ValPerl[$begin] eq 'sub');
     $nesting_info{cur_sub} = (($begin+1 <= $#ValClass && $nesting_info{is_sub}) ? $ValPerl[$begin+1] : undef);
 
     $nesting_info{in_loop} = ($nesting_info{is_loop} || (scalar(@nesting_stack) && $nesting_stack[-1]{in_loop}));
+    $nesting_info{in_eval} = ($nesting_info{is_eval} || (scalar(@nesting_stack) && $nesting_stack[-1]{in_eval}));
     $nesting_info{in_sub} = ($nesting_info{is_sub} || (scalar(@nesting_stack) && $nesting_stack[-1]{in_sub}));
     if($nesting_info{in_sub} && !$nesting_info{is_sub}) {
         $nesting_info{cur_sub} = $nesting_stack[-1]{cur_sub};
@@ -996,7 +999,7 @@ sub enter_block                 # issue 94
         $last_label = undef;            # We used it up
     }
     push @nesting_stack, \%nesting_info;
-    if($::debug >= 3) {
+    if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
         no warnings 'uninitialized';
         say STDERR "nesting_info=@{[%nesting_info]}";
     }
@@ -1012,13 +1015,13 @@ sub exit_block                  # issue 94
         return;
     }
     $nesting_last = pop @nesting_stack;
-    if($::debug >= 3) {
+    if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
         say STDERR "exit_block at line $., prior nesting_level=$nesting_level, nesting_last->{type} is now $nesting_last->{type}";
     }
-    determine_varclass_keepers($nesting_last->{varclasses}, $nesting_last->{lno}) if(!$Pythonizer::PassNo);
+    determine_varclass_keepers($nesting_last->{varclasses}, $nesting_last->{lno}) if($Pythonizer::PassNo == &Pythonizer::PASS_1);
     my $label = '';
     $label = $nesting_last->{label} if(exists $nesting_last->{label});
-    if(exists $nesting_last->{can_call} && $Pythonizer::PassNo == 0) {
+    if(exists $nesting_last->{can_call} && $Pythonizer::PassNo == &Pythonizer::PASS_1) {
         for $sub (keys %{$nesting_last->{can_call}}) {
             if(exists $sub_external_last_nexts{$sub} && exists $sub_external_last_nexts{$sub}{$label}) {
                 say STDERR "exit_block: setting line_needs_try_block{$nesting_last->{lno}} from call to $sub" if($::debug >= 5);
@@ -1029,6 +1032,15 @@ sub exit_block                  # issue 94
     $nesting_level--;
 }
 
+sub is_eval                             # SNOOPYJC
+# Is this an 'eval'?
+{
+    for(my $i=0; $i <= $#ValClass; $i++) {
+        return 1 if($ValClass[$i] eq 'C' && $ValPerl[$i] eq 'eval');
+    }
+    return 0;
+}
+
 sub last_next_propagates        # issue 94
 # Does this last/next propagate out of this sub?
 # Side effect - sets {needs_try_block} on any loops we need to generate a try block for
@@ -1036,7 +1048,7 @@ sub last_next_propagates        # issue 94
     $pos = shift;
     $label = shift;
 
-    if(!defined $label) {
+    if(!defined $label && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
         return 1 if($nesting_level == 0);
         $top = $nesting_stack[-1];
         if($top->{in_loop}) {      # If this is NOT a stmt level last/next, we need the exception for it
@@ -1054,7 +1066,7 @@ sub last_next_propagates        # issue 94
             }
         }
         return !($top->{in_loop} || $top->{in_eval});
-    } elsif($Pythonizer::PassNo == 0) {         # only do this once
+    } elsif($Pythonizer::PassNo == &Pythonizer::PASS_1) {         # only do this once
         for $ndx (reverse 0 .. $#nesting_stack) {
             if(exists $nesting_stack[$ndx]->{label} && $nesting_stack[$ndx]->{label} eq $label) {
                 if($ndx != $#nesting_stack) {           # No need to use exception for last/next inner if at stmt level;
@@ -1075,7 +1087,7 @@ sub handle_pos_ref
 {
     my $pos = shift;
 
-    if($Pythonizer::PassNo == 0) {         # only do this once
+    if($Pythonizer::PassNo == &Pythonizer::PASS_1) {         # only do this once
         #say STDERR "handle_pos_ref($ValPerl[$pos]) scalar_pos_gen_line=@{[%scalar_pos_gen_line]}";
         if(exists $scalar_pos_gen_line{$ValPerl[$pos]}) {
             $line_contains_pos_gen{$scalar_pos_gen_line{$ValPerl[$pos]}} = $ValPerl[$pos];
@@ -1085,7 +1097,7 @@ sub handle_pos_ref
 
 sub handle_return_in_expression         # SNOOPYJC: Handle 'return' in the middle of an expression
 {
-    return if($Pythonizer::PassNo != 0);
+    return if($Pythonizer::PassNo != &Pythonizer::PASS_1);
     # In the first pass, just mark that we need a try/except block for this sub,
     # but do nothing if we're in an eval since that case is already handled.
     for $ndx (reverse 0 .. $#nesting_stack) {
@@ -1147,6 +1159,14 @@ sub needs_try_block                # issue 94, issue 108
     return 1 if(exists $line_needs_try_block{$top->{lno}} && 
         ($line_needs_try_block{$top->{lno}} & (TRY_BLOCK_EXCEPTION|TRY_BLOCK_FINALLY)));
     return 0;
+}
+
+sub in_eval
+# Are we in an eval?
+{
+    return 0 if($nesting_level == 0);
+    $top = $nesting_stack[-1];
+    return $top->{in_eval};
 }
 
 sub has_continue                # SNOOPYJC
@@ -1918,7 +1938,7 @@ my ($l,$m);
              $ValCom[$tno]='';
              $tno++;
              $w = "__END__$.";                  # SNOOPYJC: Special name checked in pythonizer
-             push @EndBlocks, $w if(!$Pythonizer::PassNo);         # SNOOPYJC
+             push @EndBlocks, $w if($Pythonizer::PassNo == &Pythonizer::PASS_1);         # SNOOPYJC
          }
          my $pq;
          if(($pq = index($w, "'")) > 0 && exists $TokenType{substr($w,0,$pq)} &&
@@ -1995,12 +2015,12 @@ my ($l,$m);
             } elsif($class eq 'f' && $w eq 'pos') {     # SNOOPYJC: implement 'pos'
                 $SpecialVarsUsed{'@-'} = 1;
                 $SpecialVarsUsed{'pos'} = 1;
-            } elsif($class eq 'd' && $w eq 'wantarray' && $Pythonizer::PassNo) {       # SNOOPYJC: give warning
+            } elsif($class eq 'd' && $w eq 'wantarray' && $Pythonizer::PassNo == &Pythonizer::PASS_2) {   # SNOOPYJC: give warning
                 my $cs = cur_sub();
                 logme('W',"'wantarray' reference in $cs is hard wired to $ValPy[$tno]");
             }                                   # issue 89
             $ValClass[$tno]=$class;
-            if( $class eq 'c' && $tno > 0 && $Pythonizer::PassNo && ($ValClass[0] ne 'C' || $ValPerl[0] ne 'do')){ # Control statement, like if # SNOOPYJC: and do
+            if( $class eq 'c' && $tno > 0 && $Pythonizer::PassNo == &Pythonizer::PASS_2 && ($ValClass[0] ne 'C' || $ValPerl[0] ne 'do')){ # Control statement, like if # SNOOPYJC: and do
                # The current solution is pretty britle but works
                # You can't recreate Perl source from ValPerl as it does not have 100% correspondence.
                # So the token buffer implemented Oct 08, 2020 --NNB
@@ -2029,7 +2049,7 @@ my ($l,$m);
                }
                $ValPerl[$tno]=$w;
                $ValType[$tno]='P';
-            } elsif($class eq 'c' && !$Pythonizer::PassNo && ($w eq 'if' || $w eq 'unless') &&          # SNOOPYJC
+            } elsif($class eq 'c' && $Pythonizer::PassNo == &Pythonizer::PASS_1 && ($w eq 'if' || $w eq 'unless') &&          # SNOOPYJC
                     defined $nesting_last && $nesting_last->{type} eq 'do') {
                 # We can't do our normal trick to handle STMT if COND; for a do{...} if COND; because 
                 # it's more than one statement, so instead we use another trick and rememeber a regex in the
@@ -2041,9 +2061,9 @@ my ($l,$m);
                 $do_lno = $nesting_last->{lno};
                 $line_substitutions{$do_lno}{'\bdo\b'} = $condition;
                 $line_substitutions{$.}{'}\s*'.$w.'.*?;'} = '}';
-            } elsif($class eq 'C' && !$Pythonizer::PassNo && $w eq 'continue') {        # SNOOPYJC
+            } elsif($class eq 'C' && $Pythonizer::PassNo == &Pythonizer::PASS_1 && $w eq 'continue') {        # SNOOPYJC
                 track_continue($tno);
-            } elsif($class eq 'k' && !$Pythonizer::PassNo && $w eq 'next') {            # SNOOPYJC
+            } elsif($class eq 'k' && $Pythonizer::PassNo == &Pythonizer::PASS_1 && $w eq 'next') {            # SNOOPYJC
                 flag_next_in_continue($tno);
 #           } elsif( $class eq 'k' && $w eq 'sub' && $tno > 0 && $Pythonizer::PassNo ){	# issue 81: anonymous sub
 #               $ValClass[$tno] = 'i';
@@ -2072,7 +2092,7 @@ my ($l,$m);
                      last;              # issue 93
                   }
             }elsif ( $class eq 't'  ){
-               if( $tno>0 && $w eq 'my' && $Pythonizer::PassNo){        # SNOOPYJC: In the first pass, we need to see the 'my' so we don't make $i global!
+               if( $tno>0 && $w eq 'my' && $Pythonizer::PassNo == &Pythonizer::PASS_2){        # SNOOPYJC: In the first pass, we need to see the 'my' so we don't make $i global!
                   $source=substr($source,2); # cut my in constucts like for(my $i=0...)
                   next;
                }
@@ -2083,7 +2103,11 @@ my ($l,$m);
                    substr($source,length($w),1) = '';                   # issue 69 - eat whitespace
                    next;                                                # issue 69 - start over
                }
-               if( $w eq 'q' ){
+               if($delim eq '' || ($delim eq ';' && length($source)==length($w)+1)) {       # SNOOPYJC: Ran out of road - not a 'q' - make it an 'i' instead
+                   $ValClass[$tno]='i';
+                   $ValPerl[$tno]=$ValPy[$tno]=$w;
+                   $cut = length($w);
+               } elsif( $w eq 'q' ){
                   $cut=single_quoted_literal($delim,2);
                   if( $cut== -1 ){
                      $Pythonizer::TrStatus=-255;
@@ -2727,16 +2751,16 @@ my ($l,$m);
          }
       }
       if($ValClass[$tno] =~ /[ahsG]/) {         # SNOOPYJC: Handle globals in packages
-          if($Pythonizer::PassNo) {
+          if($Pythonizer::PassNo == &Pythonizer::PASS_2) {
               add_package_name(get_perl_name($ValPerl[$tno], substr($source,$cut,1),
                   ($ate_dollar == $tno  ? '$' : ''))) unless($::implicit_global_my);
-          } else {
+          } elsif($Pythonizer::PassNo == &Pythonizer::PASS_1) {
               capture_varclass();                # SNOOPYJC
           }
       } elsif($ValClass[$tno] eq 'j') {		# SNOOPYJC
-          if($Pythonizer::PassNo) {
+          if($Pythonizer::PassNo == &Pythonizer::PASS_2) {
               add_package_name_j() unless ($::implicit_global_my);
-          } else {
+          } elsif($Pythonizer::PassNo == &Pythonizer::PASS_1) {
               capture_varclass_j();
           }
       }
@@ -2745,9 +2769,9 @@ my ($l,$m);
    if($tno > 0) {                                       # issue 94
         if($ValClass[0] eq 'k' && ($ValPerl[0] eq 'last' || $ValPerl[0] eq 'next')) {    # issue 94
             handle_last_next(0);                              # issue 94
-        } elsif($ValClass[0] eq 'k' && !$Pythonizer::PassNo && $ValPerl[0] eq 'redo') {            # SNOOPYJC
+        } elsif($ValClass[0] eq 'k' && $Pythonizer::PassNo == &Pythonizer::PASS_1 && $ValPerl[0] eq 'redo') {            # SNOOPYJC
             track_redo(0);
-        } elsif($ValClass[0] eq 't' && $ValPerl[0] eq 'local' && !$Pythonizer::PassNo) {        # issue 108
+        } elsif($ValClass[0] eq 't' && $ValPerl[0] eq 'local' && $Pythonizer::PassNo == &Pythonizer::PASS_1) {        # issue 108
             handle_local();                                     # issue 108
         } elsif($ValClass[0] eq 's' && ($ValPerl[0] eq '$-' || $ValPerl[0] eq '$+') && $ValClass[1] eq '(') {
             my $match = &Pythonizer::matching_br(1);
@@ -2765,7 +2789,7 @@ my ($l,$m);
             } else {
                 append('d','1','1');
             }
-            handle_local() if(!$Pythonizer::PassNo); 
+            handle_local() if($Pythonizer::PassNo == &Pythonizer::PASS_1); 
         }
         for(my $i=1; $i <= $#ValClass; $i++) {
             if($ValClass[$i] eq 'k') {
@@ -2798,7 +2822,7 @@ my ($l,$m);
    }
 
    $TokenStr=join('',@ValClass);
-   if( $::debug>=2 && $Pythonizer::PassNo ){
+   if( $::debug>=2 && $Pythonizer::PassNo == &Pythonizer::PASS_2){
       #$num=($Pythonizer::passno) ? sprintf('%4u',$lineno) : sprintf('%4u',$Pythonizer::InLineNo);
       say STDERR "\nLine: " . sprintf('%4u',$.) . " TokenStr: =|",$TokenStr, "|= \@ValPy: ",join(' ',@ValPy);
    }
@@ -2836,7 +2860,7 @@ my $original;
        # Correct the ValPerl because we unfortunately get it wrong, exp if $cut-2 is negative!
        $ValPerl[$tno] = substr($ValPy[$tno], 4, length($ValPy[$tno])-7);
    }
-   if( $::debug > 3  ){
+   if( $::debug > 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0 ){
      say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
    }
    $tno++;
@@ -3371,7 +3395,7 @@ sub interpolate_strings                                         # issue 39
 #
 # Also $ValPy[$tno] is set to the code to be generated for this string
 
-   if($::debug >= 3) {
+   if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
        say STDERR ">interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex)";
    }
    my ($k, $ind, $result, $pc, $prev);
@@ -3382,17 +3406,19 @@ sub interpolate_strings                                         # issue 39
    # decompose all scalar variables, if any, Array and hashes are left "as is"
    #
    $k=index($quote,'$');
-   if( ($k==-1 || $k == length($quote)-1) && index($quote, '@') == -1){             # issue 47, SNOOPYJC: Skip if first '$' is the last char, like in a regex
+   if( $Pythonizer::PassNo == &Pythonizer::PASS_0 || (($k==-1 || $k == length($quote)-1) && index($quote, '@') == -1)){             # issue 47, SNOOPYJC: Skip if first '$' is the last char, like in a regex
       # case when double quotes are used for a simple literal that does not reaure interpolation
       # Python equvalence between single and doble quotes alows some flexibility
       $ValPy[$tno]=escape_quotes(escape_non_printables($quote),2); # always generate with quotes --same for Python 2 and 3
-      say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex)=$close_pos, ValPy[$tno]=$ValPy[$tno]" if($::debug >=3);
+      if($Pythonizer::PassNo != &Pythonizer::PASS_0) {
+         say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex)=$close_pos, ValPy[$tno]=$ValPy[$tno]" if($::debug >=3);
+      }
       return $close_pos;
    }
    # SNOOPYJC: In the first pass, extract all variable references and return them as separate tokens
    # so we can mark their references, and add things like initialization.
    # If we're handling a here_is document, or a regex, we don't do this (but we probably should: $close_pos == 0)
-   if($Pythonizer::PassNo == 0 && $close_pos != 0) {                       # SNOOPYJC
+   if($Pythonizer::PassNo == &Pythonizer::PASS_1 && $close_pos != 0) {                       # SNOOPYJC
        my $pos = extract_tokens_from_double_quoted_string($pre_escaped_quote,1)+$offset;
        if($ExtractingTokensFromDoubleQuotedStringEnd > 0) {
           $ExtractingTokensFromDoubleQuotedStringEnd += $offset;
@@ -3981,7 +4007,7 @@ sub put_regex_in_quotes
 my $string=$_[0];
 my $delim=$_[1];        # issue 111
 my $original_regex=$_[2]; # issue 111
-   if($::debug > 4) {
+   if($::debug > 4 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
        say STDERR "put_regex_in_quotes($string, $delim, $original_regex)";
    }
    if($delim ne "'") {  # issue 111
@@ -4046,6 +4072,9 @@ sub remove_oddities
 
     # Change "perllib.Array([])" to "perllib.Array()"
     $line =~ s/\bperllib\.Array\(\[\]\)/perllib.Array()/g;
+
+    # Change "perllib.Hash({})" to "perllib.hash()"
+    $line =~ s/\bperllib\.Hash\(\{\}\)/perllib.Hash()/g;
 
     # FIXME: Change "_list_of_n((7, 7, 7), 3" to "(7, 7, 7)"
     # if($line =~ /\b_list_of_n\(\(.*\), (\d+)\)/) {

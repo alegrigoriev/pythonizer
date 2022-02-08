@@ -22,5 +22,4 @@ END {
     eval {
         unlink "f.txt.gz";
     };
-    sleep 3;
 }

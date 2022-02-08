@@ -6,3 +6,7 @@ test_require.pl
 test_stmt_expr.pl
 test_use_require.pl
 test_global_fh.pl
+test_pragma1.pl
+test_pragma2.pl
+test_pragma3.pl
+test_pragma4.pl
