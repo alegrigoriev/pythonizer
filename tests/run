@@ -26,7 +26,7 @@ if [ "$mflag" != "-m" ]; then
     for f in *.pm
     do
         echo "==================== $f ===================="
-        ../pythonizer $flags $f
+        ../pythonizer -v0 $flags $f
         if [ $? -ne 0 ]; then
            echo "$f run with pythonizer FAILED"
            ((failed++))
@@ -64,7 +64,7 @@ do
       status=1
       continue
    fi
-   ../pythonizer $flags $f
+   ../pythonizer -v0 $flags $f
    if [ $? -ne 0 ]; then
       echo "$f run with pythonizer FAILED"
       ((failed++))

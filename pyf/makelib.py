@@ -32,7 +32,7 @@ def main():
         print('import time as tm_py', file=of)
         print('import stat as st_py', file=of)
         print('try:', file=of)
-        print('    import fcntl', file=of)
+        print('    import fcntl as fc_py', file=of)
         print('except Exception:', file=of)
         print('    pass', file=of)
         Die = """
@@ -58,6 +58,7 @@ class Die(Exception):
             with open(file, 'r') as fh:
                 for line in fh:
                     line = re.sub(r'\bstat[.]', r'st_py.', line)        # we have a 'stat' function, so we have to rename the stat class
+                    line = re.sub(r'\bfcntl[.]', r'fc_py.', line)        # we have a 'fcntl' function, so we have to rename the fcntl class
                     if under_func.startswith('_') and re.match(r'def _', line):
                         line = line.replace(f'def {under_func}', f'def {func}')
                     line = re.sub(under_functions_regex, under_repl, line)

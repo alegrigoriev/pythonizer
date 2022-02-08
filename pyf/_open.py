@@ -15,11 +15,15 @@ def _open(file,mode,encoding=None,errors=None,checked=True):
             sp = subprocess.Popen(file, stdin=subprocess.PIPE, shell=True, text=True, encoding=encoding, errors=errors)
             if sp.returncode:
                 raise Die(f"open(|{file}): failed with {sp.returncode}")
+            sp.stdin._sp = sp           # issue 72
+            sp.stdin._file = f"|{file}" # issue 72
             return sp.stdin
         elif mode == '-|':  # pipe from
             sp = subprocess.Popen(file, stdout=subprocess.PIPE, shell=True, text=True, encoding=encoding, errors=errors)
             if sp.returncode:
                 raise Die(f"open({file}|): failed with {sp.returncode}")
+            sp.stdout._sp = sp          # issue 72
+            sp.stdout._file = f"|{file}" # issue 72
             return sp.stdout
         if file is None:
             return tempfile.TemporaryFile(mode=mode, encoding=encoding)

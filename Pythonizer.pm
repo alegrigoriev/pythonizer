@@ -27,6 +27,7 @@ use feature 'state';
 use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType %token_precedence %SPECIAL_FUNCTION_MAPPINGS destroy insert append replace);  # SNOOPYJC
 use Softpano qw(abend logme out getopts standard_options);
 use Pyconfig;				# issue 32
+use Pass0 qw(pass_0);   # SNOOPYJC
 use Data::Dumper;       # SNOOPYJC
 use open qw(:std :utf8);        # SNOOPYJC
 require Exporter;
@@ -43,7 +44,10 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    # issue 32 $MAXNESTING=9;
    $VERSION = '0.80';
    $refactor=0;  # option -r flag (invocation of pre-pythonizer)
-   $PassNo=0; # EXTERNAL VAR:  0 -- the first pass ( reading from @InputTextA); 1 -- the second pass(reading from STDIN)
+   sub PASS_0 { 0 }     # SNOOPYJC: Pre-pass to determine -m or -M
+   sub PASS_1 { 1 }     # SNOOPYJC: The first pass: determining global/local/my vars and variable types
+   sub PASS_2 { 2 }     # SNOOPYJC: The second pass: Code generation
+   $PassNo=PASS_1;           # SNOOPYJC: EXTERNAL VAR: Current pass
    $InLineNo=0; # counter, pointing to the current like in InputTextA during the first pass
    %LocalSub=(); # list of local subs
    %UseSub=();          # SNOOPYJC: list of subs declared on "use subs"
@@ -57,6 +61,8 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    %Packages = ();      # SNOOPYJC: Set of all packages defined in this file (determined on the first pass)
    @Packages = ();      # SNOOPYJC: List of all packages defined in this file in the order declared
    $CurPackage = undef; # SNOOPYJC
+   $mFlag = 0;          # SNOOPYJC
+   $MFlag = 0;          # SNOOPYJC
 #
 #::prolog --  Decode parameter for the pythonizer. all parameters are exported
 #
@@ -150,9 +156,11 @@ sub prolog
           $::autodie = 1;
       }
       if( exists $options{'m'} ) {
+          $mFlag = 1;
           $::implicit_global_my = 1;
-      } else {
-          $MAIN_MODULE = $DEFAULT_PACKAGE;
+      }
+      if( exists $options{'M'} ) {
+          $MFlag = 1;
       }
       if( exists $options{'s'} ) {
           $::pythonize_standard_library = 1;
@@ -170,9 +178,6 @@ sub prolog
           $::autovivification = 0;
       }
 
-      if($::import_perllib) {
-          &Perlscan::init_perllib();
-      }
 #
 # Application arguments
 #
@@ -205,11 +210,38 @@ sub prolog
       if( $debug){
           print STDERR "ATTENTION!!! Working in debugging mode debug=$debug\n";
       }
+      shift @ARGV;              # SNOOPYJC: Don't read from both the file and STDIN if we hit the end
+      $PassNo=PASS_0;
+      if(!$mFlag && !$MFlag) {
+          my $pass_0_result;
+          if($fname =~ /\.pm$/) {
+              $pass_0_result = 0;       # use -M for perl modules
+          } else {
+              &Perlscan::initialize();
+              $pass_0_result = pass_0();
+              correct_nest(0,0);
+          }
+          if(defined $pass_0_result) {
+              if($pass_0_result) {      # -m
+                  $::implicit_global_my = 1;
+              }
+          }
+          close STDIN;
+          open (STDIN, '<',$fname) || die("Can't open $fname for reading");
+      }
+      $PassNo=PASS_1;
+      if($::implicit_global_my == 0) {
+          $MAIN_MODULE = $DEFAULT_PACKAGE;
+      }
+      if($::import_perllib) {
+          &Perlscan::init_perllib();
+      }
       out("=" x 121,"\n");
+      &Perlscan::initialize();
       get_globals();
       close STDIN;
       open (STDIN, '<',$fname) || die("Can't open $fname for reading");
-      $PassNo=1;
+      $PassNo=PASS_2;
       open(SYSOUT,'>',$output_file) || die("Can't open $output_file for writing");
       return;
 } # prolog
@@ -1192,7 +1224,7 @@ sub _expr_type           # Attempt to determine the type of the expression
     if($::debug >= 3) {
         say STDERR "expr_type($k, $e, $CurSub)";
     }
-    if($PassNo == 0) {
+    if($PassNo == PASS_1) {
         for(my $p=$k; $p <= $e; $p++) {
             if($ValClass[$p] eq 'c' && $p != 0) {   # e.g. $i = 2 if(...) - stop at the 'if'
                 return expr_type($k, $p-1, $CurSub) if($k <= $p-1);
@@ -1811,8 +1843,8 @@ sub getline
 state @buffer; # buffer to "postponed lines. Used for translation of postfix conditinals among other things.
    #say STDERR "getline(@_): BufferValClass=@Perlscan::BufferValClass, buffer=@buffer";
    # issue 95 return $line if( scalar(@Perlscan::BufferValClass)>0  ); # block input if we process token buffer Oct 8, 2020 -- NNB
-   state @special_buffer = ();  # issue 42
-   state @output_buffer = ();   # issue 45
+   state @special_buffer;  # issue 42
+   state @output_buffer;   # issue 45
    $flag = -1;                  # issue 45
    if ( scalar(@_) == 1 && 
         length( do { no if $] >= 5.022, "feature", "bitwise"; no warnings "numeric"; $_[0] & "" } ) ) {
@@ -1842,7 +1874,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
    }
    return $line if( scalar(@Perlscan::BufferValClass)>0  ); # issue 95: block input if we process token buffer Oct 8, 2020 -- NNB
    my $output_line = sub {                      # issue 45
-       return if(!$PassNo);
+       return if($PassNo != PASS_2);
        if($flag == 0) {
             my @args = @_;      # make a copy
             push @output_buffer, \@args;
@@ -1883,12 +1915,21 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          next;
       }elsif(  $line =~ /^\s*(#.*$)/ ){
          # pure comment lines
+         if($PassNo==PASS_0 && $line =~ /#\s*pragma\s*pythonizer/) {      # SNOOPYJC
+             if(  substr($line,-1,1) eq "\r" ){
+                chop($line);
+             }
+             $IntactLine = $line;
+             $line =~ s/^\s*#\s*//;
+             $line .= ';';
+             return $line;
+         }
          &$output_line('',$1);          # issue 45
          next;
       }elsif(  $line =~ /^__DATA__/ || $line =~ /^__END__/){
          # data block
          # SNOOPYJC return undef if(  $PassNo==0 );
-         if(  $PassNo==0 ) {            # SNOOPYJC
+         if(  $PassNo!=PASS_2 ) {            # SNOOPYJC
              while($line = <> ) {       # SNOOPYJC: Read in the rest of the file and discard so in the next pass we start over
                  ;
              }
@@ -1957,7 +1998,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
 # arg 3 -- copy without processing ( (added Sep 3, 2020))
 sub output_line
 {
-return if ($PassNo==0); # no output during the first pass
+return if ($PassNo!=PASS_2); # no output during the first passes
 my $line=(scalar(@_)==0 ) ? $IntactLine : $_[0];
 my $tailcomment=(scalar(@_)>=2 ) ? $_[1] : '';          # SNOOPYJC
 my $indent=' ' x $::TabSize x $CurNest;

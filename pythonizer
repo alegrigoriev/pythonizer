@@ -1,12 +1,11 @@
 #!/usr/bin/perl
 ## pythonizer -- Translator of the subset of Perl 5 to Python 3.8+
-## Copyright Nikolai Bezroukov, 2019-2022.
+## Copyright Nikolai Bezroukov, 2019-2022.  Significant updates by Joe Cool (http://github.com/snoopyjc).
 ## Licensed under Perl Artistic license
 ##
-## As most Perl statement are simple over 80% of them usually allow sucessful translation.  That's why we use the term "fuzzy" translation.
-## The result may contain some statements that need to be converted by hand or corrected. In some cases that requres change of logic.
+## Automatic translation of most perl scripts to python 3.8+.
 ## Best works for Perl 4 subset of Perl 5 which typically is used in sysadmin scripts.
-## Perl scripts that extensivly use references or OO requre more extensive manual effort
+## Perl scripts that extensivly use references or OO require more extensive manual effort
 ##
 ## --- INVOCATION:
 ##
@@ -17,6 +16,8 @@
 ##    -h -- this help
 ##    -t -- size of tab in the generated Python code (emulated with spaces). Default is 4
 ##    -m -- Make global variables into "my" filescope variables, else they use a separate global namespace
+##    -M -- Turn off -m
+##    NOTE: If neither -m nor -M are passed, the pythonizer uses heuristics to make a best guess here.
 ##    -s -- Attempt to run standard library functions thru pythonizer for use/require - not recommended!
 ##    -S -- Turn off -s
 ##    -p -- "import perllib" library instead of including functions inline to emulate perl built-in functions (default)
@@ -33,6 +34,10 @@
 ##          5 -- output stages of Python line generation
 ##    -B N  -- for internal debugging - set breakpoint when processing input line N in the first pass
 ##    -b N  -- for internal debugging - set breakpoint when processing input line N in the second pass
+##
+##    If -m and -M are both NOT present, you may set these options and all other options in the
+##    perl source file using a special comment of the form "# pragma pythonizer -flags".  You can also
+##    spell the options out optionally prefixed by "no", like "# pragma pythonizer no implicit global my, traceback".
 ##--- PARAMETERS:
 ##
 ##    1st -- full pathname of file (only one argument accepted)
@@ -144,6 +149,7 @@
 # 0.944  2022/01/30  SNOOPYJC  Addl fixes for issue 108: handle local with array elem or hash key, handle array elem and hash keys in paren list LHS expressions, fix issue 78 - s/regex/expr/e flag, handle g flag on regex, warn on wantarray use, handle 'no warnings' and assignments to $^W.
 # 0.945  2022/02/04  SNOOPYJC  Fix __LINE__, implement __FILE__, __PACKAGE__, fix missing _init_package('main') if the file has other packages but still uses main, handle dotted package name in _init_package, fixup wrong ++/-- code in trailing if, use proper {} brackets for hashref in expr, add File::Temp functions POSIX::tmpnam, and IO::File->new, fix UTF-8 in binmode and binmode in an expression, handle i=>x in func/sub calls, change opendir etc to _opendir and fix readdir(), do not try to write in perllib folders even if writable, use python package name - not the perl name, handle open as last line of sub producing the return value, addl fix for issue 13 - scalar context with comma operator, revamp stat now that all OO references are methods and not properties
 # 0.946  2022/02/06  SNOOPYJC  Implement redo and continue, fix push with scalar expression in parens, remove more oddities in the generated code like perllib.Array([]) and ((...)), add a couple dozen additional tests, fix issue 24, add UNITCHECK, CHECK, and INIT blocks, give warning if $? is set in an END block (not supported), issue 26, issue 30, issue 54, issue 76, handle for(;;), implement every type of for loop using while e.g. if the loop counter is modified or the increment can't be handled by range(...)
+# 0.947  2022/02/08  SNOOPYJC  Use a heuristic to determine -m/-M option by adding Pass0.pm, implement # pragma pythonizer to set options, issue 72 - wait for subprocess to complete on close, fix fcntl, ioctl, and flock with clash on the module name
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -188,7 +194,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
 
-   $VERSION='0.946';
+   $VERSION='0.947';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -272,6 +278,9 @@ BEGIN {                                                 # SNOOPYJC
    my $us = basename($0);                                                               # SNOOPYJC
    my $comment = "# Generated by \"$us @Pythonizer::orig_ARGV\" v$VERSION$rb_user on ".localtime();         # SNOOPYJC
    output_line('', $comment);                                                           # SNOOPYJC
+   if(@Pass0::implied_options) {
+       output_line('', "# Implied $us options: " . join(' ', @Pass0::implied_options));
+   }
 
    if ($line =~ /^\s*#!/){
       $line=getline(); # skip previous interpreter definition and get the first meaningful line + initial block of comments, if present
@@ -746,7 +755,10 @@ my ($start,$token_buffer_active);
          for( my $i=1; $i<@ValPy; $i++ ){
              if( $ValClass[$i] eq 'i' || $ValClass[$i] eq 's' ){        # issue 10
 	        # issue close gen_chunk($ValPy[$i].'.f.close;');
-                gen_chunk($ValPy[$i].'.close()');	# issue close
+                # issue 72 gen_chunk($ValPy[$i].'.close()');	# issue close
+                $Pyf{_close} = 1;
+                gen_chunk('_close', '(', $ValPy[$i], ')');	# issue close, issue 72
+                gen_statement();
              }
          }
       }elsif( $ValPerl[0] =~ /^(?:say|print|printf)$/ ){        # SNOOPYJC
