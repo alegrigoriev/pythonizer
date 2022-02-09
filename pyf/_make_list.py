@@ -1,7 +1,7 @@
 
-def _make_list(expr):
+def _make_list(*args):
     """For push/unshift @arr, expr;  We use extend/[0:0] so make sure expr is iterable"""
-    if isinstance(expr, collections.abc.Iterable) and not isinstance(expr, str):
-        return expr
-    return [expr]
+    if len(args) == 1 and isinstance(args[0], collections.abc.Iterable) and not isinstance(args[0], str):
+        return args[0]
+    return args
 

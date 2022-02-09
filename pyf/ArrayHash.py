@@ -83,23 +83,23 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
                 self.isHash = False
             elif self.isHash:
                 raise TypeError('Not an ARRAY reference')
-            try:
-                for i in range(len(self), index.start):
-                    super().__setitem__(i, None)
-                value = iter(value)
-                ndx = index.start
-                for i in range(*index.indices(len(self))):
+            for i in range(len(self), index.start):
+                super().__setitem__(i, None)
+            value = iter(value)
+            ndx = index.start
+            for i in range(*index.indices(len(self))):
+                try:
                     super().__setitem__(i, next(value))
-                    ndx += 1
-                rest = list(value)
-                lr = len(rest)
-                if lr:
-                    for i in range(len(self)-1,ndx-1,-1):  # Move everything else up
-                        super().__setitem__(i+lr, super().__getitem__(i))
-                for i in range(lr):
-                    super().__setitem__(i+ndx, rest[i])
-            except StopIteration:
-                pass
+                except StopIteration:
+                    self.pop(i)
+                ndx += 1
+            rest = list(value)
+            lr = len(rest)
+            if lr:
+                for i in range(len(self)-1,ndx-1,-1):  # Move everything else up
+                    super().__setitem__(i+lr, super().__getitem__(i))
+            for i in range(lr):
+                super().__setitem__(i+ndx, rest[i])
         elif isinstance(index, int):
             if self.isHash is None:
                 self.isHash = False

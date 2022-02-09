@@ -150,6 +150,7 @@
 # 0.945  2022/02/04  SNOOPYJC  Fix __LINE__, implement __FILE__, __PACKAGE__, fix missing _init_package('main') if the file has other packages but still uses main, handle dotted package name in _init_package, fixup wrong ++/-- code in trailing if, use proper {} brackets for hashref in expr, add File::Temp functions POSIX::tmpnam, and IO::File->new, fix UTF-8 in binmode and binmode in an expression, handle i=>x in func/sub calls, change opendir etc to _opendir and fix readdir(), do not try to write in perllib folders even if writable, use python package name - not the perl name, handle open as last line of sub producing the return value, addl fix for issue 13 - scalar context with comma operator, revamp stat now that all OO references are methods and not properties
 # 0.946  2022/02/06  SNOOPYJC  Implement redo and continue, fix push with scalar expression in parens, remove more oddities in the generated code like perllib.Array([]) and ((...)), add a couple dozen additional tests, fix issue 24, add UNITCHECK, CHECK, and INIT blocks, give warning if $? is set in an END block (not supported), issue 26, issue 30, issue 54, issue 76, handle for(;;), implement every type of for loop using while e.g. if the loop counter is modified or the increment can't be handled by range(...)
 # 0.947  2022/02/08  SNOOPYJC  Use a heuristic to determine -m/-M option by adding Pass0.pm, implement # pragma pythonizer to set options, issue 72 - wait for subprocess to complete on close, fix fcntl, ioctl, and flock with clash on the module name
+# 0.948  2022/02/09  SNOOPYJC  Implement splice, fix push with a list of multiple values, fix issue with assigning less values to Array slice, fix passing qw(...) to sub, fix passing array as non-first argument to sub, fix some issues in stmt modifiers, fix mkdir not returning the proper return code, remove blank line generated if the perl line has trailing whitespace
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -194,7 +195,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
 
-   $VERSION='0.947';
+   $VERSION='0.948';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -3929,6 +3930,8 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
 	    say STDERR "FIXME: Can't handle 'for' with $ValPerl[$start]\n";	# SNOOPYJC
             $TrStatus=-1; return -255;
          }
+      }elsif( substr($TokenStr,$start) eq '(q)' && $ValPy[$start+1] =~ /\.split\(\)$/) {        # SNOOPYJC: qw/.../
+          gen_chunk($ValPy[$start+1]);
       }elsif( substr($TokenStr,$start)=~/^\((['"qds](,['"qds])*)\)/ ){
          # loop over explisit list
          $tempvar='[';
@@ -4486,12 +4489,15 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       # issue 28 }else{
       # issue 28    return -255;
       }
+   }elsif($perl_name eq 'mkdir' && $bracketed==-1) {            # SNOOPYJC
+       gen_chunk("$py_name", "($DEFAULT_VAR)");
+       return $start;
    }elsif($perl_name eq 'ord' || $perl_name eq 'chr' || $perl_name eq 'quotemeta') { # issue 59, SNOOPYJC
       if( $bracketed==-1 ){
-          gen_chunk("$py_name($DEFAULT_VAR)");
+          gen_chunk("$py_name", "($DEFAULT_VAR)");
           return $start;                       # issue 28
       } 
-      gen_chunk("$py_name(");
+      gen_chunk("$py_name", '(');
       $k=expression($start,$end_pos,0);
       return -255 if $k<0;
       gen_chunk(')');
@@ -4653,7 +4659,7 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
           gen_chunk($py_name, $ValPy[$comma+1]); # issue 9
           $k=expression($comma+2,$end_pos-1,0);	# issue 9
           gen_chunk($ValPy[$end_pos], ')');     # issue 9
-      }elsif(index("sd-\"", $ValClass[$comma+1]) >= 0 || ($ValClass[$comma+1] eq 'i' && $comma+1 == $#ValClass)) {   # issue 9: scalar
+      }elsif(index("isd-\"", $ValClass[$comma+1]) >= 0 && $comma+1 == $end_pos) {   # issue 9: scalar
 	  $py_name = '.append(';		# issue 9
 	  gen_chunk($py_name);	                # issue 9
           $k=expression($comma+1,$end_pos,0);	# issue 9
@@ -4798,6 +4804,48 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       } else {
           # What else??
       }
+   }elsif($perl_name eq 'splice') {
+       # splice ARRAY,OFFSET,LENGTH,LIST
+       # splice ARRAY,OFFSET,LENGTH
+       # splice ARRAY,OFFSET
+       # splice ARRAY
+       my $comma = next_same_level_token(',', $start, $end_pos);
+       my $ar0 = $start;
+       my $ar1 = $end_pos;
+       $ar1 = $comma-1 if($comma != -1);
+       gen_chunk($py_name, '(');
+       $TrStatus = expression($ar0, $ar1, 0);   # Gen array
+       if($comma != -1) {
+           $comma = next_same_level_token(',', $comma+1, $end_pos);
+           my $of0 = $ar1+2;
+           my $of1 = $end_pos;
+           $of1 = $comma-1 if($comma != -1);
+           gen_chunk(',');
+           if($of0 == $of1 && $ValClass[$of0] eq 'a' && $ValPerl[$of0] !~ /^len\(/) {
+               gen_chunk('len', '(', $ValPy[$of0], ')');
+           } else {
+               $TrStatus = expression($of0, $of1, 0);   # Gen offset
+           }
+           if($comma != -1) {
+               $comma = next_same_level_token(',', $comma+1, $end_pos);
+               my $ln0 = $of1+2;
+               my $ln1 = $end_pos;
+               $ln1 = $comma-1 if($comma != -1);
+               gen_chunk(',');
+               $TrStatus = expression($ln0, $ln1, 0);   # Gen length
+               if($comma != -1) {
+                   my $ls0 = $ln1+2;
+                   my $ls1 = $end_pos;
+                   gen_chunk(',');
+                   if($ls0 == $ls1 && $ValClass[$ls0] eq 'a') {
+                       gen_chunk('*', $ValPy[$ls0]);
+                   } else {
+                       $TrStatus = expression($ls0, $ls1, 0);
+                   }
+               }
+           }
+       }
+       gen_chunk(')');
    }elsif($perl_name eq 'reverse') {            # issue 65 - implement 'reverse'
        if(substr($py_name,0,1) eq '_' || $py_name eq "$PERLLIB.reverse_scalar") {     # _reverse_scalar - scalar context
            # Optimize some special cases
@@ -5103,6 +5151,8 @@ sub need_splat          # SNOOPYJC: Does this function/sub arg need a '*' before
     } elsif($ValClass[$k] eq 's') {     # $val =~ /regex/ is in list context
         $k = end_of_variable($k);
         return 1 if($k+2 <= $#ValClass && $ValClass[$k+1] eq '~' && $ValClass[$k+2] eq 'q');
+    } elsif($ValClass[$k] eq 'q' && $ValPy[$k] =~ /\.split\(\)$/) {       # qw(w1 w2 ..)
+        return 1;
     }
     return 0;
 }
@@ -5807,9 +5857,19 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
              if( $LocalSub{$ValPy[$cur_pos]} ){
                 # Perl user defined function -- need to pass an array
                 gen_chunk('(');         # SNOOPYJC
-                gen_chunk('*') if(need_splat($cur_pos+2)); # SNOOPYJC
                 # issue parens expression($cur_pos+2,$end_pos-1,0); # call without brackets
-                expression($cur_pos+2,$end_pos-1,0) if($cur_pos+2 <= $end_pos-1); # call without brackets   # issue paren
+                $cur_pos += 2;
+                while($cur_pos <= $end_pos-1) {
+                    gen_chunk('*') if(need_splat($cur_pos)); # SNOOPYJC
+                    my $comma = next_same_level_token(',', $cur_pos, $end_pos-1);
+                    if($comma != -1) {
+                        expression($cur_pos, $comma, 0);
+                        $cur_pos = $comma+1;
+                    } else {
+                        expression($cur_pos,$end_pos-1,0) if($cur_pos <= $end_pos-1); # call without brackets   # issue paren
+                        last;
+                    }
+                }
                 gen_chunk(')');         # SNOOPYJC
                 $cur_pos=$end_pos+1;
              }elsif( $ValClass[$cur_pos+2] eq 'f' ){

@@ -122,6 +122,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
    # Map of functions to python where the mapping is different for scalar and list context
    %SPECIAL_FUNCTION_MAPPINGS=('localtime'=>{scalar=>'tm_py.ctime', list=>'_localtime'},        # issue times
                 'gmtime'=>{scalar=>'_cgtime', list=>'_gmtime'},                                 # issue times
+                'splice'=>{scalar=>'_splice_s', list=>'_splice'},       # issue splice
                 'reverse'=>{list=>'[::-1]', scalar=>'_reverse_scalar'}  # issue 65
                 );
 
@@ -175,7 +176,10 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		# issue localtime 'localtime'=>'.localtime',
 		'localtime'=>'_localtime',		# issue times
                 'lstat'=>'_lstat',              # SNOOPYJC
-                'map'=>'map', 'mkdir'=>'os.mkdir', 'my'=>'',
+                'map'=>'map', 
+                # issue mkdir 'mkdir'=>'os.mkdir', 
+                'mkdir'=>'_mkdir',              # issue mkdir
+                'my'=>'',
                 'next'=>'continue', 
                 # SNOOPYJC 'no'=>'NoTrans!',
                 'no'=>'import',         # SNOOPYJC: for "no autovivification;";
@@ -187,6 +191,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'quotemeta'=>'re.escape',       # SNOOPYJC
                 'rename'=>'os.replace',         # SNOOPYJC
                 'say'=>'print','scalar'=>'len', 'shift'=>'.pop(0)', 
+                'splice'=>'_splice',            # issue splice
                 # SNOOPYJC 'split'=>'re.split', 
                 'split'=>'_split',      # SNOOPYJC perl split has different semantics on empty matches at the end
                 'seek'=>'.seek',                # SNOOPYJC
@@ -391,7 +396,9 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'reverse'=>'f',               # issue 65
 		  'ref'=>'f',
                   'rmdir'=>'f',         # SNOOPYJC
-                  'say'=>'f','scalar'=>'f','shift'=>'f', 'split'=>'f', 'sprintf'=>'f', 'sort'=>'f','system'=>'f', 'state'=>'t',
+                  'say'=>'f','scalar'=>'f','shift'=>'f', 
+                  'splice'=>'f',                # issue splice
+                  'split'=>'f', 'sprintf'=>'f', 'sort'=>'f','system'=>'f', 'state'=>'t',
                   'seek'=>'f',          # SNOOPYJC
 		  'sleep'=>'f',		# SNOOPYJC
 		  'sqrt'=>'f',		# SNOOPYJC
@@ -432,7 +439,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:m',
                   'push'=>'aa:I', 'pop'=>'a:s', 'pos'=>'s:I', 'print'=>'H?a:I', 'printf'=>'H?Sa:I', 'quotemeta'=>'S:S', 'rand'=>'F?:F',
                   'rindex'=>'SSI?:I','read'=>'HsII?:I', '.read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
-                  'say'=>'H?a:I','scalar'=>'a:I','seek'=>'HII:u', 'shift'=>'a?:s', 'sleep'=>'I:I', 'split'=>'SSI?:a of S', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
+                  'say'=>'H?a:I','scalar'=>'a:I','seek'=>'HII:u', 'shift'=>'a?:s', 'sleep'=>'I:I', 'splice'=>'aI?I?a?:a',
+                  'split'=>'SSI?:a of S', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
                   'sqrt'=>'N:F', 'stat'=>'S:a of I', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'tell'=>'H:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timegm'=>'IIIIII:I',
                   'timelocal'=>'IIIIII:I', 'unlink'=>'a?:I', 'values'=>'h:a', 'warn'=>'a:I', 'undef'=>'a?:u', 'unshift'=>'aa:I', 'uc'=>'S:S',
                   'ucfirst'=>'S:S', 'umask'=>'I?:I', '__SUB__'=>':f',
@@ -1694,6 +1702,7 @@ my ($l,$m);
                $delayed_block_closure--;        # issue 86
             }
             last if( length($source) == 1); # we got full statement; semicolon needs to be ignored.
+            last if( substr($source,1) =~ /^\s*$/);     # SNOOPYJC: Ignore trailing spaces
             if( $source !~/^;\s*#/  ){
                # there is some meaningful tail -- multiple statement on the line
                Pythonizer::getline(substr($source,1)); # save tail that we be processed as the next line.

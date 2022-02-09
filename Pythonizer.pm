@@ -1719,8 +1719,8 @@ sub fix_scalar_context                          # issue 37
 
     # issue 13: Handle the ',' operator in scalar context
     $j = 0;
-    if(($ValClass[0] eq 'c' && $ValPerl[0] =~ /if|while|until/) ||
-       ($ValClass[0] eq 'C' && $ValPerl[0] eq 'elsif') ||
+    if(($ValClass[0] eq 'c' && $ValPerl[0] =~ /if|while|until/ && $ValClass[1] ne 'a' && ($ValClass[1] eq '(' && $ValClass[2] ne 'a')) ||
+       ($ValClass[0] eq 'C' && $ValPerl[0] eq 'elsif' && $ValClass[1] ne 'a' && ($ValClass[1] eq '(' && $ValClass[2] ne 'a')) ||
        ($#ValClass > 1 && $ValClass[0] eq 's' && $ValClass[1] eq '=') ||
        ($#ValClass > 2 && $ValClass[0] eq 't' && $ValClass[1] eq 's' && $ValClass[2] eq '=') ||
        ($#ValClass > 3 && $ValClass[0] eq 's' && $ValClass[1] eq '(' && ($j=&::end_of_variable(0)+1) < $#ValClass &&
