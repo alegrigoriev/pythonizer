@@ -1,6 +1,6 @@
 
 def _setpos(fh, off):
-    """Implementation of perl $fh->seek method"""
+    """Implementation of perl $fh->setpos method"""
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
         fh.seek(off, os.SEEK_SET)
@@ -8,7 +8,7 @@ def _setpos(fh, off):
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:
-            traceback.print_exc()
+            _cluck(f"setpos({off}) failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
         return False

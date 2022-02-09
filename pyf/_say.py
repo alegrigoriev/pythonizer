@@ -8,7 +8,7 @@ def _say(fh, *args):
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:
-            traceback.print_exc()
+            _cluck(f"say failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
         return False

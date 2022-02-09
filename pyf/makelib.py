@@ -37,10 +37,10 @@ def main():
         print('    pass', file=of)
         Die = """
 class Die(Exception):
-    def __init(self, *args):
-        (super).__init__(*args)
-        if TRACEBACK:
-            traceback.print_stack()
+    def __init__(self, *args,suppress_traceback=None):
+        super().__init__(*args)
+        if TRACEBACK and not suppress_traceback:
+            cluck()
 """
         print(Die, file=of)
         for definition, value in global_defs.items():

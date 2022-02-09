@@ -31,7 +31,13 @@ def _IOFile(path=None, mode=None, perms=None):
         return _create_all_fh_methods(fh)
     except Exception as e:
         if TRACEBACK:
-            traceback.print_exc()
+            if perms is None:
+                if mode is None:
+                    _cluck(f"IO::File->new({path}) failed: {OS_ERROR}",skip=2)
+                else:
+                    _cluck(f"IO::File->new({path}, {mode}) failed: {OS_ERROR}",skip=2)
+            else:
+                _cluck(f"IO::File->new({path}, {mode}, {perms}) failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
         fh = io.TextIOWrapper(io.BufferedIOBase())

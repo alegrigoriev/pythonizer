@@ -7,7 +7,7 @@ def _opendir(DIR):
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:
-            traceback.print_exc()
+            _cluck(f"opendir({DIR}) failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
         return None

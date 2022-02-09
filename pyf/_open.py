@@ -31,7 +31,7 @@ def _open(file,mode,encoding=None,errors=None,checked=True):
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:
-            traceback.print_exc()
+            _cluck(f"open({file}, {mode}) failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
         if checked:     # e.g. used in if(...)

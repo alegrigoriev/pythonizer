@@ -7,7 +7,7 @@ def _eof(fh):
         return (pos == os.path.getsize(fh))
     except Exception as e:
         if TRACEBACK:
-            traceback.print_exc()
+            _cluck(f"eof failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
         return 1
