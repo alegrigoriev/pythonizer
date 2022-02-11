@@ -34,7 +34,7 @@ push @jays, $j++ until $j >  10;
 assert(join('', @jays) eq '012345678910');
 
 $_ = "My cat is better than your cat!";
-push @cats, "Found cat at @{[pos]}" while /cat/g;
+push @cats, "Found cat at ${\(pos)}" while /cat/g;
 assert(join(', ', @cats) eq 'Found cat at 6, Found cat at 30');
 
 

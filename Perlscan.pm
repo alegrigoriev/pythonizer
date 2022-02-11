@@ -160,9 +160,11 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'exit'=>'sys.exit','exists'=> 'in', # if  key in dictionary 'exists'=>'.has_key'
                 'fc'=>'.casefold()',                    # SNOOPYJC
 		'flock'=>'_flock',			# issue flock
+                'fileno'=>'_fileno',                    # SNOOPYJC
                 'fileparse'=>'_fileparse',              # SNOOPYJC
                 'fork'=>'os.fork',                      # SNOOPYJC
 		'glob'=>'glob.glob',			# SNOOPYJC
+                'hex'=>'int',                           # SNOOPYJC
                 'if'=>'if ', 'index'=>'.find',
 		'int'=>'int',				# issue int
 		'GetOptions'=>'argparse',		# issue 48
@@ -183,7 +185,10 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'next'=>'continue', 
                 # SNOOPYJC 'no'=>'NoTrans!',
                 'no'=>'import',         # SNOOPYJC: for "no autovivification;";
-                'own'=>'global', 'oct'=>'oct', 'ord'=>'ord',
+                'own'=>'global', 
+                # SNOOPYJC 'oct'=>'oct', 
+                'oct'=>'int',           # SNOOPYJC: oct is the reverse in python!
+                'ord'=>'ord',
                 'our'=>'',                      # SNOOPYJC
                 'package'=>'package', 'pop'=>'.pop()', 'push'=>'.extend(',
                 'pos'=>'pos',                   # SNOOPYJC
@@ -194,7 +199,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'splice'=>'_splice',            # issue splice
                 # SNOOPYJC 'split'=>'re.split', 
                 'split'=>'_split',      # SNOOPYJC perl split has different semantics on empty matches at the end
-                'seek'=>'.seek',                # SNOOPYJC
+                'seek'=>'_seek',                # SNOOPYJC
 		# issue 34 'sort'=>'sort', 
                 'sleep'=>'tm_py.sleep',         # SNOOPYJC
 		'sqrt'=>'math.sqrt',		# SNOOPYJC
@@ -203,7 +208,10 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'rand'=>'_rand',                # SNOOPYJC
                 'read'=>'.read',                # issue 10
                    'stat'=>'_stat','sysread'=>'.sysread',
-                   'substr'=>'','sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin','system'=>'os.system','sprintf'=>'',
+                   'substr'=>'','sub'=>'def','STDERR'=>'sys.stderr','SYSIN'=>'sys.stdin',
+                   # SNOOPYJC 'system'=>'os.system',
+                   'system'=>'_system',         # SNOOPYJC
+                   'sprintf'=>'',
 		   'STDOUT'=>'sys.stdout',	# issue 10
                    'sysseek'=>'perl_sysseek',
                    'STDERR'=>'sys.stderr','STDIN'=>'sys.stdin', '__LINE__' =>'sys._getframe().f_lineno',
@@ -218,11 +226,12 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'redo'=>'continue',             # SNOOPYJC
                 'require'=>'__import__',        # SNOOPYJC
                 'return'=>'return', 'rmdir'=>'os.rmdir',
-                'tell'=>'.tell',                # SNOOPYJC
+                'tell'=>'_tell',                # SNOOPYJC
                 'tie'=>'NoTrans!',
 		'time'=>'_time',		# SNOOPYJC
 		'timelocal'=>'_timelocal',	# issue times
                 'timegm'=>'_timegm',            # issue times
+                'truncate'=>'_truncate',        # SNOOPYJC
                 'uc'=>'.upper()', 'ucfirst'=>'.capitalize()', 'undef'=>'None', 'unless'=>'if not ', 'unlink'=>'os.unlink',
                 'umask'=>'os.umask',            # SNOOPYJC
                    'unshift'=>'.insert(0,',
@@ -359,6 +368,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'else'=>'C', 'elsif'=>'C', 'exists'=>'f', 'exit'=>'f', 'export'=>'f',
                   'eval'=>'C',          # issue 42
                   'fc'=>'f',            # SNOOPYJC
+                  'fileno'=>'f',        # SNOOPYJC
                   'fileparse'=>'f',     # SNOOPYJC
 		  'flock'=>'f',		# issue flock
 		  'fork'=>'f',		# SNOOPYJC
@@ -369,6 +379,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'GetOptions'=>'f',	# issue 48
                   'goto'=>'k',          # SNOOPYJC
                   'given'=>'c','grep'=>'f',
+                  'hex'=>'f',           # SNOOPYJC
                   'join'=>'f',
                   'keys'=>'f',
                   'kill'=>'f',          # SNOOPYJC
@@ -406,6 +417,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'tell'=>'f',          # SNOOPYJC
                   'tie'=>'f',
 		  'time'=>'f', 'gmtime'=>'f', 'timelocal'=>'f',	'timegm'=> 'f', # SNOOPYJC
+                  'truncate'=>'f',              # SNOOPYJC
 		  'unlink'=>'f',		# SNOOPYJC
                   'use'=>'k',                   # SNOOPYJC
                   'values'=>'f',
@@ -430,11 +442,11 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'chdir'=>'S:I','chomp'=>'S:m', 'chop'=>'S:m', 'chmod'=>'Ia:I','chr'=>'I?:S','close'=>'H:I',
                   'cmp'=>'SS:I', '<=>'=>'NN:I',
                   'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:m', 'dirname'=>'S:S', 'each'=>'h:a', 'exists'=>'u:I', 
-                  'exit'=>'I?:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':m',
-                  'fileparse'=>'SS?:a of S',
+                  'exit'=>'I?:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':m', 'fileno'=>'H:I',
+                  'fileparse'=>'SS?:a of S', 'hex'=>'S:I',
                   'glob'=>'S:a of S', 'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 
                   'kill'=>'II:u', 'lc'=>'S:S', 'lstat'=>'S:a of I',
-                  'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'SI?:I', 'oct'=>'s:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
+                  'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'SI?:I', 'oct'=>'S:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
 		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'rename'=>'SS:I', 'rmdir'=>'S:I',
                   'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:m',
                   'push'=>'aa:I', 'pop'=>'a:s', 'pos'=>'s:I', 'print'=>'H?a:I', 'printf'=>'H?Sa:I', 'quotemeta'=>'S:S', 'rand'=>'F?:F',
@@ -442,6 +454,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'say'=>'H?a:I','scalar'=>'a:I','seek'=>'HII:u', 'shift'=>'a?:s', 'sleep'=>'I:I', 'splice'=>'aI?I?a?:a',
                   'split'=>'SSI?:a of S', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
                   'sqrt'=>'N:F', 'stat'=>'S:a of I', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'tell'=>'H:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timegm'=>'IIIIII:I',
+                  'truncate'=>'HI:I',
                   'timelocal'=>'IIIIII:I', 'unlink'=>'a?:I', 'values'=>'h:a', 'warn'=>'a:I', 'undef'=>'a?:u', 'unshift'=>'aa:I', 'uc'=>'S:S',
                   'ucfirst'=>'S:S', 'umask'=>'I?:I', '__SUB__'=>':f',
                   );
@@ -567,6 +580,7 @@ sub add_package_name
     my $name = shift;
     my $py = $ValPy[$tno];
 
+    #say STDERR "add_package_name($name), py=$py, lno=$.";
     return if($::implicit_global_my);
     return if(index($py, '.') >= 0);
     return unless(exists $line_varclasses{$.});
@@ -771,6 +785,16 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
         }
     }
     add_package_name($name) if($class eq 'global' || $class eq 'local');
+}
+
+sub propagate_varclass_for_here
+# For a here doc, just propagate the varclass from the prior line
+{
+    say STDERR "propagate_varclass_for_here: last_varclass_lno=$last_varclass_lno, lno=$." if($::debug);
+    if($last_varclass_lno != $. && $last_varclass_lno) {
+        $line_varclasses{$.} = dclone($line_varclasses{$last_varclass_lno});
+    }
+    $last_varclass_lno = $.;
 }
 
 sub map_var_class_into_sub
@@ -1989,7 +2013,7 @@ my ($l,$m);
          if( exists($CONSTANT_MAP{$w}) ) {      # SNOOPYJC
              $ValPy[$tno] = $CONSTANT_MAP{$w};  # SNOOPYJC
          }                                      # SNOOPYJC
-	 if(exists $FileHandles{$w}) {		# SNOOPYJC
+	 if($Pythonizer::PassNo!=&Pythonizer::PASS_0 && exists $FileHandles{$w}) {		# SNOOPYJC
              if($tno == 0 || $ValClass[$tno-1] ne 'k' || $ValPerl[$tno-1] ne 'sub') {	# SNOOPYJC
 	         add_package_name_fh($tno);	# SNOOPYJC
 	     }					# SNOOPYJC
@@ -2320,7 +2344,7 @@ my ($l,$m);
 	    popup();                                                                            # issue 39
 	    popup() if($has_squiggle);
          }
-         if($ValClass[$tno] eq 'i') {                   # issue 94
+         if($Pythonizer::PassNo!=&Pythonizer::PASS_0 && $ValClass[$tno] eq 'i') {     # issue 94
              track_potential_sub_call($ValPerl[$tno]);  # issue 94
          }                                              # issue 94
       }elsif( $s eq '$'  ){
@@ -2352,7 +2376,7 @@ my ($l,$m);
 	    }
             if( $ValPy[$tno] eq 'SIG' ) {              # issue 81 - implement signals
                $ValClass[$tno] = 'f';
-               if($::debug >= 3) {
+               if($::debug >= 3 && $Pythonizer::PassNo!=&Pythonizer::PASS_0) {
                   say STDERR "decode_scalar SIG source=$source";
                }
                if($tno == 0 || ($tno == 1 && $ValClass[0] eq 't')) {   # at start of line like $SIG{ALRM} = sub { die "timeout"; };
@@ -2388,7 +2412,7 @@ my ($l,$m);
                    $ValPy[$tno] = 'signal.getsignal';   # This choice allows the user to save/restore the value but not compare it to 'DEFAULT' or 'IGNORE'
                    $source =~ tr/{}/()/;
                 }
-                if($::debug >= 3) {
+                if($::debug >= 3 && $Pythonizer::PassNo!=&Pythonizer::PASS_0) {
                    say STDERR "decode_scalar SIG source=$source";
                 }
             }
@@ -2911,6 +2935,7 @@ sub bash_style_or_and_fix
 # On level zero those are used instead of if statement
 {
 my $split=$_[0];
+   return 0 if($Pythonizer::PassNo==&Pythonizer::PASS_0); # SNOOPYJC
    # bash-style conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020 --NNB
    $is_or = ($ValPy[-1] =~ /or/);	# issue 12
    $is_low_prec = ($ValPerl[-1] =~ /^[a-z]+$/);         # issue 93: is this low precedence like and/or instead of &&/||
@@ -3255,7 +3280,7 @@ my  $groups_are_present;
 #
    ($modifier,$groups_are_present)=is_regex($myregex);          # Returns 'r' for modifier for regex with no flags
    $groups_are_present = 1 if(exists $SpecialVarsUsed{'@-'} || exists $SpecialVarsUsed{'@+'});  # SNOOPYJC
-   if($::debug > 3) {
+   if($::debug > 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
        say STDERR "perl_match($myregex, $delim, $original_regex): modifier=$modifier, groups_are_present=$groups_are_present";
    }
    if( length($modifier) > 1 ){
@@ -3501,7 +3526,14 @@ my  $outer_delim;
       my $end_br = -1;				# issue 43
       if(substr($quote,1,1) eq '{') {		# issue 43: ${...}
          $end_br = matching_curly_br($quote, 1); # issue 43
-         $quote = $sig . substr($quote,2);	# issue 43: eat the '{'. At this point, $end_br points after the '}', issue 47
+         if(substr($quote,2,2) eq "\\(" && $end_br != -1) {
+             $result .= handle_expr_in_string($quote, 3);        # ${\(expr_in_scalar_context)}
+             $cut = $end_br;
+             $end_br++;
+             $sig = '';
+         } else {
+            $quote = $sig . substr($quote,2);	# issue 43: eat the '{'. At this point, $end_br points after the '}', issue 47
+         }
          #say STDERR "quote1a=$quote, end_br=$end_br\n";
       }
       if($sig eq '$') {                 # issue 47
@@ -3532,7 +3564,7 @@ my  $outer_delim;
          add_package_name(get_perl_name(substr($quote,0,$cut), substr($quote,$cut,1), $prev));        # SNOOPYJC
          $prev = '';
          $result.=$ValPy[$tno]; # copy string provided by decode_scalar. ValPy[$tno] changes if Perl contained :: like in $::debug
-      } else {                          # issue 47: '@'
+      } elsif($sig eq '@') {                          # issue 47: '@'
           #say STDERR "end_br=$end_br, quote=$quote";
          if($end_br > 0 && substr($quote,0,3) eq '@[%') {  # @{[%hash]}
             $quote = substr($quote, 2);
@@ -3542,6 +3574,12 @@ my  $outer_delim;
             $ValPy[$tno] = "map(_str,itertools.chain.from_iterable($ValPy[$tno].items()))";     # SNOOPYJC
             $end_br -= 2;    # 2 to account for the 2 we ate
             #say STDERR "quote1b=$quote, end_br=$end_br\n";
+         } elsif($end_br > 0 && substr($quote,0,2) eq '@[') {
+             $ValPy[$tno] = handle_expr_in_string($quote, 1);        # @{[expr_in_list_context]} 
+             $cut = $end_br;
+         } elsif($end_br > 0 && substr($quote,0,3) eq '@ [') {
+             $ValPy[$tno] = handle_expr_in_string($quote, 2);        # @{ [expr_in_list_context] } 
+             $cut = $end_br;
          } else {
             decode_array($quote); #get's us array or system var
             if($cut == 1) {     # Just a '@' with no variable
@@ -3654,6 +3692,46 @@ my  $outer_delim;
    return $close_pos;
 }
 
+sub handle_expr_in_string
+# Handle some limited cases of expressions in strings
+# where the user is using the syntax ${\(expr_in_scalar_context)} -or- @{[expr_in_list_context]}
+{
+    my $string = shift;
+    my $start = shift;          # Points to the '(' or the '['
+
+    return '' if $Pythonizer::PassNo != &Pythonizer::PASS_2;
+
+    say STDERR ">handle_expr_in_string($string, $start)" if($::debug);
+    my $save_tno = $tno;
+    my $save_source = $source;
+    $::saved_eval_tokens = 1;   # used to freeze getline
+
+    my $d = substr($string, $start, 1);
+    my $limit = -1;
+    $limit = matching_paren($string, $start) if($d eq '(');
+    $limit = matching_square_br($string,$start) if ($d eq '[');
+    my $code = '';
+    if($limit != -1) {
+        $start++;               # point past the '(' or '['
+        my $line = substr($string, $start, $limit-$start);
+        my $saved_tokens = &::package_code();
+        save_code();
+        my $t_start = scalar(@ValClass);
+        tokenize($line, 1);
+        $::TrStatus = &::expression($t_start, $#ValClass, 0);
+        &::unpackage_code($saved_tokens);
+        $code = format_chunks();
+        $code = remove_oddities($code);
+        restore_code();
+    }
+
+    $::saved_eval_tokens = undef;   # unfreeze
+    $source = $save_source;
+    $tno = $save_tno;
+    say STDERR "<handle_expr_in_string($string, $start) = $code" if($::debug);
+    return $code;
+}
+
 sub extract_tokens_from_double_quoted_string
 # In the first pass, extract variable references from double-quoted strings as separate tokens
 # so we can mark references to them, etc.
@@ -3693,19 +3771,39 @@ sub extract_tokens_from_double_quoted_string
         }
         my $sigil = substr($quote,$pos,1);
         my $end_br = -1;
-        if(substr($quote,$pos+1,1) eq '{') {		# issue 43: ${...}
+        my $adjust = 0;
+        if(substr($quote,$pos+1,1) eq '{') {    # issue 43: ${...}
             $end_br = matching_curly_br($quote, $pos+1); # issue 43
-            $quote = '$'.substr($quote,2);		# issue 43: eat the '{'. At this point, $end_br points after the '}'
+            $adjust = 1;
+            if(substr($quote,$pos+2,2) eq '\\(') {      # ${\(...)}
+                $sigil = '';
+                $cut = 3;
+                substr($quote,$end_br,1) = '';  # Eat the }
+                $end_br = -1;
+            } elsif(substr($quote,$pos+2,1) eq '[') {   # @{[...]}
+                $sigil = '';
+                $cut = 2;
+                substr($quote,$end_br,1) = '';
+                $end_br = -1;
+            } elsif(substr($quote,$pos+2,2) eq ' [') {  # @{ [...] }
+                $sigil = '';
+                $cut = 3;
+                substr($quote,$end_br,1) = '';
+                $end_br = -1;
+            } else {
+                $adjust = 0;
+                $quote = '$'.substr($quote,2);		# issue 43: eat the '{'. At this point, $end_br points after the '}'
+            }
         }
         if($sigil eq '$') {
             decode_scalar($quote, 1,1);
-        } else {
+        } elsif($sigil eq '@') {
             decode_array($quote);
             $ValClass[$tno] = 'a';
         }
         $ValPerl[$tno] = substr($quote, 0, $cut);
         my $m;
-        if($cut < length($quote)) {
+        if($cut < length($quote) && $sigil ne '') {
             my $nx3 = substr($quote,$cut,3);
             if($nx3 eq '->[' || $nx3 eq '->{') {   # Move past any '->' that ends in a '[' or '{'
                 $cut += 2;
@@ -3726,7 +3824,7 @@ sub extract_tokens_from_double_quoted_string
         } else {
             $ExtractingTokensFromDoubleQuotedTokensEnd = $cut;
         }
-        $ExtractingTokensFromDoubleQuotedStringEnd = length($quote);
+        $ExtractingTokensFromDoubleQuotedStringEnd = length($quote) + $adjust;
         say STDERR " ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd" if($::debug>=5);
         say STDERR "<extract_tokens_from_double_quoted_string($quote) end=$cut, result=$pos" if($::debug>=3);
         return $pos;
@@ -4021,7 +4119,7 @@ my $original_regex=$_[2]; # issue 111
    }
    if($delim ne "'") {  # issue 111
        $string =~ s/\$\&/\\g<0>/g;	# issue 11
-       $string =~ s/\$(\d)/\\g<$1>/g; # issue 11
+       $string =~ s/\$([1-9])/\\g<$1>/g; # issue 11, SNOOPYJC: Not for $0 !!!
        # SNOOPYJC if( $string =~/\$\w+/ ){
        # issue 111 if( $string =~/^\$\w+/ ){    # SNOOPYJC: We have to interpolate all $vars inside!! e.g. /DC_$year$month/ gen rf"..."
        # issue 111 return substr($string,1); # this case of /$regex/ we return the variable.
@@ -4084,6 +4182,9 @@ sub remove_oddities
 
     # Change "perllib.Hash({})" to "perllib.hash()"
     $line =~ s/\bperllib\.Hash\(\{\}\)/perllib.Hash()/g;
+
+    # Change rf"{pattern}" to pattern (helps us out if pattern is a qr/regex/)
+    $line =~ s/\brf"\{([\w.]+)\}"/$1/;
 
     # FIXME: Change "_list_of_n((7, 7, 7), 3" to "(7, 7, 7)"
     # if($line =~ /\b_list_of_n\(\(.*\), (\d+)\)/) {
@@ -4179,33 +4280,7 @@ my $line='';
       ($line) && Pythonizer::output_line($line,' #FAILTRAN');
    }elsif( scalar(@PythonCode)>0 ){
 
-      $line=$PythonCode[0];
-      if(defined $line && exists $PYTHON_KEYWORD_SET{$line}) {          # SNOOPYJC
-          $line .= ' ';                                                 # SNOOPYJC: space after every keyword
-      }                                                                 # SNOOPYJC
-      for( my $i=1; $i<@PythonCode; $i++  ){
-         next unless(defined($PythonCode[$i]));
-         next if( $PythonCode[$i] eq '' );
-         $s=substr($PythonCode[$i],0,1); # the first symbol
-         if(exists $PYTHON_KEYWORD_SET{$PythonCode[$i]}) {         # SNOOPYJC: surround keywords with space
-            if( defined($line) && substr($line,-1,1) ne ' ') {
-                $line .= ' ';
-            }
-            $line .= $PythonCode[$i] . ' ';
-        } elsif( defined($line) && substr($line,-1,1)=~/[\w'"]/ &&  $s =~/[\w'"]/ ){
-            # space between identifiers and before quotes
-            $line.=' '.$PythonCode[$i];
-        #} elsif( exists $SpaceBefore{substr($PythonCode[$i],0,2)} && defined($line) && substr($line,-1,1) ne ' ' ) {        # SNOOPYJC
-           #$line.=' '.$PythonCode[$i];                         # SNOOPYJC e.g. ...)or => ...) or
-         } elsif( exists $SpaceBoth{$PythonCode[$i]} && defined($line) && substr($line,-1,1) ne ' ' ) {        # SNOOPYJC
-            $line.=' '.$PythonCode[$i].' ';                     # SNOOPYJC e.g. a=b => a = b
-         } elsif($PythonCode[$i] eq ',') {              # SNOOPYJC  Space after ','
-             $line.=$PythonCode[$i].' ';
-         }else{
-            #no space befor delimiter
-            $line.=$PythonCode[$i];
-         }
-      } # for
+      $line = format_chunks();                          # SNOOPYJC
       $line = remove_oddities($line);                   # SNOOPYJC
       $PREV_HAD_COLON = (substr($line, -1, 1) eq ':') ? 1 : 0;      # SNOOPYJC
       if( defined $ValCom[-1]  && length($ValCom[-1]) > 1  ){
@@ -4234,6 +4309,40 @@ my $line='';
    @PythonCode=(); # initialize for the new line
    return;
 }
+
+sub format_chunks                                       # SNOOPYJC
+# Format the generated code chunks into a line
+{
+      my $line=$PythonCode[0];
+      if(defined $line && exists $PYTHON_KEYWORD_SET{$line}) {          # SNOOPYJC
+          $line .= ' ';                                                 # SNOOPYJC: space after every keyword
+      }                                                                 # SNOOPYJC
+      for( my $i=1; $i<@PythonCode; $i++  ){
+         next unless(defined($PythonCode[$i]));
+         next if( $PythonCode[$i] eq '' );
+         $s=substr($PythonCode[$i],0,1); # the first symbol
+         if(exists $PYTHON_KEYWORD_SET{$PythonCode[$i]}) {         # SNOOPYJC: surround keywords with space
+            if( defined($line) && substr($line,-1,1) ne ' ') {
+                $line .= ' ';
+            }
+            $line .= $PythonCode[$i] . ' ';
+        } elsif( defined($line) && substr($line,-1,1)=~/[\w'"]/ &&  $s =~/[\w'"]/ ){
+            # space between identifiers and before quotes
+            $line.=' '.$PythonCode[$i];
+        #} elsif( exists $SpaceBefore{substr($PythonCode[$i],0,2)} && defined($line) && substr($line,-1,1) ne ' ' ) {        # SNOOPYJC
+           #$line.=' '.$PythonCode[$i];                         # SNOOPYJC e.g. ...)or => ...) or
+         } elsif( exists $SpaceBoth{$PythonCode[$i]} && defined($line) && substr($line,-1,1) ne ' ' ) {        # SNOOPYJC
+            $line.=' '.$PythonCode[$i].' ';                     # SNOOPYJC e.g. a=b => a = b
+         } elsif($PythonCode[$i] eq ',') {              # SNOOPYJC  Space after ','
+             $line.=$PythonCode[$i].' ';
+         }else{
+            #no space befor delimiter
+            $line.=$PythonCode[$i];
+         }
+      } # for
+      return $line;
+}
+
 #
 # Add generated chunk or multile chaunks of Python code checking for overflow
 #
@@ -4515,6 +4624,7 @@ sub remap_conflicting_names                  # issue 92
     my $sigil = shift;                          # @, %, $, & or '' for FH
     my $trailer = shift;                        # [ or { or ''
 
+    return $name if($Pythonizer::PassNo==&Pythonizer::PASS_0);
     return $name if(!$name);
     return $name if(substr($name,-1,1) eq ')');         # e.g. "globals()"
     return $name if($name =~ /\.__dict__$/);            # package version of globals()

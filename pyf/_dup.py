@@ -14,7 +14,7 @@ def _dup(file,mode,checked=True):
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:
-            traceback.print_exc()
+            _cluck(f"dup failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
         if checked:

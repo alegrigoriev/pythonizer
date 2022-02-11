@@ -8,7 +8,9 @@ def _printf(fh, fmt, *args):
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:
-            traceback.print_exc()
+            if isinstance(fmt, str):
+                fmt = fmt.replace("\n", '\\n')
+            _cluck(f"printf({fmt},...) failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
         return False

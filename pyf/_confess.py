@@ -1,4 +1,4 @@
 
-def _confess(*args):
+def _confess(*args,skip=1):
     """Error with stack backtrace"""
-    raise Die(_longmess(*args, skip=1))
+    raise Die(_longmess(*args, skip=skip),suppress_traceback=True)

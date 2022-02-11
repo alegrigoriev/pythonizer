@@ -11,7 +11,7 @@ def _read(fh, var, length, offset=0, need_len=False):
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:
-            traceback.print_exc()
+            _cluck(f"read of {length} byte(s) failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
         if need_len:

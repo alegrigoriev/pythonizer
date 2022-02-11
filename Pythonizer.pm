@@ -1795,7 +1795,7 @@ sub get_here
 my $here_str='';        # issue 39
 my $line=<>;		# issue 39
    $line =~ s/[\r\n]+//sg;        # issue 39
-   if($::debug > 2) {
+   if($::debug > 2 && $PassNo != PASS_0) {
       say STDERR "get_here($_[0], $_[1]): line=$line, lno=$.";
    }
    if(!defined $line) {
@@ -1815,18 +1815,21 @@ my $line=<>;		# issue 39
 	 last;
       }
       $line =~ s/[\r\n]//sg;        # issue 39
-      if($::debug > 2) {
+      if($::debug > 2 && $PassNo != PASS_0) {
    	say STDERR "get_here:line=$line, lno=$., len_eof=$len_eof, length(line)=".length($line).", spaces=$spaces, defined line=".defined $line;
       }
    }
    if($_[1]) {                  # Have the <<~ ?
-       if($::debug > 2) {
+       if($::debug > 2 && $PassNo != PASS_0) {
    	   say STDERR "get_here:here_str=$here_str (before strip)";
        }
        $here_str =~ s/^\s{$spaces}//gm;
    }
-   if($::debug > 2) {
+   if($::debug > 2 && $PassNo != PASS_0) {
    	say STDERR "get_here:here_str=$here_str";
+   }
+   if($PassNo == PASS_1) {              # SNOOPYJC: Propagate the prior varclasses
+       &Perlscan::propagate_varclass_for_here();
    }
    # issue 39 return '""""'."\n".$here_str."\n".'"""""'."\n";
    return '"""'.$here_str.'"""';	# issue 39
@@ -2515,7 +2518,11 @@ sub cleanup_imports
         } elsif($die_def_lno && !$die_referenced) {
             $line_ref->[$die_def_lno-1] = '^';   # class Die(Exception):
             $line_ref->[$die_def_lno] = '^';     #     pass or def __init__(...):
-            $line_ref->[$die_def_lno+1] = '^' if($::traceback);     #     traceback
+            if($::traceback) {     #     traceback
+                $line_ref->[$die_def_lno+1] = '^';    # (super)...
+                $line_ref->[$die_def_lno+2] = '^';    # if TRACEBACK...
+                $line_ref->[$die_def_lno+3] = '^';    #     _cluck()
+            }
         }
         if($_str_lno && !$_str_referenced) {
             $line_ref->[$_str_lno-1] = '^';

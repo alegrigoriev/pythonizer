@@ -151,6 +151,7 @@
 # 0.946  2022/02/06  SNOOPYJC  Implement redo and continue, fix push with scalar expression in parens, remove more oddities in the generated code like perllib.Array([]) and ((...)), add a couple dozen additional tests, fix issue 24, add UNITCHECK, CHECK, and INIT blocks, give warning if $? is set in an END block (not supported), issue 26, issue 30, issue 54, issue 76, handle for(;;), implement every type of for loop using while e.g. if the loop counter is modified or the increment can't be handled by range(...)
 # 0.947  2022/02/08  SNOOPYJC  Use a heuristic to determine -m/-M option by adding Pass0.pm, implement # pragma pythonizer to set options, issue 72 - wait for subprocess to complete on close, fix fcntl, ioctl, and flock with clash on the module name
 # 0.948  2022/02/09  SNOOPYJC  Implement splice, fix push with a list of multiple values, fix issue with assigning less values to Array slice, fix passing qw(...) to sub, fix passing array as non-first argument to sub, fix some issues in stmt modifiers, fix mkdir not returning the proper return code, remove blank line generated if the perl line has trailing whitespace
+# 0.949  2022/02/10  SNOOPYJC  Handle ${\(expr)} and @{[expr]} in strings, fix while in stmt modifier with global pattern, fix AUTODIE, uniform handling of TRACEBACK using cluck, fix system, fix empty signal function, implement hex and oct
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -195,7 +196,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
 
-   $VERSION='0.948';
+   $VERSION='0.949';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -292,9 +293,15 @@ BEGIN {                                                 # SNOOPYJC
    # issue flock foreach $l ('import sys,os,re','import fileinput,subprocess,inspect'){
    $Die = "class Die(Exception):
     pass";
-   $Die = "class Die(Exception):
-    def __init(self, arg):
-        traceback.print_stack()" if($traceback);
+   if($traceback) {             # Note: The code in &Pythonizer::cleanup_imports needs to know how many lines we have in this definition (see $dif_def_lno)
+       $Die = "class Die(Exception):
+    def __init__(self, *args,suppress_traceback=None):
+        super().__init__(*args)
+        if TRACEBACK and not suppress_traceback:
+            _cluck()";
+        $Pyf{_cluck} = 1;
+        $Pyf{_longmess} = 1;
+   }
    $Die = "from $PERLLIB import Die" if($import_perllib);
    # NOTE: This import line gets rewritten in Pythonizer.pm!
    my @headers = ("import sys,os,re,fcntl,math,fileinput,subprocess,collections.abc,argparse,glob,warnings,inspect,functools,itertools,signal,traceback,io,tempfile,atexit,calendar,types,pdb,random,stat,dataclasses,builtins,$PERLLIB",
@@ -806,7 +813,7 @@ my ($start,$token_buffer_active);
          }elsif( scalar(@ValClass)==4 && $ValClass[2] eq '='  ){
             if( $ValPerl[0] eq 'my' || $ValPerl[0] eq 'our' || $ValPerl[0] eq 'local' ){        # issue 108
                if($ValClass[1] eq 'G') {         # issue 108: typeglob
-                  $ValPy[1] = &Perlscan::choose_glob($ValPerl[$1], $ValPy[$1])
+                  $ValPy[1] = &Perlscan::choose_glob($ValPerl[1], $ValPy[1])
                }
 	       if($ValClass[3] eq 'f') {	# Issue 8: shift generates bad code
 		  gen_chunk("$ValPy[1] = ");	# Issue 8
@@ -1257,17 +1264,23 @@ my ($start,$token_buffer_active);
          }
       }elsif( $ValClass[0] eq 'x' ){
          # this is backquotes
-         gen_chunk(qq{$DEFAULT_VAR=subprocess.run($ValPy[0],capture_output=True,text=True,shell=True)});
-         gen_statement();
-         if($autodie || exists $SpecialVarsUsed{'$?'}) {        # SNOOPYJC
-            gen_chunk(qq[$SUBPROCESS_RC=${DEFAULT_VAR}.returncode]);
-         }
-         if($autodie) {
+         if($traceback) {               # issue traceback
+             $Pyf{_run} = 1;
+             gen_chunk(qq{$DEFAULT_VAR = }, '_run', '(', $ValPy[0], ')');
              gen_statement();
-             gen_statement("if $SUBPROCESS_RC:");
-             correct_nest(1,1);
-             gen_statement("raise Die(f'run($ValPy[0]): failed with {$SUBPROCESS_RC}')");
-             correct_nest(-1,-1);
+         } else {
+             gen_chunk(qq{$DEFAULT_VAR = subprocess.run($ValPy[0],capture_output=True,text=True,shell=True)});
+             gen_statement();
+             if($autodie || exists $SpecialVarsUsed{'$?'}) {        # SNOOPYJC
+                gen_chunk(qq[$SUBPROCESS_RC = ${DEFAULT_VAR}.returncode]);
+             }
+             if($autodie) {
+                 gen_statement();
+                 gen_statement("if $SUBPROCESS_RC:");
+                 correct_nest(1,1);
+                 gen_statement("raise Die(f'run(${\(escape_string(unquote_string($ValPy[0]), '\''))}): failed with {$SUBPROCESS_RC}')");
+                 correct_nest(-1,-1);
+             }
          }
       }elsif( $ValClass[0] eq 'd' ){
          if( length($TokenStr)==1 ){
@@ -2124,6 +2137,7 @@ sub fix_global_and_eval_regex                                    # SNOOPYJC
         $ValPy[$q] =~ s/,re\.G\|/,/;
         $ValPy[$q] =~ s/.re\.G//;
         $ValPy[$q] =~ s/\($DEFAULT_MATCH:=re\.search/re.finditer/;
+        $ValPy[$q] =~ s/^re\.search/re.finditer/;
         $ValPy[0] = $ValPerl[0] = 'for';
         insert($q+1, ')',')', ')');
         insert(1,'(','(','(');
@@ -2376,7 +2390,7 @@ sub finish
                 $return = undef;
             }                                                   # issue 45
             unshift @Perlscan::PythonCode,$return if($return);  # issue 45
-        } elsif(index($TokenStr,'=') > 0) {                     # issue 45
+        } elsif($ValClass[0] !~ /[cCk]/ && index($TokenStr,'=') > 0) {               # issue 45
             $prev_line =~ s/^\s*my\s+//;                        # issue 45
             $prev_line =~ s/^\s*own\s+//;                       # issue 45
             $prev_line =~ s/[+*\/\|\&.-]=/=/;                   # issue 45: Remove + from +=, etc
@@ -2536,12 +2550,6 @@ my $begin=$start=$_[0];
 my ($k,$handle);
 my $end_pos=$#ValClass;                                            # issue 10
 # end="") instead of trailing comma in Python 2
-   if($start == 0) {                    # issue 77
-       gen_chunk($ValPy[$start],'(');
-   } else {                             # issue 77
-       $Pyf{"_perl_print"} = 1;		# issue 77
-       gen_chunk('_perl_print', '(');        # issue 77 - this print returns 1 on success
-   }                                    # issue 77
    if($start+1 <= $#ValClass && $ValClass[$start+1] eq '(') {     # issue printf: handle bracketed
        $end_pos = matching_br($start+1) - 1;
        $start++;
@@ -2571,6 +2579,12 @@ my $end_pos=$#ValClass;                                            # issue 10
           say STDERR "setting end_pos = $end_pos\n";
        }
    }
+   if($start == 0 && ($traceback == 0 || $handle eq '' || $handle eq 'sys.stdout' || $handle eq 'sys.stderr')) {                    # issue 77
+       gen_chunk($ValPy[$start],'(');
+   } else {                             # issue 77
+       $Pyf{"_perl_print"} = 1;		# issue 77
+       gen_chunk('_perl_print', '(');        # issue 77 - this print returns 1 on success
+   }                                    # issue 77
    if( $end_pos>=$k ){	# issue 10
       # issue 10 $TrStatus=expression($k,$#ValClass,0);
       if($ValPerl[$begin] eq 'printf') {                # issue printf
@@ -2849,7 +2863,7 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
                 gen_statement();
                 gen_statement("if $SUBPROCESS_RC:");
                 correct_nest(1,1);
-                gen_statement("raise Die(f'run($ValPy[$split+1]): failed with {$SUBPROCESS_RC}')");
+                gen_statement("raise Die(f'run(${\(escape_string(unquote_string($ValPy[$split+1]), '\''))}): failed with {$SUBPROCESS_RC}')");
                 correct_nest(-1,-1);
             }
 	 }elsif($ValClass[$limit] eq 'f') {	# Issue 8: this is a function like shift with no args
@@ -3930,7 +3944,7 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
 	    say STDERR "FIXME: Can't handle 'for' with $ValPerl[$start]\n";	# SNOOPYJC
             $TrStatus=-1; return -255;
          }
-      }elsif( substr($TokenStr,$start) eq '(q)' && $ValPy[$start+1] =~ /\.split\(\)$/) {        # SNOOPYJC: qw/.../
+      }elsif( substr($TokenStr,$start) eq '(q)' && ($ValPy[$start+1] =~ /\.split\(\)$/ || $ValPy[$start+1] =~ /^re\.finditer/)) {        # SNOOPYJC: qw/.../
           gen_chunk($ValPy[$start+1]);
       }elsif( substr($TokenStr,$start)=~/^\((['"qds](,['"qds])*)\)/ ){
          # loop over explisit list
@@ -4502,6 +4516,18 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       return -255 if $k<0;
       gen_chunk(')');
       return $limit+1;
+   }elsif($perl_name eq 'oct' || $perl_name eq 'hex') { # issue 59, SNOOPYJC
+      my $base = (($perl_name eq 'oct') ? 8 : 16);
+      if( $bracketed==-1 ){
+          gen_chunk("$py_name", "($DEFAULT_VAR, $base)");
+          return $start;                       # issue 28
+      } 
+      gen_chunk("$py_name", '(');
+      $k=expression($start,$end_pos,0);
+      return -255 if $k<0;
+      gen_chunk(',', $base);
+      gen_chunk(')');
+      return $limit+1;
    }elsif(($perl_name eq 'stat' || $perl_name eq 'lstat') && !$uses_file_stat) { # SNOOPYJC: old stat/lstat
       $Constants{_} = 1; 
       if( $bracketed==-1 ){
@@ -4961,12 +4987,13 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
            #gen_chunk(")).f_lineno,_f.f_code.co_name,_f.f_code.co_argcount,0,'',0,0,0,0]");
         }
    }elsif($perl_name eq 'seek') {              # SNOOPYJC
+       gen_chunk($py_name); # method
+       gen_chunk('(');
        my $fh = $start;
        my $comma = next_same_level_token(',', $start, $end_pos);
        $TrStatus=expression($fh, $comma-1, 0);
        return -255 if ($TrStatus<0);
-       gen_chunk($py_name); # add method
-       gen_chunk('(');
+       gen_chunk(',');
        my $pos = $comma+1;
        $comma = next_same_level_token(',', $pos, $end_pos);
        $TrStatus=expression($pos, $comma-1, 0);
@@ -4977,11 +5004,12 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
        return -255 if ($TrStatus<0);
        gen_chunk(')');
    }elsif($perl_name eq 'tell') {              # SNOOPYJC
+       gen_chunk($py_name); # add method
+       gen_chunk('(');
        my $fh = $start;
        $TrStatus=expression($fh, $end_pos, 0);
        return -255 if ($TrStatus<0);
-       gen_chunk($py_name); # add method
-       gen_chunk('()');
+       gen_chunk(')');
    }elsif($py_name eq '.read' || $py_name eq '.sysread') {     # issue 10 - read or sysread, not already transformed
        if(substr($perl_name,0,1) eq '.') {  # SNOOPYJC: We already modified the function in fixup_read_in_expression
           gen_chunk($py_name);
@@ -5803,7 +5831,9 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
          $start=$cur_pos=$cur_pos+1; # change starting point -- we need that for regular expressions.
        }elsif( $ValClass[$cur_pos] eq 'x' ){
          # execution of Unix uility via shell
-          gen_chunk(qq{subprocess.run($ValPy[$cur_pos],capture_output=True,text=True,shell=True).stdout});
+         # SNOOPYJC: handle AUTODIE, TRACEBACK gen_chunk(qq{subprocess.run($ValPy[$cur_pos],capture_output=True,text=True,shell=True).stdout});
+         $Pyf{_run} = 1;
+         gen_chunk('_run', '(', $ValPy[$cur_pos], ')'); # SNOOPYJC:  handle AUTODIE, TRACEBACK
          $cur_pos++;
       }elsif( $ValClass[$cur_pos] =~ /[ahs]/ && $cur_pos+1 < $limit && $ValPy[$cur_pos+1] eq ':=' && $mode != 1 &&
               !(($cur_pos==0 || $ValPy[$cur_pos-1] eq '(') && ($limit+1>$#ValPy || $ValPy[$limit+1] eq ')' ))) {         # issue 93
@@ -5992,9 +6022,13 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
           my $e = $end_pos-1;
           $e-- if($ValClass[$e] eq ';');
           gen_chunk('(') if($walrus);
-          $k = expression($s+1, $e, 0);
+          if($s+1 <= $e) {
+              $k = expression($s+1, $e, 0);
+              if($k < 0) { $TrStatus=-1; return -255; }
+          } else {                      # e.g. sub {}
+              gen_chunk('None');
+          }
           gen_chunk(')') if($walrus);
-          if($k < 0) { $TrStatus=-1; return -255; }
           $cur_pos = $end_pos+1;
       }elsif($ValClass[$cur_pos] eq 'k' && $cur_pos != 0) {              # SNOOPYJC
           if($ValPerl[$cur_pos] eq 'next' || $ValPerl[$cur_pos] eq 'last') {
@@ -6969,6 +7003,7 @@ sub unquote_string                              # SNOOPYJC
 {
     my $string = shift;
 
+    $string =~ s/^(?:fr|rf|f|r)//;
     my $quote = substr($string,0,1);
     my $quote3 = substr($string,0,3);
     $quote = $quote3 if($quote3 eq '"""' || $quote3 eq "'''");
@@ -6990,6 +7025,23 @@ sub unquote_string                              # SNOOPYJC
         $result .= $ch;
     }
     say STDERR "unquote_string($string) = $result" if($debug >= 5);
+    return $result;
+}
+
+sub escape_string
+# Escape any \ or delim chars in the given string
+{
+    my $string = shift;
+    my $delim = shift;
+
+    my $result = '';
+    for(my $i=0; $i < length($string); $i++) {
+        my $ch = substr($string, $i, 1);
+        if($ch eq "\\" || $ch eq $delim) {
+            $result .= "\\";
+        }
+        $result .= $ch;
+    }
     return $result;
 }
 
@@ -7031,6 +7083,11 @@ sub do_use_require
         }
         if($ValPerl[$pos+1] eq 'autodie') {
             $autodie = 1;
+            if($import_perllib) {
+                gen_statement("$PERLLIB.AUTODIE = 1");
+            } else {
+                gen_statement("AUTODIE = 1");
+            }
         } elsif($ValPerl[$pos+1] eq 'autovivification') {
             $autovivification = (($ValPerl[$pos] eq 'no') ? 0 : 1);
         }

@@ -1,4 +1,4 @@
 
-def _cluck(*args):
+def _cluck(*args,skip=1):
     """Warn with stack backtrace"""
-    print(_longmess(*args, skip=1), end='', file=sys.stderr)
+    print(_longmess(*args, skip=skip), end='', file=sys.stderr)

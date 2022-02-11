@@ -10,7 +10,7 @@ def _flock(fd, operation):
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:
-            traceback.print_exc()
+            _cluck(f"flock failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
         return 0

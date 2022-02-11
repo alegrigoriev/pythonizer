@@ -2,11 +2,12 @@
 def _longmess(*args, skip=0):
     """Message with stack backtrace"""
     def ff(fn):
-       if fn.startswith('./'):
-           return fn[2:]
-       return fn
+        fn = os.path.relpath(fn)
+        if fn.startswith('./'):
+            return fn[2:]
+        return fn
     def fa(a):
-       return re.sub(r'^\(\*_args=(.*)\)$', r'\1',a)
+       return re.sub(r'^\(\*_args=(.*)\)$', r'\1',a).replace(',)', ')')
     stack = inspect.stack()
     stack = stack[skip:]
     m = ''.join(map(str, args))

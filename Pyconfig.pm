@@ -146,7 +146,7 @@ our $SUBPROCESS_OPTIONS="-M -v 0"; # Options to pythonizer for when we run on us
 
 our $PERL_VERSION=5.034;
 our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longmess', 
-		_format=>'_int,_num',
+		_format=>'_int,_num', _run=>'_cluck,_longmess',
                 _lstat=>'_stat', _looks_like_binary=>'_looks_like_text',
 		Array=>'ArrayHash', Hash=>'ArrayHash',
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
