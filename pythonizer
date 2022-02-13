@@ -152,6 +152,7 @@
 # 0.947  2022/02/08  SNOOPYJC  Use a heuristic to determine -m/-M option by adding Pass0.pm, implement # pragma pythonizer to set options, issue 72 - wait for subprocess to complete on close, fix fcntl, ioctl, and flock with clash on the module name
 # 0.948  2022/02/09  SNOOPYJC  Implement splice, fix push with a list of multiple values, fix issue with assigning less values to Array slice, fix passing qw(...) to sub, fix passing array as non-first argument to sub, fix some issues in stmt modifiers, fix mkdir not returning the proper return code, remove blank line generated if the perl line has trailing whitespace
 # 0.949  2022/02/10  SNOOPYJC  Handle ${\(expr)} and @{[expr]} in strings, fix while in stmt modifier with global pattern, fix AUTODIE, uniform handling of TRACEBACK using cluck, fix system, fix empty signal function, implement hex and oct
+# 0.950  2022/02/12  SNOOPYJC  Fix pythonizer hang on unless eval, fix error on func($_) foreach @arr, allow sigils to have whitespace after them including newlines, use -M if all lines in main are global inits, generate proper code for ($v1,$v2...) = ();, add the package name to a non-local sub call if it's referenced with an &, implement FileHandle and new_from_fd() also for IO::File, fix if/else with comment before the {, issue 117 - pass thru the arguments on &mySub;, remove sub dereferences, implement pack and unpack
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -196,7 +197,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
 
-   $VERSION='0.949';
+   $VERSION='0.950';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -304,7 +305,7 @@ BEGIN {                                                 # SNOOPYJC
    }
    $Die = "from $PERLLIB import Die" if($import_perllib);
    # NOTE: This import line gets rewritten in Pythonizer.pm!
-   my @headers = ("import sys,os,re,fcntl,math,fileinput,subprocess,collections.abc,argparse,glob,warnings,inspect,functools,itertools,signal,traceback,io,tempfile,atexit,calendar,types,pdb,random,stat,dataclasses,builtins,$PERLLIB",
+   my @headers = ("import sys,os,re,fcntl,math,fileinput,subprocess,collections.abc,argparse,glob,warnings,inspect,functools,itertools,signal,traceback,io,tempfile,atexit,calendar,types,pdb,random,stat,dataclasses,builtins,codecs,struct,$PERLLIB",
 	   'import time as tm_py',                              # SNOOPYJC
            "_str = lambda s: '' if s is None else str(s)",      # SNOOPYJC
                  );
@@ -528,7 +529,7 @@ my ($start,$token_buffer_active);
       fix_scalar_context();                             # issue 37
       #fix_string_catenation();                          # issue 36
       fix_multi_subscripts();                           # issue 84
-      remove_array_or_hash_references();                # issue 50
+      remove_dereferences();                            # issue 50
       replace_incr_decr_stmt();                         # SNOOPYJC
       fix_expression_issues();                          # SNOOPYJC, issue 74, issue 52
       fix_type_issues(0, $#ValClass, undef);            # SNOOPYJC
@@ -2053,16 +2054,19 @@ sub fix_multi_subscripts                                # issue 84
     }
 }
 
-sub remove_array_or_hash_references                     # issue 50
+sub remove_dereferences                     # issue 50
 {
-    # Run over the statement removing array or hash dereferences of the form @{...} or %{...}
+    # Run over the statement removing dereferences of the form &{...}, @{...} or %{...}
     # because python doesn't need them.  Also fix up hashref initialization.
 
+    my %class_map = ('&'=>'i', '@'=>'a', '%'=>'h');
+
     for(my $i = 0; $i <= $#ValClass; $i++) {
-        if($ValClass[$i] eq '@' || $ValClass[$i] eq '%') {
+        if($ValClass[$i] eq '&' || $ValClass[$i] eq '@' || $ValClass[$i] eq '%') {
             if($i < $#ValClass && $ValClass[$i+1] eq '(' && $ValPerl[$i+1] eq '{') {
                 my $to=matching_br($i+1);
                 next if($to < 0);
+		$ValClass[$i+2] = $class_map{$ValClass[$i]} if($ValClass[$i+2] eq 's');
                 destroy($to,1);                 # Delete the '}'
                 destroy($i,2);                  # Delete the '@{'
                 $i--;
@@ -2111,10 +2115,13 @@ sub fix_global_and_eval_regex                                    # SNOOPYJC
         $saved_eval_tokens = package_code();
         $saved_eval_lno = $.;
         my $t;
+        my @tmpBuffer = @Perlscan::BufferValClass;      # SNOOPYJC: Skip the block on getting the next line
+        @Perlscan::BufferValClass = ();
         while(($t = getline())) {
             push @saved_eval_buffer, $t;
             say STDERR "pushed $t onto saved_eval_buffer" if($debug >= 5);
         }
+        @Perlscan::BufferValClass = @tmpBuffer;
         my @lines = split(/^/m, $expr);
         getline("sub $subname {");
         for my $ln (@lines) {
@@ -2908,6 +2915,7 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
                  gen_chunk("[]");
               }
           }
+          gen_chunk(", $number_of_elements)") if(defined $number_of_elements);    # issue 56, SNOOPYJC
 	  gen_chunk(')') if($add_right_paren);		# issue 14
           if($extra >= 0) {
               gen_chunk($ValPy[$extra]);
@@ -3915,6 +3923,9 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
       }
       if( $hadparens == 1 ) {		# issue parens, foreach - we removed the parens, but in this case we need them!
 	 insert($start+1,'(','(','(');	# issue parens
+	 append(')',')',')');		# issue parens
+      } elsif($start+1 > $#ValClass) {  # issue parens: e.g. this($_) foreach @arr;
+	 insert($start,'(','(','(');	# issue parens
 	 append(')',')',')');		# issue parens
       } elsif($ValClass[$start+1] ne '(') {     # issue parens - could be STMT for LIST;
 	 insert($start+1,'(','(','(');	# issue parens
@@ -6830,10 +6841,13 @@ sub handle_eval_in_expression                   # issue 42
     $saved_eval_tokens = package_code();
     $saved_eval_lno = $.;
     my $t;
+    my @tmpBuffer = @Perlscan::BufferValClass;      # SNOOPYJC: Skip the block on getting the next line
+    @Perlscan::BufferValClass = ();
     while(($t = getline())) {
         push @saved_eval_buffer, $t;
         say STDERR "pushed $t onto saved_eval_buffer" if($debug >= 5);
     }
+    @Perlscan::BufferValClass = @tmpBuffer;
     if($pos == 0) {     # We don't need the result
         p_replace($saved_eval_tokens, $pos, 'C', 'nop', '');            # Make it a no-op
     } else {

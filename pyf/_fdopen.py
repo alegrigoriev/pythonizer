@@ -5,4 +5,6 @@ def _fdopen(fh, fd, mode):
         fd = int(fd)
     if isinstance(fd, int):
         fd = f'={fd}'
-    return _open_dynamic(_open_mode_string(mode) + '&' + fd)
+    if fh and not fh.closed:
+        fh.close()
+    return _create_all_fh_methods(_open_dynamic(_open_mode_string(mode) + '&' + fd))

@@ -155,6 +155,9 @@ sub pass_0
     if(!$lines_in_main) {
         $use_implicit_my = 0;
         say STDERR "Using -M due to no lines in main" if($say_why);
+    } elsif($global_init_lines == $lines_in_main) {
+        $use_implicit_my = 0;
+        say STDERR "Using -M due to all of the lines in main are static inits" if($say_why);
     } elsif($lines_in_main > 4 && $global_init_lines > $lines_in_main * 0.9) {
         # Over 90% of the code is static inits
         $use_implicit_my = 0;

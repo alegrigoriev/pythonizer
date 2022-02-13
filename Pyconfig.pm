@@ -149,6 +149,7 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
 		_format=>'_int,_num', _run=>'_cluck,_longmess',
                 _lstat=>'_stat', _looks_like_binary=>'_looks_like_text',
 		Array=>'ArrayHash', Hash=>'ArrayHash',
+		_unpack=>'_pack',
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
 our %STAT_SUB=('File::stat'=>'_fstat');                 # Substitution for stat if they use File::stat
 our %LSTAT_SUB=('File::stat'=>'_flstat');                 # Substitution for stat if they use File::stat
@@ -242,8 +243,17 @@ our %PREDEFINED_PACKAGES = (
 			{perl=>'tmpfile', type=>':H'},
 			{perl=>'tempnam', type=>'SS:S'},
 		       ],
+        'FileHandle'=>   [{perl=>'new', type=>'SI:H', python=>'_IOFile', 
+			 calls=>'_open,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+			{perl=>'new_from_fd', type=>'II:H', python=>"_IOFile_from_fd", 
+		         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+			{perl=>'new_tmpfile', type=>':H', python=>"_IOFile_tmpfile", 
+		         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+		       ],
         'IO::File'=>   [{perl=>'new', type=>'SI:H', python=>'_IOFile', 
 			 calls=>'_open,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+			{perl=>'new_from_fd', type=>'II:H', python=>"_IOFile_from_fd", 
+		         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
 			{perl=>'new_tmpfile', type=>':H', python=>"_IOFile_tmpfile", 
 		         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
 		       ],

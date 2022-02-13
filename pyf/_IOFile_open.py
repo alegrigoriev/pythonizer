@@ -25,5 +25,6 @@ def _IOFile_open(fh, filename, mode=None, perms=None):
             encoding = fd.encoding
             errors = fd.errors
         result = _open_dynamic(filename,encoding=encoding,errors=errors)
-    fh.close()
+    if not fh.closed:
+        fh.close()
     return _create_all_fh_methods(result)
