@@ -14,6 +14,9 @@ def _create_all_fh_methods(fh):
     for method, func in methods.items():
         setattr(fh, method, types.MethodType(func, fh))
 
+    fh.getline = fh.readline
+    fh.getlines = fh.readlines
+
     return fh
 
 def _IOFile(path=None, mode=None, perms=None):

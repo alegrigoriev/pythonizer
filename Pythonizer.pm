@@ -1844,7 +1844,7 @@ sub getline
 #
 {
 state @buffer; # buffer to "postponed lines. Used for translation of postfix conditinals among other things.
-   #say STDERR "getline(@_): BufferValClass=@Perlscan::BufferValClass, buffer=@buffer";
+   #say STDERR "getline(@_): BufferValClass=@Perlscan::BufferValClass, buffer=@buffer, special_buffer=@special_buffer";
    # issue 95 return $line if( scalar(@Perlscan::BufferValClass)>0  ); # block input if we process token buffer Oct 8, 2020 -- NNB
    state @special_buffer;  # issue 42
    state @output_buffer;   # issue 45
@@ -1892,7 +1892,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
       #
       if(  scalar(@buffer) ){
          $line=shift(@buffer);
-         #say STDERR "getline(): got $line from buffer, buffer=@buffer";
+	 #say STDERR "getline(): got $line from buffer, buffer=@buffer";
       }elsif(scalar(@special_buffer)) {         # issue 42
          $line = shift(@special_buffer);
          #say STDERR "was: $. $::saved_eval_lno " . scalar(@special_buffer);
@@ -1900,15 +1900,15 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
             $. = $::saved_eval_lno - (scalar(@special_buffer) - 0);     # CHECKME!
             #say STDERR "is:  $. $::saved_eval_lno " . scalar(@special_buffer);
          }
-         #say STDERR "getline(): got $line from special_buffer, lno=$.";
+	 #say STDERR "getline(): got $line from special_buffer, lno=$.";
       }elsif(defined $::saved_eval_tokens) {    # issue 42: Signal EOF from string we pushed
          $line = undef;
          return $line;
       }else{
          $line=<>;
-         #my $l2 = $line;
-         #$l2 =~ s/[\n\r]//g;
-         #say STDERR "getline(): got $l2 from <>";
+	 #my $l2 = $line;
+	 #$l2 =~ s/[\n\r]//g;
+	 #say STDERR "getline(): got $l2 from <>";
          return $line unless (defined($line)); # End of file
       }
 
@@ -1946,7 +1946,8 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          }
          close SYSDATA;
          return $line;
-      }elsif(  substr($line,0,1) eq '='){
+      # SNOOPYJC }elsif(  substr($line,0,1) eq '=' ){
+      }elsif(  substr($line,0,1) eq '=' && substr($line,1,1) =~ /\w/) {	# SNOOPYJC: Not '==', not '=~', etc
          # POD block
          # issue 79 output_line('',q['''']);
          &$output_line('',q[''']);                # issue 79, issue 45

@@ -1,5 +1,5 @@
 ## Translator from Perl to Python 
-### THIS IS AN ANNOUNCEMENT FOR VERSION 0.8 of "FUZZY"  TRANSLATOR/TRANSRIBER FROM PERL TO PYTHON 
+### THIS IS AN ANNOUNCEMENT FOR VERSION 0.950 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
 
 This readme is for informational purposes only and is not intended to be updated often. More current information can be found at:  
 
@@ -16,7 +16,9 @@ In this case, a program that "explains" Perl constructs in Python terms would be
 
 The other role is to give a quick start for system administrators who know Perl well but want to learn Python (for example, who need to support researchers who work with Python), many older school sysadmins dislike Python and for a reason ;-). This way they can convert some of their small sysadmin scripts and try to debug them in Python, getting their feet wet, so to speak. And that allows to obtain a much better understanding as for whether the compete switch to Python makes sense in their particular situation or not. 
 
-### Pre-pythonizer implements the first phaze of translation
+### (Deprecated) Pre-pythonizer implements the first phaze of translation
+
+Th pre-pythonizer is deprecated in this version as it is no longer needed.
 
 The first pass is currently fully optional as the needed transformations of Perl code (moving subroutines up) and slight reformatting of Perlcode can be performed by other utilities, or manually. It just slightly increases the probability of more correct translation of the code. It reformats the code so that curvy brackets were mostly on separate lines (this was useful for pythonizer up to version 0.2; later versions  do not depend on this transformation.) 
 
@@ -31,36 +33,54 @@ See the User Guide for detail.
 
 ### Pythonizer implements actual transformation of Perl into Python
 
-Currently only few user options are supported (pythonizer -h provides a  list of options):  
+Currently these user options are supported (pythonizer -h provides a list of options):  
 
--w -- The width of the line of the protocol of translation. The default is 188
+    -v -- verbosity 0 -minimal (only serious messages) 3 max verbosity (warning, errors and serious); default -v 1
+    -h -- this help
+    -t -- size of tab in the generated Python code (emulated with spaces). Default is 4
+    -m -- Make global variables into "my" filescope variables, else they use a separate global namespace
+    -M -- Turn off -m
+    NOTE: If neither -m nor -M are passed, the pythonizer uses heuristics to make a best guess here.
+    -s -- Attempt to run standard library functions thru pythonizer for use/require - not recommended!
+    -S -- Turn off -s
+    -p -- "import perllib" library instead of including functions inline to emulate perl built-in functions (default)
+    -P -- Turn off -p
+    -A -- Imply "use autodie;"
+    -T -- Perform a traceback in the generated code on errors
+    -V -- Imply "no autovivification qw(fetch delete exists store strict);"
+    -d    level of debugging  default is 0 -- production mode
+          0 -- Production mode
+          1 -- Testing mode. Program is autosaved in Archive (primitive versioning mechanism)
+          2 -- Stop at the beginning of statement analysys (the statement can be selected via breakpoint option -b )
+          3 -- More debugging output.
+          4 -- Stop at lexical scanner with $DB::single = 1;
+          5 -- output stages of Python line generation
+    -B N  -- for internal debugging - set breakpoint when processing input line N in the first pass
+    -b N  -- for internal debugging - set breakpoint when processing input line N in the second pass
+    -r -- (deprecated) run the initial pre_pythonizer pass (no longer needed)
 
--v -- verbosity -v 0 -- minimal verbosity -v 3 -- max verbosity; can also be expresses as -v -vv and -vvv -- forms to which most Unix users got used in other utilities
+    If -m and -M are both NOT present, you may set these options and all other options in the
+    perl source file using a special comment of the form "# pragma pythonizer -flags".  You can also
+    spell the options out optionally prefixed by "no", like "# pragma pythonizer no implicit global my, traceback".
 
--t  -- tab size for generated code; the default is  -t 4 
+To try pythonizer you need to download files (as Zip archive -- GitHub creates zip from the latest posted verion on demand for you) or replicate the directory via git. In the later case the main program and three modules mentioned about should be put into a separate directory. For example,  /opt/Pythonizer 
 
--r -- refactor Perl code. If specified, before processing the script by the pythonizer, it  invokes the pre_pythonizer preliminary pass on the source code. Of course this can be  done only once and can be manually as a separate pass with more control,  but still this option is not completly usless, as it provides an integrated way to refactor the program. 
-
-To try pythonizer you need to download files (as Zip archive -- GitHub creates zip from the latest posted verion on demand for you)  or replicate the directory via git . In the later case the main program and three modules mentioned about should be put into a separate directory. For example,  /opt/Pythonizer 
-
-The directory into which the modules are downloaded  needs to be made available to Perl via PERL5LIB env variable or via -I option . 
-
-ATTENTION PYTHON PROGRAMMERS: Environment varible PERL5LIB or option -I of the Perl interpreter should specify the directory with modules in order to run the pythonizer. Otherwise modules will NOT be found.   
-
-You can run Pythonizer both in Cygwin and Linux. 
+You can run Pythonizer in git bash, Cygwin or Linux. 
 
 For initial testing to "pythonize" the test Perl script /path/to/your/program.pl  you need to use the something like: 
 
-export PERL5LIB=~/Perl5/lib && ~/bin/pythonizer /path/to/your/program.pl
+~/bin/pythonizer /path/to/your/program.pl
 
-If the program runs to the end you will get "pythonized" text in /path/to/your/program.py
+You will get "pythonized" text in /path/to/your/program.py
 
-It also produces protocol of translation in /tmp/Pythonizer with "side by side" Perl and Python code, which allows you to analyse the protocol and detect places that need to be commented out and translated manually. 
+It also optionally produces protocol of translation in /tmp/Pythonizer with "side by side" Perl and Python code, which allows you to analyse the protocol
 
-If  __DATA__ or __END__ are used a separate file with  the extension  .data  (/path/to/your/program.data for the example above) will be created with  the content on this section of Perl script.
+If�__DATA__ or __END__ are used a separate file with  the extension  .data (/path/to/your/program.data for the example above) will be created with  the content on this section of Perl script.
 
 
 ### HISTORY 
+
+Feb 12, 2022: Version 0.950 was uploaded.  It provides a plethora of enhancements and hundreds of bug fixes over the original version.  Some of the major changes are: Implementation of true cross-module global varables and packages, implementation of use/require, autovivification and automatic type conversion of variables (with an attempt to "guess" the right type to minimize conversions), local variables, do loops, can now modify the loop counter in for loops and have any type of increment, redo and continue for while loops, eval and anonymous subs, grep and map, signal handlers, library of built-in perl packages including FileHandle, IO::File, IO::Handle, Carp, File::Temp, pack and unpack, quotemeta, splice; open now handles piped command input and output.  It also includes a test suite that run perl code thru the pythonizer and then checks the results.
 
 Oct 02, 2020: Version 0.8 was uploaded. It provides a more correct translation of array assignments. Some non-obvious bugs in translation were fixed. Now you need to specify PERL5LIB variable pointing it to the directory with modules to run the program. Global variable now are initialized after main sub to undef value to create a global namespace. Previously this was done incorrectly.  Simple installer for Python programmers who do not know much Perl was added. Users report that pythonizer proved to be very useful as a help for understanding Perl scripts by Python programmers. 
 
@@ -90,7 +110,7 @@ Here is an fragment of translation of pre-pythonizer.pl which exists in this rep
  876 | 2 |      |      if lineno==breakpoint:                                                     #PL: {
  878 | 3 |      |         pdb.set_trace()                                                         #PL: }
  879 | 2 |      |
- 880 | 2 |      |      line=([line])                                                              #PL: $line=normalize_line($line);
+ 880 | 2 |      |      line=normalize_line(line)                                                  #PL: $line=normalize_line($line);
  881 | 2 |      |
  882 | 2 |      |      #
  883 | 2 |      |      # Check for HERE line
@@ -105,8 +125,8 @@ Here is an fragment of translation of pre-pythonizer.pl which exists in this rep
  895 | 3 |      |         continue                                                                #PL: next;
  897 | 2 |      |
  898 | 2 |      |
- 900 | 2 |      |      if (default_match:=re.match("""<<['"](\w+)['"]$""",line)): #PL: {
- 901 | 3 |      |         here_delim=default_match.group(1)                                       #PL: $here_delim=$1;
+ 900 | 2 |      |      if (_m:=re.search("""<<['"](\w+)['"]$""",line)):                           #PL: {
+ 901 | 3 |      |         here_delim=_m.group(1)                                                  #PL: $here_delim=$1;
  902 | 3 |      |         noformat=1                                                              #PL: $noformat=1;
  903 | 3 |      |         InfoTags='HERE'                                                         #PL: $InfoTags='HERE';
  905 | 2 |      |
@@ -118,26 +138,26 @@ Here is an fragment of translation of pre-pythonizer.pl which exists in this rep
  913 | 4 |      |            noformat=1                                                           #PL: $noformat=1;
  914 | 4 |      |            here_delim='#%ON'                                                    #PL: $here_delim='#%ON';
  915 | 4 |      |            InfoTags='OFF'                                                       #PL: $InfoTags='OFF';
- 918 | 3 |      |         elif re.match(r'^#%ON',line):                                           #PL: {
+ 918 | 3 |      |         elif re.search(r'^#%ON',line):                                          #PL: {
  919 | 4 |      |            noformat=0                                                           #PL: $noformat=0;
  922 | 3 |      |         elif line[0:6]=='#%NEST':                                               #PL: {
- 924 | 4 |      |            if (default_match:=re.match(r'^#%NEST=(\d+)',line)): #PL: {
- 926 | 5 |      |               if cur_nest!=default_match.group(1):                              #PL: {
- 927 | 6 |      |                  cur_nest=new_nest=default_match.group(1)                   # correct current nesting level
+ 924 | 4 |      |            if (_m:=re.search(r'^#%NEST=(\d+)',line)):                           #PL: {
+ 926 | 5 |      |               if cur_nest!=_m.group(1):                                         #PL: {
+ 927 | 6 |      |                  cur_nest=new_nest=_m.group(1)     # correct current nesting level
                                                                                                   #PL:                         $cur_nest=$new_nest=$1;
  928 | 6 |      |                  InfoTags=f"={cur_nest}"                                        #PL: $InfoTags="=$cur_nest";
  931 | 5 |      |               else:                                                             #PL: {
  932 | 6 |      |                  InfoTags=f"OK {cur_nest}"                                      #PL: $InfoTags="OK $cur_nest";
  934 | 5 |      |
- 937 | 4 |      |            elif re.match(r'^#%NEST++',line):                                    #PL: {
- 938 | 5 |      |               cur_nest=new_nest=default_match.group(1)+1                # correct current nesting level
+ 937 | 4 |      |            elif re.search(r'^#%NEST++',line):                                   #PL: {
+ 938 | 5 |      |               cur_nest=new_nest=_m.group(1)+1                # correct current nesting level
                                                                                                   #PL:                     $cur_nest=$new_nest=$1+1;
  939 | 5 |      |               InfoTags='+1'                                                     #PL: $InfoTags='+1';
- 942 | 4 |      |            elif re.match(r'^#%NEST--',line):                                    #PL: {
- 943 | 5 |      |               cur_nest=new_nest=default_match.group(1)+1                # correct current nesting level
+ 942 | 4 |      |            elif re.search(r'^#%NEST--',line):                                   #PL: {
+ 943 | 5 |      |               cur_nest=new_nest=_m.group(1)+1                # correct current nesting level
                                                                                                   #PL:                     $cur_nest=$new_nest=$1+1;
  944 | 5 |      |               InfoTags='-1'                                                     #PL: $InfoTags='-1';
- 947 | 4 |      |            elif re.match(r'^#%ZERO\?',line):                                    #PL: {
+ 947 | 4 |      |            elif re.search(r'^#%ZERO\?',line):                                   #PL: {
  949 | 5 |      |               if cur_nest==0:                                                   #PL: {
  950 | 6 |      |                  InfoTags=f"OK {cur_nest}"                                      #PL: $InfoTags="OK $cur_nest";
  953 | 5 |      |               else:                                                             #PL: {
@@ -151,14 +171,14 @@ Here is an fragment of translation of pre-pythonizer.pl which exists in this rep
  964 | 3 |      |         process_line([line,-1000])                                              #PL: process_line($line,-1000);
  965 | 3 |      |         continue                                                                #PL: next;
  967 | 2 |      |
- 969 | 2 |      |      if (default_match:=re.match(r'^sub\s+(\w+)',line)):                        #PL: {
- 970 | 3 |      |         SubList[default_match.group(1)]=lineno                                  #PL: $SubList{$1}=$lineno;
+ 969 | 2 |      |      if (_m:=re.search(r'^sub\s+(\w+)',line)):                                  #PL: {
+ 970 | 3 |      |         SubList[_m.group(1)]=lineno                                             #PL: $SubList{$1}=$lineno;
  971 | 3 |      |         SubsNo+=1                                                               #PL: $SubsNo++;
  972 | 3 |      |         ChannelNo=2                                                             #PL: $ChannelNo=2;
  973 | 3 |      |         CommentBlock=0                                                          #PL: $CommentBlock=0;
  975 | 3 |      |         for backno in range(len(FormattedMain)-1,0,-1):                         #PL: {
  976 | 4 |      |            comment=FormattedMain[backno]                                        #PL: $comment=$FormattedMain[$backno];
- 978 | 4 |      |            if re.match(r'^\s*#',comment) or re.match(r'^\s*$',comment): #PL: {
+ 978 | 4 |      |            if re.search(r'^\s*#',comment) or re.search(r'^\s*$',comment):       #PL: {
  979 | 5 |      |               CommentBlock+=1                                                   #PL: $CommentBlock++;
  982 | 4 |      |            else:                                                                #PL: {
  983 | 5 |      |               break                                                             #PL: last;
@@ -167,7 +187,7 @@ Here is an fragment of translation of pre-pythonizer.pl which exists in this rep
  988 | 3 |      |         backno+=1                                                               #PL: $backno++;
  990 | 3 |      |         for backno in range(backno,len(FormattedMain)):                         #PL: {
  991 | 4 |      |            comment=FormattedMain[backno]                                        #PL: $comment=$FormattedMain[$backno];
- 992 | 4 |      |            process_line([comment,-1000])             #copy comment block from @FormattedMain were it got by mistake
+ 992 | 4 |      |            process_line(comment,-1000)             #copy comment block from @FormattedMain were it got by mistake
                                                                                                   #PL:                 process_line($comment,-1000);
  994 | 3 |      |
  996 | 3 |      |         for backno in range(0,CommentBlock):                                    #PL: {
@@ -175,7 +195,7 @@ Here is an fragment of translation of pre-pythonizer.pl which exists in this rep
                                                                                                   #PL:                 pop(@FormattedMain);
  999 | 3 |      |
 1001 | 3 |      |         if cur_nest!=0:                                                         #PL: {
-1002 | 4 |      |            logme(['E',f"Non zero nesting encounted for subroutine definition {default_match.group(1)}"]) #PL: logme('E',"Non zero nesting encounted for subroutine definition $1");
+1002 | 4 |      |            logme('E',f"Non zero nesting encounted for subroutine definition {_m.group(1)}") #PL: logme('E',"Non zero nesting encounted for subroutine definition $1");
 1004 | 4 |      |            if cur_nest>0:                                                       #PL: {
 1005 | 5 |      |               InfoTags='} ?'                                                    #PL: $InfoTags='} ?';
 1008 | 4 |      |            else:                                                                #PL: {
@@ -204,17 +224,17 @@ Here is an fragment of translation of pre-pythonizer.pl which exists in this rep
 1041 | 2 |      |
 1042 | 2 |      |
 1043 | 2 |      |      # blank lines should not be processed
-1045 | 2 |      |      if re.match(r'^\s*$',line):                                                #PL: {
+1045 | 2 |      |      if re.search(r'^\s*$',line):                                               #PL: {
 1046 | 3 |      |         process_line(['',-1000])                                                #PL: process_line('',-1000);
 1047 | 3 |      |         continue                                                                #PL: next;
 1049 | 2 |      |
 1050 | 2 |      |      # trim leading blanks
-1052 | 2 |      |      if (default_match:=re.match(r'^\s*(\S.*$)',line)):                         #PL: {
-1053 | 3 |      |         line=default_match.group(1)                                             #PL: $line=$1;
+1052 | 2 |      |      if (_m:=re.search(r'^\s*(\S.*$)',line)):                                   #PL: {
+1053 | 3 |      |         line=_m.group(1)                                                        #PL: $line=$1;
 1055 | 2 |      |
 1056 | 2 |      |      # comments on the level of nesting 0 should be shifted according to nesting
 1058 | 2 |      |      if line[0]=='#':                                                           #PL: {
-1059 | 3 |      |         process_line([line,0])                                                  #PL: process_line($line,0);
+1059 | 3 |      |         process_line(line,0)                                                    #PL: process_line($line,0);
 1060 | 3 |      |         continue                                                                #PL: next;
 1062 | 2 |      |
 1063 | 2 |      |
@@ -247,8 +267,8 @@ Here is an fragment of translation of pre-pythonizer.pl which exists in this rep
 1100 | 2 |      |
 1101 | 2 |      |      # Step 2: check the last symbol for "{" Note: comments are prohibited on such lines
 1103 | 2 |      |      if last_sym=='{' and len(line)>1:                                          #PL: {
-1104 | 3 |      |         process_line([line[0:-1],0])                                            #PL: process_line(substr($line,0,-1),0);
-1105 | 3 |      |         process_line(['{',0])                                                   #PL: process_line('{',0);
+1104 | 3 |      |         process_line(line[0:-1],0)                                              #PL: process_line(substr($line,0,-1),0);
+1105 | 3 |      |         process_line('{',0)                                                     #PL: process_line('{',0);
 1106 | 3 |      |         cur_nest=new_nest=new_nest+1                                            #PL: $cur_nest=$new_nest+=1;
 1107 | 3 |      |         continue                                                                #PL: next;
 1109 | 2 |      |      # if
@@ -256,7 +276,7 @@ Here is an fragment of translation of pre-pythonizer.pl which exists in this rep
 1111 | 2 |      |      # NOTE: only standalone } on the line affects effective nesting; line that has other symbols is assumed to be like if (...) { )
 1112 | 2 |      |      # $new_nest-- is not nessary as as it is also the first symbol and nesting was already corrected
 1113 | 2 |      |      #}
-1114 | 2 |      |      process_line([line,offset])                                                #PL: process_line($line,$offset);
+1114 | 2 |      |      process_line(line,offset)                                                  #PL: process_line($line,$offset);
 1116 | 1 |      |   # while
 
 ```
