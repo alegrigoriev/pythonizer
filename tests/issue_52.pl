@@ -18,4 +18,4 @@ assert(($options{debug}) ? "2>&1" : "2>&1 >/dev/null" eq "2>&1");
 assert(($options{debug} ? "2>&1" : "2>&1 >/dev/null") eq "2>&1");
 assert((($options{debug}) ? "2>&1" : "2>&1 >/dev/null") eq "2>&1");
 
-print "$0 - Test passed!\n";
+print "$0 - test passed!\n";

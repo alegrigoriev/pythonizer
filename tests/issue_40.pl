@@ -10,4 +10,4 @@ $thing3='zz';
 assert(join('.', $thing1, $thing2, $thing3) eq "xx.yy.zz");
 $bl = join(',');
 assert($bl eq '');
-print "$0 - passed!\n";
+print "$0 - test passed!\n";

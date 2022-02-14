@@ -3,6 +3,11 @@
 use Carp::Assert;
 
 my $s = "The black cat climbed the green tree";
+my $cl = substr $s, 14, 7;
+assert($cl eq 'climbed');
+my $t = $s;
+substr($t, 14, 7) = "jumped from";
+assert($t eq "The black cat jumped from the green tree");
 my $z = substr $s, 14, 7, "jumped from";    # climbed
 
 assert($z eq 'climbed');

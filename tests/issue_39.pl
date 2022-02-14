@@ -59,4 +59,4 @@ assert($j eq "line1\nline1\nline2\nline3\n\nline3\n");
 #my $s = 1<<END_T;
 #assert($s == (1<<4));
 
-print "$0: Test passed\n";
+print "$0 - test passed\n";

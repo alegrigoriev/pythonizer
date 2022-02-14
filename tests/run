@@ -13,6 +13,9 @@ tests=0
 passed=0
 flags=
 mflag=
+ctrlc=0
+SECONDS=0
+trap 'ctrlc=1;' INT
 case "$1" in
 -*m*) flags="$flags $1" 
       shift
@@ -20,27 +23,69 @@ case "$1" in
  -*)  flags="$flags $1"
       shift;;
 esac
+green() {
+    echo -en "\033[92m$*\033[37m"
+}
+start_yellow() {
+    echo -en "\033[93m"
+}
+end_yellow() {
+    echo -en "\033[37m"
+}
+start_red() {
+    echo -en "\033[91m"
+}
+end_red() {
+    echo -en "\033[37m"
+}
+red() {
+    echo -en "\033[91m$*\033[37m"
+}
+gd() {
+    green .
+}
+rd() {
+    red .
+}
+rm -f run.log warn.log
+if [ "$flags" != "" ]; then
+   echo "Using $flags"
+fi
 if [ "$mflag" != "-m" ]; then
-    echo
     echo "Generating test modules"
     for f in *.pm
     do
-        echo "==================== $f ===================="
-        ../pythonizer -v0 $flags $f
+	if [ $ctrlc -eq 1 ]; then
+	   break
+	fi
+        echo "==================== $f ====================" >run1.log
+        ../pythonizer -v0 $flags $f >>run1.log 2>&1
         if [ $? -ne 0 ]; then
-           echo "$f run with pythonizer FAILED"
+           echo "$f run with pythonizer FAILED" >>run1.log
            ((failed++))
            status=1
+	   rd
+	   cat run1.log >>run.log
+	   rm -f run1.log
            continue
         fi
         pyf=${f%.pm}.py
-        python -m py_compile "$pyf"
+        python -m py_compile "$pyf" >>run1.log 2>&1
         if [ $? -ne 0 ]; then
-           echo "$pyf compile with python FAILED"
+           echo "$pyf compile with python FAILED" >>run1.log
            ((failed++))
            status=1
+	   rd
+	   cat run1.log >>run.log
+	   rm -f run1.log
            continue
         fi
+	gd
+	lines=`cat run1.log | wc -l`
+	if [ $lines -gt 1 ]; then
+	    cat run1.log >>warn.log
+	fi
+	rm run1.log
         ((passed++))
     done;
 fi
@@ -49,42 +94,93 @@ echo
 echo "Running pythonizer tests"
 for f in *.pl;
 do
+   if [ $ctrlc -eq 1 ]; then
+      break
+   fi
    if [ "$mflag" = "-m" ]; then
        if grep -s "$f" skip_with_dash_m.txt; then
-           echo "========== $f skipped with -m =========="
+           #echo "========== $f skipped with -m =========="
            continue
        fi
    fi
-   echo "==================== $f ===================="
+   echo "==================== $f ====================" >run1.log
    ((tests++))
-   perl $f
+   perl $f >>run1.log 2>&1
    if [ $? -ne 0 ]; then
-      echo "$f run with perl FAILED - skipping next steps"
+      echo "$f run with perl FAILED - skipping next steps" >>run1.log
       ((failed++))
       status=1
+      red E
+      cat run1.log >>run.log
+      rm -f run1.log
       continue
    fi
-   ../pythonizer -v0 $flags $f
+   ../pythonizer -v0 $flags $f >>run1.log 2>&1
    if [ $? -ne 0 ]; then
-      echo "$f run with pythonizer FAILED"
+      echo "$f run with pythonizer FAILED" >>run1.log
       ((failed++))
       status=1
+      red P
+      cat run1.log >>run.log
+      rm -f run1.log
       continue
    fi
    pyf=${f%.pl}.py
-   python $pyf
+   python $pyf >>run1.log 2>&1
    if [ $? -ne 0 ]; then
-      echo "$pyf run with python FAILED"
+      echo "$pyf run with python FAILED" >>run1.log
       ((failed++))
       status=1
+      red F
+      cat run1.log >>run.log
+      rm -f run1.log
       continue
    fi
+   # Make sure it says "test passed" twice
+   count=`grep -c "test passed" run1.log`
+   if [ $count -ne 2 ]; then
+      echo "test $f failed because 2 'test passed' messages were not found!" >>run1.log
+      ((failed++))
+      status=1
+      red M
+      cat run1.log >>run.log
+      rm -f run1.log
+      continue
+   fi
+   gd
+   lines=`cat run1.log | wc -l`
+   if [ $lines -gt 3 ]; then
+      grep -v 'test passed' run1.log >>warn.log
+   fi
+   rm run1.log
    ((passed++))
 done;
+echo
+if [ $ctrlc -eq 1 ]; then
+   red "Testing aborted due to CTRL-C"
+   echo
+fi
+elap=`echo $SECONDS | awk '{printf "%d:%02d", $1/60, $1%60}'`
+if [ -f warn.log ]; then
+   start_yellow
+   echo "Warnings:"
+   cat warn.log
+   end_yellow
+   echo "(see warn.log for these details)"
+fi
 if [ $status -eq 0 ]; then
-   echo "pythonizer $tests tests PASSED!"
+   green "pythonizer $tests tests PASSED! in $elap"
+   echo
 else
-   echo "pythonizer $passed tests PASSED. $failed tests FAILED!"
+   green "pythonizer $passed tests PASSED. "
+   red "$failed tests FAILED!"
+   green " in $elap"
+   echo
+   start_red
+   echo "Errors:"
+   cat run.log
+   end_red
+   echo "(see run.log for these details)"
    exit 1
 fi
 exit 0
