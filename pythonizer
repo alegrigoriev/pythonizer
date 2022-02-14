@@ -154,6 +154,7 @@
 # 0.949  2022/02/10  SNOOPYJC  Handle ${\(expr)} and @{[expr]} in strings, fix while in stmt modifier with global pattern, fix AUTODIE, uniform handling of TRACEBACK using cluck, fix system, fix empty signal function, implement hex and oct
 # 0.950  2022/02/12  SNOOPYJC  Fix pythonizer hang on unless eval, fix error on func($_) foreach @arr, allow sigils to have whitespace after them including newlines, use -M if all lines in main are global inits, generate proper code for ($v1,$v2...) = ();, add the package name to a non-local sub call if it's referenced with an &, implement FileHandle and new_from_fd() also for IO::File, fix if/else with comment before the {, issue 117 - pass thru the arguments on &mySub;, remove sub dereferences, implement pack and unpack
 # 0.951  2022/02/13  SNOOPYJC  Remove extra () on if not (...), issue 116 - bash and/or with stmt modifier, issue 114 - substr with replacement, implement elipsis ..., redo test run script to operate like pytest
+# 0.952  2022/02/14  SNOOPYJC  Grab proper var class in while(my @arr...), place close paren in proper place when adding _assign_global if there is a non-paren function or sub call involved, use proper var class on a subref, addl fix for issue 114 (substr with replacement) when used as statement
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -198,7 +199,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
 
-   $VERSION='0.951';
+   $VERSION='0.952';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -4114,14 +4115,14 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
          return $limit+1; # $limit is the position of closing bracket, if any
       } elsif(substr($TokenStr,$start,$end_pos-$start+1) =~ /^[^,]+,[^,]+,[^,]+,/) {	# issue 114
          # issue 114: substr(this, start, length, replacement)
-         # _substr returns a tuple with (new_this, result)
-         # (this:=(_s:=_substr(this, start, length, replacement))[0], _s)[1][1]
-         # Code only works if "this" is a scalar and not a global
          my $comma = next_same_level_token(',', $start, $end_pos);
          if($comma < 0) {
              $TrStatus=-1; return -255;
          }
          my $this_p = $start;
+         # _substr returns a tuple with (new_this, result)
+         # (this:=(_s:=_substr(this, start, length, replacement))[0], _s)[1][1]
+         # Code only works if "this" is a scalar and not a global
          if($this_p + 1 != $comma) {
              logme('S',"substr with replacement is not implemented on complex variable");
              $TrStatus=-1; return -255;
@@ -6741,10 +6742,22 @@ sub handle_assignment_in_expression
     my $end_pos = $#ValClass;
     $end_pos = matching_br($start-1)-1 if($start != 0 && $ValClass[$start-1] eq '(');
     my $lower = next_lower_or_equal_precedent_token($ValClass[$pos], $pos+1, $end_pos);
-    $end_pos = $lower-1 if($lower >= 0);
+    if($lower >= 0) {
+        # for test_slice with -M, we were placing the closing paren improperly due
+        # to a function call with no parens
+        if($ValClass[$lower] eq ',') {
+            my $fi = next_same_level_tokens('fi', $pos, $lower);
+            if($fi != -1 && $ValClass[$fi+1] ne '(') {  # non-paren sub or function call
+                while(($lower = next_lower_or_equal_precedent_token($ValClass[$pos], $lower+1, $end_pos)) != -1 && $ValClass[$lower] eq ',') {
+                    ;           # Skip all commas until we get another low prec operator or run out of road
+                }
+            }
+        }
+        $end_pos = $lower-1 if($lower != -1);
+    }
     my $close = next_same_level_tokens(');', $pos+1, $end_pos);
     $end_pos = $close-1 if($close >= $pos && $close <= $end_pos);
-    #say STDERR "pos=$pos, lower=$lower, close=$close, end_pos=$end_pos, \$#ValClass=$#ValClass" if($debug >= 5);
+    say STDERR "pos=$pos, lower=$lower, close=$close, end_pos=$end_pos, \$#ValClass=$#ValClass" if($debug >= 5);
     my $adjust = 0;
     my $op;
     #if($start == 0 || $ValClass[$start-1] ne '(' || $ValClass[$end_pos+1] ne ')') {     # All := operations must be in '(' ')'
@@ -7899,13 +7912,10 @@ sub left_hand_substr
 #    text = replacement.join(text[0:start],text[start+length:])
 {
 my  $equal_pos=index($TokenStr,'=');
-# issue 70 my $comma_no=0;
-# issue 70 state $temp_var=0;
-# issue 70 my $var='';
 my ($replacement,$k);
 
       if( $equal_pos == -1 ){
-         return 255;
+         $equal_pos = scalar(@ValClass);       # issue 114
       }
       #
       # issue 70: recode it from scratch
@@ -7913,70 +7923,43 @@ my ($replacement,$k);
       # Potential issue with this code: if text or start contains an expression with
       # a function call or side effect, it will be run more than once!
       #
-      $comma1 = next_same_level_token(',', 2, $equal_pos-1);
-      $comma2 = next_same_level_token(',', $comma1+1, $equal_pos-1);
-      $close_paren = matching_br(1);
-      $k=expression(2, $comma1-1,0);      # text
+      my $comma1 = next_same_level_token(',', 2, $equal_pos-1);
+      my $comma2 = next_same_level_token(',', $comma1+1, $equal_pos-1);
+      my $comma3 = next_same_level_token(',', $comma2+1, $equal_pos-1);
+      my $end_pos = $equal_pos-1;
+      my $start = 1;
+      if($ValClass[1] eq '(') {
+          $start = 2;
+          my $close_paren = matching_br(1);
+          if($close_paren != -1) {
+              $end_pos = $close_paren-1;
+          }
+      }
+      my $end_len = $end_pos;
+      $end_len = $comma3-1 if($comma3 != -1);
+      $k=expression($start, $comma1-1,0);      # text
       return -255 if($k<0);
       gen_chunk('=');
-      $k=expression(2, $comma1-1,0);      # text
+      $k=expression($start, $comma1-1,0);      # text
       gen_chunk('[:');
       $k=expression($comma1+1, $comma2-1,0);   # start
       return -255 if($k<0);
       gen_chunk("] + ");
-      $k=expression($equal_pos+1);        # parse to the tail of the line  first starting from '='
+      if($comma3 != -1) {               # issue 114 - replacement in the substr call
+          $k=expression($comma3+1, $end_pos, 0);
+      } else {
+          $k=expression($equal_pos+1);        # parse to the tail of the line  first starting from '='
+      }
       return -255 if ($k<0);
       gen_chunk(" + ");
-      $k=expression(2, $comma1-1,0);      # text
+      $k=expression($start, $comma1-1,0);      # text
       gen_chunk('[');
       $k=expression($comma1+1, $comma2-1,0);   # start
       gen_chunk('+');
-      $k=expression($comma2+1, $close_paren-1,0);   # length
+      $k=expression($comma2+1, $end_len,0);   # length
       gen_chunk(':]');
-      return $close_paren+1;
+      return scalar(@ValClass);
       
-      # issue 70 if( index(q(s'"qd),$ValClass[$equal_pos+1])>=1 && $#ValClass==$equal_pos+1 ){
-      # issue 70 # $#ValClass==$equal_pos+1 means that we deal with =$str variant
-      # issue 70 # substr($str,$from,$len)=$str2; -- no expression on the right part
-      # issue 70 $replacement=$ValPy[$equal_pos+1]; # we can translate such subst in a single line
-      # issue 70 }else{
-      # issue 70 # we need a temp Variable to storethe replacement string
-      # issue 70 $replacement="$REPLACEMENT$.";         # issue 32
-      # issue 70 gen_chunk("$replacement.=");
-      # issue 70 $k=expression($equal_pos+1); # parse the tail of te line  first starting from '='
-      # issue 70 return -255 if ($k<0);
-      # issue 70 gen_statement() # out the generated line
-      # issue 70 }
-      #
-      # issue 70      if( $ValClass[1] eq '(' && $ValClass[2] eq 's' ){
-      # issue 70         # the first argument should be scalar
-      # issue 70        $var=$ValPy[2];
-      # issue 70        gen_chunk("$var=$var".'[:');
-      # issue 70      }else{
-      # issue 70         return -255;
-      # issue 70      }
-      # issue 70       for( $k=4; $k<@ValClass; $k++ ){          # 4 is the position of "start"
-      # issue 70          if( $ValClass[$k] eq ')' ){
-      # issue 70            last;
-      # issue 70          }elsif( $ValClass[$k] eq ',' ){
-      # issue 70            $comma_no++;
-      # issue 70            if( $comma_no==1 ){
-      # issue 70               gen_chunk("] + $replacement + $var".'[('.$ValPy[$k-1]);
-      # issue 70            }elsif( $comma_no==2 ){
-      # issue 70               gen_chunk("+$ValPy[$k-1]:]");
-      # issue 70            }
-      # issue 70          }elsif( $ValClass[$k] eq 'f' ){
-      # issue 70             $k=function($k);
-      # issue 70             return -255 if ($k<0);
-      # issue 70           }elsif( $ValClass[$k] eq '(' ){
-      # issue 70             $k=expression($k+1);
-      # issue 70             return -255 if ($k<0);
-      # issue 70          }else{
-      # issue 70            gen_chunk($ValPy[$k]);
-      # issue 70            $k++;
-      # issue 70          }
-      # issue 70       } #for
-      # issue 70       return $k;
 } #left_hand_substr
 
 __DATA__

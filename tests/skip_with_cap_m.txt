@@ -1,0 +1,6 @@
+# List of which tests are allowed to fail with the -M flag, so we skip them
+test_pragma1.pl
+test_pragma2.pl
+test_pragma3.pl
+test_pragma4.pl
+test_traceback.pl

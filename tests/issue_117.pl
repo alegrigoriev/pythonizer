@@ -20,7 +20,9 @@ mySub(1,2);
 &mySub(1,2);
 
 my $subref = \&mySub;
-
 &{$subref}(1,2);
+
+$sr2 = \&mySub;
+&{$sr2}(1,2);
 
 print "$0 - test passed!\n";
