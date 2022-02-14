@@ -20,6 +20,9 @@ case "$1" in
 -*m*) flags="$flags $1" 
       shift
       mflag="-m";;
+-*M*) flags="$flags $1"
+      shift
+      mflag="-M";;
  -*)  flags="$flags $1"
       shift;;
 esac
@@ -98,7 +101,13 @@ do
       break
    fi
    if [ "$mflag" = "-m" ]; then
-       if grep -s "$f" skip_with_dash_m.txt; then
+       if grep -sq "$f" skip_with_dash_m.txt; then
+           #echo "========== $f skipped with -m =========="
+           continue
+       fi
+   fi
+   if [ "$mflag" = "-M" ]; then
+       if grep -sq "$f" skip_with_cap_m.txt; then
            #echo "========== $f skipped with -m =========="
            continue
        fi

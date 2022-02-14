@@ -10,3 +10,4 @@ test_pragma1.pl
 test_pragma2.pl
 test_pragma3.pl
 test_pragma4.pl
+test_traceback.pl

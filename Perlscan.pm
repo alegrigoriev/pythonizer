@@ -616,6 +616,7 @@ sub add_package_name_sub
     my $py = $ValPy[$tno];
     return if($::implicit_global_my);
     return if(index($py, '.') >= 0);
+    return if(substr($perl_name,0,1) eq '$');          # issue 117: Is a sub-ref, not a regular sub
     return if($tno != 0 && $ValPy[$tno-1] eq '.');
     # Here we check if it's actually defined locally (LocalSub == 1) or if
     # it's imported by name (LocalSub == 2).  It could also have the "8" value bit turned on,
@@ -750,7 +751,7 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
         $class = 'myfile' if($class eq 'my' && !in_sub());
         $declared_here = 1;
     } elsif($ValClass[0] eq 'c' && $ValClass[1] eq '(' && $ValClass[2] eq 't' && 
-            $ValClass[3] eq 's' && $ValPerl[3] eq $ValPerl[$tno]) {      # e.g. for(my $i
+            $ValClass[3] =~ /[sahG]/ && $ValPerl[3] eq $ValPerl[$tno]) {      # e.g. for(my $i...; while my(@arr...
         $class = $ValPerl[2];
         $declared_here = 1;
     } elsif($ValClass[0] eq 'c' && $ValClass[1] eq 't' && $tno == 2) {  # e.g. foreach my $i (@arr)

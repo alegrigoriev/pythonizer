@@ -8,6 +8,15 @@ assert($cl eq 'climbed');
 my $t = $s;
 substr($t, 14, 7) = "jumped from";
 assert($t eq "The black cat jumped from the green tree");
+
+my $u = $s;
+substr $u, 14, 7, "jumped from";
+assert($u eq "The black cat jumped from the green tree");
+
+my $v = $s;
+substr($v, 14, 7, "jumped from");
+assert($v eq "The black cat jumped from the green tree");
+
 my $z = substr $s, 14, 7, "jumped from";    # climbed
 
 assert($z eq 'climbed');
