@@ -603,6 +603,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        say STDERR Dumper(\%Perlscan::sub_external_last_nexts);
        print STDERR "line_needs_try_block = ";
        say STDERR Dumper(\%Perlscan::line_needs_try_block);
+       print STDERR "line_contains_stmt_modifier = ";
+       say STDERR Dumper(\%Perlscan::line_contains_stmt_modifier);
        print STDERR "line_contains_for_loop_with_modified_counter = ";
        say STDERR Dumper(\%Perlscan::line_contains_for_loop_with_modified_counter);
        print STDERR "SubAttributes = ";

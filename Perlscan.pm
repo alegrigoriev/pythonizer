@@ -555,6 +555,8 @@ sub TRY_BLOCK_HAS_CONTINUE { 4 }      # Has a 'continue' block
 sub TRY_BLOCK_HAS_NEXT     { 8 }         # Has a 'last' stmt for this loop
 sub TRY_BLOCK_HAS_LAST    { 16 }         # Has a 'next' stmt for this loop
 sub TRY_BLOCK_REDO_LOOP   { 32 }         # Needs a nested loop for 'redo'
+$statement_starting_lno = 0;            # issue 116
+%line_contains_stmt_modifier=();        # issue 116
 %line_contains_for_loop_with_modified_counter=();       # SNOOPYJC
 %line_contains_pos_gen=();      # SNOOPYJC: {lno=>scalar, ...} on any stmt that can generate the pos of this scalar
 %scalar_pos_gen_line=();        # SNOOPYJC: {scalar=>last_lno, ...} - opposite of prev hash
@@ -726,8 +728,8 @@ sub capture_varclass_j          # SNOOPYJC: Only called in the first pass
     if($last_varclass_lno != $. && $last_varclass_lno) {
         $line_varclasses{$.} = dclone($line_varclasses{$last_varclass_lno});
     }
-    $last_varclass_lno = $.;
     return if(index($ValPerl[$tno], '$') < 0);
+    $last_varclass_lno = $.;
     if(exists $line_varclasses{$last_varclass_lno}{$name}) {
         $class = $line_varclasses{$last_varclass_lno}{$name};
     }
@@ -1652,6 +1654,7 @@ my ($l,$m);
        $tno=0;
        @ValClass=@ValCom=@ValPerl=@ValPy=@ValType=(); # "Token Type", token comment, Perl value, Py analog (if exists)
        $TokenStr='';
+       $statement_starting_lno = $.;                      # issue 116
    } else {
        $tno = scalar(@ValClass);
        $TokenStr=join('', @ValClass);
@@ -2065,7 +2068,11 @@ my ($l,$m);
                 logme('W',"'wantarray' reference in $cs is hard wired to $ValPy[$tno]");
             }                                   # issue 89
             $ValClass[$tno]=$class;
-            if( $class eq 'c' && $tno > 0 && $Pythonizer::PassNo == &Pythonizer::PASS_2 && ($ValClass[0] ne 'C' || $ValPerl[0] ne 'do')){ # Control statement, like if # SNOOPYJC: and do
+            if( $class eq 'c' && $tno > 0 && $w ne 'assert' && $Pythonizer::PassNo == &Pythonizer::PASS_1 && ($ValClass[0] ne 'C' || $ValPerl[0] ne 'do')){ # issue 116: Control statement, like if and do
+                $line_contains_stmt_modifier{$statement_starting_lno} = 1;      # issue 116: Remember for PASS_2
+            }
+                
+            if( $class eq 'c' && $tno > 0 && $w ne 'assert' && $Pythonizer::PassNo == &Pythonizer::PASS_2 && ($ValClass[0] ne 'C' || $ValPerl[0] ne 'do')){ # Control statement, like if # SNOOPYJC: and do
                # The current solution is pretty britle but works
                # You can't recreate Perl source from ValPerl as it does not have 100% correspondence.
                # So the token buffer implemented Oct 08, 2020 --NNB
@@ -2781,7 +2788,7 @@ my ($l,$m);
             }
          }else{
             $ValClass[$tno]=$ValPerl[$tno]=$ValPy[$tno]=$s;
-            if( $s eq '.'  ){
+            if( $s eq '.'  ){   # Could be string concat, float constant, range operator, or elipsis
                $ValPy[$tno]=' + ';
 	       if( $source=~/(^[.]\d+(?:[_]\d+)*(?:[Ee][+-]?\d+(?:[_]\d+)*)?)/  ){	# issue 23: float constant starting with '.'
 	          $ValClass[$tno] = 'd';			# issue 23
@@ -2802,6 +2809,11 @@ my ($l,$m);
                       popup();
                       $tno--;
                   }
+               } elsif( $source =~ /^[.][.][.]/ ) {             # issue elipsis
+                   $ValClass[$tno] = 'k';
+                   $ValPerl[$tno] = '...';
+                   $ValPy[$tno] = "raise NotImplementedError('Unimplemented')";
+                   $cut = 3;
 	       } elsif( $source =~ /^[.][.]/ ) {		# issue range
 		  $ValClass[$tno] = 'r';			# issue range
 		  $ValPerl[$tno] = '..';			# issue range
@@ -2978,7 +2990,7 @@ sub bash_style_or_and_fix
 # On level zero those are used instead of if statement
 {
 my $split=$_[0];
-   return 0 if($Pythonizer::PassNo==&Pythonizer::PASS_0); # SNOOPYJC
+   return 0 if($Pythonizer::PassNo!=&Pythonizer::PASS_2); # SNOOPYJC
    # bash-style conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020 --NNB
    $is_or = ($ValPy[-1] =~ /or/);	# issue 12
    $is_low_prec = ($ValPerl[-1] =~ /^[a-z]+$/);         # issue 93: is this low precedence like and/or instead of &&/||
@@ -2994,6 +3006,10 @@ my $split=$_[0];
 
    if($::debug >= 3) {
        say STDERR "bash_style_or_and_fix($split) is_or=$is_or, source=$source, is_low_prec=$is_low_prec";
+   }
+   if($line_contains_stmt_modifier{$statement_starting_lno}) {          # issue 116
+       say STDERR "bash_style_or_and_fix($split) returning 0 - stmt contains modifier" if($::debug>=3);
+       return 0;
    }
    # issue 93: if this is an assignment, only transform it if it contains a control statement afterwards or if it's a low precedence op
    my $tstr = join('',@ValClass);
@@ -4251,8 +4267,17 @@ sub remove_oddities
     # Change "if not ( not X):" to "if X:"
     $line =~ s/\bif not \( not ([\w.]+)\):$/if $1:/;
 
+    # Change "if not (X):" to "if not X:"
+    $line =~ s/\bif not \(([\w.]+)\):$/if not $1:/;
+
+    # Change "if not (f(...)):" to "if not f(...):"
+    $line =~ s/\bif not \(([\w.]+\([^)]*\))\):$/if not $1:/;
+
     # Change "perllib.Array([])" to "perllib.Array()"
     $line =~ s/\bperllib\.Array\(\[\]\)/perllib.Array()/g;
+
+    # Change "( not " to "(not "
+    $line =~ s/\( not /(not /g;
 
     # Change "perllib.Hash({})" to "perllib.hash()"
     $line =~ s/\bperllib\.Hash\(\{\}\)/perllib.Hash()/g;

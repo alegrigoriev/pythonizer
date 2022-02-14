@@ -56,4 +56,4 @@ assert($main == 4);
 assert(@main == 2 && join('', @main) eq 'mainmain');
 %main = (mk=>'mv');
 assert($main{mk} eq 'mv');
-print "$0 - passed!\n";
+print "$0 - test passed!\n";

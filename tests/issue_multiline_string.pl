@@ -82,4 +82,4 @@ line3
 };
 assert($i eq "line1\nline1\nline2\nline3\n\nline3\n");
 
-print "$0: Passed\n";
+print "$0 - test passed\n";

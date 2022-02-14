@@ -153,6 +153,7 @@
 # 0.948  2022/02/09  SNOOPYJC  Implement splice, fix push with a list of multiple values, fix issue with assigning less values to Array slice, fix passing qw(...) to sub, fix passing array as non-first argument to sub, fix some issues in stmt modifiers, fix mkdir not returning the proper return code, remove blank line generated if the perl line has trailing whitespace
 # 0.949  2022/02/10  SNOOPYJC  Handle ${\(expr)} and @{[expr]} in strings, fix while in stmt modifier with global pattern, fix AUTODIE, uniform handling of TRACEBACK using cluck, fix system, fix empty signal function, implement hex and oct
 # 0.950  2022/02/12  SNOOPYJC  Fix pythonizer hang on unless eval, fix error on func($_) foreach @arr, allow sigils to have whitespace after them including newlines, use -M if all lines in main are global inits, generate proper code for ($v1,$v2...) = ();, add the package name to a non-local sub call if it's referenced with an &, implement FileHandle and new_from_fd() also for IO::File, fix if/else with comment before the {, issue 117 - pass thru the arguments on &mySub;, remove sub dereferences, implement pack and unpack
+# 0.951  2022/02/13  SNOOPYJC  Remove extra () on if not (...), issue 116 - bash and/or with stmt modifier, issue 114 - substr with replacement, implement elipsis ..., redo test run script to operate like pytest
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -197,7 +198,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
 
-   $VERSION='0.950';
+   $VERSION='0.951';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -239,7 +240,7 @@ BEGIN {                                                 # SNOOPYJC
    $LOG_DIR='/tmp/'.ucfirst($SCRIPT_NAME);
    # issue 64    banner($LOG_DIR,$SCRIPT_NAME,"Fuzzy translator of Python to Perl. Version $VERSION",30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
    # issue 55 prolog(); # sets all options, including breakpoint
-   prolog(dirname(__FILE__), $LOG_DIR,$SCRIPT_NAME,"Fuzzy translator of Python to Perl. Version $VERSION",30); # issue 55, issue 64  # sets all options, including breakpoint
+   prolog(dirname(__FILE__), $LOG_DIR,$SCRIPT_NAME,"Translator of Python to Perl. Version $VERSION",30); # issue 55, issue 64  # sets all options, including breakpoint
 
    push @UseLib, dirname($Pythonizer::fname);   # SNOOPYJC: Always good to look here!
    correct_nest(0, 0);                  # SNOOPYJC
@@ -1390,6 +1391,7 @@ my ($start,$token_buffer_active);
                }
 	       &Perlscan::add_package_name_sub(0);	              # SNOOPYJC
                gen_chunk(escape_keywords($ValPy[0]).'()');            # issue 13
+	       gen_extra($right_br+1, $#ValClass);		# issue 116
             }elsif( $ValClass[2] eq 'f' && ( $ValClass[3] ne '(' || ($ValClass[3] eq '(' && matching_br(3) == $right_br-1)) ){
                # bracketless call of built-in function as a single argument: get_config(split / /,$line)
                # or bracketed call to built-in function call that return list. We do not need sqare brackets
@@ -1397,6 +1399,7 @@ my ($start,$token_buffer_active);
                gen_chunk($ValPy[0],'(');
                function(2,$right_br-1); # we assume that evethying in brackets is the function call
                gen_chunk(')');
+	       gen_extra($right_br+1, $#ValClass);		# issue 116
             }else{
                # In all other cases we will put sqare bracket, even if they are redundant: they can be manually deleted.
                # SNOOPYJC gen_chunk(escape_keywords($ValPy[0]));           # issue 13
@@ -2738,6 +2741,7 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
                     insert($split+2,$op,$op,$op);
                     $limit += 2;
                     $extra += 2;
+		    $orig_limit += 2;		# issue 116
                }
                $ValPy[$split] = ':=';
            }
@@ -2918,13 +2922,7 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
           gen_chunk(", $number_of_elements)") if(defined $number_of_elements);    # issue 56, SNOOPYJC
 	  gen_chunk(')') if($add_right_paren);		# issue 14
           if($extra >= 0) {
-              gen_chunk($ValPy[$extra]);
-              $k = next_lower_or_equal_precedent_token('=', $extra+1, $orig_limit);
-              if($k < 0 || $ValClass[$k] ne '=') {
-                  $TrStatus=expression($extra+1, $orig_limit, 0);
-              } else {
-                  $TrStatus=assignment($extra+1, $orig_limit);
-              }
+	      gen_extra($extra, $orig_limit);	# issue 116
           }
           return($#ValClass);
       }else{
@@ -4093,9 +4091,10 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
    if( $perl_name eq 'substr' ){
       # substr($line,$from, To )
       #        0    1 2   3 4  5
-      if( substr($TokenStr,$start,$end_pos-$start+1) =~ /^s,([-]?d),([-]?d)/ ){
+      if( substr($TokenStr,$start,$end_pos-$start+1) =~ /^s,([-]?d),([-]?d)$/ ){	# issue 114
          # the simplest case when start and length of the substring are constants: substr($test,-1,1);
          $arg1=$ValPy[index($TokenStr,'d',$start)];     # start
+         $arg2=$ValPy[$end_pos];                        # length
          $arg2=$ValPy[$end_pos];                        # length
          if( length($1) >= 2 && substr($1,0,1) eq '-' ){ $arg1=-$arg1; }
          if( length($2) >= 2 && substr($2,0,1) eq '-' ){ $arg2=-$arg2; }
@@ -4113,6 +4112,28 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
              $TrStatus=-1;  return -255;
          }
          return $limit+1; # $limit is the position of closing bracket, if any
+      } elsif(substr($TokenStr,$start,$end_pos-$start+1) =~ /^[^,]+,[^,]+,[^,]+,/) {	# issue 114
+         # issue 114: substr(this, start, length, replacement)
+         # _substr returns a tuple with (new_this, result)
+         # (this:=(_s:=_substr(this, start, length, replacement))[0], _s)[1][1]
+         # Code only works if "this" is a scalar and not a global
+         my $comma = next_same_level_token(',', $start, $end_pos);
+         if($comma < 0) {
+             $TrStatus=-1; return -255;
+         }
+         my $this_p = $start;
+         if($this_p + 1 != $comma) {
+             logme('S',"substr with replacement is not implemented on complex variable");
+             $TrStatus=-1; return -255;
+         } elsif(index($ValPy[$this_p], '.') >= 0) {
+             logme('S',"substr with replacement is not implemented on package global variable");
+             $TrStatus=-1; return -255;
+         }
+         $Pyf{_substr} = 1;
+         gen_chunk('(', $ValPy[$this_p], ':=', '(', $SUBSCRIPT_TEMP, ':=', '_substr', '(');
+         $TrStatus = expression($start, $end_pos, 0);
+         gen_chunk(')', ')', '[0]', ',', $SUBSCRIPT_TEMP, ')', '[1]', '[1]');
+	 return $limit+1;
       }
       # more complex case with varibles or expression in iether second or the third arguments
       #step1 -- generate varible from which substing is extracted (can be an expression)
@@ -7848,6 +7869,24 @@ sub gen_implicit_continue               # issue for
         return 1;
     }
     return 0;
+}
+
+sub gen_extra		# issue 116: generate the extra stuff after the statement
+# extra points to the and/or/, etc token after the statement
+# orig_limit is where we stop
+{
+    my $extra = shift;
+    my $orig_limit = shift;
+
+    return if($extra > $orig_limit);
+
+    gen_chunk($ValPy[$extra]);
+    my $k = next_lower_or_equal_precedent_token('=', $extra+1, $orig_limit);
+    if($k < 0 || $ValClass[$k] ne '=') {
+ 	$TrStatus=expression($extra+1, $orig_limit, 0);
+    } else {
+ 	$TrStatus=assignment($extra+1, $orig_limit);
+    }
 }
 
 sub left_hand_substr
