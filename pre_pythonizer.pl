@@ -490,7 +490,7 @@ sub get_params
          if( $options{'t'}>0  && $options{'t'}<10 ){
             $tab=$options{'t'};
          } else {
-            die("Wrong value of option -t (tab size): $options('t')\n");
+            die("Wrong value of option -t (tab size): $options{'t'}\n");
          }
       }
 
@@ -498,7 +498,7 @@ sub get_params
          if( $options{'b'}>0  && $options{'t'}<1000 ){
             $breakpoint=$options{'b'};
          } else {
-            die("Wrong value of option -b (line for debugger breakpoint): $options('b')\n");
+            die("Wrong value of option -b (line for debugger breakpoint): $options{'b'}\n");
          }
       }
 
@@ -508,7 +508,7 @@ sub get_params
          }elsif( $options{'d'} eq '' ){
             $debug=1;
          }else{
-            die("Wrong value of option -d: $options('d')\n");
+            die("Wrong value of option -d: $options{'d'}\n");
          }
       }
 

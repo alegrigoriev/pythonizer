@@ -1,6 +1,6 @@
 
 def _opendir(DIR):
-    """Replacement for perl built-in directory functions"""
+    """Implementation of perl opendir"""
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
         return [list(os.listdir(DIR)), 0]

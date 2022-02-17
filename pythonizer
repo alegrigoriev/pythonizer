@@ -22,9 +22,10 @@
 ##    -S -- Turn off -s
 ##    -p -- "import perllib" library instead of including functions inline to emulate perl built-in functions (default)
 ##    -P -- Turn off -p
-##    -A -- Imply "use autodie;"
+##    -A -- Imply "use autodie qw(:all);"
 ##    -T -- Perform a traceback in the generated code on errors
 ##    -V -- Imply "no autovivification qw(fetch delete exists store strict);"
+##    -w -- the width of the screen on which you plan to view the protocol of translation. The default is 188.
 ##    -d    level of debugging  default is 0 -- production mode
 ##          0 -- Production mode
 ##          1 -- Testing mode. Program is autosaved in Archive (primitive versioning mechanism)
@@ -155,6 +156,7 @@
 # 0.950  2022/02/12  SNOOPYJC  Fix pythonizer hang on unless eval, fix error on func($_) foreach @arr, allow sigils to have whitespace after them including newlines, use -M if all lines in main are global inits, generate proper code for ($v1,$v2...) = ();, add the package name to a non-local sub call if it's referenced with an &, implement FileHandle and new_from_fd() also for IO::File, fix if/else with comment before the {, issue 117 - pass thru the arguments on &mySub;, remove sub dereferences, implement pack and unpack
 # 0.951  2022/02/13  SNOOPYJC  Remove extra () on if not (...), issue 116 - bash and/or with stmt modifier, issue 114 - substr with replacement, implement elipsis ..., redo test run script to operate like pytest
 # 0.952  2022/02/14  SNOOPYJC  Grab proper var class in while(my @arr...), place close paren in proper place when adding _assign_global if there is a non-paren function or sub call involved, use proper var class on a subref, addl fix for issue 114 (substr with replacement) when used as statement
+# 0.953  2022/02/17  SNOOPYJC  Fix warning on @DeferredValPy, prepare perllib for release on pypi, addl fix for issue 44 with quotes, handle open with defined mode we can't translate, update _open_dynamic to handle >- which opens STDOUT, when moving a def up after the topological sort, also move up any state variable initializations, issue 118 - qx or backticks in list context, handle assignment of regex in list context with groups, update user_guide.html
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -199,7 +201,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
 
-   $VERSION='0.952';
+   $VERSION='0.953';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -1268,8 +1270,8 @@ my ($start,$token_buffer_active);
       }elsif( $ValClass[0] eq 'x' ){
          # this is backquotes
          if($traceback) {               # issue traceback
-             $Pyf{_run} = 1;
-             gen_chunk(qq{$DEFAULT_VAR = }, '_run', '(', $ValPy[0], ')');
+             $Pyf{_run_s} = 1;		# issue 118: use the scalar context version because it's faster
+             gen_chunk(qq{$DEFAULT_VAR = }, '_run_s', '(', $ValPy[0], ')');	# issue 118
              gen_statement();
          } else {
              gen_chunk(qq{$DEFAULT_VAR = subprocess.run($ValPy[0],capture_output=True,text=True,shell=True)});
@@ -1491,7 +1493,7 @@ sub fixup_complex_assignment_in_control         # issue 58, 103
        @DeferredValPerl=@ValPerl[$start..$k]; 
        @DeferredValPy=@ValPy[$start..$k];
        @DeferredValType=@ValType[$start..$k];
-       @DeferredValPy[$k-$start] = '=';                 # Replace := with =
+       $DeferredValPy[$k-$start] = '=';                 # Replace := with =
        push @DeferredValClass, 'a';
        push @DeferredValCom, '';
        push @DeferredValPerl, $ELSIF_TEMP;
@@ -2863,21 +2865,28 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
 	 	say STDERR "assign, ValClass[limit] = $ValClass[$limit], ValPy=$ValPy[$limit], ValPerl=$ValPerl[$limit]\n";
          }
          if ($ValClass[$limit] eq 'x' ) {
-            gen_chunk(qq{subprocess.run($ValPy[$split+1],capture_output=True,text=True,shell=True)});
-            gen_statement();
-            if($autodie || exists $SpecialVarsUsed{'$?'}) {        # SNOOPYJC
-               gen_statement(qq{$SUBPROCESS_RC=$ValPy[$split-1].returncode});
+	    my $func = '_run';							# issue 118
+	    my $context = list_or_scalar_context($start, $limit);		# issue 118
+	    if($context != 1) {
+	        $func = '_run_s';
             }
-            gen_chunk($ValPy[$k]);
-            gen_chunk($ValPy[$split]);
-            gen_chunk($ValPy[$k].'.stdout');
-            if($autodie) {                              # SNOOPYJC
-                gen_statement();
-                gen_statement("if $SUBPROCESS_RC:");
-                correct_nest(1,1);
-                gen_statement("raise Die(f'run(${\(escape_string(unquote_string($ValPy[$split+1]), '\''))}): failed with {$SUBPROCESS_RC}')");
-                correct_nest(-1,-1);
-            }
+            $Pyf{$func} = 1;	# issue 118
+            gen_chunk($func, '(', $ValPy[$split+1], ')'); # SNOOPYJC:  handle AUTODIE, TRACEBACK, issue 118
+	    # issue 118 gen_chunk(qq{subprocess.run($ValPy[$split+1],capture_output=True,text=True,shell=True)});
+	    # issue 118 gen_statement();
+	    # issue 118 if($autodie || exists $SpecialVarsUsed{'$?'}) {        # SNOOPYJC
+	    # issue 118 gen_statement(qq{$SUBPROCESS_RC=$ValPy[$split-1].returncode});
+	    # issue 118 }
+	    # issue 118 gen_chunk($ValPy[$k]);
+	    # issue 118 gen_chunk($ValPy[$split]);
+	    # issue 118 gen_chunk($ValPy[$k].'.stdout');
+	    # issue 118 if($autodie) {                              # SNOOPYJC
+	    # issue 118 gen_statement();
+	    # issue 118 gen_statement("if $SUBPROCESS_RC:");
+	    # issue 118 correct_nest(1,1);
+	    # issue 118 gen_statement("raise Die(f'run(${\(escape_string(unquote_string($ValPy[$split+1]), '\''))}): failed with {$SUBPROCESS_RC}')");
+	    # issue 118 correct_nest(-1,-1);
+	    # issue 118 }
 	 }elsif($ValClass[$limit] eq 'f') {	# Issue 8: this is a function like shift with no args
             function($limit,$limit);		# Issue 8
          # SNOOPYJC }elsif($ValClass[$limit] eq 'i' && $ValPy[$limit] eq $ValPerl[$limit]) {	# issue 13
@@ -2894,6 +2903,27 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
             gen_chunk('list(*');            # Splat it
             gen_chunk($ValPy[$limit]); # that includes diamond operator <> and <HANDLE> Aug 10,2020
             gen_chunk('.items())');
+	 }elsif($ValClass[$limit] eq 'q' && index($ValPy[$limit], ':=') > 0) {	# SNOOPYJC: Handle regex with default var and groups in assignment
+             my $g_flag = 0;                                    # SNOOPYJC
+             $g_flag = 1 if($ValPy[$limit] =~ /\bre\.G/);
+             if($g_flag) {
+                $ValPy[$limit] =~ s/,re\.G\|/,/;
+                $ValPy[$limit] =~ s/.re\.G//;
+                $ValPy[$limit] =~ s/\($DEFAULT_MATCH:=re\.search/[$DEFAULT_MATCH\[0] for $DEFAULT_MATCH in re.finditer/;
+             }
+	     gen_chunk('(');
+             gen_chunk($ValPy[$limit]);
+             # issue 57: Generate proper code for when we're in list context or scalar context
+             my $context = list_or_scalar_context($start, $limit);		# issue 118
+             say STDERR "context of regex = $context" if($debug >= 5);
+             if($context == 1) {       # list
+                 gen_chunk(",${DEFAULT_MATCH}.groups() if $DEFAULT_MATCH else [])[1]");         # issue 57, 32
+             } elsif($context == 0) {
+                 gen_chunk(",bool($DEFAULT_MATCH))[1]");         # issue 57, 32
+             } else {                                                                        # issue 57
+                 gen_chunk(')'); # close expression
+             }
+             gen_chunk(']') if($g_flag);
          }else{
             gen_chunk($ValPy[$limit]); # that includes diamond operator <> and <HANDLE> Aug 10,2020
             #$is_numeric{$ValPerl[$k]}='d'; # capture the type of variable.
@@ -3360,7 +3390,7 @@ my($start,$k,$split,$limit)=@_;         # issue 106
              return -255 if( $k<0 );
              if (index($ValPy[$split+1],':=')>-1){
                 # issue 57: Generate proper code for when we're in list context or scalar context
-                my $context = list_or_scalar_context($start);
+                my $context = list_or_scalar_context($start, $split+1);		# issue 118
                 say STDERR "context of regex = $context" if($debug >= 5);
                 if($context == 1) {       # list
                     gen_chunk("),${DEFAULT_MATCH}.groups() if $DEFAULT_MATCH else [])[1]");         # issue 57, 32
@@ -3528,10 +3558,12 @@ my($start,$k,$split,$limit)=@_;         # issue 106
 }
 
 sub list_or_scalar_context
-# For a regex, figure out if this is in list (1) or scalar (0) context or unknown (-1)
-# Arg: start of expression
+# For a regex, or qx / `...`, figure out if this is in list (1) or scalar (0) context or unknown (-1)
+# Arg1: start of expression
+# Arg2: position of the q or x
 {
     my $start = shift;
+    my $pos = shift;
 
     my $at = arg_type_from_pos($start);
     if(defined $at) {
@@ -3541,6 +3573,12 @@ sub list_or_scalar_context
     return 1 if(in_sub_call($start));
     #my $eq = next_same_level_token('=', 0, $start);
     my $eq = index($TokenStr, '=');     # Need to find the '=' even if it's inside an 'if' stmt
+    if($eq < 0) {			# issue 118
+	# foreach $var (...) - if the q or x is in the ..., then it's in list context - but here the ( ) are removed!
+        if($ValClass[0] eq 'c' && $ValPy[0] eq 'for') {
+	    return 1;
+	}
+    }
     return -1 if($eq <= 0);
     return 1 if($ValClass[$eq-1] eq 'a' || ($ValClass[$eq-1] eq ')' && $ValPerl[$eq-1] eq ')'));        # Array or list
     my $sv = start_of_var($eq-1);
@@ -5531,8 +5569,10 @@ my($k,$myline, $target,$open_mode,$handle);
        if (exists($PyOpen{$open_mode}) ){     # SNOOPYJC
           $open_mode=$PyOpen{$open_mode}
        }else{
-          logme('E',"The mode '$open_mode' in open statement needs to be manually translated to Python");
-          $open_mode = '?';
+          # SNOOPYJC logme('E',"The mode '$open_mode' in open statement needs to be manually translated to Python");
+	  # SNOOPYJC $open_mode = '?';
+	  $variable_mode = &Perlscan::escape_quotes($open_mode);	# SNOOPYJC: Let _open_dynamic deal with it
+	  undef $open_mode;		# SNOOPYJC
        }
    }
    my $function = '_open';              # SNOOPYJC
@@ -5865,8 +5905,13 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
        }elsif( $ValClass[$cur_pos] eq 'x' ){
          # execution of Unix uility via shell
          # SNOOPYJC: handle AUTODIE, TRACEBACK gen_chunk(qq{subprocess.run($ValPy[$cur_pos],capture_output=True,text=True,shell=True).stdout});
-         $Pyf{_run} = 1;
-         gen_chunk('_run', '(', $ValPy[$cur_pos], ')'); # SNOOPYJC:  handle AUTODIE, TRACEBACK
+	 my $func = '_run';
+	 my $context = list_or_scalar_context($start, $cur_pos);		# issue 118
+	 if($context != 1) {
+	     $func = '_run_s';
+         }
+         $Pyf{$func} = 1;	# issue 118
+         gen_chunk($func, '(', $ValPy[$cur_pos], ')'); # SNOOPYJC:  handle AUTODIE, TRACEBACK, issue 118
          $cur_pos++;
       }elsif( $ValClass[$cur_pos] =~ /[ahs]/ && $cur_pos+1 < $limit && $ValPy[$cur_pos+1] eq ':=' && $mode != 1 &&
               !(($cur_pos==0 || $ValPy[$cur_pos-1] eq '(') && ($limit+1>$#ValPy || $ValPy[$limit+1] eq ')' ))) {         # issue 93
@@ -7542,12 +7587,12 @@ sub import_it
                           '%'=>hash_var_name($base_pattern).'\b');
     my (@export, @export_ok, %export_tags, $version, @can_export_classes, @can_export_defs, @can_export_vars);
     while(<PYTHON>) {
-        if(/EXPORT = "([^"]*)"\.split()/) {
+        if(/EXPORT = '([^']*)'\.split()/) {	# issue 44: we changed the quotes
             @export = split(' ', $1);
-        } elsif(/EXPORT_OK = "([^"]*)"\.split()/) {
+        } elsif(/EXPORT_OK = '([^']*)'\.split()/) {	# issue 44
             @export_ok = split(' ', $1);
         } elsif(/EXPORT_TAGS = (?:(?:$PERLLIB\.)?Hash\()?\{/) {
-            while(/'([^']*)': \["([^"]*)"\.split()/g) {
+            while(/'([^']*)': \['([^']*)'\.split()/g) {	# issue 44
                 my @items = split(' ', $2);
                 $export_tags{$1} = \@items;
             }
