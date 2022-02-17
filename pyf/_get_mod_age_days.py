@@ -1,5 +1,6 @@
 
 def _get_mod_age_days(path):        # -M
+    """Implementation of perl -M"""
     if not path:
         return None
     if hasattr(path, '_mtime'):

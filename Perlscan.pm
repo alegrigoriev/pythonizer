@@ -2342,7 +2342,8 @@ my ($l,$m);
                       $python =~ s/\s+/ /g;             # SNOOPYJC: Change newlines or multiple spaces to single spaces
                       $python =~ s/^\s+//;              # SNOOPYJC: Remove leading spaces
                       $python =~ s/\s+$//;              # SNOOPYJC: Remove trailing spaces
-                      $ValPy[$tno]='"'.$python.'".split()';	# issue 44: python split doesn't take a regex!
+                      # issue 44 $ValPy[$tno]='"'.$python.'".split()';	# issue 44: python split doesn't take a regex!
+                      $ValPy[$tno]=escape_quotes($python) . '.split()'; # issue 44
                    }
                }
             } elsif($w eq 'autoflush' && $tno-2 > 0 && $ValClass[$tno-1] eq 'D' &&
@@ -2945,7 +2946,7 @@ my $original;
          $Pythonizer::IntactLine=$original;
        }
    }
-   if($ExtractingTokensFromDoubleQuotedStringEnd > 0 && $ValClass[$tno] eq '"') {               # SNOOPYJC
+   if($ExtractingTokensFromDoubleQuotedStringEnd > 0 && $ValClass[$tno] eq '"' && substr($ValPy[$tno],0,4) eq 'f"""') {  # SNOOPYJC
        # Correct the ValPerl because we unfortunately get it wrong, exp if $cut-2 is negative!
        $ValPerl[$tno] = substr($ValPy[$tno], 4, length($ValPy[$tno])-7);
    }
@@ -3367,7 +3368,7 @@ my  $groups_are_present;
            return 're.search('.$quoted_regex.','; #  we do not need the result of match as no groups is present. # issue 75
          }
       # issue 93 }elsif( $ValClass[$tno-1] eq '0'  ||  $ValClass[$tno-1] eq '(' ){
-      }elsif( $ValClass[$tno-1] =~ /[0o]/  ||  $ValClass[$tno-1] eq '(' ){      # issue 93
+      }elsif( $tno>=1 && ($ValClass[$tno-1] =~ /[0o]/  ||  $ValClass[$tno-1] eq '(' || $ValClass[$tno-1] eq '=') ){      # issue 93, SNOOPYJC: Handle assignment of regex with default var and groups
             # this is calse like || /text/ or while(/#/)
             if( $groups_are_present ){
                 return "($DEFAULT_MATCH:=re.search(".$quoted_regex.",$DEFAULT_VAR))"; #  we need to have the result of match to extract groups. # issue 32

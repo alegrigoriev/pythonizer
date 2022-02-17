@@ -1,7 +1,7 @@
 
 def _close(fh):
-    global AUTODIE, TRACEBACK, OS_ERROR
     """Implementation of perl close"""
+    global AUTODIE, TRACEBACK, OS_ERROR
     try:
         if hasattr(fh, '_sp'):      # issue 72: subprocess
             fh.flush()

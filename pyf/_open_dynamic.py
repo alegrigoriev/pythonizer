@@ -9,9 +9,9 @@ def _open_dynamic(file,mode=None,encoding=None,errors=None,checked=True):
         dup = m.group(2)
         file = m.group(3)
         pipe = m.group(4)
-    if mode == '<-':
+    if mode == '<-' or mode == '-' or mode == '-<':
         return sys.stdin
-    if mode == '->':
+    if mode == '>-' or mode == '->':
         return sys.stdout
     ext = None
     if ':' in mode:

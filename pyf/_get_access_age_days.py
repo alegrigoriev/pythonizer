@@ -1,5 +1,6 @@
 
 def _get_access_age_days(path):        # -A
+    """Implementation of perl -A"""
     if not path:
         return None
     if hasattr(path, '_atime'):

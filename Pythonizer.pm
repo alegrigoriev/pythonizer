@@ -1082,7 +1082,7 @@ sub arg_type_from_pos                           # SNOOPYJC
             return 'u';
         }
     }
-    return 0 if($i < 0 || $ValClass[$i] ne 'f');
+    return 'u' if($i < 0 || $ValClass[$i] ne 'f');
     my $fname = $ValPerl[$i];
     if($ValClass[$i+1] eq '(') {
         my $q = matching_br($i+1);
@@ -2338,7 +2338,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                 }
                 if($lines[$i] =~ /^\s+/ || $lines[$i] =~ /^def $func\(/ || $lines[$i] =~ /^class $func[(:]/ ||
                         $lines[$i] =~ /^\s*$/ || $lines[$i] =~ /^\s*#/ || $lines[$i] =~ m'^@' ||
-                        $lines[$i] =~ /[.]$func = $func$/) {     # e.g. main_.func = func
+			$lines[$i] =~ /^${func}_[\w]+ =/ ||	 # state variable like func_var = init
+                        $lines[$i] =~ /[.]$func = $func$/) {     # e.g. main.func = func
                         #say STDERR "Found def $func";
                     next if(exists $moved_lines{$i+1});         # Don't include it twice
                     last if($lines[$i] =~ m'^@' and $moved_def);

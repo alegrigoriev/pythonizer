@@ -1,5 +1,6 @@
 
 def _get_creation_age_days(path):       # -C
+    """Implementation of perl -C"""
     if not path:
         return None
     if hasattr(path, '_ctime'):
