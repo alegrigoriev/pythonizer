@@ -208,16 +208,18 @@ sub handle_pragma_pythonizer
     my $implicit_global_my = undef;
 
     my %flags = (T=>\$::traceback, A=>\$::autodie, m=>\$mFlag, M=>\$MFlag, s=>\$::pythonize_standard_library,
+	    	 n=>\$::trace_run,
                  S=>\$SFlag, p=>$::import_perllib, P=>\$PFlag, V=>\$VFlag);
     my %options = (traceback=>\$::traceback, autodie=>\$::autodie, implicit=>\$implicit_global_my,
                    pythonize=>\$::pythonize_standard_library, import=>\$::import_perllib, 
+		   trace=>\$::trace_run,
                    autovivification=>\$::autovivification);
-    my %option_flags = (traceback=>'T', autodie=>'A', implicit=>'m',
+    my %option_flags = (traceback=>'T', autodie=>'A', implicit=>'m', trace=>'n',
                    pythonize=>'s', import=>'p');
     my %option_no_flags = (implicit=>'M', pythonize=>'S', import=>'P', autovivification=>'V');
 
     # pragma pythonizer -flags -moreflags
-    # pragma pythonizer implicit global my, traceback, no import perllib
+    # pragma pythonizer implicit global my, traceback, no import perllib, trace run
 
     for(my $i=2; $i <= $#ValClass; $i++) {
         if($ValClass[$i] eq 'i') {

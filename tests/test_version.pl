@@ -12,4 +12,15 @@ while(<FH>) {
 }
 close(FH);
 assert(defined $ver and $ver == $ver_comment);
+
+open(FH, "<../HISTORY.rst") or die("Can't open ../HISTORY.rst");
+while(<FH>) {
+    if(/^(\d+[.]\d+)/) {
+        $ver_history = $1;
+	last;
+    }
+}
+close(FH);
+assert($ver == $ver_history);
+	
 print "$0 - test passed!\n";

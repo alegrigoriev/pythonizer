@@ -82,6 +82,7 @@ our %GLOBALS = ($SCRIPT_START=>'tm_py.time()',
 		WARNING=>1,
                 AUTODIE=>0, 
                 TRACEBACK=>0, 
+		TRACE_RUN=>0,
                 $LOCALS_STACK=>'[]',            # issue 108
                 _OPEN_MODE_MAP=>$open_mode_map, 
                 _DUP_MAP=>$dup_map);
@@ -89,7 +90,7 @@ our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_LINE_NUMBER=
 		    INPUT_RECORD_SEPARATOR=>'m', OS_ERROR=>'S', OUTPUT_AUTOFLUSH=>'I', 
 		    $SUBPROCESS_RC=>'I', WARNING=>'I', _OPEN_MODE_MAP=>'h of S', _DUP_MAP=>'h of I',
                     $LOCALS_STACK=>'h of S',            # issue 108
-                     AUTODIE=>'I', TRACEBACK=>'I');
+		    TRACE_RUN=>'I', AUTODIE=>'I', TRACEBACK=>'I');
 
 sub hash_var_name                       # issue 92
 # Given the name of a %hash, return the python name for it.  Only used if there is a name conflict.
@@ -146,9 +147,11 @@ our $SUBPROCESS_OPTIONS="-M -v 0"; # Options to pythonizer for when we run on us
 
 our $PERL_VERSION=5.034;
 our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longmess', 
-		_format=>'_int,_num', _run=>'_cluck,_longmess',
-                _lstat=>'_stat', _looks_like_binary=>'_looks_like_text',
+		_format=>'_int,_num', _run=>'_carp,_cluck,_longmess,_shortmess',
+                _lstat=>'_stat', _looks_like_binary=>'_looks_like_text,_carp,_longmess,_shortmess',
 		Array=>'ArrayHash', Hash=>'ArrayHash',
+		_close=>'_carp,_longmess,_shortmess', _run_s=>'_carp,_cluck,_longmess,_shortmess', _looks_like_text=>'_carp,_longmess,_shortmess',
+		_system=>'_carp,_cluck,_longmess,_shortmess',
 		_unpack=>'_pack',
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
 our %STAT_SUB=('File::stat'=>'_fstat');                 # Substitution for stat if they use File::stat

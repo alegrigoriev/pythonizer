@@ -51,6 +51,7 @@ Currently these user options are supported (pythonizer -h provides a list of opt
     -P -- Turn off -p
     -A -- Imply "use autodie;"
     -T -- Perform a traceback in the generated code on errors
+    -n -- Trace Run: Generate code to trace subprocess.run results - used in qx, `backtick`, open('|'), and system()
     -V -- Imply "no autovivification qw(fetch delete exists store strict);"
     -d    level of debugging  default is 0 -- production mode
           0 -- Production mode

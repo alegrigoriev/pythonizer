@@ -1,11 +1,15 @@
 
 def _close(fh):
     """Implementation of perl close"""
-    global AUTODIE, TRACEBACK, OS_ERROR
+    global AUTODIE, TRACEBACK, OS_ERROR, TRACE_RUN
     try:
         if hasattr(fh, '_sp'):      # issue 72: subprocess
             fh.flush()
             fh._sp.communicate()
+            if TRACE_RUN:
+                sp = subprocess.CompletedProcess(f"open({fh._file})", fh._sp.returncode)
+                _carp(f'trace close({fh._file}): {repr(sp)}', skip=2)
+
             if fh._sp.returncode:
                 fh.close()
                 raise IOError(f"close({fh._file}): failed with {fh._sp.returncode}")
