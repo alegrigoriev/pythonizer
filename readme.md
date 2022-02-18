@@ -1,11 +1,15 @@
 ## Translator from Perl to Python 
 ### THIS IS AN ANNOUNCEMENT FOR VERSION 0.950 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
 
-This readme is for informational purposes only and is not intended to be updated often. More current information can be found at:  
+This readme is for informational purposes only and is not intended to be updated often. 
+
+More current information can be found in the User Guide at:
+
+https://snoopyjc.org/pythonizer/
+
+Historical information about the prior versions of Pythonizer by the original author can be found here:
 
 http://www.softpanorama.org/Scripting/Pythonorama/Python_for_perl_programmers/Pythonizer/index.shtml
-
-http://www.softpanorama.org/Scripting/Pythonorama/Python_for_perl_programmers/Pythonizer/user_guide.shtml
  
 
 ### Possible use cases
