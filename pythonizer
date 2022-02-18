@@ -24,6 +24,7 @@
 ##    -P -- Turn off -p
 ##    -A -- Imply "use autodie qw(:all);"
 ##    -T -- Perform a traceback in the generated code on errors
+##    -n -- Trace Run: Generate code to trace subprocess.run results - used in qx, `backtick`, open('|'), and system()
 ##    -V -- Imply "no autovivification qw(fetch delete exists store strict);"
 ##    -w -- the width of the screen on which you plan to view the protocol of translation. The default is 188.
 ##    -d    level of debugging  default is 0 -- production mode
@@ -157,6 +158,7 @@
 # 0.951  2022/02/13  SNOOPYJC  Remove extra () on if not (...), issue 116 - bash and/or with stmt modifier, issue 114 - substr with replacement, implement elipsis ..., redo test run script to operate like pytest
 # 0.952  2022/02/14  SNOOPYJC  Grab proper var class in while(my @arr...), place close paren in proper place when adding _assign_global if there is a non-paren function or sub call involved, use proper var class on a subref, addl fix for issue 114 (substr with replacement) when used as statement
 # 0.953  2022/02/17  SNOOPYJC  Fix warning on @DeferredValPy, prepare perllib for release on pypi, addl fix for issue 44 with quotes, handle open with defined mode we can't translate, update _open_dynamic to handle >- which opens STDOUT, when moving a def up after the topological sort, also move up any state variable initializations, issue 118 - qx or backticks in list context, handle assignment of regex in list context with groups, update user_guide.html
+# 0.954  2022/02/18  SNOOPYJC  Implement -n trace_run, never set scalar_reference_type to a or h
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -201,7 +203,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
 
-   $VERSION='0.953';
+   $VERSION='0.954';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -219,6 +221,7 @@ BEGIN {                                                 # SNOOPYJC
    $pythonize_standard_library=0;       # SNOOPYJC -s option
    $import_perllib=1;                   # SNOOPYJC -p option, -P turns it off
    $autovivification=1;                 # SNOOPYJC -V turns this option off
+   $trace_run=0;			# SNOOPYJC -n option
    $HOME=$ENV{'HOME'}; # the directory used for autobackup (only if debug>0)
    if( $^O eq 'cygwin' ){
       # $^O is built-in Perl Variable that contains OS name
@@ -317,6 +320,8 @@ BEGIN {                                                 # SNOOPYJC
        if($import_perllib) {
            if($g eq 'TRACEBACK' && $traceback) {
                push @headers, "$PERLLIB.$g = 1";
+           } elsif($g eq 'TRACE_RUN' && $trace_run) {
+               push @headers, "$PERLLIB.$g = 1";
            } elsif($g eq 'AUTODIE' && $autodie) {
                push @headers, "$PERLLIB.$g = 1";
            } elsif($g =~ /^_[a-z]/) {           # e.g. _locals_stack
@@ -324,6 +329,8 @@ BEGIN {                                                 # SNOOPYJC
            }
        } else {
            if($g eq 'TRACEBACK' && $traceback) {
+               push @headers, "$g = 1";
+           } elsif($g eq 'TRACE_RUN' && $trace_run) {
                push @headers, "$g = 1";
            } elsif($g eq 'AUTODIE' && $autodie) {
                push @headers, "$g = 1";
@@ -1269,9 +1276,9 @@ my ($start,$token_buffer_active);
          }
       }elsif( $ValClass[0] eq 'x' ){
          # this is backquotes
-         if($traceback) {               # issue traceback
+         if($traceback || $trace_run) {               # issue traceback
              $Pyf{_run_s} = 1;		# issue 118: use the scalar context version because it's faster
-             gen_chunk(qq{$DEFAULT_VAR = }, '_run_s', '(', $ValPy[0], ')');	# issue 118
+             gen_chunk('_run_s', '(', $ValPy[0], ')');	# issue 118
              gen_statement();
          } else {
              gen_chunk(qq{$DEFAULT_VAR = subprocess.run($ValPy[0],capture_output=True,text=True,shell=True)});

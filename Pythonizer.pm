@@ -75,7 +75,7 @@ sub prolog
       my $log_retention = shift;                # issue 64
       # SNOOPYJC getopts("AThd:v:r:b:t:l:",\%options);
       @orig_ARGV = @ARGV;                       # SNOOPYJC
-      getopts("mMAVThsSpPd:v:r:b:B:t:l:",\%options);     # SNOOPYJC
+      getopts("nmMAVThsSpPd:v:r:b:B:t:l:",\%options);     # SNOOPYJC
 #
 # Three standard options -h, -v and -d
 #
@@ -151,6 +151,9 @@ sub prolog
       # SNOOPYJC - add more options
       if( exists $options{'T'} ) {
           $::traceback = 1;
+      }
+      if( exists $options{'n'} ) {
+          $::trace_run = 1;
       }
       if( exists $options{'A'} ) {
           $::autodie = 1;
@@ -997,7 +1000,7 @@ sub scalar_reference_type       # given a reference to a scalar, try to infer th
             if($::debug > 3) {
                 say STDERR "arg_type($fname, $arg) = $ty";
             }
-            return $ty if(defined $ty);
+            return $ty if(defined $ty && $ty !~ /[ah]/);
             last;
         } elsif($ValClass[$i] eq 'c') {         # .... if(... v ...);
             last;
