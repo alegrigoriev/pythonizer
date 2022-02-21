@@ -22,4 +22,7 @@ my $z = substr $s, 14, 7, "jumped from";    # climbed
 assert($z eq 'climbed');
 assert($s eq "The black cat jumped from the green tree");
 
+my $x = substr(substr($s, 0), 14, 7);	# This is NOT 4 arg version (code was miscounting commas)
+assert($x eq 'jumped ');
+
 print "$0 - test passed!\n";

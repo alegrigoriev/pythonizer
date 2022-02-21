@@ -52,4 +52,9 @@ assert(!defined &Export::munge);
 assert(defined &Exporting::frobnicate);
 assert(&Exporting::frobnicate('b') eq 'fb');
 
+$value = 22;
+assert(defined ($var = $value));
+assert($value == 22);
+assert($var == 22);
+
 print "$0 - test passed!\n";

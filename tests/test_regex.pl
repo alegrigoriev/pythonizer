@@ -63,6 +63,15 @@ $y = $x =~ s/elephants/cougars/r;
 assert($x eq 'I like dogs.');
 assert($y eq 'I like dogs.');
 
+# Try some with the default variable
+$_ = "The gray goose";
+while(/(g.)/g) {
+    $r .= $1;
+}
+assert($r eq 'grgo');
+s/g/h/g;
+assert($_ eq 'The hray hoose');
+
 # Don't even think about it!  $x = "Cats are great.";
 # Don't even think about it!  $y = $x =~ s/Cats/Dogs/r =~ s/Dogs/Frogs/r =~
 # Don't even think about it!      s/Frogs/Hedgehogs/r;
@@ -75,6 +84,27 @@ push @freqs, "frequency of '$_' is $chars{$_}\n"
 assert(scalar(@freqs) == 9);
 assert($freqs[0] =~ /frequency of '[\stl]' is 2/);
 assert($freqs[-1] =~ /frequency of '[cBaihe]' is 1/);
+
+# A case from our bootstrap:
+
+sub pre_assign
+{
+	my $use_default_match = 0;
+	my $j = 1;
+	$ValClass[0] = 'q';
+	$ValClass[$j] = 0;	# Mix the types
+	$DEFAULT_MATCH = '_m';
+	$ValPy[$j] = 0;
+	$ValPy[0] = "$DEFAULT_MATCH:=42";
+	for(my $i = 0; $i <= 1; $i++) {
+	    if($ValClass[$i] eq 'q' && ($ValPy[$i] =~ /$DEFAULT_MATCH:=/)) {
+	          $use_default_match = 1;
+		  last;
+	    }
+        }
+	assert($use_default_match == 1);
+}
+pre_assign();
 
 # TDD: Set global and local vars from e-flag expr
 
