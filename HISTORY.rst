@@ -2,6 +2,11 @@
 History
 =======
 
+0.955 (2022-02-19)
+------------------
+
+* Fix split: A zero-width match at the beginning of EXPR never produces an empty field, fix bootstrapping issues
+
 0.954 (2022-02-17)
 ------------------
 

@@ -439,6 +439,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
        %FuncType=(    # a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, S=String, u=undef, f=function, H=FileHandle, ?=Optional, m=mixed
                   '_num'=>'m:N', '_int'=>'m:I', '_str'=>'m:S',
                   '_assign_global'=>'SSm:m', '_read'=>'HsII?:s',
+                  '$#'=>'a:I',                                                # issue 119: _last_ndx
 		  'abs'=>'N:N', 'alarm'=>'N:N', 'atan2'=>'NN:F', 
                   'autoflush'=>'I?:I', 'basename'=>'S:S', 'binmode'=>'HS?:m',
                   'carp'=>'a:u', 'confess'=>'a:u', 'croak'=>'a:u', 'cluck'=>'a:u',   # SNOOPYJC
@@ -1851,6 +1852,7 @@ my ($l,$m);
 	  # issue 35 }elsif( $ValClass[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1){
           }elsif( $ValClass[$tno-1] ne '=' &&                   # issue 82
                   $ValClass[$tno-1] ne 'f' &&                   # issue 60 (map/grep)
+                  $ValClass[$tno-1] ne 'A' &&                   # SNOOPYJC: key=>{ is not a new block
                   $ValClass[$tno-1] ne '(' && $ValClass[$tno-1] ne ',' &&       # SNOOPYJC
                   $ValClass[$tno-1] ne 's' &&                   # SNOOPYJC: $var{'...'\n with } on the next line!
                  ($ValPerl[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1 || 
@@ -2038,6 +2040,9 @@ my ($l,$m);
             if($class eq 'f' && !$core && exists $Pythonizer::UseSub{$w}) {     # SNOOPYJC
                 $class = 'i';
                 $ValPy[$tno] = $w;
+            } elsif($class eq 'q' && $tno != 0 && $ValClass[$tno-1] eq 'q') {   # issue 120: flags!
+                $class = 'i';
+                $ValPy[$tno] = $w;
             }
             if($tno != 0 && (($ValPerl[$tno-1] eq '{' && $source =~ /^[a-z0-9]+}/) ||   # issue 89: keyword in a hash like $hash{delete} or $hash{q}
                 (index('(,', $ValPerl[$tno-1])>=0 && $source =~ /^[a-z0-9]+\s*=>/))) {  # issue 89: keyword in hash def like (qw=>14, use=>15)
@@ -2058,7 +2063,8 @@ my ($l,$m);
                 $Pythonizer::LocalSub{$ValPy[$tno]} = 1;
             } elsif($tno != 0 && ($ValClass[$tno-1] eq 'D' || 
                 ($ValClass[$tno-1] eq 'c' && $ValPerl[$tno-1] eq 'package') ||  # SNOOPYJC: package name
-                ($ValClass[$tno-1] eq 'k' && $ValPerl[$tno-1] eq 'sub'))) {    # SNOOPYJC: Part of an OO method ref or sub def - change this to an 'i' class
+                ($ValClass[$tno-1] eq 'k' && $ValPerl[$tno-1] eq 'require' && $class ne 'q') || # SNOOPYJC: Allow require q(...)
+                ($ValClass[$tno-1] eq 'k' && $ValPerl[$tno-1] =~ /^(?:sub|use)$/))) {    # SNOOPYJC: Part of an OO method ref or sub def - change this to an 'i' class
                 $class = 'i';
                 $ValPy[$tno] = $w;
             } elsif($class eq 'f' && $w eq 'pos') {     # SNOOPYJC: implement 'pos'
@@ -2902,6 +2908,11 @@ my ($l,$m);
                         ($ValClass[$i-1] eq '(' && $ValClass[$i-2] eq 'f' && $ValPerl[$i-2] eq 'pos')) {
                     handle_pos_ref($i);
                 }
+            } elsif($ValClass[$i] eq 'f' && $ValPy[$i] eq '_last_ndx' && $i+1 < $#ValClass && $ValClass[$i+1] eq '(') { # issue 119
+                # We have a $#{expr} which we changed into  _last_ndx{expr} - change it to _last_ndx(expr)
+                $ValPerl[$i+1] = $ValPy[$i+1] = '(';
+                my $match = &Pythonizer::matching_br($i+1);
+                $ValPerl[$match] = $ValPy[$match] = ')' if($match > 0);
             }
         }
         $TokenStr=join('',@ValClass);
@@ -2950,7 +2961,7 @@ my $original;
        # Correct the ValPerl because we unfortunately get it wrong, exp if $cut-2 is negative!
        $ValPerl[$tno] = substr($ValPy[$tno], 4, length($ValPy[$tno])-7);
    }
-   if( $::debug > 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0 ){
+   if( $::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0 ){
      say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
    }
    $tno++;
@@ -3016,8 +3027,8 @@ my $split=$_[0];
    # issue 93: if this is an assignment, only transform it if it contains a control statement afterwards or if it's a low precedence op
    my $tstr = join('',@ValClass);
    if(($tstr =~ /^t?[ahs](?:\(.*\))*=/ || ($tstr =~ /^kiiA/ && $ValPerl[0] eq 'use' && $ValPerl[1] eq 'constant')) && 
-      !$is_low_prec &&
-      substr($source,$split) !~ /^\s*(?:return|next|last|assert|delete|require|die)\b/) {       # issue 93
+      !$is_low_prec && ($split >= length($source) ||
+      substr($source,$split) !~ /^\s*(?:return|next|last|assert|delete|require|die)\b/)) {       # issue 93
       say STDERR "bash_style_or_and_fix($split) returning 0 - does not need transforming" if($::debug>=3);
       return 0;
    } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'return') {            # issue 110
@@ -3143,24 +3154,31 @@ my $rc=-1;
       $source=~/^..\{(\w+)\}/ or $source=~/^..\$?(\w+)/ or $source=~/^..\{\$(\w+)\}/;  # Handle $#{var} $#var $#$var $#{$var}
       #say STDERR "decode_scalar: source='$source', \$1=$1";
       # issue 14 $ValType[$tno]="X";
-      if( $update ){
-         $ValPerl[$tno]=substr($source,0,2).$1; # SNOOPYJC
+      if(!defined $1 && substr($source,2,1) eq '{') {         # issue 119: $#{expr}
+          $ValClass[$tno]='f' if($update);
+          $ValPerl[$tno]=substr($source,0,2) if($update);
+          $ValPy[$tno] = '_last_ndx';
+          $cut=2;
+      } else {
+          if( $update ){
+             $ValPerl[$tno]=substr($source,0,2).$1; # SNOOPYJC
+          }
+          if( $1 eq 'ARGV'  ){                      # SNOOPYJC: Generate proper code for $#ARGV
+              $ValType[$tno]="X";                   # issue 14
+              $ValPy[$tno] ='(len(sys.argv)-2)';    # SNOOPYJC
+          } elsif( $1 eq 'INC'  ){                  # SNOOPYJC
+              $ValType[$tno]="X";
+              $ValPy[$tno] ='(len(sys.path)-1)';
+          } elsif($1 eq '_') {                      # issue 107
+              $ValType[$tno]="X";                   # issue 14
+              $ValPy[$tno] ="(len($PERL_ARG_ARRAY)-1)";    # issue 107
+          } else {                                  # SNOOPYJC
+              my $mapped_name = remap_conflicting_names($1, '@', '');      # issue 92
+              $ValPy[$tno]='(len('.$mapped_name.')-1)';       # SNOOPYJC
+          }
+          # SNOOPYJC $cut=length($1)+2;
+          $cut=length($&);                          # SNOOPYJC
       }
-      if( $1 eq 'ARGV'  ){                      # SNOOPYJC: Generate proper code for $#ARGV
-          $ValType[$tno]="X";                   # issue 14
-          $ValPy[$tno] ='(len(sys.argv)-2)';    # SNOOPYJC
-      } elsif( $1 eq 'INC'  ){                  # SNOOPYJC
-          $ValType[$tno]="X";
-          $ValPy[$tno] ='(len(sys.path)-1)';
-      } elsif($1 eq '_') {                      # issue 107
-          $ValType[$tno]="X";                   # issue 14
-          $ValPy[$tno] ="(len($PERL_ARG_ARRAY)-1)";    # issue 107
-      } else {                                  # SNOOPYJC
-          my $mapped_name = remap_conflicting_names($1, '@', '');      # issue 92
-          $ValPy[$tno]='(len('.$mapped_name.')-1)';       # SNOOPYJC
-      }
-      # SNOOPYJC $cut=length($1)+2;
-      $cut=length($&);                          # SNOOPYJC
   # SNOOPYJC }elsif( $source=~/^.(\w*(\:\:\w+)*)/ ){
   }elsif( $source=~/^.(\w*((?:(?:\:\:)|\')\w+)*)/ ){    # SNOOPYJC: old perl uses ' for ::
       $cut=length($1)+1;
@@ -3365,7 +3383,7 @@ my  $groups_are_present;
          if( $groups_are_present ){
             return "($DEFAULT_MATCH:=re.search(".$quoted_regex.','; #  we need to have the result of match to extract groups.	# issue 32, 75
          }else{
-           return 're.search('.$quoted_regex.','; #  we do not need the result of match as no groups is present. # issue 75
+           return '(re.search('.$quoted_regex.','; #  we do not need the result of match as no groups is present. # issue 75
          }
       # issue 93 }elsif( $ValClass[$tno-1] eq '0'  ||  $ValClass[$tno-1] eq '(' ){
       }elsif( $tno>=1 && ($ValClass[$tno-1] =~ /[0o]/  ||  $ValClass[$tno-1] eq '(' || $ValClass[$tno-1] eq '=') ){      # issue 93, SNOOPYJC: Handle assignment of regex with default var and groups
@@ -3527,7 +3545,13 @@ sub interpolate_strings                                         # issue 39
           say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex)=$pos (begin extract mode)" if($::debug >=3);
           return $pos;
        }
-   }
+    } elsif($Pythonizer::PassNo==&Pythonizer::PASS_1 && $last_varclass_lno != $. && $last_varclass_lno) {
+	# We don't capture regex's or here_is documents so just grab the last line_varclasses and propagate it down here
+        # If we don't do this and there ARE variable references in the string, we won't properly map them if
+        # they need the package name added.
+        $line_varclasses{$.} = dclone($line_varclasses{$last_varclass_lno});
+        $last_varclass_lno = $.;
+    }
 
    #
    #decode each part. Double quote literals in Perl are ver difficult to decode
@@ -3641,9 +3665,26 @@ my  $outer_delim;
          #} elsif($next_c eq '{') {
          #substr($ValPerl[$tno],0,1) = '%';
          #}
-         add_package_name(get_perl_name(substr($quote,0,$cut), substr($quote,$cut,1), $prev));        # SNOOPYJC
-         $prev = '';
-         $result.=$ValPy[$tno]; # copy string provided by decode_scalar. ValPy[$tno] changes if Perl contained :: like in $::debug
+         my $next_c = substr($quote,$cut,1);    # SNOOPYJC
+         if($in_regex && $next_c eq '[') {      # SNOOPYJC: Try to distinguish between a regex character class and a subscript
+             my $nnc = substr($quote,$cut+1,1);
+             if($nnc !~ m'[\d$]') {  # Only allow a digit or a $ sigil
+                $next_c = '';
+                if($ValPy[$tno] eq $PERL_ARG_ARRAY) {   # We goofed in decode_scalar - fix it
+                   $ValPy[$tno]="$DEFAULT_VAR";
+                   $SpecialVarsUsed{'$_'} = 1;
+                }
+             }
+         }
+         add_package_name(get_perl_name(substr($quote,0,$cut), $next_c, $prev));        # SNOOPYJC
+         if($prev eq '@') {     # this was like @$var or @{$var}
+            my $ls = 'LIST_SEPARATOR';
+            $ls = $PERLLIB . '.' . $ls if($::import_perllib);
+            $result.="$ls.join($ValPy[$tno]"; # copy string provided by decode_array. ValPy[$tno] changes if Perl contained :: like in $::debug
+         } else {
+            $result.=$ValPy[$tno]; # copy string provided by decode_scalar. ValPy[$tno] changes if Perl contained :: like in $::debug
+         }
+         #$prev = '';
       } elsif($sig eq '@') {                          # issue 47: '@'
           #say STDERR "end_br=$end_br, quote=$quote";
          if($end_br > 0 && substr($quote,0,3) eq '@[%') {  # @{[%hash]}
@@ -3670,7 +3711,11 @@ my  $outer_delim;
                 if($quote =~ m'[$@]') {             # issue 47
                     $k = $-[0];                     # issue 47: Match pos
                 }
-                $result .= '@' if($k != 0);             # SNOOPYJC: If we have @$, then just eat the '@'
+                if($k == 0) {             # SNOOPYJC: If we have @$, then just eat the '@', but remember for the next round
+                    $prev = '@';
+                } else {
+                    $result .= '@'
+                }
                 next;
             }
             add_package_name(substr($quote,0,$cut));            # SNOOPYJC
@@ -3686,7 +3731,10 @@ my  $outer_delim;
       if($sig eq '$') {                 # issue 47
           #say STDERR "quote2=$quote, result1=$result, end_br=$end_br";
           my $p_len = length($quote);                       # issue 13, 43
-          $quote =~ s/(?<![{\$])(?:->)?\{([A-Za-z_][A-Za-z0-9_]*)\}/\{\'$1\'\}/g;     # issue 13: Remove bare words in $hash{...}
+          {
+             no warnings 'uninitialized';
+             $quote =~ s/(?<![{\$])(->)?\{([A-Za-z_][A-Za-z0-9_]*)\}/$1\{\'$2\'\}/g;     # issue 13: Remove bare words in $hash{...}
+          }
           my $n_len = length($quote);
           if($end_br >= 0 && $n_len > $p_len) {             # issue 13, 43  it grew so move the pointer over
               $end_br += ($n_len - $p_len);                 # issue 13, 43
@@ -3696,19 +3744,33 @@ my  $outer_delim;
           #if( $quote=~/^([\[\{].+?[\]\}])/  ){              # issue 98: Don't allow spaces before the [ or {
              #HACK element of the array of hash. Here we cut corners and do not process expressions as index.
              #$ind=$1;
+          
           my $nx3 = substr($quote,0,3);
           if($nx3 eq '->[' || $nx3 eq '->{') {   # Move past any '->' that ends in a '[' or '{'
-              $quote = substr($quote,2);
+             $quote = substr($quote,2);
+             $end_br -= 2;
+             #say STDERR "Removing ->";  # TEMP
           }
+          #$quote =~ s/->([\[{])/$1/g;           # Remove all '->' that ends in '[' or '{'
+          #say STDERR "quote=$quote";    # TEMP
           my $quote2 = $quote;
-          if($ind = extract_bracketed($quote2, '{}[]', '')) {        # issue 53, issue 98
+          my $next_c = substr($quote,0,1);    # SNOOPYJC
+          if($in_regex && $next_c eq '[') {      # SNOOPYJC: Try to distinguish between a regex character class and a subscript
+              my $nnc = substr($quote,1,1);
+              $quote2 = '' if($nnc !~ m'[\d$]');  # Only allow a digit or a $ sigil
+          }
+          while($ind = extract_bracketed($quote2, '{}[]', '')) {        # issue 53, issue 98
              # issue 109 $cut=length($ind);
              my $ind_cut=length($ind);
              # issue 109 $ind =~ tr/$//d;               # We need to decode_scalar on each one!
              # issue 53 $ind =~ tr/{}/[]/;
-             #say STDERR "looking for '{' in $ind";
+             #say STDERR "looking for '{' in $ind";      # TEMP
              for(my $i = 0; $i < length($ind); $i++) {	# issue 53: change hash ref {...} to use .get(...) instead
                  my $c = substr($ind,$i,1);                 # issue 109
+                 if($c eq '-' && substr($ind,$i+1,1) eq '>') {  # issue refs in strings
+                     substr($ind,$i,2) = '';    # eat '->'
+                     $c = substr($ind,$i,1);
+                 }
                  if($c eq '{') {		# issue 53
                      $l = matching_curly_br($ind, $i);	# issue 53
                      #say "found '{' in $ind at $i, l=$l";
@@ -3718,7 +3780,7 @@ my  $outer_delim;
                      # issue 109 $i = $l+7;				# issue 53: 7 is length('.get') + length(",''")
                  } elsif($c eq '$') {                       # issue 109: decode special vars in subscripts/hash keys
                      my $var = substr($ind,$i);
-                     #say STDERR "var=$var";
+                     #say STDERR "var=$var";     # TEMP
                      if(substr($var,1,1) eq '{') {      # SNOOPYJC: like ${i}
                          $l = matching_curly_br($var, 1);
                          if($l > 0) {                   # SNOOPYJC: Eat both the '{' and the '}'
@@ -3744,9 +3806,20 @@ my  $outer_delim;
              $result.=$ind; # add string Variable part of the string
              # issue 109 $quote=substr($quote,$cut);
              $quote=substr($quote,$ind_cut);        # issue 109
+             $nx3 = substr($quote,0,3);
+             if($nx3 eq '->[' || $nx3 eq '->{') {   # Move past any '->' that ends in a '[' or '{'
+                $quote = substr($quote,2);
+                $end_br -= 2;
+                #say STDERR "Removing ->";  # TEMP
+             }
+             $quote2 = $quote;
              $end_br -= $ind_cut;			# issue 43
-             #say STDERR "quote4=$quote, end_br=$end_br";
+             #say STDERR "quote4=$quote, end_br=$end_br";        # TEMP
           }
+          if($prev eq '@') {
+              $result.=')';     # Close the join operator inserted above
+          }
+          $prev = '';
       }
       #say STDERR "quote5=$quote, end_br=$end_br";
       $quote = substr($quote, $end_br) if($end_br > 0);	# issue 43
@@ -3842,7 +3915,7 @@ sub extract_tokens_from_double_quoted_string
         } elsif($pos != 0) {
             # We have some stuff before the next sigil
             $ValPerl[$tno] = substr($quote,0,$pos);
-            if( $::debug > 3  ){
+            if( $::debug >= 3  ){
                 say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
             }
             $tno++;
@@ -3870,6 +3943,11 @@ sub extract_tokens_from_double_quoted_string
                 $cut = 3;
                 substr($quote,$end_br,1) = '';
                 $end_br = -1;
+            } elsif(substr($quote,$pos+2,1) eq '$') {   # @{$...}
+                $sigil = '';
+                $cut = 2;
+                $end_br--;
+                substr($quote,$end_br,1) = '';
             } else {
                 $adjust = 0;
                 $quote = '$'.substr($quote,2);		# issue 43: eat the '{'. At this point, $end_br points after the '}'
@@ -3885,6 +3963,7 @@ sub extract_tokens_from_double_quoted_string
                $quote = $q2;
             }
             decode_scalar($quote, 1,1);
+            #say STDERR "ValClass[$tno]=$ValClass[$tno], ValPy[$tno]=$ValPy[$tno]";      # TEMP
         } elsif($sigil eq '@') {
             decode_array($quote);
             $ValClass[$tno] = 'a';
@@ -3935,16 +4014,16 @@ sub extract_tokens_from_double_quoted_string
         while($balance > 0) {
             $ValPerl[$tno] = $ValPy[$tno] = $ValClass[$tno] = ')';      # We don't care that it may not be the right kind of bracket
             $balance--;
-            if( $::debug > 3  ){
-               say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
+            if( $::debug >= 3  ){
+               say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy)," (extractClose)";
             }
             $tno++;
         }
         while($balance < 0) {
             $ValPerl[$tno] = $ValPy[$tno] = $ValClass[$tno] = '(';      # We don't care that they are not in the right order
             $balance++;
-            if( $::debug > 3  ){
-               say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
+            if( $::debug >= 3  ){
+               say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy), " (extractOpen)";
             }
             $tno++;
         }
@@ -3953,8 +4032,8 @@ sub extract_tokens_from_double_quoted_string
         $ValPy[$tno] = 'f"""' . $ValPerl[$tno] . '"""';
         $ExtractingTokensFromDoubleQuotedTokensEnd = -1;
         $ExtractingTokensFromDoubleQuotedStringEnd = 0;
-        if( $::debug > 3  ){
-           say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
+        if( $::debug >= 3  ){
+           say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy), " (extract)";
         }
         $tno++;
         say STDERR " ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd" if($::debug>=5);
@@ -3994,7 +4073,7 @@ sub escape_curly_braces                 # issue 51
         my $c = substr($str,$k,1);
         if($c eq '$' && substr($str, $k+1) =~ /^(\:?\:?\w+(\:\:\w+)*)/) {
             $k += length($1);
-            if($k+1 < length($str)) {
+            while($k+1 < length($str)) {
                 my $nx3 = substr($str,$k+1,3);
                 if($nx3 eq '->[' || $nx3 eq '->{') {   # Move past any '->' that ends in a '[' or '{'
                     $k += 2;
@@ -4003,13 +4082,10 @@ sub escape_curly_braces                 # issue 51
                 my $m = -1;
                 $m = matching_curly_br($str,$k+1) if ($d eq '{');
                 $m = matching_square_br($str,$k+1) if ($d eq '[');
-                $k = $m if($m >= 0);
-                if($k+1 < length($str)) {
-                    my $d = substr($str,$k+1,1);
-                    $m = -1;
-                    $m = matching_curly_br($str,$k+1) if ($d eq '{');
-                    $m = matching_square_br($str,$k+1) if ($d eq '[');
-                    $k = $m if($m >= 0);
+                if($m >= 0) {
+                    $k = $m 
+                } else {
+                    last;
                 }
             }
         }

@@ -28,5 +28,14 @@ assert(scalar(%options) == 2);
 delete @options{@arr};
 assert(scalar(%options) == 0);
 
+# Some issues in bootstrapping:
+%actual_imports = (a=>1, b=>1, c=>1);
+$e = 0;         # make it a mixed type
+$e = 'b';
+delete $actual_imports{$e};
+assert(scalar(%actual_imports) == 2);
+$desired = '$c';
+delete $actual_imports{substr($desired,1)};
+assert(scalar(%actual_imports) == 1);
 
 print "$0 - test passed!\n";

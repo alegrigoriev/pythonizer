@@ -19,4 +19,14 @@ assert(sum(@arr) == 1.25+2.25+3.75);
 assert(sum(map(int, @arr)) == 1+2+3);
 assert(sum(map{int($_)} @arr) == 1+2+3);
 
+# And a case from bootstrapping:
+
+$i = 0;
+$ValPy[$i] = 'a b cc';
+push @libs, map {'"'.$_.'"'} split(' ', $ValPy[$i]);
+assert(@libs == 3);
+assert($libs[0] eq '"a"');
+assert($libs[1] eq '"b"');
+assert($libs[2] eq '"cc"');
+
 print "$0 - test passed!\n";
