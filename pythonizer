@@ -160,7 +160,8 @@
 # 0.953  2022/02/17  SNOOPYJC  Fix warning on @DeferredValPy, prepare perllib for release on pypi, addl fix for issue 44 with quotes, handle open with defined mode we can't translate, update _open_dynamic to handle >- which opens STDOUT, when moving a def up after the topological sort, also move up any state variable initializations, issue 118 - qx or backticks in list context, handle assignment of regex in list context with groups, update user_guide.html
 # 0.954  2022/02/18  SNOOPYJC  Implement -n trace_run, never set scalar_reference_type to a or h
 # 0.955  2022/02/20  SNOOPYJC  issue 120 - m flag on regex is not a new regex, fix split: A zero-width match at the beginning of EXPR never produces an empty field, issue 119 - last index of expr, issue 120 - handle foreach with reverse range, remove tight loop in fix_type_issues() if there is a missing right paren, key=>{ is not a new block, fix issue 114 substr match with expr containing a comma, fix issue where 3 or more subscripts in a variable reference in a string produces wrong code, fix issues and write test case for assigning var(s) with undef, fix issues and write test cases for lh substr, fix delete on hash with expression as key, fix issue with map function generating syntax error, fix issue with unbalanced parens generated using regex with g flag in while loop with the default variable, put defined function expr in parens, propagate global variable references down to lines that only have regex's or here-is documents to handle the case that they have global variable references in them, handle regex with char class that looks like a subscript
-# 0.956  2022/02/21  SNOOPYJC  issue 121 - all ranges need to be expanded for maketrans, issue 122 fix tr with d flag, issue 123 - tr arguments should not be interpolated, issue 124 - Regex with DEFAULT_VAR and capturing groups needs to always set the DEFAULT_MATCH, issue 125 - implement the c flag on tr, addl fix for issue 45 return insertion found during bootstrapping, don't remove ((...)) in strings, addl fix for issue 89 keyword in {hash ref def},
+# 0.956  2022/02/21  SNOOPYJC  issue 121 - all ranges need to be expanded for maketrans, issue 122 fix tr with d flag, issue 123 - tr arguments should not be interpolated, issue 124 - Regex with DEFAULT_VAR and capturing groups needs to always set the DEFAULT_MATCH, issue 125 - implement the c flag on tr, addl fix for issue 45 return insertion found during bootstrapping, don't remove ((...)) in strings, addl fix for issue 89 keyword in {hash ref def}
+# 0.957  2022/02/22  SNOOPYJC  Don't recognize keyword after 'no', translate the idiom to see if a var is numeric, handle hashref interpolation in strings, don't initialize variables from other packages, insert splats in lists of arrays for map/grep, addl fix for issue 124 in expression with 'not', fix grep with pattern with capturing groups
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -205,7 +206,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
 
-   $VERSION='0.956';
+   $VERSION='0.957';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -1301,7 +1302,7 @@ my ($start,$token_buffer_active);
                  gen_statement();
                  gen_statement("if $SUBPROCESS_RC:");
                  correct_nest(1,1);
-                 gen_statement("raise Die(f'run(${\(escape_string(unquote_string($ValPy[0]), '\''))}): failed with {$SUBPROCESS_RC}')");
+                 gen_statement("raise Die(f'run(" . escape_string(unquote_string($ValPy[0]), "'") . "): failed with {$SUBPROCESS_RC}')");
                  correct_nest(-1,-1);
              }
          }
@@ -3052,10 +3053,16 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
                 $Pyf{$converter} = 1;
                 gen_chunk("$converter", '(');
             }
+            # If LHS is hash and this is a list expr, do the appropriate conversion
+            if($ValClass[$start] eq 'h' && &Pythonizer::expr_type($split+1, $limit, $CurSub) =~ /^a/) {
+                $Pyf{_list_to_hash} = 1;
+                gen_chunk('_list_to_hash', '(');
+                $add_right_paren++;
+            }
             $k=expression($split+1,$limit,0); # process expression without brackets -- last param is 0
             return -255 if( $k<0 );
             gen_chunk(", $number_of_elements)") if(defined $number_of_elements);    # issue 56, SNOOPYJC
-	    gen_chunk(')') if($add_right_paren);		# issue 14
+	    gen_chunk(')') while($add_right_paren--);		# issue 14
             if($autovivification && $ValClass[$start] =~ /[ah]/) {      # SNOOPYJC
                 gen_chunk(')');
             }
@@ -4119,6 +4126,13 @@ my ($limit,$start );  # $limit is the position of closing bracket, if any
 	   say STDERR "function($begin, $limit) =|$TokenStr|= @ValPerl"
    }
 my $bracketed=0;  # nessesary for the proper call of expression.
+  if(substr($TokenStr, $begin, $limit+1-$begin) eq 'f(C(kis>d,",";ki";s&"))' && $ValPerl[$begin] eq 'length' && $ValPerl[$limit-2] eq '') {     # SNOOPYJC
+      # This big line represents an idiom to check if a value is a number or not:
+      # length( do { no if $] >= 5.022, "feature", "bitwise"; no warnings "numeric"; $_[0] & "" } ) )
+      # We replace it with an isinstance check
+      gen_chunk('isinstance(', $ValPy[$limit-4], ',', '(int, float))');
+      return $limit+1;
+  }
   if( $begin==$#ValClass || (scalar(@_)>1 && $begin==$limit) ){
      $bracketed=-1; # serves as zero arg flag;
   }elsif( $begin<$#ValClass && $ValClass[$begin+1] eq '(' ){
@@ -4706,7 +4720,18 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
        # map{block} @arr (or list)
        # grep{block} @arr (or list)
        $k=$start;
-       gen_chunk('list(');             # filter or map, convert to list so we can use len and subscript
+       my $need_bracket = 0;
+       if($perl_name eq 'map' && index(substr($TokenStr, $start, $end_pos+1-$start), 'A') >= 0) {
+           # Check for the hash production idiom "%hash = map { $_ => 1 } @arr;", then we need to flatten
+           # the result and put brackets on the RHS of the lambda. In the assignment it will be converted to a hash.
+           if(next_same_level_token('A', $start, $end_pos) != -1) {
+               $need_bracket = 1;
+           }
+           $Pyf{_flatten} = 1;
+           gen_chunk('_flatten', '(');
+       } else {
+           gen_chunk('list(');             # filter or map, convert to list so we can use len and subscript
+       }
        gen_chunk($py_name);
        $need_lambda = 1;
        if($perl_name eq 'map') {
@@ -4721,11 +4746,13 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
             gen_chunk("(lambda $DEFAULT_VAR:");
             $comma = next_same_level_token(',', $start, $end_pos);
             $comma = $end_pos+1 if $comma<0;
+            gen_chunk('[') if $need_bracket;
             if($start == $comma-1 && $perl_name eq 'grep') {    # singleton
                 if(index('sd"', $ValClass[$start]) >= 0) {   # scalar, digits, or string
                     gen_chunk($DEFAULT_VAR,'==', $ValPy[$start]);
                 } elsif($ValClass[$start] eq 'q') {      # pattern
-                    if(substr($ValPy[$start],0,3) eq 're.') {
+                    if(substr($ValPy[$start],0,3) eq 're.' || 
+                       substr($ValPy[$start],0,6+length($DEFAULT_MATCH)) eq "($DEFAULT_MATCH:=re.") {   # SNOOPYJC
                         gen_chunk($ValPy[$start]);      # it's ready to go!
                     } else {
                         gen_chunk('re.search(', $ValPy[$start], ',', $DEFAULT_VAR, ')');
@@ -4742,6 +4769,7 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
                 $k = expression($start, $comma-1, 0);
                 return -255 if $k<0;
             }
+            gen_chunk(']') if $need_bracket;
        } elsif($bracketed == 1 && $ValPerl[$begin+1] eq '(') {
             $comma = next_same_level_token(',', $start, $end_pos);
        }
@@ -4750,10 +4778,10 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
            # We chopped our limit to the matching '}', so put it back!
            $limit = $#ValClass;
            $limit = $_[1] if(scalar(@_)>1);
-           $k = expression($end_pos+2, $limit, 0);
+           $k = expression($end_pos+2, $limit, 2);
            gen_chunk(')');
        } else {
-           $k = expression($comma+1, $limit, 0);
+           $k = expression($comma+1, $limit, 2);
            gen_chunk(')') if($ValPerl[$limit] ne ')');
        }
        gen_chunk(')');   # close list(...)
@@ -5865,6 +5893,7 @@ sub expression
 #         -1 - Put '' in ValPy for external brackets
 #         0 - do not intefere with external blackets
 #         1 -preserve round brackets
+#         2 - insert splats where appropriate   # SNOOPYJC
 # Arg 4 -- if given set recursion level to 0
 {
 my $begin=$_[0];
@@ -5884,6 +5913,18 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
    $start=$cur_pos;  # starting point possibly from && or ||  -- we need that for regular expressions.
    $mode=(scalar(@_)>2) ? $_[2] : 0; # $mode allows brackets to be supressed but only on recursion level 0
                                      # $mode 1 injects ( and ) if they are not present
+   if($mode == 2) {             # SNOOPYJC: Do splats
+       $mode = 0;
+       if($ValClass[$begin] eq '(' && $ValPerl[$begin] eq '(') {
+           my $match = matching_br($begin);
+           for(my $i = $begin+1; $i < $match; $i++) {
+               if(need_splat($i)) {
+                   $ValPy[$i] = '*' . $ValPy[$i];
+               }
+               $i = end_of_variable($i);
+           }
+       }
+   }
    $limit=$#ValClass;
    $bracketed=0;
    if( scalar(@_)>1 ){
@@ -5957,7 +5998,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
          $DB::single = 1;
       }
       #
-      $pos = next_same_level_tokens('o0~,', $cur_pos, $limit);  # issue 101
+      $pos = next_same_level_tokens('!:o0~,', $cur_pos, $limit); # issue 101, issue 124
       if($pos != -1) {                                          # issue 101
          if($ValClass[$pos] eq '~' && $ValPerl[$pos] ne '~') {  # issue 101, SNOOPYJC: Handle ~ operator
             $cur_pos=regex_and_translate($cur_pos,$cur_pos,$pos,$limit); # issue 101, issue 106
@@ -6575,7 +6616,7 @@ sub handle_question_mark_colon                    # issue 52 handle ? : in expre
     destroy($cond_start, $cond_end-$cond_start+2);
     # now we have: tval if cond else fval
     if($debug >= 3) {
-        say STDERR "after handle_question_mark_colon: =|$TokenStr|=";
+        say STDERR "after handle_question_mark_colon: =|$TokenStr|=, ValPy = @ValPy";
     }
     return 0;           # we have the same number of tokens as before
 }

@@ -2,6 +2,11 @@
 History
 =======
 
+0.957 (2022-02-22)
+------------------
+
+* Add list_to_hash function to process key/value pairs
+
 0.956 (2022-02-21)
 ------------------
 

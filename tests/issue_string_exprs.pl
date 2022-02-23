@@ -48,4 +48,11 @@ sub get_manager_list {
 	return ("George", "Harry", "Mary");
 }
 
+# here is one from bootstrapping Pythonizer.pm:
+
+
+$top = {key=>'val'};
+$val = "updated nesting_info=@{[%{$top}]}";
+assert($val eq 'updated nesting_info=key val');
+
 print "$0 - test passed!\n";

@@ -10,5 +10,22 @@ $_ = '2020-01-23';
 
 assert($cnt == 1);
 
+# Another similar issue found in netflow.pl:
+#
+
+sub process_file {
+
+    my $in = shift;
+    next if not $in =~ /(flows)\.(\d+)\.gz/;
+    $cnt++;
+}
+
+@files = ('nomatch', 'flows.12.gz', 'netflows.13.gz');
+for my $file (@files){
+    process_file($file);
+}
+assert($cnt == 3);
+
+
 print "$0 - test passed!\n";
 

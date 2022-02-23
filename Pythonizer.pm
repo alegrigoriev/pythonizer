@@ -694,7 +694,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                my $vn = substr($varname, $dx+1);
                my $ig = '_init_global';
                $ig = "$PERLLIB.init_global" if($::import_perllib);
-               $InitVar{$subname} .= "\n$varname = $ig('$packname', '$vn', " .init_val($NeedsInitializing{$subname}{$varname}) . ')';
+	       if(exists $Packages{$packname}) {	# Only init if the named package is defined here
+               	   $InitVar{$subname} .= "\n$varname = $ig('$packname', '$vn', " .init_val($NeedsInitializing{$subname}{$varname}) . ')';
+	       }
            }
         }
     }
