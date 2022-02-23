@@ -39,5 +39,14 @@ assert(!exists $h{delete});
 my %i = (qw=>14, use=>15);
 assert($i{qw} == 14 && $i{use} == 15);
 
+# New ones from bootstrapping:
+my $perl = 'perl';
+my $scalar = 'scalar';
+my $python = 'python';
+$SPECIAL_FUNCTION_MAPPINGS{$perl} = {scalar=>$scalar, list=>$python, q=>'q'};
+assert($SPECIAL_FUNCTION_MAPPINGS{perl}{scalar} eq 'scalar');
+assert($SPECIAL_FUNCTION_MAPPINGS{perl}{list} eq 'python');
+assert($SPECIAL_FUNCTION_MAPPINGS{perl}{q} eq 'q');
+
 print("$0 - test passed!\n");
 

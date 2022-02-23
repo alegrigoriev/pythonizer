@@ -59,4 +59,12 @@ sub postsub {
 }
 assert(postsub(1) == 1);
 
+# test a bootstrapping issue from Perlscan.pm
+$nesting_last = 4;
+sub initialize {
+	$nesting_last=undef;
+}
+assert(!defined initialize());
+assert(!defined $nesting_last);
+
 print "$0 - test passed!\n";
