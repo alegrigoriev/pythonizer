@@ -458,7 +458,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'push'=>'aa:I', 'pop'=>'a:s', 'pos'=>'s:I', 'print'=>'H?a:I', 'printf'=>'H?Sa:I', 'quotemeta'=>'S:S', 'rand'=>'F?:F',
                   'rindex'=>'SSI?:I','read'=>'HsII?:I', '.read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
                   'say'=>'H?a:I','scalar'=>'a:I','seek'=>'HII:u', 'shift'=>'a?:s', 'sleep'=>'I:I', 'splice'=>'aI?I?a?:a',
-                  'split'=>'SSI?:a of S', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
+                  'split'=>'SSI?:a of m', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
                   'sqrt'=>'N:F', 'stat'=>'S:a of I', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'tell'=>'H:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timegm'=>'IIIIII:I',
                   'truncate'=>'HI:I',
                   'timelocal'=>'IIIIII:I', 'unlink'=>'a?:I', 'values'=>'h:a', 'warn'=>'a:I', 'undef'=>'a?:u', 'unshift'=>'aa:I', 'uc'=>'S:S',
@@ -2064,7 +2064,7 @@ my ($l,$m);
             } elsif($tno != 0 && ($ValClass[$tno-1] eq 'D' || 
                 ($ValClass[$tno-1] eq 'c' && $ValPerl[$tno-1] eq 'package') ||  # SNOOPYJC: package name
                 ($ValClass[$tno-1] eq 'k' && $ValPerl[$tno-1] eq 'require' && $class ne 'q') || # SNOOPYJC: Allow require q(...)
-                ($ValClass[$tno-1] eq 'k' && $ValPerl[$tno-1] =~ /^(?:sub|use)$/))) {    # SNOOPYJC: Part of an OO method ref or sub def - change this to an 'i' class
+                ($ValClass[$tno-1] eq 'k' && $ValPerl[$tno-1] =~ /^(?:sub|use|no)$/))) {    # SNOOPYJC: Part of an OO method ref or sub def - change this to an 'i' class
                 $class = 'i';
                 $ValPy[$tno] = $w;
             } elsif($class eq 'f' && $w eq 'pos') {     # SNOOPYJC: implement 'pos'
@@ -3725,7 +3725,7 @@ my  $outer_delim;
          #$prev = '';
       } elsif($sig eq '@') {                          # issue 47: '@'
           #say STDERR "end_br=$end_br, quote=$quote";
-         if($end_br > 0 && substr($quote,0,3) eq '@[%') {  # @{[%hash]}
+         if($end_br > 0 && substr($quote,0,3) eq '@[%' && substr($quote,3,1) =~ /[\w:]/) {  # @{[%hash]}
             $quote = substr($quote, 2);
             decode_hash($quote);
             add_package_name(substr($quote,0,$cut));            # SNOOPYJC
@@ -3909,10 +3909,14 @@ sub handle_expr_in_string
         save_code();
         my $t_start = scalar(@ValClass);
         tokenize($line, 1);
+        my $was_hash = 0;
+        $was_hash = 1 if($ValClass[$t_start] eq '%');
+        &::remove_dereferences();
         $::TrStatus = &::expression($t_start, $#ValClass, 0);
         &::unpackage_code($saved_tokens);
         $code = format_chunks();
         $code = remove_oddities($code);
+        $code = "map(_str,itertools.chain.from_iterable($code.items()))" if($was_hash);
         restore_code();
     }
 

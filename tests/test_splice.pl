@@ -50,6 +50,21 @@ sub nary_test {
 
 assert(join(' ', nary_test(3, qw(a b c d e f g h))) eq 'a--b--c d--e--f g--h');
 
+# Some tests from the interwebs: Insert an array in another array
+my @names = qw(Foo Bar Baz);
+my @languages = qw(Perl Python Ruby PHP);
+splice @names, 1, 0, @languages;
+assert(7 == @names);
+assert(join(' ', @names) eq 'Foo Perl Python Ruby PHP Bar Baz');
+
+@names = qw(Foo Bar Baz);
+splice @names, 1, 0, \@languages;
+assert(@names == 4);
+assert($names[0] eq 'Foo');
+assert($names[1][0] eq 'Perl' && $names[1][3] eq 'PHP');
+assert($names[2] eq 'Bar');
+assert($names[3] eq 'Baz');
+
 print "$0 - test passed!\n";
 		
 
