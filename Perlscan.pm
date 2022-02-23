@@ -2045,7 +2045,7 @@ my ($l,$m);
                 $ValPy[$tno] = $w;
             }
             if($tno != 0 && (($ValPerl[$tno-1] eq '{' && $source =~ /^[a-z0-9]+}/) ||   # issue 89: keyword in a hash like $hash{delete} or $hash{q}
-                (index('(,', $ValPerl[$tno-1])>=0 && $source =~ /^[a-z0-9]+\s*=>/))) {  # issue 89: keyword in hash def like (qw=>14, use=>15)
+                (index('{(,', $ValPerl[$tno-1])>=0 && $source =~ /^[a-z0-9]+\s*=>/))) {  # issue 89: keyword in hash def like (qw=>14, use=>15)
                 $class = 'i';                   # issue 89
                 $ValPy[$tno] = $w;              # issue 89
             } elsif($tno == 2 && $ValClass[0] eq 'G' && $ValClass[1] eq '=' && $class eq 'k' &&
@@ -2275,6 +2275,7 @@ my ($l,$m);
                   # issue 51 $arg1=substr($source,0,$cut-1); # regex always ends before the delimiter
                   $original_regex1 = substr($source,0,$cut-1);                            # issue 111
                   $arg1=remove_escaped_delimiters($delim, $original_regex1); # regex always ends before the delimiter # issue 51, issue 111
+                  $arg1 = expand_ranges($arg1);         # issue 121
                   $source=substr($source,$cut); # remove first part of substitution exclufing including the delimeter
                   if( index('{([<',$delim) > -1 ){
                      # case tr[abc][cde]
@@ -2287,6 +2288,7 @@ my ($l,$m);
                   # issue 51 $arg2=substr($source,0,$cut-1);
                   $original_regex2 = substr($source,0,$cut-1);                            # issue 111
                   $arg2=remove_escaped_delimiters($delim, $original_regex2);     # issue 51, issue 111
+                  $arg2 = expand_ranges($arg2);         # issue 121
                   $source=substr($source,$cut);
                   if( $source=~/^(\w+)/ ){
                      $tr_modifier=$1;
@@ -2298,36 +2300,71 @@ my ($l,$m);
 
                   $ValClass[$tno]='f';
                   $ValPerl[$tno]='tr';
+                  if($tr_modifier !~ /[cd]/) {                     # issue 121
+                      $arg2 = make_same_length($arg1, $arg2);
+                      ($arg1, $arg2) = first_map_wins($arg1, $arg2);
+                  }
                   # SNOOPYJC if( $tr_modifier eq 'd' ){
-                  if( $tr_modifier =~ /d/ ){            # SNOOPYJC
-                          $tr_modifier =~ s/d//;        # SNOOPYJC
-                          $ValPy[$tno]=".maketrans('','',".put_regex_in_quotes($arg1, $delim, $original_regex1).')'; # deletion via none, issue 111: add $delim
+                  if($tr_modifier =~ /c/) {             # issue 125
+                      $::Pyf{_maketrans_c} = 1; 
+                      my $mtc = '_maketrans_c';
+                      $mtc = "$PERLLIB.maketrans_c" if($::import_perllib);
+                      $ValPy[$tno] = "$mtc(r".escape_quotes($arg1).','.'r'.escape_quotes($arg2);
+                      if($tr_modifier =~ /d/) {         # Only pass the delete flag to this call
+                          $ValPy[$tno] .= ',delete=True';
+                      }
+                      $ValPy[$tno] .= ')';
+                      $tr_modifier =~ s/d//;        # SNOOPYJC
+                      $ValPy[$tno] .= ",flags=$tr_modifier";    # pass the flags to the next-level call
+                  } elsif( $tr_modifier =~ /d/ ){            # SNOOPYJC
+                      $tr_modifier =~ s/d//;        # SNOOPYJC
+                      if($arg2 eq '') {                 # issue 122
+                        $ValPy[$tno]="str.maketrans('','',".'r'.escape_quotes($arg1).')';          # issue 123
+                        $ValPy[$tno] .= ",flags=$tr_modifier" if($tr_modifier);
+                      } else {                          # issue 122
+                          if(length($arg2) > length($arg1)) {
+                              $arg2 = substr($arg2,0,length($arg1));
+                          }
+                          if(length($arg2) == length($arg1)) {   # the 'd' flag is worthless in this case
+                             $ValPy[$tno]='str.maketrans('.'r'.escape_quotes($arg1).','.'r'.escape_quotes($arg2).')'; # issue 123
+                             $ValPy[$tno] .= ",flags=$tr_modifier" if($tr_modifier);
+                          } else {
+                             my $to_map = substr($arg1, 0, length($arg2));
+                             my $to_delete = substr($arg1, length($to_map));
+                             ($to_map, $arg2) = first_map_wins($to_map, $arg2);
+                             $ValPy[$tno]='str.maketrans('.'r'.escape_quotes($to_map).','.'r'.escape_quotes($arg2).','.'r'.escape_quotes($to_delete).')'; # issue 123
+                             $ValPy[$tno] .= ",flags=$tr_modifier" if($tr_modifier);
+                          }
+                      }
                   # SNOOPYJC }elsif( $tr_modifier eq 's' ){
-                  }elsif( $tr_modifier =~ /s/ ){         # SNOOPYJC
-                       # sqeeze In Python should be done via Regular expressions
+                  }elsif( $tr_modifier eq 's' && ($arg2 eq '' || $arg1 eq $arg2)){         # SNOOPYJC
+                       # squeeze In Python can be done via Regular expressions in this special case
                          $tr_modifier =~ s/s//;        # SNOOPYJC
-                         if( $arg2 eq '' || $arg1 eq $arg2  ){
-                            $ValPerl[$tno]='re';
-                            $ValPy[$tno]='re.sub('.put_regex_in_quotes("([$arg1])(\\1+)", $delim, $original_regex1).",r'\\1'),"; # needs to be translated into  two statements, issue 111: add $delim
-                         }else{
-                            $ValPerl[$tno]='re';
-                            if( $ValClass[$tno-2] eq 's' ){
-                                $ValPy[$tno]="$ValPy[$tno-2].translate($ValPy[$tno-2].maketrans(".put_regex_in_quotes($arg1,$delim,$original_regex1).','.put_regex_in_quotes($arg2,$delim,$original_regex2).')); ';       # issue 111: Add $delim
-                                $ValPy[$tno].='re.sub('.put_regex_in_quotes("([$arg2])(\\1+)", $delim, $original_regex2).",r'\\1'),"; # needs to be translated into  two statements, issue 111: Add $delim
-                            }else{
-                                $::TrStatus=-255;
-                                $ValPy[$tno].='re.sub('.put_regex_in_quotes("([$arg2])(\\1+)", $delim, $original_regex2).",r'\\1'),";     # issue 111
-                                logme('W',"The modifier $tr_modifier for tr function with non empty second arg ($arg2) requires preliminary invocation of translate. Please insert it manually ");
-                            }
+                         $ValPerl[$tno]='re';
+                         if( $tno>=1 && $ValClass[$tno-1] eq '~' ){
+                            $ValPy[$tno]='re.sub(re.compile('.'r'.escape_quotes("([$arg1])(\\1+)").",re.G),r'\\1',"; # issue 123
+                         } else {
+                            $ValPy[$tno]='re.sub(re.compile('.'r'.escape_quotes("([$arg1])(\\1+)").",re.G),r'\\1',$DEFAULT_VAR)"; # issue 123
                          }
+#                         }else{
+#                            $ValPerl[$tno]='re';
+#                            if( $ValClass[$tno-2] eq 's' ){
+#                                $ValPy[$tno]="$ValPy[$tno-2].translate($ValPy[$tno-2].maketrans(".put_regex_in_quotes($arg1,$delim,$original_regex1).','.put_regex_in_quotes($arg2,$delim,$original_regex2).')); ';       # issue 111: Add $delim
+#                                $ValPy[$tno].='re.sub('.put_regex_in_quotes("([$arg2])(\\1+)", $delim, $original_regex2).",r'\\1'),"; # needs to be translated into  two statements, issue 111: Add $delim
+#                            }else{
+#                                $::TrStatus=-255;
+#                                $ValPy[$tno].='re.sub('.put_regex_in_quotes("([$arg2])(\\1+)", $delim, $original_regex2).",r'\\1'),";     # issue 111
+#                                logme('W',"The modifier $tr_modifier for tr function with non empty second arg ($arg2) requires preliminary invocation of translate. Please insert it manually ");
+#                            }
+#                         }
                   # SNOOPYJC }elsif( $tr_modifier eq '' ){
                   } else {              # SNOOPYJC
                       #one typical case is usage of array element on the left side $main::tail[$a_end]=~tr/\n/ /;
-                      $ValPy[$tno]='.maketrans('.put_regex_in_quotes($arg1, $delim, $original_regex1).','.put_regex_in_quotes($arg2, $delim, $original_regex2).')'; # needs to be translated into  two statements, issue 111
+                      $ValPy[$tno]='str.maketrans('.'r'.escape_quotes($arg1).','.'r'.escape_quotes($arg2).')'; # issue 123
                       $ValPy[$tno] .= ",flags=$tr_modifier" if($tr_modifier);
-                      if($tr_modifier =~ /[a-qs-z]/) {  # 'r' is handled
-                          logme('W',"The modifier $tr_modifier for tr function currently is not translatable. Manual translation requred ");
-                      }
+                      # SNOOPYJC if($tr_modifier =~ /[a-qs-z]/) {  # 'r' is handled
+                      # SNOOPYJC     logme('W',"The modifier $tr_modifier for tr function currently is not translatable. Manual translation requred ");
+                      # SNOOPYJC }
                   # SNOOPYJC }else{
                       # FIXME: 
                       # Ref: https://stackoverflow.com/questions/70603255/complement-maketrans-in-python-for-translate
@@ -3386,15 +3423,16 @@ my  $groups_are_present;
            return '(re.search('.$quoted_regex.','; #  we do not need the result of match as no groups is present. # issue 75
          }
       # issue 93 }elsif( $ValClass[$tno-1] eq '0'  ||  $ValClass[$tno-1] eq '(' ){
-      }elsif( $tno>=1 && ($ValClass[$tno-1] =~ /[0o]/  ||  $ValClass[$tno-1] eq '(' || $ValClass[$tno-1] eq '=') ){      # issue 93, SNOOPYJC: Handle assignment of regex with default var and groups
+      # issue 124 }elsif( $tno>=1 && ($ValClass[$tno-1] =~ /[0o]/  ||  $ValClass[$tno-1] eq '(' || $ValClass[$tno-1] eq '=') ){      # issue 93, SNOOPYJC: Handle assignment of regex with default var and groups
+      } else {          # issue 124
             # this is calse like || /text/ or while(/#/)
-            if( $groups_are_present ){
+         if( $groups_are_present ){
                 return "($DEFAULT_MATCH:=re.search(".$quoted_regex.",$DEFAULT_VAR))"; #  we need to have the result of match to extract groups. # issue 32
          }else{
            return 're.search('.$quoted_regex.",$DEFAULT_VAR)"; #  we do not need the result of match as no groups is present.	# issue 32, 75
          }
-      }else{
-         return 're.search('.$quoted_regex.",$DEFAULT_VAR)"; #  we do not need the result of match as no groups is present.	# issue 32, 75
+      # issue 124 }else{
+         # issue 124 return 're.search('.$quoted_regex.",$DEFAULT_VAR)"; #  we do not need the result of match as no groups is present.	# issue 32, 75
       }
    }else{
       # this is a string
@@ -4342,6 +4380,9 @@ sub remove_oddities
     #  if not (childPid is not None):
     $line =~ s/\bnot \(([\w.]+(?:\[[\w\']+\])*) is not None\)/$1 is None/g;
 
+    #  assert not (nesting_last) is not None:
+    $line =~ s/\bnot \(([\w.]+(?:\[[\w\']+\])*)\) is not None/$1 is None/g;
+
     # Change "if not ( not X):" to "if X:"
     $line =~ s/\bif not \( not ([\w.]+)\):$/if $1:/;
 
@@ -4375,6 +4416,7 @@ sub remove_oddities
     # Change ((...)) to (...) unless there are ',' inside the "..."
     my $pos = -1;
     while(($pos = index($line, '((', $pos+1)) > 0) {
+        next if(in_string($line, $pos));
         my $end_pos = python_matching_paren($line, $pos, 0, ',');
         my $end_pos1 = python_matching_paren($line, $pos+1);    # Make sure this isn't like "((...)...)"
         if($end_pos1+1 == $end_pos && $end_pos > $pos) {
@@ -4384,6 +4426,32 @@ sub remove_oddities
     }
 
     return $line;
+}
+
+sub in_string 
+# Is pos inside a string?
+{
+    my $str = shift;
+    my $pos = shift;
+
+    for(my $i = 0; $i <= $pos; $i++) {
+        return 0 if $i == $pos;
+        my $s=substr($str,$i,1);
+        if($s eq "\\") {
+            $i++;
+        } elsif($s eq "'" || $s eq '"') {       # start of string
+            my $quote = $s;
+            while(++$i <= length($str)) {
+                return 1 if $i == $pos;
+                $s=substr($str,$i,1);
+                if($s eq "\\") {
+                    $i++;
+                }
+                last if($s eq $quote);
+            }
+        }
+    }
+    return 1;
 }
 
 sub python_matching_paren
@@ -4946,6 +5014,69 @@ sub get_rest_of_variable_name   # issue ws after sigil
     }
     say STDERR "get_rest_of_variable_name(".substr($source,0,1).", $in_string), lno=$., source='$source'" if($::debug >= 3);
     return $source;
+}
+
+sub expand_ranges
+# For tr, expand ranges like 0-9 into 0123456789
+{
+    my $arg = shift;
+
+    my $result = '';
+
+    for(my $i = 0; $i < length($arg); $i++) {
+        my $ch = substr($arg,$i,1);
+        if($ch eq "\\") {
+            $result .= $ch;
+            $result .= substr($arg,$i+1,1);
+            $i++;
+        } elsif($ch eq '-' && $i > 0 && $i < length($arg)) {
+            if(substr($arg,$i-1,1) eq substr($arg,$i+1,1)) {    # a-a
+                $i++;
+                next;
+            } 
+            for(my $j = ord(substr($arg,$i-1,1))+1; $j < ord(substr($arg,$i+1,1)); $j++) {
+                $result .= chr($j);
+            }
+        } else {
+            $result .= $ch;
+        }
+    }
+    return $result;
+}
+
+sub make_same_length
+# For tr, make the second operand the same length as the first, repeating chars or truncating if need be.
+# Returns an updated arg2.
+{
+    my ($arg1, $arg2) = @_;
+
+    return $arg2 if(length($arg2) == length($arg1));
+    return $arg1 if(length($arg2) == 0);
+    return substr($arg2, 0, length($arg1)) if(length($arg2) > length($arg1));
+    $last_c = substr($arg2, -1, 1);
+    while(length($arg2) < length($arg1)) {
+        $arg2 .= $last_c;
+    }
+    return $arg2;
+}
+
+sub first_map_wins
+# For tr, if multiple chars are mapped, only the first one is obeyed, so delete the rest
+# At this point, arg1 and arg2 are the same length - we keep them that way.
+{
+    my ($arg1, $arg2) = @_;
+    my %hash = ();
+
+    for(my $i=0; $i < length($arg1); $i++) {
+        if(exists $hash{substr($arg1,$i,1)}) {
+            substr($arg1,$i,1) = '';
+            substr($arg2,$i,1) = '';
+            $i--;
+        } else {
+            $hash{substr($arg1,$i,1)} = 1;
+        }
+    }
+    return ($arg1, $arg2);
 }
 
 1;
