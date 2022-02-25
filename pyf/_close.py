@@ -9,10 +9,10 @@ def _close(fh):
             if TRACE_RUN:
                 sp = subprocess.CompletedProcess(f"open({fh._file})", fh._sp.returncode)
                 _carp(f'trace close({fh._file}): {repr(sp)}', skip=2)
-
+            fh.close()
             if fh._sp.returncode:
-                fh.close()
                 raise IOError(f"close({fh._file}): failed with {fh._sp.returncode}")
+            return 1
         if fh is None:
             raise TypeError(f"close(None): failed")
         if fh.closed:

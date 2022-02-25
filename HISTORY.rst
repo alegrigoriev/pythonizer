@@ -2,6 +2,11 @@
 History
 =======
 
+0.958 (2022-02-23)
+------------------
+
+* Don't give a close failed error on a pipe which got automatically closed, give empty result for keys(), values(), and items() on a fresh ArrayHash instead of AttributeError
+
 0.957 (2022-02-22)
 ------------------
 

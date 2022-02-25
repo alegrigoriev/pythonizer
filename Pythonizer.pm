@@ -333,8 +333,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          next;
       }
 
-      if($ValClass[0] ne 'c' || $ValPerl[0] ne 'package') {     # SNOOPYJC: Set the default package unless
-                                                                # we start the file with a "package" stmt
+      if(!defined $CurPackage && ($ValClass[0] ne 'c' || $ValPerl[0] ne 'package')) {     # SNOOPYJC: Set the default package unless
+                                                                			  # we start the file with a "package" stmt
          if(!$implicit_global_my) {
             push @Packages, $DEFAULT_PACKAGE unless(exists $Packages{$DEFAULT_PACKAGE});
             $Packages{$DEFAULT_PACKAGE} = 1;
@@ -784,7 +784,7 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
                 $type = 'I';
             }
             $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
-        } elsif($ValClass[$k-1] eq 'f' && $ValPerl[$k-1] eq 'defined') {
+        } elsif($ValClass[$k-1] eq 'f' && $ValPerl[$k-1] eq 'defined' && &::end_of_variable($k) == $k) {
             # If they are checking if this var is defined, then we have to init it to "None" if
             # we're called on to init it, so set the type to 'm' for "mixed".  This means we
             # need to convert it using _num and _str each time we reference it so we don't get
@@ -913,6 +913,8 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             $type = expr_type($k+2, $#ValClass, $CurSub);
             $type = "$class of $type";
             $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
+        } elsif(substr($ValPy[$k],0,4) eq 'len(') {
+	    $type = 'I';
         }
         $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
         $VarType{$name}{$CurSub} = $type if(!exists $VarType{$name} || !exists $VarType{$name}{$CurSub});
@@ -2452,9 +2454,10 @@ sub cleanup_imports
     #my $list_sep_referenced = 0;
     #my $script_start_lno = 0;
     #my $script_start_referenced = 0;
-    for my $line (@$line_ref) {
+    for my $Line (@$line_ref) {
         $lno++;
-        if($line =~ /^import /) {
+        $line = eat_strings($Line);     # we change variables so eat_strings doesn't modify @lines
+	if($line =~ /^import /) {
             my $import_s = $line =~ s/^import //r;
             if(!$import_as_lno && index($import_s, ' as ') > 0) {      # import time as tm_py
                 ($as_what) = $line =~ / as ([a-z_]+)/;

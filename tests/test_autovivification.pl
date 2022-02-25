@@ -13,7 +13,7 @@ assert($desc[5]{k} eq 'k');
 $desc[6][2] = 't';
 assert($desc[6][2] eq 't');
 assert(!defined $desc[6][0]);
-assert(!defined $desc[7][0]);   # makes $desc[7] and tests $desc[7][0]
+assert(! $desc[7][0]);   # makes $desc[7] and tests $desc[7][0]
 assert(defined $desc[7]);
 
 $hash{key0}{key1} = 'v';
@@ -35,6 +35,10 @@ assert("@{[%cats]}" eq 'Buster 1');
 # We aren't gonna support this! $cats{Buster}{count} = 9;
 # We aren't gonna support this! assert($cats{Buster}{count} == 9);
 #print(Dumper(\$bar). "\n");
+assert(!defined $cats{Harry}{count});
+$foo = $cats{Harry}{count};
+assert(!defined $foo);
+assert(defined $cats{Harry});
 $cats{Felix}{count} = 10;
 assert($cats{Felix}{count} == 10);
 #print(Dumper(\%cats). "\n");
@@ -92,5 +96,24 @@ unshift @items, 9;
 assert(join('', @items) eq '985310');
 $items[6] = -1;
 assert(join('', @items) eq '985310-1');
+
+# Sample from class2q.pl:
+
+$line = "a|b|c|d|e|f";
+@line = split /\|/, $line;
+$key = "$line[1]|$line[2]";
+push @{$classmap{$key}}, "exp|$line[5]";
+
+assert(scalar(@{$classmap{$key}}) == 1);
+#assert(${$classmap{$key}}[0] eq "exp|$line[5]");
+
+$r = 'r';
+$policy = 'policy';
+$key2 = "$r|$policy";
+foreach $class (keys %{$policy2class{$key2}})
+{
+	$cnt++;
+}
+assert(!$cnt);
 
 print "$0 - test passed!\n";
