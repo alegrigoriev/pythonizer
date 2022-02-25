@@ -30,7 +30,7 @@ def _import(globals, path, module=None, fromlist=None, version=None):
         if mod_version is not None and version > mod_version:
             raise ValueError(f"For import {module}, desired version {version} > actual version {mod_version} at {path}")
 
-    globals[module] = mod
+    # globals[module] = mod
 
     if fromlist is None:
         return                  # use X ();

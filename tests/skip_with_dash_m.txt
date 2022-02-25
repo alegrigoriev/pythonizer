@@ -12,3 +12,7 @@ test_pragma3.pl
 test_pragma4.pl
 test_traceback.pl
 test_trace_run.pl
+test_export_vars.pl
+test_export_vars2.pl
+test_export_vars3.pl
+test_export_vars4.pl

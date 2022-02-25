@@ -162,6 +162,7 @@
 # 0.955  2022/02/20  SNOOPYJC  issue 120 - m flag on regex is not a new regex, fix split: A zero-width match at the beginning of EXPR never produces an empty field, issue 119 - last index of expr, issue 120 - handle foreach with reverse range, remove tight loop in fix_type_issues() if there is a missing right paren, key=>{ is not a new block, fix issue 114 substr match with expr containing a comma, fix issue where 3 or more subscripts in a variable reference in a string produces wrong code, fix issues and write test case for assigning var(s) with undef, fix issues and write test cases for lh substr, fix delete on hash with expression as key, fix issue with map function generating syntax error, fix issue with unbalanced parens generated using regex with g flag in while loop with the default variable, put defined function expr in parens, propagate global variable references down to lines that only have regex's or here-is documents to handle the case that they have global variable references in them, handle regex with char class that looks like a subscript
 # 0.956  2022/02/21  SNOOPYJC  issue 121 - all ranges need to be expanded for maketrans, issue 122 fix tr with d flag, issue 123 - tr arguments should not be interpolated, issue 124 - Regex with DEFAULT_VAR and capturing groups needs to always set the DEFAULT_MATCH, issue 125 - implement the c flag on tr, addl fix for issue 45 return insertion found during bootstrapping, don't remove ((...)) in strings, addl fix for issue 89 keyword in {hash ref def}
 # 0.957  2022/02/22  SNOOPYJC  Don't recognize keyword after 'no', translate the idiom to see if a var is numeric, handle hashref interpolation in strings, don't initialize variables from other packages, insert splats in lists of arrays for map/grep, addl fix for issue 124 in expression with 'not', fix grep with pattern with capturing groups
+# 0.958  2022/02/23  SNOOPYJC  Addl fix for issue 25 - defined, don't use get() with autovivification unless at end of expr, rewrite import to deal with importing variables, convert hash to list for iteration
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -201,12 +202,13 @@ BEGIN {                                                 # SNOOPYJC
                  '%SpecialVarR2L',                      # SNOOPYJC
                  '@EndBlocks',                          # SNOOPYJC
                  'get_sub_vars_with_class',             # issue 78
+                 'add_package_to_mapped_name',          # issue import vars
                  '%FileHandles',                        # SNOOPYJC
                  '@ValType', '$TokenStr');
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
 
-   $VERSION='0.957';
+   $VERSION='0.958';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -1340,7 +1342,9 @@ my ($start,$token_buffer_active);
              if($#ValClass != 0) {              # not a plain 'return'
                 my $lno = $eval_stack[-1]->{lno};
                 gen_chunk("$EVAL_RESULT$lno = ");
-                $TrStatus = expression(1,$#ValClass,-1);        # -1 means to eat any surrounding ()
+                my $mode = -1;
+                $mode = 0 if($ValClass[1] eq '(' && next_same_level_tokens('=,', 2, $#ValClass-1) != -1);  # keep the parens if we have a tuple or assignment expr
+                $TrStatus = expression(1,$#ValClass,$mode);        # -1 means to eat any surrounding ()
             }
             gen_statement();
             gen_statement("raise $EVAL_RETURN_EXCEPTION");
@@ -3503,14 +3507,17 @@ my($start,$k,$split,$limit)=@_;         # issue 106
                   $eq = $start-1;
               }
               gen_chunk('((');
-              if($ValClass[$eq+1] eq 'f' && $ValPy[$eq+1] eq $CONVERTER_MAP{S}) {
-                  # We could have inserted a _str($v), so leave that out!
-                  $k=expression($eq+3,$split-2,0);
-              } else {
-                  $k=expression($eq+1,$split-1,0); # can be array index or something  more problemtic ;-)
+              if($flags !~ /replace/) {
+                  if($ValClass[$eq+1] eq 'f' && $ValPy[$eq+1] eq $CONVERTER_MAP{S}) {
+                      # We could have inserted a _str($v), so leave that out!
+                      $k=expression($eq+3,$split-2,0);
+                  } else {
+                      $k=expression($eq+1,$split-1,0); # can be array index or something  more problemtic ;-)
+                  }
+                  return -255 if( $k<0 );
+                  gen_chunk(':=');
               }
-              return -255 if( $k<0 );
-              gen_chunk(':=', '(', $SUBSCRIPT_TEMP, ':=', $ValPy[$split+1], $flags, ',var=');
+              gen_chunk('(', $SUBSCRIPT_TEMP, ':=', $ValPy[$split+1], $flags, ',var=');
               $k=expression($eq+1, $split-1, 0);
               gen_chunk('))[0])', ',', $SUBSCRIPT_TEMP, ')[1][1]');
               gen_chunk(')') if(!$eq_ok);
@@ -4035,7 +4042,7 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
       }elsif( substr($TokenStr,$start) eq '(h)') {              # SNOOPYJC: Looping over a hash in perl gives the keys and the values
          # loop over a hash
          # SNOOPYJC gen_chunk('functools.reduce(lambda x,y:x+y,'.$ValPy[$start+1].'.items())');
-         gen_chunk('itertools.chain.from_iterable('.$ValPy[$start+1].'.items())');      # SNOOPYJC
+         gen_chunk('list(itertools.chain.from_iterable('.$ValPy[$start+1].'.items()))');      # SNOOPYJC: add "list(..)" in case they modify it in the loop
       }elsif( substr($TokenStr,$start)=~/^\(f\(?h\)/ ){
          # foreach loop over a hash
          $start++; # skip '('
@@ -4534,6 +4541,7 @@ my ($k, $split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_nam
       if($k+1 <= $#ValClass && $ValClass[$k+1] eq '(' && $ValPerl[$k+1] ne '(') {     # issue 25 - array element or hash value
           $e = end_of_variable($start);             # issue 25 addl fix, SNOOPYJC
           $k = expression($k, $e, 0);                           # issue 25
+          gen_chunk('is', 'not', 'None');                     # issue 25 again
       } elsif( $bracketed==-1 ){                        # SNOOPYJC
           gen_chunk("$DEFAULT_VAR is not None");
           return $start;
@@ -5962,11 +5970,16 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
    }
 
    # issue 53: Change hash references to use ".get(...)" instead of "[...]"
+   my $f;
    for(my $i = $begin; $i <= $limit; $i++) {    # issue 53
        if($ValClass[$i] eq '(' && $ValPy[$i] eq '[' && $ValPerl[$i] eq '{') {  # issue 53
            $l = matching_br($i);                        # issue 53
            next if($l < 0);                             # issue 53
            next if(index($TokenStr, '=') > $l);         # issue 53: skip if on lhs of assignment
+           next if((($f=index($TokenStr,'f')) != -1) && 
+               ($ValPerl[$f] =~ /keys|values/ ||
+               ($ValPerl[$f] =~ /push|unshift/ && $l < next_same_level_token(',',$f,$#ValClass))));
+           next if($autovivification && $l != $#ValClass);  # SNOOPYJC: '.get()' is no longer needed for autovivification, use on last one only
            if(substr($TokenStr,$i,($l+1)-$i) !~ /[,A]/) {   # issue 53: don't change list or hash constant, issue 93
                $ValPy[$i] = '.get(';                        # issue 53
                $ValPy[$l] = ')';                            # issue 53
@@ -5974,7 +5987,6 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
            $i = $l;
        }
    }
-
 
    #
    # we need tocoorect end_pos in case there is a closing bracket to $limit-1
@@ -6007,7 +6019,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
       }                                                         # issue 101
       if( $ValClass[$cur_pos] eq '(' ){
          # generate bracket if mode=1 or recursion level is above zero
-         gen_chunk($ValPy[$cur_pos]);
+         gen_chunk($ValPy[$cur_pos]) unless($cur_pos == $begin && $mode == -1); # SNOOPYJC
 	 # issue 15 $cur_pos=expression($cur_pos+1,$end_pos,0); # preserve brackets
          my $match = matching_br($cur_pos);             # issue paren
          if($match < 0) { $TrStatus=-1; return -255; }
@@ -7454,6 +7466,8 @@ sub do_use_require
             }
         } else {                                # Static string
             my ($path, $exports) = import_it($pos);
+            my $has_var_imports = 0;
+            ($has_var_imports, $exports) = filter_exports($exports);
             $path = '' if($path eq '.');
             if($path eq $MODULES_DIR || $path eq "./$MODULES_DIR") {
                 if(!$modules_path_added && $pos == 0) {
@@ -7475,6 +7489,10 @@ sub do_use_require
                 $file =~ s'\.py$'';
                 if($exports) {
                     gen_statement("from $file import $exports");
+                } elsif($has_var_imports) {
+                    my $underfile = '_' . $file;
+                    $underfile =~ s/\./_/g;
+                    gen_statement("import $file as $underfile");
                 } else {
                     gen_statement("import $file");
                 }
@@ -7493,6 +7511,8 @@ sub do_use_require
         }
     } elsif($pos+1 <= $limit && $ValClass[$pos+1] eq 'i') {              # use/require bare or use/require A::B
         my ($path, $exports) = import_it($pos);
+        my $has_var_imports = 0;
+        ($has_var_imports, $exports) = filter_exports($exports);
         my $inLib = 0;
         my @places = @UseLib;
         push @places, @INC;
@@ -7517,13 +7537,17 @@ sub do_use_require
             ($CurSub eq '__main__' || !$exports)) {     # issue 41
             if($exports) {
                 gen_statement("from $ValPy[$pos+1] import $exports");
+            } elsif($has_var_imports) {
+                my $underfile = '_' . $ValPy[$pos+1];
+                $underfile =~ s/\./_/g;
+                gen_statement("import $ValPy[$pos+1] as $underfile");
             } else {
                 gen_statement("import $ValPy[$pos+1]");
             }
         } else {
-            gen_variable_import_pre();
             my $module = $ValPy[$pos+1];
             $module =~ s'\.'/'g;
+            gen_variable_import_pre();
             if($path) {
                 gen_chunk("os.path.join('$path', '$module')");
             } else {
@@ -7646,7 +7670,8 @@ sub import_it
     }
     my $stat = 0;
     if(! -f $fullfile) {     # Can't find it
-        my @py_export = map { import_perl_to_python(\%found_map, $_) } expand_extras(\@desired_imports, $fullfile);
+        my ($fmap, $extras) = expand_extras(\@desired_imports, $fullfile);
+        my @py_export = map { import_perl_to_python($fmap, $_) } @{$extras};
         return ('', join(', ', @py_export)) 
     }
     if((! -f $fullpy) || (-M $fullpy >= -M $fullfile)) {
@@ -7701,7 +7726,8 @@ sub import_it
 
         if(!$canwrite && !$pythonize_standard_library) {
             logme('W', "Skipped translating $fullfile to python for use in $ValPerl[$pos] $ValPerl[$pos+1] (use '-s' option to translate it (not recommended))");
-            my @py_export = map { import_perl_to_python(\%found_map, $_) } expand_extras(\@desired_imports, $fullfile);
+            my ($fmap, $extras) = expand_extras(\@desired_imports, $fullfile);
+            my @py_export = map { import_perl_to_python($fmap, $_) } @{$extras};
             return ($path, join(', ', @py_export)) 
         }
         
@@ -7722,7 +7748,8 @@ sub import_it
     }
     if($stat) {
         logme('W', "$0 failed to translate $fullfile to python for use in $ValPerl[$pos] $ValPerl[$pos+1]!");
-        my @py_export = map { import_perl_to_python(\%found_map, $_) } expand_extras(\@desired_imports, $fullfile);
+        my ($fmap, $extras) = expand_extras(\@desired_imports, $fullfile);
+        my @py_export = map { import_perl_to_python($fmap, $_) } @{$extras};
         return ($path, join(', ', @py_export)) 
     }
 
@@ -7731,11 +7758,13 @@ sub import_it
         logme('W', "Could not open $fullpy for use in $ValPerl[$pos] statement!");
         return ($path, '');
     }
-    my $base_pattern = '\b[A-Za-z_][A-Za-z0-9_]*';
-    my %sigil_patterns = ('$'=>scalar_var_name($base_pattern).'\b',
-                          '@'=>array_var_name($base_pattern).'\b',
-                          '%'=>hash_var_name($base_pattern).'\b');
-    my (@export, @export_ok, %export_tags, $version, @can_export_classes, @can_export_defs, @can_export_vars);
+    my $base_pattern = '[A-Za-z_][A-Za-z0-9_]*';
+    my $package_name_pattern = '\b(?:[A-Za-z][A-Za-z0-9_]*[.])+';
+    my @sigil_patterns = ('$',$package_name_pattern.scalar_var_name($base_pattern).'\b',
+                          '@',$package_name_pattern.array_var_name($base_pattern).'\b',
+                          '%',$package_name_pattern.hash_var_name($base_pattern).'\b',
+                          '',$package_name_pattern.$base_pattern.'\b');
+    my (@export, @export_ok, %export_tags, $version, @can_export_classes, @can_export_defs, @can_export_vars, @can_export_packages);
     while(<PYTHON>) {
         if(/EXPORT = '([^']*)'\.split()/) {	# issue 44: we changed the quotes
             @export = split(' ', $1);
@@ -7756,16 +7785,39 @@ sub import_it
             push @can_export_classes, $1;
         } elsif(/^def ([A-Za-z][A-Za-z0-9_]*)/) {
             push @can_export_defs, $1;
-        } elsif(/^([A-Za-z][A-Za-z0-9_]*) = /) {
+        } elsif(/^(?:[A-Za-z][A-Za-z0-9_]*[.])+([A-Za-z][A-Za-z0-9_]*) = /) {
             push @can_export_vars, $1;
+        } elsif(/init_package\('([\w.]+)'\)/) {
+            push @can_export_packages, $1;
         }
         my $line = &Pythonizer::eat_strings($_);
-        foreach my $sig (keys %sigil_patterns) {
-            my $pat = $sigil_patterns{$sig};
+        # Skip assignments of sub names to their packages like "ExportVars.get_xvar = get_xvar":
+        next if($line =~ /^(?:[A-Za-z][A-Za-z0-9_]*[.])+([A-Za-z][A-Za-z0-9_]*) = ([A-Za-z][A-Za-z0-9_]*)/ && $1 eq $2);
+        for(my $j=0; $j < scalar(@sigil_patterns); $j+=2) {
+            my $sig = $sigil_patterns[$j];
+            my $pat = $sigil_patterns[$j+1];
             if($line =~ /($pat)/) {
-                my $python_name = $1;
-                my $perl_name = $sig . substr($python_name,0,length($python_name)-2);
-                $found_map{$perl_name} = $python_name;
+                my $full_name = $1;
+                my $last_dot = rindex($full_name, '.');
+                my $package_name = substr($full_name,0,$last_dot);
+                my $python_name = substr($full_name,$last_dot+1);
+                if($sig eq '') {
+                    my $perl_basename = $python_name;
+                    if(substr($python_name,-1,1) eq '_') {
+                        my $without_escape = substr($python_name,0,length($python_name)-1);
+                        my $esc = escape_keywords($without_escape);
+                        $perl_basename = $without_escape if($esc eq $python_name);
+                    }
+                    for $sig ('$', '@', '%') {
+                        my $perl_name = $sig . $perl_basename;
+                        $found_map{$perl_name} = escape_keywords($package_name, 1) . '.' . $python_name;
+                        #add_package_to_mapped_name($perl_name, $package_name, $python_name);
+                    }
+                } else {
+                    my $perl_name = $sig . substr($python_name,0,length($python_name)-2);
+                    $found_map{$perl_name} = escape_keywords($package_name, 1) . '.' . $python_name;
+                    #add_package_to_mapped_name($perl_name, $package_name, $python_name);
+                }
             }
         }
     }
@@ -7776,7 +7828,7 @@ sub import_it
         no warnings 'uninitialized';
         say STDERR "For $fullpy, EXPORT=@export, EXPORT_OK=@export_ok, EXPORT_TAGS=" .
         Dumper(\%export_tags) . 
-        ", VERSION=$version, found_map=@{[%found_map]}, can_export_classes=@can_export_classes, can_export_defs=@can_export_defs, can_export_vars=@can_export_vars" if($debug);
+        ", VERSION=$version, found_map=@{[%found_map]}, can_export_classes=@can_export_classes, can_export_defs=@can_export_defs, can_export_vars=@can_export_vars, can_export_packages=@can_export_packages" if($debug);
      }
     $version = substr($version,1) if($version && substr($version,0,1) eq 'v');
     if($desired_version && $version) {
@@ -7866,8 +7918,32 @@ sub import_it
     return ($path, join(', ', @py_export));
 }
 
+sub filter_exports
+# Process the exports and only keep the ones that are subs (they don't have a package name)
+# For the ones with a package name, we already added that to references of those variables
+# Usage:
+#($has_var_imports, $exports) = filter_exports($exports);
+{
+    my $exports = shift;        # string sep by ', '
+
+    my @result = ();
+    my @arr_exports = split /, /, $exports;
+
+    my $has_var_imports = 0;
+    for my $export (@arr_exports) {
+        if(index($export, '.') < 0) {
+            push @result, $export;
+        } else {
+            $has_var_imports = 1;
+        }
+    }
+    $has_var_imports = 1;               # Works better this way (see test_export_vars2.pl)
+    return ($has_var_imports, join(', ', @result));
+}
+
 sub expand_extras
 # Given a list of desired exports, work with the perl file to expand it to the full list (if possible)
+# Returns a hashref of perl names to python fully qualified names plus a listref of actual imports
 {
     my $desired_imports = shift;
     my $fullfile = shift;
@@ -7877,11 +7953,12 @@ sub expand_extras
     my @export_ok = ();
     my %export_tags = ();
     my $version = undef;
+    my $package = undef;
+    my %default_map = ();     # Default mapping of perl names to python fully qualified names
     eval {
         no warnings;
         local $SIG{__WARN__} = sub { };
         require $fullfile;
-        my $package = undef;
         open(SRC, '<', $fullfile);
         while(<SRC>) {
             if(/\bpackage\s+(.*);/) {
@@ -7889,7 +7966,7 @@ sub expand_extras
                 last;
             }
         }
-        return if(!defined $package);
+        return (\%default_map, \@result) if(!defined $package);
         my %pkh = %{"${package}::"};
         #say STDERR keys %pkh;
         @export = @{$pkh{EXPORT}} if exists($pkh{EXPORT});
@@ -7905,7 +7982,10 @@ sub expand_extras
     if($@ =~ /you may need to install the (.*?) module/) {
         $message = "Module $1 not found in \@INC: Can't process";
     }
-    
+    my %potential_imports = map { $_ => 1 } (@export, @export_ok);
+    for my $tag (keys %export_tags) {
+        %potential_imports = (%potential_imports, map { $_ => 1 } @{$export_tags{$tag}});
+    }
     # [!]name         This name only
     # [!]:DEFAULT     All names in @EXPORT
     # [!]:tag         All names in $EXPORT_TAGS{tag} anonymous array
@@ -7925,7 +8005,7 @@ sub expand_extras
             }
             my $ch2 = substr($desired,1,1);
             if($ch2 eq ':') {
-                $tag = substr($desired,2);
+                my $tag = substr($desired,2);
                 if(exists $export_tags{$tag}) {
                     for my $e (@{$export_tags{$tag}}) {
                         delete $actual_imports{$e};
@@ -7947,7 +8027,7 @@ sub expand_extras
                 $message .= " $desired";
                 $gen_message = 1;
             }
-            $tag = substr($desired,1);
+            my $tag = substr($desired,1);
             if(exists $export_tags{$tag}) {
                 for my $e (@{$export_tags{$tag}}) {
                     $actual_imports{$e} = 1;
@@ -7974,8 +8054,43 @@ sub expand_extras
         }
     }
     logme('W', $message) if($gen_message);
-    say STDERR "expand_extras(@{$desired_imports}, $fullfile) = " . join(' ', keys %actual_imports) if($debug);
-    return keys %actual_imports;
+    @result = keys %actual_imports;
+    for my $perl_name (@result) {
+        my $sig = substr($perl_name,0,1);
+        my $basename = substr($perl_name,1);
+        if(index('@$%', $sig) >= 0) {
+            # remap any conflicts - this is a best guess based on what is exported and may not match
+            # exactly if we actually translate this module to python
+            if($sig eq '$' && exists $potential_imports{$basename}) {
+                $basename = scalar_var_name($basename);
+            } elsif($sig eq '@') {
+                for my $s ('', '&', '$', '%') {
+                    if(exists $potential_imports{$s.$basename}) {
+                        $basename = array_var_name($basename);
+                        last;
+                    }
+                }
+            } elsif($sig eq '%') {
+                for my $s ('', '&', '$', '@') {
+                    if(exists $potential_imports{$s.$basename}) {
+                        $basename = hash_var_name($basename);
+                        last;
+                    }
+                }
+            }
+        } elsif($sig ne '&' && $sig ne '*') {
+            $basename = $sig . $basename;
+            $sig = '';
+        }
+        my $python_name = escape_keywords($basename);
+        if(index('@$%', $sig) >= 0) {
+            #add_package_to_mapped_name($perl_name, $package, $python_name);
+            $python_name = escape_keywords($package, 1) . '.' . $python_name;
+        }
+        $default_map{$perl_name} = $python_name;
+    }
+    say STDERR "expand_extras(@{$desired_imports}, $fullfile) = (@{[%default_map]}, " . join(' ', keys %actual_imports) . ')' if($debug);
+    return (\%default_map, \@result);
 }
 
 sub import_perl_to_python
@@ -7994,7 +8109,14 @@ sub import_perl_to_python
         $result = escape_keywords($perl_name);
     } elsif(index('@$%', $sig) >= 0) {
         if(exists $mapref->{$perl_name}) {
-            return $mapref->{$perl_name};               # e.g. @arr -> arr_a, if it exists in the generated code
+            my $fullname = $mapref->{$perl_name};
+            my $p_dot = rindex($fullname, '.');
+            if($p_dot) {
+                my $package = substr($fullname, 0, $p_dot);
+                my $python_name = substr($fullname, $p_dot+1);
+                add_package_to_mapped_name($perl_name, $package, $python_name);
+            }
+            return $fullname;               # e.g. @arr -> PackageName.arr_a, if it exists in the generated code
         }
         return escape_keywords(substr($perl_name, 1));
     } else {

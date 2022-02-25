@@ -159,7 +159,10 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
 
     def __getattribute__(self, name):
         if name in ('keys', 'values', 'items') and not self.isHash:
-            raise AttributeError
+            #raise AttributeError
+            def inner():
+                return []
+            return inner
         return super().__getattribute__(name)
 
     def __add__(self, other):

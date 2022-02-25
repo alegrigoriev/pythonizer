@@ -60,7 +60,7 @@ use Storable qw(dclone);                # SNOOPYJC
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw(Exporter);
-@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence %SpecialVarsUsed @EndBlocks %SpecialVarR2L get_sub_vars_with_class %FileHandles);	# issue 41, issue 65, issue 74, issue 92, issue 93, issue 78
+@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence %SpecialVarsUsed @EndBlocks %SpecialVarR2L get_sub_vars_with_class %FileHandles add_package_to_mapped_name);	# issue 41, issue 65, issue 74, issue 92, issue 93, issue 78
 #our (@ValClass,  @ValPerl,  @ValPy, $TokenStr); # those are from main::
 
   $VERSION = '0.93';
@@ -2511,7 +2511,10 @@ my ($l,$m);
                   $ValType[$tno]="X";
                   $SpecialVarsUsed{'@ARGV'} = 1;                       # SNOOPYJC
             }else{
-               my $arg2 = remap_conflicting_names($arg1, '@', substr($source,length($arg1)+1,1));      # issue 92
+               my $arg2 = $arg1;
+               $arg2=~tr/:/./s;
+               $arg2=~tr/'/./s;          # SNOOPYJC
+               $arg2 = remap_conflicting_names($arg2, '@', substr($source,length($arg1)+1,1));      # issue 92
 	       $arg2 = escape_keywords($arg2);		# issue 41
                if( $tno>=2 && $ValClass[$tno-2] =~ /[sd'"q]/  && $ValClass[$tno-1] eq '>'  ){
                   $ValPy[$tno]='len('.$arg2.')'; # scalar context   # issue 41
@@ -2519,8 +2522,8 @@ my ($l,$m);
                 }else{
                   $ValPy[$tno]=$arg2;            # issue 41
                }
-               $ValPy[$tno]=~tr/:/./s;
-               $ValPy[$tno]=~tr/'/./s;          # SNOOPYJC
+               #$ValPy[$tno]=~tr/:/./s;
+               #$ValPy[$tno]=~tr/'/./s;          # SNOOPYJC
                if( substr($ValPy[$tno],0,1) eq '.' ){
                   $ValPy[$tno]="$MAIN_MODULE$ValPy[$tno]";
                   $ValType[$tno]="X";
@@ -4848,6 +4851,25 @@ sub escape_keywords		# issue 41
 #    return join('.', @ids);
 #}
 
+sub add_package_to_mapped_name          # issue import vars
+# For supporting import (use statement) of variable names, add the package name to their remap so
+# we generate that in the code that references them.
+{
+    my $perl_name = shift;
+    my $package_name = shift;
+    my $py_name = (scalar @_) ? shift : undef;
+
+    my $sigil = substr($perl_name, 0, 1);
+    my $name = substr($perl_name, 1);
+
+    if(exists $NameMap{$name} && exists $NameMap{$name}{$sigil}) {
+        $py_name = $NameMap{$name}{$sigil} unless defined $py_name;
+    } elsif(!defined $py_name) {
+        $py_name = escape_keywords($name);
+    }
+    $NameMap{$name}{$sigil} = escape_keywords($package_name, 1) . '.' . $py_name;
+}
+
 sub mapped_name                         # issue 92
 {
     my $name = shift;
@@ -4892,7 +4914,15 @@ sub remap_conflicting_names                  # issue 92
     $sigil = actual_sigil($sigil, $trailer);
     my $mid = mapped_name($id, $sigil, $trailer);
     if(exists $NameMap{$id} && exists $NameMap{$id}{$sigil} && $NameMap{$id}{$sigil} ne $id) {
-        return $NameMap{$id}{$sigil};
+        $ids[-1] = $NameMap{$id}{$sigil};
+        if(scalar(@ids) > 1 && index($ids[-1],'.') >= 0) {
+            # We have a name we imported that we have referenced with the fully qualified name, 
+            # remove the extra package name
+            my $p_dot = rindex($ids[-1], '.');
+            $ids[-1] = substr($ids[-1], $p_dot+1);
+        }
+        say STDERR "remap_conflicting_names($name,$s,$trailer) = " . join('.', @ids) . ' (1)' if($::debug >= 5);
+        return (join('.', @ids));
     }
     if($sigil ne '' && $sigil ne '&') {
         for $sig (('', '&', '@', '%', '$')) {
@@ -4906,6 +4936,13 @@ sub remap_conflicting_names                  # issue 92
             }
         }
         $NameMap{$id}{$sigil} = $ids[-1];
+        if(scalar(@ids) > 1 && index($ids[-1],'.') >= 0) {
+            # We have a name we imported that we have referenced with the fully qualified name, 
+            # remove the extra package name
+            my $p_dot = rindex($ids[-1], '.');
+            $ids[-1] = substr($ids[-1], $p_dot+1);
+        }
+        say STDERR "remap_conflicting_names($name,$s,$trailer) = " . join('.', @ids) . ' (2)' if($::debug >= 5);
         return (join('.', @ids));
     }
     # We have a sub or a FH at this point - map other names and leave him alone
@@ -4943,6 +4980,7 @@ sub remap_conflicting_names                  # issue 92
             }
         }
     }
+    say STDERR "remap_conflicting_names($name,$s,$trailer) = $name (3)" if($::debug >= 5);
     return $name;
 }
 
