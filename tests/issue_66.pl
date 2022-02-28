@@ -119,11 +119,14 @@ if($0 eq 'issue_66.py') {
         if($found_start) {
             if(/^    with/) {
                 $with++;
-                assert(index($_, "fileinput.input('-') as _dia:") > 0);
+                assert(index($_, "fileinput.input('-') as _dia:") > 0 ||
+                       index($_, 'fileinput.input("-") as _dia:') > 0); # with black formatter
             } elsif(/^        while/) {
                 $while++;
-                assert(index($_, "(_d:=next(_dia, None)):") > 0) if($while==1);
-                assert(index($_, "(line:=next(_dia, None)):") > 0) if($while>1);
+                assert(index($_, "(_d:=next(_dia, None)):") > 0 ||
+                       index($_, "_d := next(_dia, None):") > 0) if($while==1);
+                assert(index($_, "(line:=next(_dia, None)):") > 0 ||
+                       index($_, "line := next(_dia, None):") > 0) if($while>1);
             }
         }
     }

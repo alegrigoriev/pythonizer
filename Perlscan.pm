@@ -872,6 +872,12 @@ sub get_py_name
         $sigil = '';
         $name = $perl_name;
     }
+    if(!$::import_perllib && length($name) == 1 && exists $SPECIAL_VAR{$name}) {
+        # Handle the case of assignments to vars like $@ which is mapped to EVAL_ERROR and we have
+        # to declare global unless we're using perllib (in which case it assigns perllib.EVAL_ERROR)
+        $pyname = $SPECIAL_VAR{$name};
+        return $pyname if(exists $GLOBALS{$pyname});
+    }
     return undef unless(exists $NameMap{$name});
     return undef unless(exists $NameMap{$name}{$sigil});
     return $NameMap{$name}{$sigil};
@@ -885,6 +891,16 @@ sub def_label                   # issue 94
     }
     $last_label = $label;
     $all_labels{$label} = 1;
+}
+
+sub could_be_anonymous_sub_close        # SNOOPYJC
+# Could this '}' be the close of an anonymous sub?
+{
+    return 0 if(!@nesting_stack);
+    $top = $nesting_stack[-1];
+    return 0 if(!$top->{is_sub});
+    return 1 if($top->{cur_sub} =~ /^$ANONYMOUS_SUB\d+$/);
+    return 0;
 }
 
 sub in_sub                      # SNOOPYJC
@@ -1715,7 +1731,10 @@ my ($l,$m);
                $balance--;
             }
          }
-         #say STDERR "Got ; balance=$balance, tno=$tno, nesting_last=$nesting_last";
+         {
+          no warnings 'uninitialized';
+          say STDERR "Perlscan got ; balance=$balance, tno=$tno, nesting_last=$nesting_last" if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
+         }
          if( $balance != 0  ){
             # for statement or similar situation
             $ValClass[$tno]=$ValPerl[$tno]=$s;
@@ -1784,6 +1803,7 @@ my ($l,$m);
              }
              last; # we need to process it as a seperate one-symbol line
          }elsif( $tno>0 && (length($source)==1 || $source =~ /^}\s*#/ ||
+                 could_be_anonymous_sub_close() ||              # SNOOPYJC
                  $source =~ /^}\s*(?:(?:(?:else|elsif|while|until|continue|)\b)|;)/)){    # issue 45, issue 95
              # NOTE: here $tno>0 and we reached the last symbol of the line
              # we recognize it as the end of the block
@@ -1858,6 +1878,7 @@ my ($l,$m);
                  ($ValPerl[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1 || 
                   ($tno == 1 && $ValClass[0] eq 'C')||  # SNOOPYJC: do {...} until(...); else {...}; elsif {...}; eval {...};
                   ($tno == 2 && $ValPerl[0] eq 'sub') ||
+                  $ValPerl[$tno-1] eq 'sub' ||          # issue 81
                   ($tno == 1 && $ValPerl[0] =~ /BEGIN|END|UNITCHECK|CHECK|INIT/))){	# issue 35, 45
              # $tno>0 this is the case when curvy bracket has comments'
              enter_block() if($s eq '{');                 # issue 94
@@ -2473,7 +2494,7 @@ my ($l,$m);
                        $source =~ s/=\s*['"]DEFAULT['"]/=_DFL/;
                        $source =~ s/=\s*['"]IGNORE['"]/=_IGN/;
                        $source =~ s/\{\s*([A-Z_]+)\s*\}\s*=\s*(.*);/($1, $2);/;
-                       $source =~ s/(?:Carp::)?confess\(\s*\@_\s*\)/traceback::print_stack(\$_[1])/;
+                       # SNOOPYJC: No longer needed since we implemented Carp: $source =~ s/(?:Carp::)?confess\(\s*\@_\s*\)/traceback::print_stack(\$_[1])/;
                    }
                 } else {
                    #$ValPy[$tno] = '_getsignal';        # Not sure to use this or that based on what the user's gonna do!

@@ -97,7 +97,7 @@ assert(join('', @items) eq '985310');
 $items[6] = -1;
 assert(join('', @items) eq '985310-1');
 
-# Sample from class2q.pl:
+# Samples from class2q.pl:
 
 $line = "a|b|c|d|e|f";
 @line = split /\|/, $line;
@@ -115,5 +115,45 @@ foreach $class (keys %{$policy2class{$key2}})
 	$cnt++;
 }
 assert(!$cnt);
+
+$class = 'class';
+$classkey = "$r|$class";
+foreach (@{$classmap{$classkey}})
+{
+    $cnt++;
+}
+assert(!$cnt);
+
+$newhash{k1}{k2} = $newarr[13];
+$n = $newhash{k1}{k2};
+assert("$n" eq '');
+
+$key = "a|b";
+$interfaces{$key}{inpolicy} = $line[18];
+$interfaces{$key}{outpolicy} = $line[19];
+$interfaces{$key}{classes}{$class}{q} = $line[20];
+$key = "b|c";
+$interfaces{$key}{inpolicy} = 'abc';
+$interfaces{$key}{outpolicy} = 'def';
+$interfaces{$key}{classes}{$class}{q} = 'q';
+
+foreach $key (sort %interfaces) {
+	foreach $class (sort keys %{$interfaces{$key}{classes}}) {
+		$answer .= $key . $interfaces{$key}{classes}{$class}{q};
+	}
+}
+assert($answer eq 'a|bb|cq');
+
+assert($newarr[14] == 0);
+assert($newarr[15] < 7);
+assert($newarr[16] > -7);
+assert($newarr[17] == undef);
+assert($newarr[18] lt 'a');
+assert($newarr[19] == $newarr[20]);
+assert($newhash{k1}{k3} == 0);
+assert($newhash{k1}{k4} == undef);
+assert($newhash{k1}{k5} == '');
+assert($newhash{k1}{k6} == $newarr[27]);
+$newhash{k1}{k7} = 'abc';
 
 print "$0 - test passed!\n";

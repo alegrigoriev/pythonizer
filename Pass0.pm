@@ -205,18 +205,19 @@ sub handle_pragma_pythonizer
     my $SFlag = undef;
     my $PFlag = undef;
     my $VFlag = undef;
+    my $KFlag = undef;
     my $implicit_global_my = undef;
 
     my %flags = (T=>\$::traceback, A=>\$::autodie, m=>\$mFlag, M=>\$MFlag, s=>\$::pythonize_standard_library,
-	    	 n=>\$::trace_run,
+	    	 n=>\$::trace_run, k=>\$::black, K=>\$KFlag,
                  S=>\$SFlag, p=>$::import_perllib, P=>\$PFlag, V=>\$VFlag);
     my %options = (traceback=>\$::traceback, autodie=>\$::autodie, implicit=>\$implicit_global_my,
                    pythonize=>\$::pythonize_standard_library, import=>\$::import_perllib, 
-		   trace=>\$::trace_run,
+		   trace=>\$::trace_run, black=>\$::black,
                    autovivification=>\$::autovivification);
-    my %option_flags = (traceback=>'T', autodie=>'A', implicit=>'m', trace=>'n',
+    my %option_flags = (traceback=>'T', autodie=>'A', implicit=>'m', trace=>'n', black=>'k',
                    pythonize=>'s', import=>'p');
-    my %option_no_flags = (implicit=>'M', pythonize=>'S', import=>'P', autovivification=>'V');
+    my %option_no_flags = (implicit=>'M', pythonize=>'S', import=>'P', autovivification=>'V', black=>'K');
 
     # pragma pythonizer -flags -moreflags
     # pragma pythonizer implicit global my, traceback, no import perllib, trace run
@@ -258,6 +259,7 @@ sub handle_pragma_pythonizer
     $::pythonize_standard_library = 0 if($SFlag);
     $::import_perllib = 0 if($PFlag);
     $::autovivification = 0 if($VFlag);
+    $::black = 0 if($KFlag);
     return 1 if($mFlag);
     return 0 if($MFlag);
     return $implicit_global_my if(defined $implicit_global_my);

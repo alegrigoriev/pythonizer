@@ -1,11 +1,13 @@
 bump.yaml:
-  ^(.*)(0.958)(.*)$: replace
+  ^(.*)(0.959)(.*)$: replace
 pythonizer:
-  '^(# )(0.958)(  )(\d\d\d\d\/\d\d\/\d\d)(  SNOOPYJC)': append
-  ^(.*\$VERSION=')(0.958)(';): replace
+  '^(# )(0.959)(  )(\d\d\d\d\/\d\d\/\d\d)(  SNOOPYJC)': append
+  ^(.*\$VERSION=')(0.959)(';): replace
 setup.py:
-  ^(.*version=')(0.958)(',): replace
+  ^(.*version=')(0.959)(',): replace
 user_guide.html:
-  ^(.*Version )(0.958)( \()([A-Z][a-z][a-z] \d*, \d\d\d\d)(\).*)$: replace
+  ^(.*Version )(0.959)( \()([A-Z][a-z][a-z] \d*, \d\d\d\d)(\).*)$: replace
 HISTORY.rst:
-  ^(0.958)( \()(\d\d\d\d-\d\d-\d\d)(\))$: history
+  ^(0.959)( \()(\d\d\d\d-\d\d-\d\d)(\))$: history
+readme.md:
+  ^(###.*)(0.959)(.*)$: replace
