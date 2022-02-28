@@ -2,6 +2,11 @@
 History
 =======
 
+0.959 (2022-02-24)
+------------------
+
+* str(ArrayHash()) changed to give '' instead of [], add EVAL_ERROR global variable, have ArrayHash() + or += work on empty value
+
 0.958 (2022-02-23)
 ------------------
 

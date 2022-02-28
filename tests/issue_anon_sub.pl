@@ -25,6 +25,7 @@ if($^O ne 'MSWin32') {
 sub locl
 {
     local $SIG {__WARN__} = \&__capture;
+    local $SIG{__WARN__} = sub { $! = shift };
     local $SIG{__WARN__} = sub { $@ = shift };
     local $SIG{__WARN__} = sub { $w = shift };
     local $SIG{__WARN__} = sub { $WARN = shift };

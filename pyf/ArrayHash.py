@@ -75,7 +75,10 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
                 self.isHash = True
             elif not self.isHash:
                 raise TypeError('Not a HASH reference')
-            return super().__getitem__(index)
+            try:
+                return super().__getitem__(index)
+            except TypeError:
+                return super().__getitem__(str(index))
 
     def __setitem__(self, index, value):
         if isinstance(index, slice):
@@ -115,7 +118,10 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
                 self.isHash = True
             elif not self.isHash:
                 raise TypeError('Not a HASH reference')
-            super().__setitem__(index, value)
+            try:
+                super().__setitem__(index, value)
+            except TypeError:
+                super().__setitem__(str(index), value)
 
     def __delitem__(self, index):
         if isinstance(index, slice):
@@ -135,7 +141,10 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
         else:
             if not self.isHash:
                 raise TypeError('Not a HASH reference')
-            super().__delitem__(index)
+            try:
+                super().__delitem__(index)
+            except TypeError:
+                super().__delitem__(str(index))
 
     def __iter__(self):
         if self.isHash:
@@ -148,6 +157,8 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
     def __str__(self):
         if self.isHash:
             return str(dict(self))
+        elif self.isHash is None:
+            return ''
         return str(list(self))
 
     def __repr__(self):
@@ -169,6 +180,8 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
         result = ArrayHash(self)
         if self.isHash or (isinstance(other, dict) and not isinstance(other, _ArrayHash)) or (hasattr(other, 'isHash') and other.isHash):
             result.update(other)
+        elif self.isHash is None and isinstance(other, (int, float, str)):
+            return other
         else:
             result.extend(other)
         return result
@@ -176,6 +189,8 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
     def __iadd__(self, other):
         if self.isHash or (isinstance(other, dict) and not isinstance(other, _ArrayHash)) or (hasattr(other, 'isHash') and other.isHash):
             self.update(other)
+        elif self.isHash is None and isinstance(other, (int, float, str)):
+            return other
         else:
             self.extend(other)
         return self
@@ -185,12 +200,32 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
         if self.isHash or (isinstance(other, dict) and not isinstance(other, _ArrayHash)) or (hasattr(other, 'isHash') and other.isHash):
             result.update(other)
             result.update(self)
+        elif self.isHash is None and isinstance(other, (int, float, str)):
+            return other
         else:
             result.extend(other)
             result.extend(self)
         return result
 
     def __eq__(self, other):
+        if self.isHash is None:
+            if hasattr(other, 'isHash') and other.isHash is None:
+                return True
+            try:
+                return '' == other
+            except Exception:
+                pass
+            try:
+                return 0 == other
+            except Exception:
+                pass
+            try:
+                return 0 == len(other)
+            except Exception:
+                pass
+            if other is None:
+                return True
+            return False
         try:
             if(len(self) != len(other)):
                 return False
@@ -204,6 +239,56 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
             return True
         except Exception:
             return False
+
+    def __lt__(self, other):
+        if self.isHash is None:
+            if hasattr(other, 'isHash') and other.isHash is None:
+                return False
+            try:
+                return '' < other
+            except Exception:
+                pass
+            try:
+                return 0 < other
+            except Exception:
+                pass
+            try:
+                return 0 < len(other)
+            except Exception:
+                pass
+            if other is None:
+                return False
+            return False
+        try:
+            i1 = iter(self)
+            i2 = iter(other)
+            while True:
+                ni1 = next(i1)
+                try:
+                    ni2 = next(i2)
+                except StopIteration:
+                    return False
+                if ni1 < ni2:
+                    return True
+                elif ni1 > ni2:
+                    return False
+        except StopIteration:
+            try:
+                next(i2)
+            except StopIteration:
+                return False
+            return True
+        except Exception:
+            return False
+
+    def __ne__(self, other):
+        return not self == other
+    def __le__(self, other):
+        return self < other or self == other
+    def __ge__(self, other):
+        return not self < other
+    def __gt__(self, other):
+        return not (self < other or self == other)
 
 def ArrayHash(init=None,isHash=None):
     """Acts like an array or hash with autovivification"""

@@ -9,7 +9,7 @@ package Pyconfig;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS);
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER);
 
 # use Readonly;		# Readonly is not installed by default so skip it!
 
@@ -77,6 +77,7 @@ our %GLOBALS = ($SCRIPT_START=>'tm_py.time()',
                 INPUT_LINE_NUMBER=>0,
                 INPUT_RECORD_SEPARATOR=>'"\n"',
                 OS_ERROR=>"''", 
+		EVAL_ERROR=>"''",
                 OUTPUT_AUTOFLUSH=>0,
                 $SUBPROCESS_RC=>0, 
 		WARNING=>1,
@@ -87,7 +88,7 @@ our %GLOBALS = ($SCRIPT_START=>'tm_py.time()',
                 _OPEN_MODE_MAP=>$open_mode_map, 
                 _DUP_MAP=>$dup_map);
 our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_LINE_NUMBER=>'I', 
-		    INPUT_RECORD_SEPARATOR=>'m', OS_ERROR=>'S', OUTPUT_AUTOFLUSH=>'I', 
+		    INPUT_RECORD_SEPARATOR=>'m', OS_ERROR=>'S', EVAL_ERROR=>'S', OUTPUT_AUTOFLUSH=>'I', 
 		    $SUBPROCESS_RC=>'I', WARNING=>'I', _OPEN_MODE_MAP=>'h of S', _DUP_MAP=>'h of I',
                     $LOCALS_STACK=>'h of S',            # issue 108
 		    TRACE_RUN=>'I', AUTODIE=>'I', TRACEBACK=>'I');
@@ -123,6 +124,14 @@ sub label_exception_name                # issue 94
     return "LoopControl_$label";
 }
 
+sub state_flag_name		# issue 128
+# Given the long name of a state variable, return the name to use for the flag we
+# set to only allow it to be initialized once
+{
+    my $name = shift;
+
+    return "${name}_needs_init";
+}
 
 # issue 41
 
@@ -227,6 +236,8 @@ our %ARRAY_INDEX_FUNCS = (''=>'_set_element', '+'=>'_add_element', '-'=>'_subtra
 # we don't try to translate it unless the '-s' flag is given:
 
 our @STANDARD_LIBRARY_DIRS = qw(site_perl vendor_perl core_perl);
+
+our $PRETTY_PRINTER = 'black -q -t py38 --fast';
 
 # Predefined package with function implementation.  The default python name
 # for the function is "_perlName", unless python=>'...' is specified.  In perllib,

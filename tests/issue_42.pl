@@ -1,6 +1,16 @@
 # Issue 42: Handle Eval and Die should raise an exception
 use Carp::Assert;
 
+assert(!$@);
+
+sub set_dollar_atsign { $@ = "oops" }
+
+assert(!$@);
+
+set_dollar_atsign();
+
+assert($@ eq 'oops');
+
 eval {
     $i = 1 + 1;
 };

@@ -75,7 +75,8 @@ sub prolog
       my $log_retention = shift;                # issue 64
       # SNOOPYJC getopts("AThd:v:r:b:t:l:",\%options);
       @orig_ARGV = @ARGV;                       # SNOOPYJC
-      getopts("nmMAVThsSpPd:v:r:b:B:t:l:",\%options);     # SNOOPYJC
+      # NOTE: Remember to add new flags to Pass0.PM (# pragma pythonizer), the help with ## at the start of pythonizer, and the readme/documentation!
+      getopts("kKnmMAVThsSpPd:v:r:b:B:t:l:",\%options);     # SNOOPYJC
 #
 # Three standard options -h, -v and -d
 #
@@ -179,6 +180,12 @@ sub prolog
       }
       if( exists $options{'V'} ) {
           $::autovivification = 0;
+      }
+      if( exists $options{'k'} ) {
+          $::black = 1;
+      }
+      if( exists $options{'K'} ) {
+          $::black = 0;
       }
 
 #
@@ -356,7 +363,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                if( $ValClass[$k]=~/[sah]/ ){
                   check_ref($CurSubName, $k);           # SNOOPYJC
                   next if exists($DeclaredVarH{$ValPy[$k]});
-                  next if( defined($ValType[$k]) && $ValType[$k] eq 'X');
+                  next if( defined($ValType[$k]) && $ValType[$k] eq 'X' && !exists($GLOBALS{$ValPy[$k]}));      # SNOOPYJC
                   $VarSubMap{$ValPy[$k]}{$CurSubName}='+';
                } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 'shift' || $ValPerl[$k] eq 'pop') &&        # SNOOPYJC
                       ($k == $#ValClass || $ValPerl[$k+1] eq '@_' || $ValClass[$k+1] !~ /[ahfi]/)) {        # SNOOPYJC
@@ -412,7 +419,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                     $DeclaredVarH{$ValPy[$k]} = 1;
                 }
                 next if exists($DeclaredVarH{$ValPy[$k]});
-                next if(  defined($ValType[$k]) && $ValType[$k] eq 'X');
+                next if(  defined($ValType[$k]) && $ValType[$k] eq 'X' && !exists($GLOBALS{$ValPy[$k]}));        # SNOOPYJC
                 next if($ValPy[$k] eq '');      # Undefined special var
                 $VarSubMap{$ValPy[$k]}{$CurSubName}='+';
                 if( $ValPy[$k] =~/[\[\(]/ && $ValPy[$k] !~ /^len\(/ && $ValPy[$k] ne 'globals()' &&
@@ -1159,7 +1166,7 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
     }
 
     if(!defined $type) {
-        $type = 'u';
+        $type = 's';
     }
     if(!exists $VarType{$name}) {
         return $type;
@@ -1171,10 +1178,10 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
     if($::debug >= 3) {
         say STDERR "merge_types: otype=$otype";
     }
-    if($otype eq 'u' || $otype eq 's') {         # undef or scalar - treat like we have no info yet
+    if($otype eq 's') {         # scalar - treat like we have no info yet
         return $type;
     }
-    if($type eq 'u' || $type eq 's') {
+    if($type eq 's') {
         return $otype;
     }
     return $type if($type eq $otype);   # Same type
@@ -1190,9 +1197,9 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
         my $len = (scalar(@olist) >= scalar(@list) ? scalar(@list) : scalar(@olist));
         for(my $i = 0; $i < $len; $i++) {
             if($list[$i] ne $olist[$i]) {
-                if($list[$i] eq 'u') {          # Was undef, now defined
+                if($list[$i] eq 's') {          # Was undef, now defined
                     return join(' of ', @olist);
-                } elsif($olist[$i] eq 'u') {
+                } elsif($olist[$i] eq 's') {
                     return join(' of ', @list);
                 }
                 $list[$i] = 'm';                # mixed type
@@ -1208,7 +1215,7 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
         return 'm';                 # mixed type
     } elsif($type =~ /[ah] of/) {
         return 'm';                 # mixed type
-    } elsif(($otype eq 's' || $otype eq 'u') && ($type =~ /[NIFSH]/)) {        # more specific type
+    } elsif(($otype eq 's') && ($type =~ /[NIFSH]/)) {        # more specific type
         return $type;
     } elsif($otype eq 'N' && ($type =~ /[IF]/)) {   # Numeric -> Int or Float
         return $type;
@@ -1216,7 +1223,7 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
         return $otype;
     } elsif(($type =~ /[IF]/) && ($otype =~ /[IF]/)) {  # int vs float
         return 'F';             # Float wins
-    } elsif($otype eq 'u' && $type eq 's') {
+    } elsif($type eq 's') {
         return $type;
     }
     return 'm';         # Mixed
@@ -2457,6 +2464,8 @@ sub cleanup_imports
     for my $Line (@$line_ref) {
         $lno++;
         $line = eat_strings($Line);     # we change variables so eat_strings doesn't modify @lines
+	next if($line =~ /^\s*$/);	# skip blank lines
+	next if($line =~ /^\s*#/);	# skip comment lines
 	if($line =~ /^import /) {
             my $import_s = $line =~ s/^import //r;
             if(!$import_as_lno && index($import_s, ' as ') > 0) {      # import time as tm_py
@@ -2465,6 +2474,7 @@ sub cleanup_imports
             } elsif(!$import_lno){
                 @imports = split /,/, $import_s;
                 $import_lno = $lno;
+                #say STDERR "import_lno=$import_lno";
             }
         } elsif($line =~ /^class Die\(/) {
             $die_def_lno = $lno;
@@ -2485,6 +2495,7 @@ sub cleanup_imports
         } elsif($import_lno) {
             my @found = grep { $line =~ /\b$_[.,]/ } @imports;
             foreach my $f (@found) {
+                #say STDERR "Found fcntl here: $line" if($f eq 'fcntl');
                 $referenced_imports{$f} = 1;
             }
             my @gl = grep { $line =~ /\b$_\b/ } @globals;
@@ -2557,6 +2568,12 @@ sub cleanup_imports
     return 0;
 }
 
+sub pretty_print_python
+# SNOOPYJC: Run the black pretty printer on the python code (-k option)
+{
+    `$PRETTY_PRINTER $output_file`              # This does nothing if the command is not found
+}
+
 sub get_fstring_items
 # helper function for eat_strings - returns an array of {...} items from an f-string, but not {{...}}
 {
@@ -2591,39 +2608,19 @@ sub eat_strings
             push @fstring_items, get_fstring_items($line) if($fstring);
             $line = '';
         }
-    } elsif(($line =~ /"""/ || $line =~ /'''/) && $line !~ /^\s*#/) {
-        $fstring = 0;
-        $ndx = index($line, '"""');
-        $ndx = index($line, "'''") if $ndx < 0;
-        $mstring_sep = substr($line,$ndx,3);
-        while($ndx > 0) {
-           my $c = substr($line,$ndx-1,1);
-           if($c eq 'f' || $c eq 'r') {    # Eat the 'f' from f-strings, and 'r' likewise.  Also handles rf"..." and fr"..."
-              $fstring = 1 if($c eq 'f');
-              $ndx--;
-           } else {
-               last;
-           }
-        }
-        # if the string terminates on the same line, then it's not a multiline string
-        if(($ndx2 = index($line, $mstring_sep, $ndx+3)) >= 0) {
-            $mstring_sep = '';
-            #substr($line,$ndx,$ndx2+4-$ndx) = '';
-            push @fstring_items, get_fstring_items(substr($line,$ndx,($ndx2-$ndx)+1)) if($fstring);
-            $line = substr($line,0,$ndx).substr($line,$ndx2+3);
-        } else {                # Start of a multi-line string
-            #substr($line,$ndx) = '';
-            push @fstring_items, get_fstring_items(substr($line,$ndx)) if($fstring);
-            $line = substr($line,0,$ndx);
-        }
+    } elsif($line =~ /^\s*#/) {		# Comment line
+        ;
     } else {
         $fstring = 0;
         my @quotes = ('"', "'");
+        my $p;
         for my $quote (@quotes) {
 	    OUTER:
             while(1) {
                 $ndx = index($line, $quote);
                 last if($ndx < 0);
+                last if(($p = index($line, '#')) >= 0 && $p < $ndx);            # Ignore strings in comments
+                last if(substr($line, $ndx, 3) eq "$quote$quote$quote");        # handled below
                 my $start = $ndx;
                 while($start > 0) {
                     my $c = substr($line,$start-1,1);
@@ -2651,7 +2648,36 @@ sub eat_strings
                 }
             }
         }
+        if(($line =~ /"""/ || $line =~ /'''/) && $line !~ /^\s*#/) {
+            $fstring = 0;
+            $ndx = index($line, '"""');
+            $ndx = index($line, "'''") if $ndx < 0;
+            $mstring_sep = substr($line,$ndx,3);
+            while($ndx > 0) {
+               my $c = substr($line,$ndx-1,1);
+               if($c eq 'f' || $c eq 'r') {    # Eat the 'f' from f-strings, and 'r' likewise.  Also handles rf"..." and fr"..."
+                  $fstring = 1 if($c eq 'f');
+                  $ndx--;
+               } else {
+                   last;
+               }
+            }
+            if(($p = index($line, '#')) >= 0 && $p < $ndx) {            # Ignore strings in comments
+                $mstring_sep = '';
+            } elsif(($ndx2 = index($line, $mstring_sep, $ndx+3)) >= 0) {
+                # if the string terminates on the same line, then it's not a multiline string
+                $mstring_sep = '';
+                #substr($line,$ndx,$ndx2+4-$ndx) = '';
+                push @fstring_items, get_fstring_items(substr($line,$ndx,($ndx2-$ndx)+1)) if($fstring);
+                $line = substr($line,0,$ndx).substr($line,$ndx2+3);
+            } else {                # Start of a multi-line string
+                #substr($line,$ndx) = '';
+                push @fstring_items, get_fstring_items(substr($line,$ndx)) if($fstring);
+                $line = substr($line,0,$ndx);
+            }
+        }
     }
+    $line =~ s/\s+#.*$//;          # Eat comments
     if(@fstring_items) {
         $line .= ' ' . join(' ', @fstring_items);
     }

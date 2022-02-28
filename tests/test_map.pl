@@ -1,5 +1,6 @@
 # test the map function using examples from the web and from our source code
 use Carp::Assert;
+#use Data::Dumper;
 
 @myNames = ('jacob', 'alexander', 'ethan', 'andrew');
 @ucNames = map(ucfirst, @myNames);
@@ -47,5 +48,25 @@ my @sorted =
         @unsorted;
 
 assert(join(' ', @sorted) eq 'bananas oranges apples melons carrots');
+
+# A new one from pythonizer:
+
+@export = qw/exp1 exp2 exp3/;
+@export_ok = qw/ok1 ok2 ok3/;
+%export_tags = (tag1=>[qw/t u/], tag2=>[qw/v w/]);
+#print Dumper(\%export_tags) . "\n";
+my %potential_imports = map { $_ => 1 } (@export, @export_ok);
+for my $tag (keys %export_tags) {
+    #print Dumper(\@{$export_tags{$tag}}) . "\n";
+    %potential_imports = (%potential_imports, map { $_ => 1 } @{$export_tags{$tag}});
+}
+#print Dumper(\%potential_imports) . "\n";
+assert(scalar(%potential_imports) == 10);
+assert($potential_imports{exp1} == 1);
+assert($potential_imports{ok3} == 1);
+assert($potential_imports{t} == 1);
+assert($potential_imports{u} == 1);
+assert($potential_imports{v} == 1);
+assert($potential_imports{w} == 1);
 
 print "$0 - test passed!\n";

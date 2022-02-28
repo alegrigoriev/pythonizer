@@ -21,7 +21,7 @@ use lib dirname($0);
 
 use test ();
 use test qw(!that);
-use test qw(:all);
+use test v1.00 qw(:all);
 
 is('this', 'this');
 
