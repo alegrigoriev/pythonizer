@@ -4,7 +4,10 @@ def _run(*args):
     global CHILD_ERROR, AUTODIE, TRACEBACK, INPUT_RECORD_SEPARATOR, TRACE_RUN
     if len(args) == 1:
         args = args[0]
-    sp = subprocess.run(args,capture_output=True,text=True,shell=True)
+    try:
+        sp = subprocess.run(args,capture_output=True,text=True,shell=_need_sh(args))
+    except FileNotFoundError:   # can happen on windows if shell=False
+        sp = subprocess.CompletedProcess(args, 127)
     if TRACE_RUN:
         _carp(f'trace run({args}): {repr(sp)}', skip=2)
     CHILD_ERROR = sp.returncode

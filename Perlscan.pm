@@ -600,6 +600,8 @@ sub add_package_name
     return unless($line_varclasses{$.}{$name} =~ /global|local/);
     if($ValPy[$tno] =~ /^\(len\((.*)\)-1\)$/) {		# for $#arr
         $ValPy[$tno] = '(len(' . cur_package() . '.' . $1 . ')-1)';
+    }elsif($ValPy[$tno] =~ /^len\((.*)\)$/) {		# issue bootstrap: for scalar(@arr)
+        $ValPy[$tno] = 'len(' . cur_package() . '.' . $1 . ')';
     } else {
         $ValPy[$tno] = cur_package() . '.' . $ValPy[$tno];         # Add the package name
     }
@@ -1497,6 +1499,8 @@ sub prepare_local
     if(!$::implicit_global_my && !$bare1 && !$has_dot) {  # SNOOPYJC: Add the package name manually
         if($ValPy[0] =~ /^\(len\((.*)\)-1\)$/) {
             $ValPy[0] = '(len(' . cur_package() . '.' . $1 . ')-1)';
+        } elsif($ValPy[0] =~ /^len\((.*)\)$/) {
+            $ValPy[0] = 'len(' . cur_package() . '.' . $1 . ')';
         } else {
             $ValPy[0] = cur_package() . '.' . $ValPy[0];         # Add the package name
         }
@@ -2802,7 +2806,10 @@ my ($l,$m);
                    }
                }else{           # we're just reading one line so we can't use the context manager as it closes the file handle
                    if(length($fh)==0){         # issue 66
-                       $ValPy[$tno]="next(fileinput.input(), None)";        # issue 66: Allows for $.
+		       # issue bootstrap $ValPy[$tno]="next(fileinput.input(), None)";        # issue 66: Allows for $.
+		       $::Pyf{_fileinput_next} = 1;		# issue bootstrap
+		       $::Pyf{'_fileinput_next()'} = 1;		# issue bootstrap - this line is so that _fileinput_next() is replaced with perllib.fileinput_next()
+                       $ValPy[$tno]="_fileinput_next()";        # issue bootstrap, issue 66: Allows for $.
                    }elsif($fh eq 'STDIN' ){     # issue 66
                        # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
                        # issue 66 $ValPy[$tno]='sys.stdin().readline()';
@@ -3719,7 +3726,18 @@ my  $outer_delim;
                 $result .= '$';         # SNOOPYJC: If we have $$, then just eat the first one
             }
             next;
+         } elsif($in_regex && $cut == 2 && substr($quote,0,2) eq '$)') {        # '$' at the end of a capture group!
+            substr($result,-1,1) = '';      # Remove the '{'
+            substr($quote,$end_br-1,1) = '' if($end_br >= 0);
+            $quote=substr($quote,$cut);
+            $k = -1;                            # issue 47
+            if($quote =~ m'[$@]') {             # issue 47
+                $k = $-[0];                     # issue 47: Match pos
+            }
+            $result .= '$)';
+            next;
          }
+
          #does not matter what type of variable this is: regular or special variable
          #my $next_c = substr($quote,$cut,1);
          #if($next_c eq '[') {
@@ -4429,12 +4447,13 @@ sub remove_oddities
     # Change "perllib.Hash({})" to "perllib.hash()"
     $line =~ s/\bperllib\.Hash\(\{\}\)/perllib.Hash()/g;
 
-    # Change rf"{pattern}" to pattern (helps us out if pattern is a qr/regex/)
-    $line =~ s/\brf"\{([\w.]+)\}"/$1/;
+
+    # Change rf"{pattern}" to pattern (helps us out if pattern is a qr/regex/), also change f"{var}" to var
+    $line =~ s/\br?f"\{([\w.]+)\}"/$1/;
 
     # Change "[v1,v2,v3] = perllib.list_of_n(perllib.Array(), N)" -to-
     #        v1 = v2 = v3 = None
-    if($line =~ /\[([\w.]+(?:,[\w.]+)*)\] = perllib\.list_of_n\(perllib.Array\(\), \d+\)/) {
+    if($line =~ /^\s*\[([\w.]+(?:,[\w.]+)*)\] = perllib\.list_of_n\(perllib.Array\(\), \d+\)/) {
 	    $line = ($1 =~ s/,/ = /gr) . " = None";
     }
     
@@ -4708,7 +4727,7 @@ my $pos=shift;
    if($pos <= $#ValType) {		# issue 37 - sometimes it's not set
    	splice(@ValType,$pos,0,'');
    } else {
-       $ValType[$pos] = '';
+       #SNOOPYJC: This causes a perl SEGV Fault while bootstrapping and is not needed!!  $ValType[$pos] = '';
    }
 }
 sub destroy

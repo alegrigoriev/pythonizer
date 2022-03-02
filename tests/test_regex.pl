@@ -126,6 +126,19 @@ sub mysub {
 
 }
 mysub('frog');
+
+# Test an issue from bootstrapping:
+
+sub rsv
+{
+    $v = shift;
+    return $v . 'a';
+}
+
+$i = 0;
+$ValPy[$i] = '{x}';
+$ValPy[$i] =~ s/\{\w+\}/rsv($&)/e;
+assert($ValPy[$i] eq '{x}a');
                        
 print "$0 - test passed!\n";
 

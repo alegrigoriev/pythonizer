@@ -4,8 +4,12 @@ def _num(expr):
        Ref: https://squareperl.com/en/how-perl-convert-string-to-number"""
     if not expr:
         return 0
-    if isinstance(expr, (int, float)):
-        return expr
+    try:
+        return +expr    # Unary plus: The fastest way to test for numeric
+    except Exception:
+        pass
+    #if isinstance(expr, (int, float)):
+        #return expr
     try:
         return int(expr)
     except Exception:

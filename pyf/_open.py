@@ -12,14 +12,14 @@ def _open(file,mode,encoding=None,errors=None,checked=True):
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
         if mode == '|-':    # pipe to
-            sp = subprocess.Popen(file, stdin=subprocess.PIPE, shell=True, text=True, encoding=encoding, errors=errors)
+            sp = subprocess.Popen(file, stdin=subprocess.PIPE, shell=_need_sh(file), text=True, encoding=encoding, errors=errors)
             if sp.returncode:
                 raise Die(f"open(|{file}): failed with {sp.returncode}")
             sp.stdin._sp = sp           # issue 72
             sp.stdin._file = f"|{file}" # issue 72
             return sp.stdin
         elif mode == '-|':  # pipe from
-            sp = subprocess.Popen(file, stdout=subprocess.PIPE, shell=True, text=True, encoding=encoding, errors=errors)
+            sp = subprocess.Popen(file, stdout=subprocess.PIPE, shell=_need_sh(file), text=True, encoding=encoding, errors=errors)
             if sp.returncode:
                 raise Die(f"open({file}|): failed with {sp.returncode}")
             sp.stdout._sp = sp          # issue 72
@@ -27,6 +27,8 @@ def _open(file,mode,encoding=None,errors=None,checked=True):
             return sp.stdout
         if file is None:
             return tempfile.TemporaryFile(mode=mode, encoding=encoding)
+        if os.name == 'nt' and file.startswith('/tmp/'):
+            file = tempfile.gettempdir() + file[4:]
         return _create_fh_methods(open(file,mode,encoding=encoding,errors=errors))
     except Exception as _e:
         OS_ERROR = str(_e)
