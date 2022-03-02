@@ -156,11 +156,12 @@ our $SUBPROCESS_OPTIONS="-M -v 0"; # Options to pythonizer for when we run on us
 
 our $PERL_VERSION=5.034;
 our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longmess', 
-		_format=>'_int,_num', _run=>'_carp,_cluck,_longmess,_shortmess',
+		_format=>'_int,_num', _run=>'_carp,_cluck,_longmess,_shortmess,_need_sh',
                 _lstat=>'_stat', _looks_like_binary=>'_looks_like_text,_carp,_longmess,_shortmess',
 		Array=>'ArrayHash', Hash=>'ArrayHash',
-		_close=>'_carp,_longmess,_shortmess', _run_s=>'_carp,_cluck,_longmess,_shortmess', _looks_like_text=>'_carp,_longmess,_shortmess',
-		_system=>'_carp,_cluck,_longmess,_shortmess',
+		_add_element=>'_num', _subtract_element=>'_num', _open=>'_need_sh',
+		_close=>'_carp,_longmess,_shortmess', _run_s=>'_carp,_cluck,_longmess,_shortmess,_need_sh', _looks_like_text=>'_carp,_longmess,_shortmess',
+		_system=>'_carp,_cluck,_longmess,_shortmess,_need_sh',
 		_unpack=>'_pack',
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
 our %STAT_SUB=('File::stat'=>'_fstat');                 # Substitution for stat if they use File::stat

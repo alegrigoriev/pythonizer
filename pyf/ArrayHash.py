@@ -60,32 +60,53 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
             return None
 
     def __getitem__(self, index):
-        if isinstance(index, slice):
-            return Array([self[i] for i in range(*index.indices(len(self)))])
-        elif isinstance(index, int):
-            if self.isHash is None:
+        if self.isHash:
+            try:
+                return super().__getitem__(index)
+            except (TypeError, KeyError):
+                return super().__getitem__(str(index))
+        elif self.isHash is None:
+            if isinstance(index, int) or isinstance(index, slice):
                 self.isHash = False
-            elif self.isHash:
-                raise TypeError('Not an ARRAY reference')
+            else:
+                self.isHash = True
+                try:
+                    return super().__getitem__(index)
+                except TypeError:
+                    return super().__getitem__(str(index))
+        if isinstance(index, int):
             if index < 0:
                 index += len(self)
             return super().__getitem__(index)
+        elif isinstance(index, slice):
+            return Array([self[i] for i in range(*index.indices(len(self)))])
         else:
-            if self.isHash is None:
-                self.isHash = True
-            elif not self.isHash:
-                raise TypeError('Not a HASH reference')
-            try:
-                return super().__getitem__(index)
-            except TypeError:
-                return super().__getitem__(str(index))
+            raise TypeError('Not a HASH reference')
 
     def __setitem__(self, index, value):
-        if isinstance(index, slice):
-            if self.isHash is None:
+        if self.isHash:
+            try:
+                super().__setitem__(index, value)
+            except TypeError:
+                super().__setitem__(str(index), value)
+            return
+        elif self.isHash is None:
+            if isinstance(index, int) or isinstance(index, slice):
                 self.isHash = False
-            elif self.isHash:
-                raise TypeError('Not an ARRAY reference')
+            else:
+                self.isHash = True
+                try:
+                    super().__setitem__(index, value)
+                except TypeError:
+                    super().__setitem__(str(index), value)
+        if isinstance(index, int):
+            if index < 0:
+                index += len(self)
+            for i in range(len(self), index):
+                super().__setitem__(i, None)
+            super().__setitem__(index, value)
+            return
+        elif isinstance(index, slice):
             for i in range(len(self), index.start):
                 super().__setitem__(i, None)
             value = iter(value)
@@ -103,32 +124,13 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
                     super().__setitem__(i+lr, super().__getitem__(i))
             for i in range(lr):
                 super().__setitem__(i+ndx, rest[i])
-        elif isinstance(index, int):
-            if self.isHash is None:
-                self.isHash = False
-            elif self.isHash:
-                raise TypeError('Not an ARRAY reference')
-            if index < 0:
-                index += len(self)
-            for i in range(len(self), index):
-                super().__setitem__(i, None)
-            super().__setitem__(index, value)
-        else:
-            if self.isHash is None:
-                self.isHash = True
-            elif not self.isHash:
-                raise TypeError('Not a HASH reference')
-            try:
-                super().__setitem__(index, value)
-            except TypeError:
-                super().__setitem__(str(index), value)
 
     def __delitem__(self, index):
-        if isinstance(index, slice):
-            if self.isHash:
-                raise TypeError('Not an ARRAY reference')
-            for i in range(*index.indices(len(self))):
-                super().__delitem__(i)
+        if self.isHash:
+            try:
+                super().__delitem__(index)
+            except (TypeError, KeyError):
+                super().__delitem__(str(index))
         elif isinstance(index, int):
             if self.isHash:
                 raise TypeError('Not an ARRAY reference')
@@ -138,13 +140,11 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
             if index < 0:
                 index += len(self)
             super().__delitem__(index)
-        else:
-            if not self.isHash:
-                raise TypeError('Not a HASH reference')
-            try:
-                super().__delitem__(index)
-            except TypeError:
-                super().__delitem__(str(index))
+        elif isinstance(index, slice):
+            if self.isHash:
+                raise TypeError('Not an ARRAY reference')
+            for i in range(*index.indices(len(self))):
+                super().__delitem__(i)
 
     def __iter__(self):
         if self.isHash:
@@ -168,13 +168,13 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
             return "ArrayHash(" + self.__str__() + ")"
         return "Array(" + self.__str__() + ")"
 
-    def __getattribute__(self, name):
-        if name in ('keys', 'values', 'items') and not self.isHash:
-            #raise AttributeError
-            def inner():
-                return []
-            return inner
-        return super().__getattribute__(name)
+#    def __getattribute__(self, name):
+#        if name in ('keys', 'values', 'items') and not self.isHash:
+#            #raise AttributeError
+#            def inner():
+#                return []
+#            return inner
+#        return super().__getattribute__(name)
 
     def __add__(self, other):
         result = ArrayHash(self)

@@ -2,6 +2,11 @@
 History
 =======
 
+0.960 (2022-02-28)
+------------------
+
+* Speed up ArrayHash and Num. Have add_element and subtract_element handle non-numeric elements, turn subprocess shell=False on windows unless the command contains cmd shell chars or is a cmd built-in, fixup open of /tmp/... on windows to use the windows tempdir, don't pass effective_ids=True on windows.  Have concat_element auto-convert everything to strings.
+
 0.959 (2022-02-24)
 ------------------
 

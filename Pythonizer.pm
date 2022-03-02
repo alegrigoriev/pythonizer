@@ -673,8 +673,16 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                 # SNOOPYJC: Since this var exists in $VarSubMap, it's not a "my" variable and if
                 # it needs initializing, we need to do it in the top-level scope, not in the sub
                 $common_type = $NeedsInitializing{$subname}{$varname} if(!defined $common_type);
-                $VarType{$varname}{$subname} = $common_type;
-                if($subname ne '__main__' && exists $NeedsInitializing{$subname}{$varname}) {     # SNOOPYJC
+                my $ld = rindex($varname, '.');         # issue bootstrap: don't assume the type of a var from another package
+                if($ld >= 0) {                          # issue bootstrap
+                    my $package_name = substr($varname,0,$ld);
+                    if(!exists $Packages{$package_name}) {              # Not our package
+                        $common_type = undef;
+                        delete $NeedsInitializing{$subname}{$varname};
+                    }
+		}
+                $VarType{$varname}{$subname} = $common_type if(defined $common_type);
+                if(defined $common_type && $subname ne '__main__' && exists $NeedsInitializing{$subname}{$varname}) {     # SNOOPYJC
                     # $VarType{$varname}{main} = merge_types($varname, $subname, $common_type);        # SNOOPYJC
                     $VarType{$varname}{__main__} = $common_type;            # SNOOPYJC
                     $VarSubMap{$varname}{__main__} = '+';                   # SNOOPYJC
@@ -844,7 +852,7 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
         } elsif(!defined $type) {
             $m = next_same_level_token(')', $k, $#ValClass); 
             #say STDERR "m = $m";
-            if($m != -1 && $m < $#ValClass && $ValClass[$m+1] eq '=') {        # like ($v1, $v2) = RHS;
+            if($m != -1 && $ValPerl[$m] eq ')' && $m < $#ValClass && $ValClass[$m+1] eq '=') {        # like ($v1, $v2) = RHS;
                 $rhs_type = expr_type($m+2, $#ValClass, $CurSub);
                 if($rhs_type =~ /^a of (.*)$/) {            # like a of S
                     $type = $1;
@@ -1253,7 +1261,7 @@ sub _expr_type           # Attempt to determine the type of the expression
                 if($ValPerl[$k+1] eq '{') {
                     my $ep = matching_br($k+1);
                     return expr_type($ep+1, $e, $CurSub) if($ep>$k && $ep+1 <= $e);
-                } elsif($ValClass[$k+1] =~ /[fi]/) {      # sort f a
+                } elsif($ValClass[$k+1] eq 'i' || ($ValClass[$k+1] eq 'f' && func_type($ValPerl[$k+1], $ValPy[$k+1]) eq 'I')) { # sort f a, but not sort keys h
                     return expr_type($k+2, $e, $CurSub) if($k+2 <= $e);
                 } else {                                # sort a
                     return expr_type($k+1, $e, $CurSub) if($k+1 <= $e);
@@ -1930,10 +1938,11 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
 
       chomp($line);
       if(  length($line)==0 || $line=~/^\s*$/ ){
-         &$output_line('');             # isue 45: blank line
+         &$output_line('');             # issue 45: blank line
          next;
       }elsif(  $line =~ /^\s*(#.*$)/ ){
          # pure comment lines
+         my $comm = $1;
          if($PassNo==PASS_0 && $line =~ /#\s*pragma\s*pythonizer/) {      # SNOOPYJC
              if(  substr($line,-1,1) eq "\r" ){
                 chop($line);
@@ -1943,7 +1952,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
              $line .= ';';
              return $line;
          }
-         &$output_line('',$1);          # issue 45
+         &$output_line('',$comm);          # issue 45
          next;
       }elsif(  $line =~ /^__DATA__/ || $line =~ /^__END__/){
          # data block
@@ -2571,7 +2580,8 @@ sub cleanup_imports
 sub pretty_print_python
 # SNOOPYJC: Run the black pretty printer on the python code (-k option)
 {
-    `$PRETTY_PRINTER $output_file`              # This does nothing if the command is not found
+    my $nul = ($^O eq 'MSWin32') ? 'nul' : '/dev/null';
+    `$PRETTY_PRINTER "$output_file" 2>$nul`
 }
 
 sub get_fstring_items
