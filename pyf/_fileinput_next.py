@@ -10,8 +10,11 @@ def _fileinput_next(files=None, inplace=False, backup='',*, mode='r', openhook=N
             (mode, encoding, errors) = _handle_open_pragma(mode, encoding, errors)
         except NameError:
             pass
-        _fileinput_iter = fileinput.input(files=files, inplace=inplace, backup=backup, mode=mode, openhook=openhook,
+        try:
+            _fileinput_iter = fileinput.input(files=files, inplace=inplace, backup=backup, mode=mode, openhook=openhook,
                                           encoding=encoding, errors=errors)
+        except TypeError:   # pythons older than 3.10 don't have encoding and errors
+            _fileinput_iter = fileinput.input(files=files, inplace=inplace, backup=backup, mode=mode, openhook=openhook)
     
     result = next(_fileinput_iter, None)
     if result is None:

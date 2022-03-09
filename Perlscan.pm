@@ -5088,6 +5088,9 @@ sub remap_conflicting_names                  # issue 92
     my $id = $ids[-1];
     my $s = $sigil;
     $sigil = actual_sigil($sigil, $trailer);
+    # FIXME: If a package name is present and it's not a package defined in this file, then attempt to find
+    # the Python file containing that package, see how the names are mapped in there, and mirror that to the
+    # variable reference here.
     my $mid = mapped_name($id, $sigil, $trailer);
     if(exists $NameMap{$id} && exists $NameMap{$id}{$sigil} && $NameMap{$id}{$sigil} ne $id) {
         $ids[-1] = $NameMap{$id}{$sigil};
