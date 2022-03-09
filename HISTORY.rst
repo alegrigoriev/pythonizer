@@ -2,6 +2,11 @@
 History
 =======
 
+0.962 (2022-03-09)
+------------------
+
+* Hot fix for _fileinput_next - errors on Python older than v3.10
+
 0.961 (2022-03-02)
 ------------------
 

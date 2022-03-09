@@ -1,5 +1,5 @@
 ## Translator from Perl to Python 
-### THIS IS AN ANNOUNCEMENT FOR VERSION 0.961 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
+### THIS IS AN ANNOUNCEMENT FOR VERSION 0.962 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
 
 This readme is for informational purposes only and is not intended to be updated often. 
 
