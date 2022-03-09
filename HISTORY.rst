@@ -2,6 +2,11 @@
 History
 =======
 
+0.961 (2022-03-02)
+------------------
+
+* Handle open layer pragmas, fix issue with translate and friends with squash option, add dclone, catfile, file_name_is_absolute, Dumper, don't raise exception on double close
+
 0.960 (2022-02-28)
 ------------------
 

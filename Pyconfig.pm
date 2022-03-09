@@ -9,7 +9,7 @@ package Pyconfig;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER);
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS %PYF_OUT_PARAMETERS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER);
 
 # use Readonly;		# Readonly is not installed by default so skip it!
 
@@ -79,6 +79,8 @@ our %GLOBALS = ($SCRIPT_START=>'tm_py.time()',
                 OS_ERROR=>"''", 
 		EVAL_ERROR=>"''",
                 OUTPUT_AUTOFLUSH=>0,
+		INPUT_LAYERS=>"''",
+		OUTPUT_LAYERS=>"''",
                 $SUBPROCESS_RC=>0, 
 		WARNING=>1,
                 AUTODIE=>0, 
@@ -89,6 +91,7 @@ our %GLOBALS = ($SCRIPT_START=>'tm_py.time()',
                 _DUP_MAP=>$dup_map);
 our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_LINE_NUMBER=>'I', 
 		    INPUT_RECORD_SEPARATOR=>'m', OS_ERROR=>'S', EVAL_ERROR=>'S', OUTPUT_AUTOFLUSH=>'I', 
+		    INPUT_LAYERS=>'S', OUTPUT_LAYERS=>'S',
 		    $SUBPROCESS_RC=>'I', WARNING=>'I', _OPEN_MODE_MAP=>'h of S', _DUP_MAP=>'h of I',
                     $LOCALS_STACK=>'h of S',            # issue 108
 		    TRACE_RUN=>'I', AUTODIE=>'I', TRACEBACK=>'I');
@@ -137,7 +140,7 @@ sub state_flag_name		# issue 128
 
 our @PYTHON_KEYWORDS = qw(False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield);
 our @PYTHON_BUILTINS = qw(abs aiter all any anext ascii bin bool breakpoint bytearray bytes callable chr classmethod compile complex delattr dict dir divmod enumerate eval exec filter float format frozenset getattr globals hasattr hash help hex id input int isinstance issubclass iter len list locals map max memoryview min next object oct open ord pow print property range repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip);
-our @EXTRA_BUILTINS = qw(Array Hash ArrayHash);
+our @EXTRA_BUILTINS = qw(Array Hash ArrayHash perllib);
 our %PYTHON_KEYWORD_SET = map { $_ => 1 } @PYTHON_KEYWORDS;
 our %PYTHON_RESERVED_SET = map { $_ => 1 } (@PYTHON_KEYWORDS, @PYTHON_BUILTINS, @EXTRA_BUILTINS);
 
@@ -162,8 +165,9 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
 		_add_element=>'_num', _subtract_element=>'_num', _open=>'_need_sh',
 		_close=>'_carp,_longmess,_shortmess', _run_s=>'_carp,_cluck,_longmess,_shortmess,_need_sh', _looks_like_text=>'_carp,_longmess,_shortmess',
 		_system=>'_carp,_cluck,_longmess,_shortmess,_need_sh',
-		_unpack=>'_pack',
+		_unpack=>'_pack', _assign_sparse=>'_int',
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
+our %PYF_OUT_PARAMETERS=();			# Functions with out parameters - which parameter (counting from 1) is "out"?
 our %STAT_SUB=('File::stat'=>'_fstat');                 # Substitution for stat if they use File::stat
 our %LSTAT_SUB=('File::stat'=>'_flstat');                 # Substitution for stat if they use File::stat
 
@@ -242,7 +246,9 @@ our $PRETTY_PRINTER = 'black -q -t py38 --fast';
 
 # Predefined package with function implementation.  The default python name
 # for the function is "_perlName", unless python=>'...' is specified.  In perllib,
-# the '_' is removed.
+# the '_' is removed.  Specifify the argument and result type with type=>"...". 
+# If there is a separate function to call in scalar context, specify it 
+# with scalar=>"...", and the corresponding type with scalar_type=>"..."
 our %PREDEFINED_PACKAGES = (
 	'File::Temp'=> [{perl=>'tempfile', type=>'a?:a', python=>'_tempfile_', 
 			 scalar=>"_tempfile_s", scalar_type=>'a?:S', calls=>"_fileparse", scalar_calls=>"_tempfile_"},
@@ -276,6 +282,12 @@ our %PREDEFINED_PACKAGES = (
 	'POSIX'=>      [{perl=>'tmpnam', type=>':a', scalar=>'_tmpnam_s', scalar_type=>':S'},
 			{perl=>'tmpfile', type=>':H'},
 		       ],
+        'File::Spec::Functions'=> [{perl=>'file_name_is_absolute', type=>'S:I', python=>'os.path.isabs'},
+				   {perl=>'catfile', type=>'a:S', python=>'os.path.join'},
+			   	  ],
+	'Data::Dumper'=> [{perl=>'Dumper', type=>'m:S'}],
+	'Text::Balanced'=> [{perl=>'extract_bracketed', type=>'SS?S?:a', scalar=>'_extract_bracketed_s', scalar_type=>'SS?S?:S', scalar_out_parameter=>1}],	# First parameter to scalar version is "out" parameter
+	'Storable'=> [{perl=>'dclone', type=>'m:m', python=>'copy.deepcopy'}],
 	       );
 
 

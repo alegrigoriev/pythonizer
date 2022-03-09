@@ -19,7 +19,7 @@ def _translate_element(base, index, table, replace=True, complement=False, delet
                 v = chr(v)
             if pv != v or not squash:
                 result.append(v)
-        pv = v
+            pv = v
     if replace:
         base[index] = ''.join(result)
         return ctr

@@ -69,9 +69,9 @@ sub test_traceback
 	open(FH, '<', 'non-exist.file');
 	check(qr/exist/);
 
-	say STDERR "---------- close ----------";
-	close FH;
-	check(qr/closed/);
+        #say STDERR "---------- close ----------";
+        #close FH;
+        #check(qr/closed/);
 
 	say STDERR "---------- opendir ----------";
 	opendir(DH, 'non-exist.dir');

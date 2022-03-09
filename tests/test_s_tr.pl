@@ -169,6 +169,12 @@ $str = "I'm fine. Thank you.";
 my $count = ($str =~ tr/././);
 assert($count == 2);
 
+$count = ($str =~ tr/'./'./);
+assert($count == 3);
+
+$count = ($str =~ tr/'."//);
+assert($count == 3);
+
 $string = 'the cat sat on the mat.';
 $string =~ tr/a-z/b/d;
 assert($string eq ' b b   b.');
@@ -271,5 +277,53 @@ assert($line eq 'v1 = v2 = v3 = None');
 @ValClass=("((s))");
 $balance=(join('',@ValClass)=~tr/()//);
 assert($balance == 4);
+
+# A case from Balanced.pm:
+#
+$ldel = "([{<junk\t>}])";
+$ldel =~ tr/[](){}<>\0-\377/[[(({{<</ds;
+#print "$ldel\n";
+assert($ldel eq '([{<{[(');
+
+$ldel = "\c@\ca\cz\o{1}abc";
+$ldel =~ tr/\c@-\cz//d;
+assert($ldel eq 'abc');
+
+$ldel = "\c@\ca\cz\o{1}abc";
+$ldel =~ tr/\o{0}-\cz//d;
+assert($ldel eq 'abc');
+
+$ldel = "\c@\ca\cz\o{1}abc\x{ 1A }";
+$ldel =~ tr/\x{0}-\x1a//d;
+assert($ldel eq 'abc');
+
+$ldel = "\c@\ca\cz\o{1}'abc\x{ 1A }";
+$ldel =~ tr/'\x{0}-\x1a//d;
+assert($ldel eq 'abc');
+
+$ldel = "\c@\ca\cz\o{1}abc\"\x{ 1A }";
+$ldel =~ tr/\x{0}-\x1a"//d;
+assert($ldel eq 'abc');
+
+$ldel = "\c@\ca\cz\o{1}'abc\"\x{ 1A }";
+$ldel =~ tr/'\x{0}-\x1a"//d;
+assert($ldel eq 'abc');
+
+$ldel = "\c@\ca\cz\o{1}-abc\x{ 1A }";
+$ldel =~ tr'a-c''d;
+
+assert($ldel eq "\c@\ca\cz\o{1}b\x1a");
+
+$ldel = "\c@\ca\cz\o{1}-abc\x{ 1A }";
+$ldel =~ tr'\x{0}-\x1a''d;
+assert($ldel eq "\c@\ca\cz\o{1}bc\x1a");
+
+$ldel = "\c@\ca\cz\o{1}-abc\x{ 1A }";
+$ldel =~ tr/\N{LATIN SMALL LETTER A}-//d;
+assert($ldel eq "\c@\ca\cz\o{1}bc\x1a");
+
+$ldel = "\c@\ca\cz\o{1}-abc\x{ 1A }";
+$ldel =~ tr/\N{U+0}-\N{U+1a}//d;
+assert($ldel eq "-abc");
 
 print "$0 - test passed!\n";

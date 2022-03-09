@@ -1,9 +1,14 @@
 #!/bin/sh
 # Run this once plain, and once with '-m' flag, once with -P, and once with -mP
+export PYTHONPATH=/c/pythonizer/pythonizer
+echo "Boottrapping pythonizer"
+cd ../../bootstrap
+./run
+cd ../pythonizer/tests
+
 echo "Building perllib"
 cd ../pyf
 python makelib.py
-export PYTHONPATH=/c/pythonizer/pythonizer
 cd ../tests
 
 echo "Cleaning .py files"
@@ -63,7 +68,7 @@ if [ "$mflag" != "-m" ]; then
 	   break
 	fi
         echo "==================== $f ====================" >run1.log
-        ../pythonizer -v0 $flags $f >>run1.log 2>&1
+        pypy ../../bootstrap/main.py -v0 $flags $f >>run1.log 2>&1
         if [ $? -ne 0 ]; then
            echo "$f run with pythonizer FAILED" >>run1.log
            ((failed++))
@@ -125,7 +130,7 @@ do
       rm -f run1.log
       continue
    fi
-   ../pythonizer -v0 $flags $f >>run1.log 2>&1
+   pypy ../../bootstrap/main.py -v0 $flags $f >>run1.log 2>&1
    if [ $? -ne 0 ]; then
       echo "$f run with pythonizer FAILED" >>run1.log
       ((failed++))
@@ -179,10 +184,10 @@ if [ -f warn.log ]; then
    echo "(see warn.log for these details)"
 fi
 if [ $status -eq 0 ]; then
-   green "pythonizer $tests tests PASSED! in $elap"
+   green "bootstrap pythonizer $tests tests PASSED! in $elap"
    echo
 else
-   green "pythonizer $passed tests PASSED. "
+   green "bootstrap pythonizer $passed tests PASSED. "
    red "$failed tests FAILED!"
    green " in $elap"
    echo
