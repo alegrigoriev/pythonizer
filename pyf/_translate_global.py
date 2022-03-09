@@ -20,7 +20,7 @@ def _translate_global(packname, varname, table, replace=True, complement=False, 
                 v = chr(v)
             if pv != v or not squash:
                 result.append(v)
-        pv = v
+            pv = v
     if replace:
         setattr(namespace, varname, ''.join(result))
         return ctr

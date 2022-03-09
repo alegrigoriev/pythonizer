@@ -16,5 +16,5 @@ def _translate(table, var, replace=True, complement=False, delete=False, squash=
                 v = chr(v)
             if pv != v or not squash:
                 result.append(v)
-        pv = v
+            pv = v
     return ''.join(result)

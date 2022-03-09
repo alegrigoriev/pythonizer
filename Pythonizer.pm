@@ -24,12 +24,12 @@ use v5.10.1;
 use warnings;
 use strict 'subs';
 use feature 'state';
-use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType %token_precedence %SPECIAL_FUNCTION_MAPPINGS destroy insert append replace);  # SNOOPYJC
+use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType %token_precedence %SPECIAL_FUNCTION_MAPPINGS destroy insert append replace %FuncType %PyFuncType);  # SNOOPYJC
 use Softpano qw(abend logme out getopts standard_options);
 use Pyconfig;				# issue 32
 use Pass0 qw(pass_0);   # SNOOPYJC
 use Data::Dumper;       # SNOOPYJC
-use open qw(:std :utf8);        # SNOOPYJC
+use open ':std', IN=>':crlf', IO=>':utf8';        # SNOOPYJC
 require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
@@ -76,7 +76,7 @@ sub prolog
       # SNOOPYJC getopts("AThd:v:r:b:t:l:",\%options);
       @orig_ARGV = @ARGV;                       # SNOOPYJC
       # NOTE: Remember to add new flags to Pass0.PM (# pragma pythonizer), the help with ## at the start of pythonizer, and the readme/documentation!
-      getopts("kKnmMAVThsSpPd:v:r:b:B:t:l:",\%options);     # SNOOPYJC
+      getopts("uUkKnmMAVThsSpPd:v:r:b:B:t:l:",\%options);     # SNOOPYJC
 #
 # Three standard options -h, -v and -d
 #
@@ -187,6 +187,12 @@ sub prolog
       if( exists $options{'K'} ) {
           $::black = 0;
       }
+      if( exists $options{'u'} ) {
+          $::replace_usage = 1;
+      }
+      if( exists $options{'U'} ) {
+          $::replace_usage = 0;
+      }
 
 #
 # Application arguments
@@ -200,11 +206,11 @@ sub prolog
          $output_file=$source_file.'.py';
          out("Results of transcription are written to the file  $output_file");
          if(  $refactor ){
-             out("Option -r (refactor) was specified. file refactored using $refactor as the fist pass over the source code");
+             unless( -f "$fname.bak" ){
+                `cp -p "$fname" "$fname.bak" && tr -d "\r" < "$fname.bak" > "$fname"`; # just in case
+             }
+             out("Option -r (refactor) was specified. file refactored using $refactor as the first pass over the source code");
             `pre_pythonizer -v 0 $fname`;
-         }
-         unless( -f "$fname.bak" ){
-            `cp -p "$fname" "$fname.bak" && tr -d "\r" < "$fname.bak" > "$fname"`; # just in case
          }
          $fsize=-s $fname;
          if ($fsize<10){
@@ -321,7 +327,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
             $DB::single = 1;
          }
          if(defined $::saved_sub_tokens && $::nested_sub_at_level < 0) {  # SNOOPYJC
-             &::unpackage_code($::saved_sub_tokens);
+             &::unpackage_tokens($::saved_sub_tokens);
              $::saved_sub_tokens = undef;
              say STDERR "Continuing to scan tokens after handling sub with line=$line" if($::debug >= 3);
              &Perlscan::tokenize($line, 1);     # continue where we left off
@@ -569,7 +575,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
       if($#ValClass != 0 && $ValClass[$#ValClass] eq 'k' && $ValPerl[$#ValClass] eq 'sub') {
          my $subname = "$ANONYMOUS_SUB$.";
          $::nested_subs{$subname} = "\*$PERL_ARG_ARRAY";
-         $::saved_sub_tokens = &::package_code();
+         $::saved_sub_tokens = &::package_tokens();
          $::nested_sub_at_level = $Perlscan::nesting_level;
          &::p_replace($::saved_sub_tokens, $#ValClass,'"',$subname,$subname);     # Change the 'sub' to the subname reference
          destroy(0, $#ValClass);
@@ -673,11 +679,16 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                 # SNOOPYJC: Since this var exists in $VarSubMap, it's not a "my" variable and if
                 # it needs initializing, we need to do it in the top-level scope, not in the sub
                 $common_type = $NeedsInitializing{$subname}{$varname} if(!defined $common_type);
-                my $ld = rindex($varname, '.');         # issue bootstrap: don't assume the type of a var from another package
+                my $ld = rindex($varname, '.');         # issue bootstrap: don't assume the type of a var from a package
                 if($ld >= 0) {                          # issue bootstrap
+                    # For bootstrapping, we have main.debug which is set to a string, but tested as in int
+                    if($common_type =~ /[IFN]/) {           # Integer, Float, or Numeric - change to scalar
+                        $common_type = 's';
+                    } elsif($common_type =~ / of .$/) {     # like a of S
+                        $common_type =~ s/ of .$//;
+                    }
                     my $package_name = substr($varname,0,$ld);
-                    if(!exists $Packages{$package_name}) {              # Not our package
-                        $common_type = undef;
+                    if(!exists $Packages{$package_name}) {       # issue bootstrap: our package: another program can change the value/type so we can't assume it
                         delete $NeedsInitializing{$subname}{$varname};
                     }
 		}
@@ -838,7 +849,7 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             #$type = 'm' if($type eq 'u');       # If we don't know the type, can no longer assume anything
             my $op = $ValPerl[$k+1];
             if($op eq '=') {     # e.g. not +=
-                $initialized{$CurSub}{$name} = $type unless(is_referenced($ValClass[$k], $name, $k+2));
+                $initialized{$CurSub}{$name} = $type unless(is_referenced($ValClass[$k], $name, $k+2) || &Perlscan::in_conditional());
             } elsif($op eq '.=') {
                 $type = 'S';
                 $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
@@ -859,20 +870,20 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
                 } else {
                     $type = 'u';
                 }
-                $initialized{$CurSub}{$name} = $type;
+                $initialized{$CurSub}{$name} = $type unless(&Perlscan::in_conditional());
             }
         }
     }
-    if($k == 1 && $ValClass[0] eq 'c' && $ValPy[0] eq 'for') {  # Var in a foreach loop is initialized
+    if(($k == 1 || ($k == 2 && $ValClass[1] eq 't')) && $ValClass[0] eq 'c' && $ValPy[0] eq 'for') {  # Var in a foreach loop is initialized
         $type = expr_type($k+1, $#ValClass, $CurSub);
         $type = 's' if($type eq 'a' || $type eq 'h');           # We don't know a of what?
         $type =~ s/^a of //;
-        $initialized{$CurSub}{$name} = $type;
+        $initialized{$CurSub}{$name} = $type unless($k == 1 && &Perlscan::in_conditional());
     } elsif(($k >=1 && $ValClass[$k-1] eq 'f' && ($ValPerl[$k-1] eq 'open' || $ValPerl[$k-1] eq 'opendir')) ||  # open $fh
            ($k >=2 && $ValClass[$k-1] eq '(' && $ValClass[$k-2] eq 'f' && ($ValPerl[$k-2] eq 'open' || $ValPerl[$k-2] eq 'opendir'))  ||  # open($fh
            ($k >=3 && $ValClass[$k-1] eq 't' && $ValClass[$k-2] eq '(' && $ValClass[$k-3] eq 'f' && ($ValPerl[$k-3] eq 'open' || $ValPerl[$k-3] eq 'opendir'))) { # open(my $fh
         $type = 'H';
-        $initialized{$CurSub}{$name} = $type;
+        $initialized{$CurSub}{$name} = $type if($ValClass[$k-1] eq 't' || !&Perlscan::in_conditional());
     }
 
     if(defined $type) {
@@ -963,6 +974,7 @@ sub is_referenced
     my $k = shift;
 
     for(my $i = $k; $i <= $#ValClass; $i++) {
+        return 0 if($ValClass[$i] eq ';');              # End of this part of for loop init
         return 1 if($ValClass[$i] eq $class && $ValPy[$i] eq $name);
     }
     
@@ -994,6 +1006,7 @@ sub scalar_reference_type       # given a reference to a scalar, try to infer th
             $i = reverse_matching_br($i);
         } elsif($ValClass[$i] eq 'f') {
             my $fname = $ValPerl[$i];
+            my $pname = $ValPy[$i];
             if($ValClass[$i+1] eq '(') {
                 my $q = matching_br($i+1);
                 last if($k > $q);               # not in the parens like f(...)..k..
@@ -1015,9 +1028,9 @@ sub scalar_reference_type       # given a reference to a scalar, try to infer th
                     return 'u' if($j < 0);
                 }
             }
-            my $ty = arg_type($fname, $arg);
+            my $ty = arg_type($fname, $pname, $arg);
             if($::debug > 3) {
-                say STDERR "arg_type($fname, $arg) = $ty";
+                say STDERR "arg_type($fname, $pname, $arg) = $ty";
             }
             return $ty if(defined $ty && $ty !~ /[ah]/);
             last;
@@ -1065,6 +1078,7 @@ sub in_sub_call                           # SNOOPYJC
         if($ValClass[$i] eq '(') {
            if($i-1 >= 0 && $ValClass[$i-1] eq 'i') {
                my $q = matching_br($i);
+               return 1 if($q == -1);           # issue bootstrap - maybe we didn't scan that far yet
                return 0 if($k > $q);            # not in the parens list i(...)..k..
                return 1;
            }
@@ -1106,6 +1120,7 @@ sub arg_type_from_pos                           # SNOOPYJC
     }
     return 'u' if($i < 0 || $ValClass[$i] ne 'f');
     my $fname = $ValPerl[$i];
+    my $pname = $ValPy[$i];
     if($ValClass[$i+1] eq '(') {
         my $q = matching_br($i+1);
         return 'u' if($k > $q);               # not in the parens like f(...)..k..
@@ -1127,20 +1142,26 @@ sub arg_type_from_pos                           # SNOOPYJC
             return 'u' if($j < 0);
         }
     }
-    my $ty = arg_type($fname, $arg);
+    my $ty = arg_type($fname, $pname, $arg);
     if($::debug > 3) {
-        say STDERR "arg_type_from_pos($k): ($fname, $arg) = $ty";
+        say STDERR "arg_type_from_pos($k): ($fname, $pname, $arg) = $ty";
     }
     return $ty;
 }
 
 sub arg_type            # Given the name of a built-in function, and the arg#, return the required type
 {
-    my $name = shift;
+    my $fname = shift;          # Perl name
+    my $name = shift;           # Python name
     my $arg = shift;
 
-    return 's' if(!exists $Perlscan::FuncType{$name});
-    my $ft = $Perlscan::FuncType{$name};
+    my $ft = undef;
+    if(exists $PyFuncType{$name}) {
+        $ft = $PyFuncType{$name};
+    } elsif(exists $FuncType{$fname}) {
+        $ft = $FuncType{$fname};
+    }
+    return 's' if(!defined $ft);
     my $argc = 0;
     for(my $i = 0; $i < length($ft); $i++) {
         my $c = substr($ft,$i,1);
@@ -1525,7 +1546,7 @@ sub common_type         # Create a common type from 2 types
 }
 
 sub lcp {               # Longest common prefix - LOL don't ask me how it works!
-    (join("\0", @_) =~ /^ ([^\0]*) [^\0]* (?:\0 \1 [^\0]*)* $/sx)[0];
+    return (join("\0", @_) =~ /^ ([^\0]*) [^\0]* (?:\0 \1 [^\0]*)* $/sx)[0];
 }
 
 sub func_type                   # Get the result type of this built-in function
@@ -1533,13 +1554,22 @@ sub func_type                   # Get the result type of this built-in function
     my $fname = shift;          # send us ValPerl
     my $pname = shift;          # ValPy
 
-    return 'u' if(!exists $Perlscan::FuncType{$fname});
-    my $type = $Perlscan::FuncType{$fname};
-    $type =~ s/^.*://;
-    if(exists $Perlscan::SPECIAL_FUNCTION_MAPPINGS{$fname} &&
-            $Perlscan::SPECIAL_FUNCTION_MAPPINGS{$fname}{list} ne $pname) {
-        $type = 's';
+    my $type = undef;
+    if(exists $PyFuncType{$pname}) {
+        $type = $PyFuncType{$pname};
+    } elsif(exists $FuncType{$fname}) {
+        $type = $FuncType{$fname};
+    } else {
+        logme('W', "Cannot get function type for $fname ($pname in python)");
+        return 'm' 
     }
+    $type =~ s/^.*://;
+    # SNOOPYJC: This code removed because we now map the real function type into %PyFuncType:
+    #if(exists $Perlscan::SPECIAL_FUNCTION_MAPPINGS{$fname} &&
+    #$Perlscan::SPECIAL_FUNCTION_MAPPINGS{$fname}{list} ne $pname) {
+    #$type = 's';
+    #}
+    say STDERR "func_type($fname, $pname) = $type" if($::debug >= 5);
     return $type;
 }
 
@@ -1740,6 +1770,17 @@ sub fix_scalar_context                          # issue 37
             $did_something |= apply_scalar_context($j+2);
         }
     }
+    # Handle the assigment being in a control statement
+    if($ValClass[0] eq 'c' || $ValClass[0] eq 'C') {            # issue 37
+        if($TokenStr =~ /^[cC]\(s=[ahf]/ || $TokenStr =~ /^[cC]\(s=\(\)=/) {         # issue 65, goatse, issue 30
+            $did_something |= apply_scalar_context(4);
+        } elsif($#ValClass > 7 && $ValClass[3] eq '(' && $ValClass[2] eq 's') {    # Array subscript or hashref
+            $j=&::end_of_variable(2);                      # Look for $arr[ndx]=@arr or $arr[ndx]=func()
+            if($j+2 <= $#ValClass && $ValClass[$j+1] eq '=' && $ValClass[$j+2] =~ /[ahf]/) {        # issue 30
+                $did_something |= apply_scalar_context($j+2);
+            }
+        }
+    }
 
     # issue 13: Handle the ',' operator in scalar context
     $j = 0;
@@ -1753,6 +1794,10 @@ sub fix_scalar_context                          # issue 37
         if($ValClass[$j] =~ /[cC=]/ && $j+1 <= $#ValClass && $ValClass[$j+1] eq '(' && $ValPerl[$j+1] eq '(') {
             my $pos = $j+2;
             my $end_pos = next_same_level_tokens(',)', $pos, $#ValClass)-1;
+            my $sub_or_function = next_same_level_tokens('if', $pos, $end_pos);
+            if($sub_or_function != -1 && $ValClass[$sub_or_function+1] ne '(') {        # Assume this is a paren-less call and the comma belongs to the call
+                $end_pos = next_same_level_token(')', $end_pos+2, $#ValClass)-1 if($ValClass[$end_pos+1] eq ',');
+            }
             my $found_comma = ($ValClass[$end_pos+1] eq ',');
             while($end_pos >= $pos) {
                 if($ValClass[$pos] =~ /[ahf]/) {        # issue 30

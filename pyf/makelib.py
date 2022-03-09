@@ -50,7 +50,7 @@ def main():
         print(f"___email__ = '{email}'", file=of)
         print(f"__version__ = '{version}'", file=of)
         print(file=of)
-        print('import sys,os,re,fileinput,subprocess,collections.abc,warnings,inspect,itertools,signal,traceback,io,tempfile,calendar,types,random,dataclasses,builtins,codecs,struct', file=of)
+        print('import sys,os,re,fileinput,subprocess,collections.abc,warnings,inspect,itertools,signal,traceback,io,tempfile,calendar,types,random,dataclasses,builtins,codecs,struct,pprint', file=of)
         print('import time as tm_py', file=of)
         print('import stat as st_py', file=of)
         print('try:', file=of)
@@ -72,7 +72,14 @@ class Die(Exception):
             print(f"{definition} = {value}", file=of)
         print(file=of)
 
+        # Put init_package first so we can call it from other functions at the main level
+        files = ["_init_package.py"] + files
+        seen = set()
+
         for file in files:
+            if file in seen:
+                continue
+            seen.add(file)
             under_func = file.replace('.py','')
             func = under_func[1:]
             if keyword.iskeyword(func) or hasattr(builtins, func):     # e.g. import has to remain _import

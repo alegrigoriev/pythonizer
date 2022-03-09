@@ -1,0 +1,47 @@
+# issue 10 - print doesn't print anything
+use Carp::Assert;
+open(my $err, '>', "test_err.tmp");
+open(STDOUT, '>', "test_out.tmp");
+my $hw = "Hello World!";
+print $hw;
+print "Hello World!\n";
+$var = 'abc';
+print "\$var = $var";
+say $err "Hello World!";
+my @arr = (1);
+my $ndx = 0;
+say STDOUT "\$arr[\$ndx] = $arr[$ndx]";
+open(FILE, '>', "test_file.tmp");
+my $data = "data";
+if(not (print FILE $data)) { die("print failed"); }
+#print FILE $data or die("print failed");
+say STDOUT scalar localtime();
+close $err;
+close STDOUT;
+close FILE;
+open(my $fh, '<', "test_err.tmp");
+my $line = <$fh>;
+assert($line eq "Hello World!\n");
+$line = <$fh>;
+assert(!$line);
+close $fh;
+unlink "test_err.tmp";
+open($fh, '<', "test_file.tmp");
+my $buffer = '';
+assert(read($fh, $buffer, 5) == 4 && $buffer eq 'data');
+close $fh;
+unlink "test_file.tmp";
+open($fh, '<', "test_out.tmp");
+$line = <$fh>;
+assert($line eq "Hello World!Hello World!\n");
+$line = <$fh>;
+assert($line eq '$var = abc$arr[$ndx] = 1'."\n");
+$line = <$fh>;
+chomp $line;
+assert($line =~ /^[A-Z][a-z][a-z] [A-Z][a-z][a-z]\s+\d+ \d+:\d+:\d+ \d\d\d\d$/);
+$line = <$fh>;
+assert(!$line);
+close $fh;
+unlink "test_out.tmp";
+
+say STDERR "$0 - test passed!";

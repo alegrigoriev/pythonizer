@@ -17,11 +17,11 @@ eval {
 };
 assert($@ =~ /exist/);
 
-undef $@;
-eval {
-    close FH;
-};
-assert($@ =~ /close/);
+#undef $@;
+#eval {
+#close FH;
+#};
+#assert($@ =~ /close/);
 
 undef $@;
 eval {

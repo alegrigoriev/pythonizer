@@ -11,15 +11,21 @@ def _open(file,mode,encoding=None,errors=None,checked=True):
     """Replacement for perl built-in open function when the mode is known."""
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
-        if mode == '|-':    # pipe to
-            sp = subprocess.Popen(file, stdin=subprocess.PIPE, shell=_need_sh(file), text=True, encoding=encoding, errors=errors)
+        (mode, encoding, errors) = _handle_open_pragma(mode, encoding, errors)
+    except NameError:
+        pass
+    try:
+        if mode == '|-' or mode == '|-b':    # pipe to
+            text = True if mode == '|-' else False
+            sp = subprocess.Popen(file, stdin=subprocess.PIPE, shell=_need_sh(file), text=text, encoding=encoding, errors=errors)
             if sp.returncode:
                 raise Die(f"open(|{file}): failed with {sp.returncode}")
             sp.stdin._sp = sp           # issue 72
             sp.stdin._file = f"|{file}" # issue 72
             return sp.stdin
-        elif mode == '-|':  # pipe from
-            sp = subprocess.Popen(file, stdout=subprocess.PIPE, shell=_need_sh(file), text=True, encoding=encoding, errors=errors)
+        elif mode == '-|' or mode == '-|b':  # pipe from
+            text = True if mode == '-|' else False
+            sp = subprocess.Popen(file, stdout=subprocess.PIPE, shell=_need_sh(file), text=text, encoding=encoding, errors=errors)
             if sp.returncode:
                 raise Die(f"open({file}|): failed with {sp.returncode}")
             sp.stdout._sp = sp          # issue 72

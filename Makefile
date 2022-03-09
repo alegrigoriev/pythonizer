@@ -67,7 +67,7 @@ coverage: ## check code coverage quickly with the default Python
 docs: ## generate Sphinx HTML documentation, including API docs
 	rm -f docs/perllib.rst
 	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ perllib
+	sphinx-apidoc -o docs/ perllib charnames Config
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
 	$(BROWSER) docs/_build/html/index.html
@@ -81,6 +81,7 @@ release: dist ## package and upload a release
 dist: clean ## builds source and wheel package
 	python setup.py sdist
 	python setup.py bdist_wheel
+	python setup.py bdist_egg
 	ls -l dist
 
 install: clean ## install the package to the active Python's site-packages

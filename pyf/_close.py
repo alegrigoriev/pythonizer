@@ -15,8 +15,8 @@ def _close(fh):
             return 1
         if fh is None:
             raise TypeError(f"close(None): failed")
-        if fh.closed:
-            raise IOError(f"close failed: Filehandle is already closed")
+        #if WARNING and fh.closed:
+            #_carp(f"close failed: Filehandle is already closed", skip=2)
         fh.close()
         return 1
     except Exception as _e:

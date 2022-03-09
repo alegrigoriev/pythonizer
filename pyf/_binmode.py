@@ -1,5 +1,5 @@
 
-def _binmode(fh,mode='b',encoding=None,errors=None):
+def _binmode(fh,mode='b',encoding=None,errors=None,newline=None):
     """Handle binmode"""
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
@@ -20,9 +20,9 @@ def _binmode(fh,mode='b',encoding=None,errors=None):
         if errors is None and 'b' not in mode:
             errors = fh.errors
         if fno is None:
-            result = io.TextIOWrapper(io.BufferedIOBase(), encoding=encoding, errors=errors)
+            result = io.TextIOWrapper(io.BufferedIOBase(), encoding=encoding, errors=errors, newline=newline)
         else:
-            result = os.fdopen(os.dup(fno), mode, encoding=encoding, errors=errors)
+            result = os.fdopen(os.dup(fno), mode, encoding=encoding, errors=errors, newline=newline)
         if hasattr(fh, 'filename') and hasattr(fh, '_name'):   # from tempfile
             result.filename = fh.filename
             result._name = fh._name

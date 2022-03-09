@@ -18,7 +18,7 @@ def _translate_and_count(table, var, replace=True, complement=False, delete=Fals
                 v = chr(v)
             if pv != v or not squash:
                 result.append(v)
-        pv = v
+            pv = v
     if not replace:
         return (var, ''.join(result))
     return (''.join(result), ctr)

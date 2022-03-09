@@ -60,4 +60,30 @@ assert("@ a" eq '@ a');
 #assert("$a [ 0 ]" eq ' [ 0 ]');
 #assert("$h {k}" eq ' {k}');
 
+# from HTTP::Date.pm: Pythonizer was trying to marry the '$' with the '#'
+
+$_ = "Jan 3 12:22:13 EST 2022 ";
+        (
+        ( $mon, $day, $hr, $min, $sec, $tz, $yr )
+        = /^
+     (\w{1,3})             # month
+        \s+
+     (\d\d?)               # day
+        \s+
+     (\d\d?):(\d\d)        # hour:min
+     (?::(\d\d))?          # optional seconds
+        \s+
+     (?:([A-Za-z]+)\s+)?   # optional timezone
+     (\d+)                 # year
+        \s*$               # allow trailing whitespace
+    /x
+        );
+assert($mon eq 'Jan');
+assert($day == 3);
+assert($hr == 12);
+assert($min == 22);
+assert($sec == 13);
+assert($tz eq 'EST');
+assert($yr == 2022);
+
 print "$0 - test passed!\n";

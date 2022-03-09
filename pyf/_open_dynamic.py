@@ -23,6 +23,7 @@ def _open_dynamic(file,mode=None,encoding=None,errors=None,checked=True):
                 mode += 'b'
             elif ext.startswith('encoding('):
                 encoding = ext.replace('encoding(','').replace(')','')
+                errors = 'replace'
             elif ext == 'utf8':
                 encoding = 'UTF-8'
                 errors = 'ignore'
