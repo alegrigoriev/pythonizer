@@ -1744,9 +1744,9 @@ my ($l,$m);
    $ate_dollar = -1;                                    # issue 50
    my $end_br;                  # issue 43
    
-   if( $::debug > 3 && $main::breakpoint >= $.  ){
-      $DB::single = 1;
-   }
+   #if( $::debug > 3 && $main::breakpoint >= $.  ){
+   #$DB::single = 1;
+   #}
    while( $source ){
       $had_space = (substr($source,0,1) eq ' ');   # issue 50
       ($source)=split(' ',$source,1);  # truncate white space on the left (Perl treats ' ' like AWK. )
@@ -1863,8 +1863,9 @@ my ($l,$m);
                 $source=$s; # this was we artifically create line with one symbol on it;
              }
              last; # we need to process it as a seperate one-symbol line
-         }elsif( $tno>0 && (length($source)==1 || $source =~ /^}\s*#/ ||
-                 could_be_anonymous_sub_close() ||              # SNOOPYJC
+         }elsif( $tno>0 && (length($source)==1 || $source =~ /^}\s*$/ ||	# issue ddts: Handle spaces at end
+                 $source =~ /^}\s*#/ || 
+		 could_be_anonymous_sub_close() ||              # SNOOPYJC
                  $source =~ /^}\s*(?:(?:(?:else|elsif|while|until|continue|)\b)|;)/)){    # issue 45, issue 95
              # NOTE: here $tno>0 and we reached the last symbol of the line
              # we recognize it as the end of the block
@@ -3210,10 +3211,12 @@ sub decode_scalar
 #    update=1 -- set ValClass and ValPerl
 #    update=0 -- set only ValPy
 #    in_string=1 - we are decoding in a string and $xxx [0] is different than $xxx[0], but $ xxx is still like $xxx
+#    in_regex=1 - we are decoding in a string in a regex, and $func[:)] is not a reference to @func
 {
 my $source=$_[0];
 my $update=$_[1]; # if update is zero then only ValPy is updated
 my $in_string=(scalar(@_) >= 3 ? $_[2] : 0);
+my $in_regex=(scalar(@_) >= 4 ? $_[3] : 0);		# issue bootstrap
 my $rc=-1;
    if ( $update  ){
       $ValClass[$tno]='s'; # we do not need to set it if we are analysing double wuoted literal
@@ -3319,6 +3322,7 @@ my $rc=-1;
               $ValPy[$tno] ="(len($PERL_ARG_ARRAY)-1)";    # issue 107
           } else {                                  # SNOOPYJC
               my $mapped_name = remap_conflicting_names($1, '@', '');      # issue 92
+	      $mapped_name = escape_keywords($mapped_name);	# issue bootstrap
               $ValPy[$tno]='(len('.$mapped_name.')-1)';       # SNOOPYJC
           }
           # SNOOPYJC $cut=length($1)+2;
@@ -3343,11 +3347,18 @@ my $rc=-1;
       }
       my $next_c = '';
       if($ate_dollar == $tno || ($tno!=0 &&                               # issue 50, issue 92
-               ($ValClass[$tno-1] eq 's' && $ValPerl[$tno-1] eq '$'))) {
+	       ($ValClass[$tno-1] eq '@' ||				  # issue bootstrap: handle @$arrref[0]
+               ($ValClass[$tno-1] eq 's' && $ValPerl[$tno-1] eq '$')))) {
           ;             # Do nothing if this is like $$h_ref{key}
       } else {
           $next_c = substr($source,$cut,1);
           $next_c = substr($source,$cut+1,1) if($next_c =~ /\s/ && !$in_string);  # Handle $var {...} but not "$var {...}"
+          if($in_regex && $next_c eq '[') {      # issue bootstrap: Try to distinguish between a regex character class and a subscript
+             my $nnc = substr($source,$cut+1,1);
+             if($nnc !~ m'[\d$]') {  # Only allow a digit or a $ sigil
+                $next_c = '';
+             }
+         }
       }
       if( ($k=index($name,'::')) > -1 ){
           # SNOOPYJC $ValType[$tno]="X";
@@ -3392,7 +3403,7 @@ my $rc=-1;
                $ValPy[$tno]="$PERL_ARG_ARRAY".'['.$2.']';	# issue 32
                $cut=length($1);
                $SpecialVarsUsed{'@_'}{$cs} = 1;                      # SNOOPYJC
-            }elsif(substr($source,2,1) eq '[') {                # issue 107: Vararg
+            }elsif(substr($source,2,1) eq '[' && (!$in_regex || substr($source,3,1) =~ m'[\d$]')) { # issue 107: Vararg, issue bootstrap
                $ValPy[$tno]=$PERL_ARG_ARRAY;                    # issue 107
                $cut=2;                                          # issue 107
                $SpecialVarsUsed{'@_'}{$cs} = 1;                      # issue 107
@@ -3706,7 +3717,7 @@ sub interpolate_strings                                         # issue 39
         $last_varclass_lno = $.;
     }
 
-   #
+   #	# issue bootstrap
    #decode each part. Double quote literals in Perl are ver difficult to decode
    # This is a parcial implementation of the most common cases
    # Full implementation is possible only in two pass scheme
@@ -3794,7 +3805,7 @@ my  $outer_delim;
             }
             $quote = $q2;
          }
-         decode_scalar($quote,0,1); #get's us scalar or system var, 0=don't update, 1=in_string
+         decode_scalar($quote,0,1,$in_regex); #get's us scalar or system var, 0=don't update, 1=in_string
          if($cut == 1) {     # Just a '$' with no variable
             substr($result,-1,1) = '';      # Remove the '{'
             substr($quote,$end_br-1,1) = '' if($end_br >= 0);
@@ -3834,11 +3845,11 @@ my  $outer_delim;
              my $nnc = substr($quote,$cut+1,1);
              if($nnc !~ m'[\d$]') {  # Only allow a digit or a $ sigil
                 $next_c = '';
-                if($ValPy[$tno] eq $PERL_ARG_ARRAY) {   # We goofed in decode_scalar - fix it
-                   $ValPy[$tno]="$DEFAULT_VAR";
-                   my $cs = cur_sub();
-                   $SpecialVarsUsed{'$_'}{$cs} = 1;
-                }
+		#if($ValPy[$tno] eq $PERL_ARG_ARRAY) {   # We goofed in decode_scalar - fix it
+		#$ValPy[$tno]="$DEFAULT_VAR";
+		#my $cs = cur_sub();
+		#$SpecialVarsUsed{'$_'}{$cs} = 1;
+		#}
              }
          }
          add_package_name(get_perl_name(substr($quote,0,$cut), $next_c, $prev));        # SNOOPYJC
@@ -4522,6 +4533,12 @@ sub perl_regex_to_python
     $regex =~ s/\[:upper:\]/A-Z/g;
     $regex =~ s/\[:word:\]/A-Za-z0-9_/g;
     $regex =~ s/\[:xdigit:\]/A-Fa-f0-9/g;
+    
+    # issue bootstrap - escape '{' and '}' unless a legit repeat specifier
+    $regex =~ s/^\{/\\{/;
+    $regex =~ s/\|\{/|\\{/g;
+    $regex =~ s/\(\{/(\\{/g;
+    $regex =~ s/\(\?:\{/(?:\\{/g;
 
     if($regex =~ /(?:(?<=[\\][\\])|(?<![\\]))\\G/ && $Pythonizer::PassNo==&Pythonizer::PASS_2) {
         logme('S', "Sorry, the \\G regex assertion (match at pos) is not supported");

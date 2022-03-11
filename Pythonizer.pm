@@ -1591,7 +1591,8 @@ my $balance=(scalar(@_)>1) ? $_[1] : 0; # case where opening bracket is missing 
         }
      }
   } # for
-  return $#TokenStr;
+  # issue bootstrap return $#TokenStr;
+  return -1;			# issue bootstrap: not found
 } # matching_br
 
 sub reverse_matching_br
@@ -1612,7 +1613,8 @@ my $balance=(scalar(@_)>1) ? $_[1] : 0; # case where opening bracket is missing 
         }
      }
   } # for
-  return 0;
+  # SNOOPYJC return 0;
+  return -1;			# SNOOPYJC: not found
 } # reverse_matching_br
 
 sub next_matching_token                 # SNOOPYJC
@@ -1974,7 +1976,12 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          $line = undef;
          return $line;
       }else{
-         $line=<>;
+	 if($PassNo == PASS_2) {		# issue ddts
+            $line=<>;
+         } else {
+            no warnings 'utf8';			# issue ddts
+            $line=<>;
+	 }
 	 #my $l2 = $line;
 	 #$l2 =~ s/[\n\r]//g;
 	 #say STDERR "getline(): got $l2 from <>";
@@ -2096,8 +2103,10 @@ my $orig_tail_comment = $tailcomment;
    # Special case of empty line or "pure" comment that needs to be indented
    if(  $len==0 ){
       if(  $::TrStatus < 0 ){
-         out($prefix,join(' ',@::ValPy)." #FAIL $IntactLine");
-         say SYSOUT join(' ',@::ValPy)." #FAIL $IntactLine";
+         # issue bootstrap out($prefix,join(' ',@::ValPy)." #FAIL $IntactLine");
+         # issue bootstrap say SYSOUT join(' ',@::ValPy)." #FAIL $IntactLine";
+         out($prefix,join(' ',@ValPy)." #FAIL $IntactLine");	# issue bootstrap
+         say SYSOUT join(' ',@ValPy)." #FAIL $IntactLine";	# issue bootstrap
       }else{
          out($prefix,$tailcomment);
          say SYSOUT $tailcomment;
@@ -2201,12 +2210,12 @@ my $delta;
    if(  $NextNest+$delta > $MAXNESTING ){
       if ($::debug>2) {
          logme('E',"Attempt to set next nesting level above the threshold($MAXNESTING) ignored");
-         $DB::single = 1;
+	 #$DB::single = 1;
       }
    }elsif(  $NextNest+$delta < 0 ){
       if ($::debug>2 ) {
          logme('S',"Attempt to set the next nesting level below zero ignored");
-         $DB::single = 1;
+	 #$DB::single = 1;
       }
    }else{
      $NextNest+=$delta;

@@ -493,6 +493,102 @@ sub check_colon
 check_colon('', '10:');
 assert($PREV_HAD_COLON);
 
+# regex with unescaped '{...}' gives error in Python re
+
+$cnt = 0;
+$string = '{abc}';
+if($string =~ /{...}/) {
+	$cnt++;
+}
+assert($cnt == 1);
+
+$cnt = 0;
+$string = '{,}';
+if($string =~ /{,}/) {
+	$cnt++;
+}
+assert($cnt == 1);
+
+$cnt = 0;
+$string = '{,}';
+if($string =~ /({,})/) {
+	$cnt++;
+}
+assert($cnt == 1);
+
+$cnt = 0;
+$string = '{,}';
+if($string =~ /(?:{,})/) {
+	$cnt++;
+}
+assert($cnt == 1);
+
+$cnt = 0;
+$string = '{,}';
+if($string =~ /a|{,}/) {
+	$cnt++;
+}
+assert($cnt == 1);
+
+$cnt = 0;
+$string = '{1}';
+if($string =~ /{1}/) {
+	$cnt++;
+}
+assert($cnt == 1);
+
+$cnt = 0;
+$string = 'a';
+if($string =~ /a{1}/) {	# This one should not get escaped
+	$cnt++;
+}
+assert($cnt == 1);
+
+# issue - assigning to $#list didn't escape the special name
+@list = (1,2,3);
+$#list = 1;
+assert( $#list == 1);
+assert(@list == 2);
+
+# issue - variable reference in string with char class is not a subscript
+
+@lines = ('class myFunc:');
+$i = 0;
+$func = 'myFunc';
+$cnt = 0;
+if($lines[$i] =~ /^class $func[(:]/) {
+	$cnt++;
+}
+assert($cnt == 1);
+
+# issue - "defined" didn't work on regex special vars
+
+"abc" =~ /(def)/;	# doesn't match
+assert(!defined $1);
+
+"def" =~ /(def)/;
+assert(defined $1);
+assert(!defined $2);
+
+# issue - push hashref onto an array generates wrong code
+
+@eval_stack = ();
+push @eval_stack,{eval_nest => 1, lno => 2};
+assert($eval_stack[-1]->{eval_nest} == 1);
+assert($eval_stack[-1]->{lno} == 2);
+# Let's try an arrayref
+@result = ();
+push @result, [1, 2, 3];
+assert(@result == 1);
+assert($result[0]->[2] == 3);
+
+# issue - @$arr[0] generated bad code
+
+my $keys = ['key1', 'key2', 'key3'];	# Arrayref
+my $key = @$keys[0];	# 0th element of arrayref turned into array
+assert($key eq 'key1');
+
+
 use lib '.';
 use Pack;
 
