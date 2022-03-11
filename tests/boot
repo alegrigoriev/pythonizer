@@ -8,6 +8,7 @@ cd ../pythonizer/tests
 
 echo "Building perllib"
 cd ../pyf
+cp *.py ../../bootstrap/pyf
 python makelib.py
 cd ../tests
 

@@ -2,6 +2,11 @@
 History
 =======
 
+0.963 (2022-03-09)
+------------------
+
+* Add _chop_global, _chomp_global, _chop_element, _chomp_element
+
 0.962 (2022-03-09)
 ------------------
 

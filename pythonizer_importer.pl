@@ -82,6 +82,6 @@ eval {
 	#say STDERR "expand_extras: package=$package, version=$version, export=@export, export_ok=@export_ok, export_tags=@{[%export_tags]}" if($debug);
 };
 if($@) {
-	say '$@=' . "\"Failed: $@\"";
+	say '$@=' . "\"Failed: $@\";";
 	exit(1);
 }
