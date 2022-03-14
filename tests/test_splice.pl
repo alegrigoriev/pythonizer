@@ -65,6 +65,11 @@ assert($names[1][0] eq 'Perl' && $names[1][3] eq 'PHP');
 assert($names[2] eq 'Bar');
 assert($names[3] eq 'Baz');
 
+# Issue from bootstrapping
+@ValClass=(0,1,2,3,4,5,6,7);
+splice(@ValClass, 5, 3);
+assert(join('', @ValClass) eq '01234');
+
 print "$0 - test passed!\n";
 		
 

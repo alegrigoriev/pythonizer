@@ -35,10 +35,10 @@ setup(
     include_package_data=True,
     keywords='perllib',
     name='perllib',
-    packages=find_packages(include=['perllib', 'perllib.*', 'charnames', 'Config']),
+    packages=find_packages(include=['perllib', 'perllib.*', 'charnames', 'Config', 'Sys', 'Sys.*']),
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/snoopyjc/pythonizer',
-    version='0.963',
+    version='0.964',
     zip_safe=False,
 )

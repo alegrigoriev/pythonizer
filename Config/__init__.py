@@ -1,5 +1,9 @@
 """Implementation of perl Config package"""
 
+__author__ = """Joe Cool"""
+___email__ = 'snoopyjc@gmail.com'
+__version__ = '0.964'
+
 import perllib
 import subprocess
 import traceback

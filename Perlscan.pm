@@ -59,6 +59,7 @@ use Storable qw(dclone);                # SNOOPYJC
 use Carp qw(cluck);                     # SNOOPYJC
 use charnames qw/:full :short/;         # SNOOPYJC
 use File::Basename;	                # SNOOPYJC
+use File::Spec::Functions qw(catfile);   # SNOOPYJC
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
@@ -77,6 +78,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
   @EndBlocks=();                        # SNOOPYJC: List of END blocks with their unique names
   %SpecialVarR2L=();                    # SNOOPYJC: Map from special var RHS to LHS
   %FileHandles = ();			# SNOOPYJC: Set of file handles used in this file
+  @UseLib=();                           # SNOOPYJC: Paths added using "use lib"
+  $fullpy = undef;                      # SNOOPYJC: Path to python file of package ref
 #
 # List of Perl special variables
 #
@@ -106,7 +109,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 ':'=>'FORMAT_LINE_BREAK_CHARACTERS',
                 );
    %SPECIAL_VAR2=('O'=>'_os_name',     # SNOOPYJC: was os.name
-                  'T'=>'OS_BASETIME', 'V'=>'sys.version[0]', 'X'=>'sys.executable()', # $^O and friends
+                  'T'=>'OS_BASETIME', 'V'=>'sys.version[0]', 'X'=>'sys.executable', # $^O and friends
                   'L'=>'FORMAT_FORMFEED',                       # SNOOPYJC
                   'T'=>'BASETIME',                         # SNOOPYJC
                   'W'=>'WARNING');              # SNOOPYJC
@@ -624,6 +627,9 @@ sub initialize                  # issue 94
     $last_block_lno=0;
     $ate_dollar = -1;
     $nesting_last=undef;            # issue 94: Last thing we popped off the stack
+    if($Pythonizer::PassNo==&Pythonizer::PASS_1) {
+        push @UseLib, dirname($Pythonizer::fname);   # SNOOPYJC: Always good to look here!
+    }
 }
 
 
@@ -794,6 +800,7 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
     my $class = 'global';
     $class = 'myfile' if(defined $ValType[$tno] && $ValType[$tno] eq "X");
     $class = 'myfile' if($::implicit_global_my);
+    $class = 'myfile' if($ValPerl[$tno] =~ /^\$[ab]$/);  # Sort vars
     $TokenStr=join('',@ValClass);
     my $declared_here = 0;
     if($ValClass[0] eq 't' && index($TokenStr,'=') < 0) {           # We are declaring this var
@@ -954,6 +961,12 @@ sub could_be_anonymous_sub_close        # SNOOPYJC
 
 sub in_conditional                      # SNOOPYJC
 {
+    my $pos = shift;
+    for(my $i=$pos+1; $i <= $#ValClass; $i++) {         # Check for a conditional statement modifier
+        if($ValClass[$i] eq 'c' && ($ValPerl[$i] eq 'if' || $ValPerl[$i] eq 'unless')) {
+            return 1;
+        }
+    }
     return 0 if(!@nesting_stack);
     $top = $nesting_stack[-1];
     return $top->{in_cond};
@@ -1101,6 +1114,7 @@ sub enter_block                 # issue 94
                                                        $ValPerl[$begin] eq 'foreach' || $ValPerl[$begin] eq 'continue' ||
                                                        $ValPerl[$begin] eq 'while' || $ValPerl[$begin] eq 'until'));
     $nesting_info{is_cond} = ($begin <= $#ValClass && ($ValPerl[$begin] eq 'if' || $ValPerl[$begin] eq 'unless' ||
+                                                       is_eval() ||    # issue ddts
                                                        $ValPerl[$begin] eq 'elsif' || $ValPerl[$begin] eq 'else'));
     # SNOOPYJC: eval doesn't have to be first! $nesting_info{is_eval} = ($begin <= $#ValClass && $ValPerl[$begin] eq 'eval');
     $nesting_info{is_eval} = is_eval();		# SNOOPYJC
@@ -1540,6 +1554,7 @@ sub prepare_local
     my $bare1 = 0;
     if($sigil eq '$') {
         decode_scalar($quote,0);
+        $ValPy[0] = 'perllib.TRACEBACK' if($ValPy[0] eq 'perllib_.TRACEBACK'); # issue ddts: local %SIG{__DIE__};
     } elsif($sigil eq '@') {
         decode_array($quote);
     } elsif($sigil eq '%') {
@@ -1960,7 +1975,7 @@ my ($l,$m);
          $ValPy[$tno]='[';
          $cut=1;
       # issue 17 }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,k]/ || $ValPerl[$tno-1] eq 'split') ){
-      }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,kc=o0!]/ || $ValPerl[$tno-1] eq 'split' ||
+      }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,kc=o0!>]/ || $ValPerl[$tno-1] eq 'split' ||   # issue ddts: add '>' to list
           $ValPerl[$tno-1] eq 'grep' || $ValClass[$tno-1] eq 'r') ){	# issue 17, 32, 66, 60, range
            # typical cases: if(/abc/ ){0}; $a=~/abc/; /abc/; split(/,/,$text)  split /,/,$text REALLY CRAZY STAFF
            $ValClass[$tno]='q';
@@ -2090,7 +2105,10 @@ my ($l,$m);
                 ($ValPerl[$tno-2] =~ m'^(?:opendir|open|closedir|close|printf|print|say|readdir|telldir|rewinddir|sysread|sysseek|syswrite|seek|tell|read|binmode|write)$'))) {       # issue 92
             my $sigil = '';
             $sigil = '&' if($ValPerl[$tno-1] eq 'sub');   # issue 92, 108: Differentiate between sub and FH
-	    $FileHandles{$w} = $. if($sigil eq '' && !exists $keyword_tr{$w} && !exists $FileHandles{$w});  # skip STDIN and friends
+	    $FileHandles{$w} = $. if($sigil eq '' && 
+                                     !exists $keyword_tr{$w} && 
+                                     substr($source,$cut) !~ /\s*\(/ &&         # issue ddtr: print mysub() - mysub is not a FH!
+                                     !exists $FileHandles{$w});  # skip STDIN and friends
             remap_conflicting_names($w, $sigil, '');      # issue 92: sub takes the name from other vars
          }
          $ValPy[$tno]=~tr/:/./s;                # SNOOPYJC
@@ -2355,6 +2373,8 @@ my ($l,$m);
                      ($modifier,$groups_are_present)=is_regex($arg1);                           # SNOOPYJC
                      $modifier='' if($modifier eq 'r');                                         # SNOOPYJC
                      $ValPy[$tno]='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex).$modifier.')';       # SNOOPYJC, issue 111
+                     my $cs = cur_sub();                # issue bootstrap
+                     $SpecialVarsUsed{qr}{$cs} = 1;     # issue bootstrap
                   }else{
                      abend("Internal error while analysing $w in line $. : $_[0]");
                   }
@@ -2500,6 +2520,9 @@ my ($l,$m);
             interpolate_strings($quote, $quote, 0, 0, 0);     # issue 39
 	    popup();                                                                            # issue 39
 	    popup() if($has_squiggle);
+         } elsif($tno == 1 && $ValClass[0] eq 't') {    # issue ddts: TYPE of my/our etc  (my TYPE VARLIST)
+             popup();           # Just eat it
+             $tno--;
          }
          if($Pythonizer::PassNo!=&Pythonizer::PASS_0 && $ValClass[$tno] eq 'i') {     # issue 94
              track_potential_sub_call($ValPerl[$tno]);  # issue 94
@@ -2558,8 +2581,10 @@ my ($l,$m);
                            $ValPy[$tno] = $DIE_TRACEBACK;
                            $ValPy[$tno] = "$PERLLIB.$DIE_TRACEBACK" if($::import_perllib);
                            $source =~ s/\{\s*__DIE__\s*\}\s*=.*$/=0;/;
+                           $source =~ s/\{\s*__DIE__\s*\}\s*;/=0;/;  # issue ddts: Handle "local $SIG{__DIE__};"
                        }
-                       $ValPerl[$tno] = $ValPy[$tno];
+                       $ValPerl[$tno] = '$' . $ValPy[$tno];          # issue ddts: add '$' so we don't get 'erllib.TRACEBACK'
+                       $ValPerl[$tno] =~ s/[.]/::/g;                 # issue ddts
                    } elsif($source =~ /\{\s*__WARN__/) {
                        $ValClass[$tno] = 's';
                        $ValPerl[$tno] = $ValPy[$tno] = 'warnings.showwarning';
@@ -2570,6 +2595,7 @@ my ($l,$m);
                        $source =~ s/=\s*['"]DEFAULT['"]/=_DFL/;
                        $source =~ s/=\s*['"]IGNORE['"]/=_IGN/;
                        $source =~ s/\{\s*([A-Z_]+)\s*\}\s*=\s*(.*);/($1, $2);/;
+                       $source =~ s/\{\s*([A-Z_]+)\s*\}\s*;/($1, _IGN);/;       # issue ddts: Handle "local $SIG{CHLD};"
                        # SNOOPYJC: No longer needed since we implemented Carp: $source =~ s/(?:Carp::)?confess\(\s*\@_\s*\)/traceback::print_stack(\$_[1])/;
                    }
                 } else {
@@ -2982,6 +3008,10 @@ my ($l,$m);
                 }
                 last; # artificially truncating the line making it two-symbol line
                 $cut=1;
+            }elsif($s eq ',' && $tno != 0 && $ValClass[$tno-1] eq ',') {        # issue ddts: extra comma is ignored by perl
+                popup();
+                $tno--;
+                $cut=1;
             }else{
 	       $cut=1;						# issue 23
 	    }
@@ -3028,6 +3058,8 @@ my ($l,$m);
                 append('d','1','1');
             }
             handle_local() if($Pythonizer::PassNo == &Pythonizer::PASS_1); 
+        } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'use' && $ValPerl[1] eq 'lib') {
+            handle_use_lib();
         }
         for(my $i=1; $i <= $#ValClass; $i++) {
             if($ValClass[$i] eq 'k') {
@@ -3162,6 +3194,11 @@ my $split=$_[0];
    if($::debug >= 3) {
        say STDERR "bash_style_or_and_fix($split) is_or=$is_or, source=$source, is_low_prec=$is_low_prec";
    }
+   if($split > $#ValClass) {              # issue ddts: no code before the || (was an eval)
+       say STDERR "bash_style_or_and_fix($split) returning 0 - split is past the end!" if($::debug>=3);
+       return 0;
+   }
+
    if($line_contains_stmt_modifier{$statement_starting_lno}) {          # issue 116
        say STDERR "bash_style_or_and_fix($split) returning 0 - stmt contains modifier" if($::debug>=3);
        return 0;
@@ -3413,7 +3450,7 @@ my $rc=-1;
                $SpecialVarsUsed{'$_'}{$cs} = 1;                      # SNOOPYJC
             }
          }elsif( $s2 eq 'a' || $s2 eq 'b' ){
-            $ValType[$tno]="X";
+            # SNOOPYJC $ValType[$tno]="X";
 	    # issue 32 $ValPy[$tno]='perl_sort_'.$s2;
             $ValPy[$tno]="$PERL_SORT_$s2";	# issue 32
             $cut=2;
@@ -3693,7 +3730,7 @@ sub interpolate_strings                                         # issue 39
    if( $Pythonizer::PassNo == &Pythonizer::PASS_0 || (($k==-1 || $k == length($quote)-1) && index($quote, '@') == -1)){             # issue 47, SNOOPYJC: Skip if first '$' is the last char, like in a regex
       # case when double quotes are used for a simple literal that does not reaure interpolation
       # Python equvalence between single and doble quotes alows some flexibility
-      $ValPy[$tno]=escape_quotes(escape_non_printables($quote,0),2); # always generate with quotes --same for Python 2 and 3
+      $ValPy[$tno]=escape_quotes(remove_perl_escapes($quote,$in_regex),2); # always generate with quotes --same for Python 2 and 3
       if($Pythonizer::PassNo != &Pythonizer::PASS_0) {
          say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex)=$close_pos, ValPy[$tno]=$ValPy[$tno]" if($::debug >=3);
       }
@@ -3768,7 +3805,7 @@ my  $outer_delim;
                 logme('W',"Possible unintended interpolation of " . substr($quote,$k,$dot-$k) . " in string");
             }
             # we have the first literal string  before varible
-            $result.=substr($quote,0,$k); # with or without quotes depending on version.
+            $result.=remove_perl_escapes(substr($quote,0,$k),$in_regex); # issue bootstrap
          }
       }
       $quote=substr($quote,$k);
@@ -3856,7 +3893,7 @@ my  $outer_delim;
          if($prev eq '@') {     # this was like @$var or @{$var}
             my $ls = 'LIST_SEPARATOR';
             $ls = $PERLLIB . '.' . $ls if($::import_perllib);
-            $result.="$ls.join($ValPy[$tno]"; # copy string provided by decode_array. ValPy[$tno] changes if Perl contained :: like in $::debug
+            $result.="$ls.join(map(_str,$ValPy[$tno]"; # Note - the parens are closed below by checking if $prev eq '@' again
          } else {
             $result.=$ValPy[$tno]; # copy string provided by decode_scalar. ValPy[$tno] changes if Perl contained :: like in $::debug
          }
@@ -3899,7 +3936,7 @@ my  $outer_delim;
          #does not matter what type of variable this is: regular or special variable
          my $ls = 'LIST_SEPARATOR';
          $ls = $PERLLIB . '.' . $ls if($::import_perllib);
-         $result.="$ls.join($ValPy[$tno])"; # copy string provided by decode_array. ValPy[$tno] changes if Perl contained :: like in $::debug
+         $result.="$ls.join(map(_str,$ValPy[$tno]))"; # copy string provided by decode_array. ValPy[$tno] changes if Perl contained :: like in $::debug
       }
 
       $quote=substr($quote,$cut); # cure the nesserary number of symbol determined by decode_scalar.
@@ -3993,7 +4030,7 @@ my  $outer_delim;
              #say STDERR "quote4=$quote, end_br=$end_br";        # TEMP
           }
           if($prev eq '@') {
-              $result.=')';     # Close the join operator inserted above
+              $result.='))';     # Close the join/map operator inserted above
           }
           $prev = '';
       }
@@ -4009,7 +4046,7 @@ my  $outer_delim;
 
    if( length($quote)>0  ){
        #the last part
-       $result.=$quote;
+       $result.=remove_perl_escapes($quote,$in_regex);	# issue bootstrap
    }
    if($outer_delim eq '"""') {
       if(substr($result,-1,1) eq '"' && !is_escaped($result, length($result)-1)) {  # SNOOPYJC: quote at end - we have to fix this!
@@ -4036,6 +4073,7 @@ sub handle_expr_in_string
     say STDERR ">handle_expr_in_string($string, $start)" if($::debug);
     my $save_tno = $tno;
     my $save_source = $source;
+    my $set = $::saved_eval_tokens;
     $::saved_eval_tokens = 1;   # used to freeze getline
 
     my $d = substr($string, $start, 1);
@@ -4061,7 +4099,7 @@ sub handle_expr_in_string
         restore_code();
     }
 
-    $::saved_eval_tokens = undef;   # unfreeze
+    $::saved_eval_tokens = $set;   # unfreeze
     $source = $save_source;
     $tno = $save_tno;
     say STDERR "<handle_expr_in_string($string, $start) = $code" if($::debug);
@@ -4149,7 +4187,7 @@ sub extract_tokens_from_double_quoted_string
             #say STDERR "ValClass[$tno]=$ValClass[$tno], ValPy[$tno]=$ValPy[$tno]";      # TEMP
         } elsif($sigil eq '@') {
             decode_array($quote);
-            $ValClass[$tno] = 'a';
+            $ValClass[$tno] = 'a' if $cut != 1; # issue ddts
         }
         $ValPerl[$tno] = substr($quote, 0, $cut);
         my $m;
@@ -4314,6 +4352,9 @@ sub decode_array                # issue 47
 
      if( substr($source,1)=~/^(\:?\:?\'?\w+((?:(?:\:\:)|\')\w+)*)/ ){
         $arg1=$1;
+        if($arg1 =~ /^\d/ && $Pythonizer::PassNo == &Pythonizer::PASS_2) {            # like @2017
+            logme('W', "Numeric array variable \@$arg1 detected - please check this is what you want here!");
+        }
         if( $arg1 eq '_' ){
            $ValPy[$tno]="$PERL_ARG_ARRAY";	# issue 32
            #$ValType[$tno]="X";
@@ -4469,6 +4510,40 @@ my $result;
    return qq(""").escape_triple_doublequotes($string).qq(""");
 }
 
+# ref https://docs.python.org/3/reference/lexical_analysis.html?highlight=escape#string-and-bytes-literals
+$allowed_escapes = "\n\\'\"abfnrtv01234567xNuU";
+# ref https://docs.python.org/3/library/re.html
+$allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDsSwWZgabfnrtv0123456789xNuU/;
+
+sub remove_perl_escapes         # issue bootstrap
+# Remove any escape sequences allowed by perl but not allowed by python, e.g. \[ \{ \$ \@ etc
+# otherwise the '\' gets sent thru to the output.
+{
+    my $string = shift;
+    my $in_regex = shift;
+
+    return $string if($string !~ /\\/);	# quickly scan for an escape char
+
+    my $result = '';
+    my $allowed = ($in_regex ? $allowed_escapes_in_regex : $allowed_escapes);
+
+    for(my $i =0; $i < length($string); $i++) {
+        my $ch = substr($string,$i,1);
+        if($ch eq "\\") {
+            my $ch2 = substr($string,$i+1,1);
+            if(index($allowed, $ch2) >= 0) {
+                $result .= $ch . $ch2;
+            } else {
+                $result .= $ch2;
+            }
+            $i++;
+            next;
+        }
+        $result .= $ch;
+    }
+    return $result;
+}
+
 sub escape_triple_singlequotes          # SNOOPYJC
 # We are making a '''...''' string, make sure we escape any ''' in it (rare but possible)!
 {
@@ -4585,6 +4660,9 @@ sub remove_oddities
 
     # Change "if not (X):" to "if not X:"
     $line =~ s/\bif not \(([\w.]+)\):$/if not $1:/;
+
+    # if not ((main.host) is not None): to "if main.host is None:"
+    $line =~ s/\bif not \(\(([\w.]+)\) is not None\):$/if $1 is None:/;
 
     # Change "if not (f(...)):" to "if not f(...):"
     $line =~ s/\bif not \(([\w.]+\([^)]*\))\):$/if not $1:/;
@@ -5020,7 +5098,9 @@ sub escape_keywords		# issue 41
            $id = $ids[$i];
 	   if(exists $PYTHON_RESERVED_SET{$id} || ($id eq $DEFAULT_PACKAGE && ($i != 0 || $id eq $name) && !$is_package_name && !$::implicit_global_my)) {
 	       $id = $id.'_';
-	   }
+	   } elsif(substr($id,0,1) =~ /\d/) {   # issue ddts
+               $id = '_'.$id;
+           }
            push @result, $id;
 	}
 	return join('.', @result);
@@ -5064,6 +5144,7 @@ sub add_package_to_mapped_name          # issue import vars
 }
 
 sub mapped_name                         # issue 92
+# Returns our name mapping for conflicting names, e.g. name_v, name_a, name_h
 {
     my $name = shift;
     my $sigil = shift;                  # @, %, $, & or '' for FH
@@ -5105,10 +5186,48 @@ sub remap_conflicting_names                  # issue 92
     my $id = $ids[-1];
     my $s = $sigil;
     $sigil = actual_sigil($sigil, $trailer);
-    # FIXME: If a package name is present and it's not a package defined in this file, then attempt to find
+    # If a package name is present and it's not a package defined in this file, then attempt to find
     # the Python file containing that package, see how the names are mapped in there, and mirror that to the
     # variable reference here.
-    my $mid = mapped_name($id, $sigil, $trailer);
+    my $mid = mapped_name($id, $sigil, $trailer);       # e.g. name_a, name_h, name_v if we need to remap it
+    if(scalar(@ids) > 1) {              # we have a package
+        if(exists $NameMap{$name} && exists $NameMap{$name}{$sigil}) {  # we have a mapping for the full name already
+            my $mapping = $NameMap{$name}{$sigil};
+            say STDERR "remap_conflicting_names($name,$s,$trailer) = $mapping (p0)" if($::debug >= 5);
+            return $mapping;
+        }
+        if($Pythonizer::PassNo==&Pythonizer::PASS_2) {
+            my @pkg = @ids;
+            $#pkg--;                # Lose the varname
+            my $package_name = join('.', @pkg);
+            my $perl_package_name = $package_name =~ s/[.]/::/gr;
+            if(!exists $Pythonizer::Packages{$package_name} && !exists $PREDEFINED_PACKAGES{$perl_package_name}) {
+                my $name_map = get_mapped_names_for_package($package_name);
+                if(scalar(%$name_map)) {
+                    %NameMap = (%NameMap, %{$name_map});    # Merge them
+                    if(exists $NameMap{$name} && exists $NameMap{$name}{$sigil}) {  # check again now that we mapped the package
+                        my $mapping = $NameMap{$name}{$sigil};
+                        say STDERR "remap_conflicting_names($name,$s,$trailer) = $mapping (p0)" if($::debug >= 5);
+                        return $mapping;
+                    }
+                # } elsif($fullpy) {
+                } else {
+                    say STDERR "remap_conflicting_names($name,$s,$trailer), fname=$Pythonizer::fname, fullpy=$fullpy" if($::debug);
+                    #my $lockfile = &::_lock_file($fullpy);
+                    
+                    #my $lockfile = &::_lock_file($Pythonizer::fname);
+                    #open(LOCKFILE, '>>', $lockfile);
+                    #print LOCKFILE "$sigil$package_name.$id=>$mid\n";
+                    #say STDERR "remap_conflicting_names($name,$s,$trailer): Writing '$sigil$package_name.$id=>$mid' to $lockfile" if($::debug);
+                    #close(LOCKFILE);
+                    $NameMap{$name}{$sigil} = escape_keywords($package_name, 1) . '.' . $mid;
+                    my $mapping = $NameMap{$name}{$sigil};
+                    say STDERR "remap_conflicting_names($name,$s,$trailer) = $mapping (p1)" if($::debug >= 5);
+                    return $mapping;
+                }
+            }
+        }
+    }
     if(exists $NameMap{$id} && exists $NameMap{$id}{$sigil} && $NameMap{$id}{$sigil} ne $id) {
         $ids[-1] = $NameMap{$id}{$sigil};
         if(scalar(@ids) > 1 && index($ids[-1],'.') >= 0) {
@@ -5415,7 +5534,7 @@ sub replace_usage                       # SNOOPYJC
     return $py;
 }
 
-sub escape_re_sub
+sub escape_re_sub               # SNOOPYJC
 # For the RHS of an re.sub(), escape any non-allowed escape sequence such as \xNN with an extra '\'
 {
     my $str = shift;
@@ -5437,6 +5556,128 @@ sub escape_re_sub
         }
     }
     return $result;
+}
+
+sub handle_use_lib
+# use lib LIST
+{
+    my $pos = 0;
+    if($Pythonizer::PassNo!=&Pythonizer::PASS_1) {
+        return;
+    }
+    my @libs = ();
+    for(my $i=$pos+2; $i<=$#ValClass; $i++) {
+        if($ValClass[$i] eq '"') {          # Plain String
+            push @libs, $ValPy[$i];
+        } elsif($ValClass[$i] eq 'q') {     # qw(...) or the like
+            if(index(q('"), substr($ValPy[$i],0,1)) >= 0) {
+                push @libs, $ValPy[$i];
+            } else {
+                push @libs, map {'"'.$_.'"'} split(' ', $ValPy[$i]);         # qw(...) on use stmt doesn't generate the split
+            }
+        } elsif($ValClass[$i] eq 'f') {     # Handle dirname($0) only
+            if($ValPerl[$i] eq 'dirname' && $ValPerl[$i+1] eq '$0') {
+                push @libs, '"' . dirname($Pythonizer::fname) . '"';
+                $i++;
+            } elsif($ValPerl[$i] eq 'dirname' && $ValPerl[$i+1] eq '(' && $ValPerl[$i+2] eq '$0') {
+                push @libs, '"' . dirname($Pythonizer::fname) . '"';
+                $i += 3;
+            } else {
+                logme('W', "use lib $ValPerl[$i]() not handled!");
+            }
+        }
+    }
+    say STDERR "For @ValPerl, using @libs (after stripping the '')" if($debug);
+    unshift @UseLib, map {&::unquote_string($_)}  @libs;
+}
+
+sub get_mapped_names_for_package        # SNOOPYJC
+# Given a package name, get the mapped names (e.g. name_a, name_h, name_v) for it by reading the python code
+{
+    my $pkg_name = shift;
+    my $filepy = ($pkg_name =~ s([.])(/)gr) . '.py';
+    $fullpy = undef;
+    my @places = @UseLib;
+    push @places, @INC;
+    my $path = undef;
+    for my $place (@places) {
+        $fullpy = catfile($place, $filepy);
+        if(-f $fullpy) {
+            $path = $place;
+            last;
+        }
+    }
+    if(!$path) {
+        logme('W',  "Can't find $filepy in @places to get mapped names - conflicting variable names may be mapped incorrectly");
+        $fullpy = undef;
+        return {};
+    }
+    my @lockfiles = glob(catfile(dirname($fullpy), "*.lock"));
+    #say STDERR "Found @lockfiles";
+    if(&::lock_it($fullpy)) {
+        #say STDERR "Was able to lock $fullpy lockfile";
+        &::unlock_it($fullpy);
+    } else {
+        # Here if it's already locked - which means it's not fully baked yet
+        say STDERR "get_mapped_names_for_package($pkg_name) - was locked - returning empty hashref" if($::debug);
+        return {};
+    }
+    say STDERR "Opening $fullpy" if($::debug);
+    if(!open(PYTHON, '<', $fullpy)) {
+        logme('W',  "Can't open $fullpy to get mapped names - conflicting variable names may be mapped incorrectly");
+        return {};
+    }
+    local $.;
+    %found_map = ();
+    my $base_pattern = '[A-Za-z_][A-Za-z0-9_]*';
+    #my $package_name_pattern = '\b(?:[A-Za-z][A-Za-z0-9_]*[.])+';
+    my $package_name_pattern = '\b' . quotemeta ($pkg_name . '.');      # Only look for this one package
+    my @sigil_patterns = ('$',$package_name_pattern.scalar_var_name($base_pattern).'\b',
+                          '@',$package_name_pattern.array_var_name($base_pattern).'\b',
+                          '%',$package_name_pattern.hash_var_name($base_pattern).'\b',
+                          '',$package_name_pattern.$base_pattern.'\b');
+    while(<PYTHON>) {
+        my $line = &Pythonizer::eat_strings($_);
+        # Skip assignments of sub names to their packages like "ExportVars.get_xvar = get_xvar":
+        next if($line =~ /^(?:[A-Za-z][A-Za-z0-9_]*[.])+([A-Za-z][A-Za-z0-9_]*) = ([A-Za-z][A-Za-z0-9_]*)/ && $1 eq $2);
+        next if($line =~ /^\s*#/);              # comment line
+        for(my $j=0; $j < scalar(@sigil_patterns); $j+=2) {
+            my $sig = $sigil_patterns[$j];
+            my $pat = $sigil_patterns[$j+1];
+            #say STDERR "Checking $line for $pat";
+            if($line =~ /($pat)/) {
+                #say STDERR "(matched)";
+                my $full_name = $1;
+                my $last_dot = rindex($full_name, '.');
+                my $package_name = substr($full_name,0,$last_dot);
+                my $python_name = substr($full_name,$last_dot+1);
+                if($sig eq '') {
+                    my $perl_basename = $python_name;
+                    if(substr($python_name,-1,1) eq '_') {
+                        my $without_escape = substr($python_name,0,length($python_name)-1);
+                        my $esc = escape_keywords($without_escape);
+                        $perl_basename = $without_escape if($esc eq $python_name);
+                    }
+                    for $sig ('$', '@', '%') {
+                        #my $perl_name = $sig . $perl_basename;
+                        $found_map{$package_name . '.' . $perl_basename}{$sig} = escape_keywords($package_name, 1) . '.' . $python_name;
+                    }
+                } else {
+                    #my $perl_name = $sig . substr($python_name,0,length($python_name)-2);
+                    my $perl_basename = substr($python_name,0,length($python_name)-2);
+                    $found_map{$package_name . '.' . $perl_basename}{$sig} = escape_keywords($package_name, 1) . '.' . $python_name;
+                }
+            }
+        }
+    }
+    close(PYTHON);
+    if($::debug >= 5) {
+       $Data::Dumper::Indent=1;
+       $Data::Dumper::Terse = 1;
+       print STDERR "get_mapped_names_for_package($pkg_name) = ";
+       say STDERR Dumper(\%found_map);
+    }
+    return \%found_map;
 }
 
 1;

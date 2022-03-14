@@ -1,5 +1,9 @@
 """Implementation of perl charnames functions"""
 
+__author__ = """Joe Cool"""
+___email__ = 'snoopyjc@gmail.com'
+__version__ = '0.964'
+
 import perllib
 import unicodedata
 import re
