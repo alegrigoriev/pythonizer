@@ -111,11 +111,14 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
                 super().__setitem__(i, None)
             value = iter(value)
             ndx = index.start
+            j = None
             for i in range(*index.indices(len(self))):
                 try:
                     super().__setitem__(i, next(value))
                 except StopIteration:
-                    self.pop(i)
+                    if j is None:
+                        j = i
+                    self.pop(j)
                 ndx += 1
             rest = list(value)
             lr = len(rest)

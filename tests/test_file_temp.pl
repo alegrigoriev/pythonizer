@@ -69,7 +69,7 @@ eval {
 	assert($filename =~ /tmp/);
 };
 # In perl: "Unimplemented: POSIX::tmpnam(): use File::Temp instead at test_file_temp.pl line 61."
-assert($@ =~ /Unimplemented/) if defined $@;
+assert($@ =~ /Unimplemented/) if $@;
 
 my $tmpdir = File::Temp::newdir();
 push @junk, $tmpdir;

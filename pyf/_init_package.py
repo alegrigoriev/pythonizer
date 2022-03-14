@@ -3,14 +3,21 @@ def _init_package(name):
     """Initialize a package by creating a namespace for it"""
     pieces = name.split('.')
     parent = builtins
+    parent_name = ''
+    package_name = ''
     for piece in pieces:
-        if not hasattr(parent, piece):
+        if hasattr(parent, piece):
+            namespace = getattr(parent, piece)
+        else:
             namespace = types.SimpleNamespace()
-            if hasattr(parent, '__PACKAGE__'):
-                namespace.__PARENT__ = parent.__PACKAGE__
-                namespace.__PACKAGE__ = parent.__PACKAGE__ + '.' + piece
+            if parent_name:
+                package_name = parent_name + '.' + piece
             else:
-                namespace.__PARENT__ = ''
-                namespace.__PACKAGE__ = piece
+                package_name = piece
+            namespace.__PARENT__ = parent_name
+            namespace.__PACKAGE__ = package_name
             setattr(parent, piece, namespace)
-            parent = namespace
+            if parent != builtins:
+                setattr(builtins, package_name, namespace)
+        parent = namespace
+        parent_name = package_name

@@ -164,6 +164,9 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
 		Array=>'ArrayHash', Hash=>'ArrayHash',
 		_add_element=>'_num', _subtract_element=>'_num', _open=>'_need_sh',
 		_close=>'_carp,_longmess,_shortmess', _run_s=>'_carp,_cluck,_longmess,_shortmess,_need_sh', _looks_like_text=>'_carp,_longmess,_shortmess',
+		_get_creation_age_days=>'_cluck,_longmess',
+		_get_access_age_days=>'_cluck,_longmess',
+		_get_mod_age_days=>'_cluck,_longmess',
 		_system=>'_carp,_cluck,_longmess,_shortmess,_need_sh',
 		_unpack=>'_pack', _assign_sparse=>'_int',
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who

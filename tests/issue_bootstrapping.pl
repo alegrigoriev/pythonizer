@@ -588,6 +588,47 @@ my $keys = ['key1', 'key2', 'key3'];	# Arrayref
 my $key = @$keys[0];	# 0th element of arrayref turned into array
 assert($key eq 'key1');
 
+# issue - unbounded local variable
+
+sub split_up_multiple_assignment
+{
+	my $test_only = $_[0] if(scalar(@_) > 0);
+	return 1 if($test_only);
+
+	0;
+}
+
+assert(split_up_multiple_assignment() == 0);
+assert(split_up_multiple_assignment(1) == 1);
+
+# issue - return insertion on unshift expression - should return the # of elements in the array
+# Note: Push returns the # of elements too
+
+sub unquote_string
+{
+	return $_[0];
+}
+
+sub douselib
+{
+	@libs = ('lib1', 'lib2');
+	unshift @UseLib, map {unquote_string($_)}  @libs;
+}
+
+assert(douselib() == 2);
+assert(@UseLib == 2 && $UseLib[0] eq 'lib1' && $UseLib[1] eq 'lib2');
+
+sub douselibp
+{
+	@libs = ('lib1', 'lib2');
+	push @UseLibp, map {unquote_string($_)}  @libs;
+}
+
+#assert(douselibp() == 2);
+douselibp();
+assert(@UseLibp == 2 && $UseLibp[0] eq 'lib1' && $UseLibp[1] eq 'lib2');
+
+# issue - using wrong names for conflicting vars with complex reference pattern
 
 use lib '.';
 use Pack;
@@ -600,5 +641,76 @@ assert(%Packages == 1);
 assert(@Packages == 1);
 assert(%Pack::Packages == 1);
 assert(@Pack::Packages == 1);
+
+# issue returning an anonymous hashref generated bad code
+
+sub rethref
+{
+	return {};
+}
+my $n = rethref();
+assert(scalar(%$n) == 0);
+
+# issue - escaped square (or curly) brackets should not generate '\' in output code:
+
+sub gen_chunk
+{
+	$arg = shift;
+	return $arg;
+}
+$start = 0;
+$ValPy[$start] = 'a';
+$arg1=3;
+$arg2=7;
+assert(gen_chunk("$ValPy[$start]\[$arg1:$arg2\]") eq 'a[3:7]');
+assert(gen_chunk("$ValPy[$start]\{$arg1:$arg2\}") eq 'a{3:7}');
+# Try some other escapes
+assert(gen_chunk("$ValPy[$start]\[$arg1:$arg2\]\"\\\q\n") eq "a[3:7]\"\\q\n");
+
+# issue - interpolation of array of hash into string failed
+%h = (k1=>'v1', k2=>'v2');
+push @stk, \%h;
+$str = "@stk";
+assert($str =~ /HASH/ || ($str =~ /k1/ && $str =~ /v2/));
+
+# issue - wrong context for regex match
+
+sub could_be_anonymous_sub_close { 0 }
+
+$source = '};';
+$cnt = 0;
+$tno=1;
+if(0) {
+	;
+}elsif($tno>0 && (length($source)==1 || $source =~ /^}\s*$/ ||
+       $source =~ /^}\s*#/ || 
+       could_be_anonymous_sub_close() ||       
+       $source =~ /^}\s*(?:(?:(?:else|elsif|while|until|continue|)\b)|;)/)){
+	$cnt++;
+}
+assert($cnt == 1);
+
+# issue - wrong code for regex match with regex in variable
+
+sub unescaped_match
+# Given a string and a regex to match, return the position of the next unescaped match
+{
+    my $string = shift;
+    my $pat = shift;
+
+    for(my $i = 0; $i < length($string); $i++) {
+        my $ch = substr($string,$i,1);
+        if($ch eq "\\") {       # Skipped escaped chars
+            $i++;
+            next;
+        }
+        return $i if($ch =~ $pat);
+    }
+    return -1;
+}
+
+$quote = 'a$abc';
+$pos = unescaped_match($quote, qr'[$@]');
+assert($pos == 1);
 
 print "$0 - test passed!\n";

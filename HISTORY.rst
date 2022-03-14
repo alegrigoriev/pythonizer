@@ -2,6 +2,11 @@
 History
 =======
 
+0.964 (2022-03-10)
+------------------
+
+* Fix _init_package for package with dotted name, don't raise exceptions in -C, -A, -M, fix Array __setitem__ with slice
+
 0.963 (2022-03-09)
 ------------------
 
