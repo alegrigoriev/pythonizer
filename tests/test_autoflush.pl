@@ -43,7 +43,9 @@ open(FH, '<tmp.tmp');
 $line = <FH>;
 assert(!$line);
 close(FH);
+# If set to nonzero, forces a flush right away and after every write or print on the currently selected output channel.
 $| = 1;
+# That means the following should NOT be autoflushed:
 print OUT " more";
 open(FH, '<tmp.tmp');
 $line = <FH>;

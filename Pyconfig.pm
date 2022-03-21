@@ -81,6 +81,8 @@ our %GLOBALS = ($SCRIPT_START=>'tm_py.time()',
                 OUTPUT_AUTOFLUSH=>0,
 		INPUT_LAYERS=>"''",
 		OUTPUT_LAYERS=>"''",
+		OUTPUT_FIELD_SEPARATOR=>"''",
+		OUTPUT_RECORD_SEPARATOR=>"''",
                 $SUBPROCESS_RC=>0, 
 		WARNING=>1,
                 AUTODIE=>0, 
@@ -91,7 +93,7 @@ our %GLOBALS = ($SCRIPT_START=>'tm_py.time()',
                 _DUP_MAP=>$dup_map);
 our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_LINE_NUMBER=>'I', 
 		    INPUT_RECORD_SEPARATOR=>'m', OS_ERROR=>'S', EVAL_ERROR=>'S', OUTPUT_AUTOFLUSH=>'I', 
-		    INPUT_LAYERS=>'S', OUTPUT_LAYERS=>'S',
+		    INPUT_LAYERS=>'S', OUTPUT_LAYERS=>'S', OUTPUT_FIELD_SEPARATOR=>'S', OUTPUT_RECORD_SEPARATOR=>'S',
 		    $SUBPROCESS_RC=>'I', WARNING=>'I', _OPEN_MODE_MAP=>'h of S', _DUP_MAP=>'h of I',
                     $LOCALS_STACK=>'h of S',            # issue 108
 		    TRACE_RUN=>'I', AUTODIE=>'I', TRACEBACK=>'I');
@@ -144,7 +146,7 @@ our @EXTRA_BUILTINS = qw(Array Hash ArrayHash perllib);
 our %PYTHON_KEYWORD_SET = map { $_ => 1 } @PYTHON_KEYWORDS;
 our %PYTHON_RESERVED_SET = map { $_ => 1 } (@PYTHON_KEYWORDS, @PYTHON_BUILTINS, @EXTRA_BUILTINS);
 
-our %CONVERTER_MAP = (I=>'_int', N=>'_num', S=>'_str');
+our %CONVERTER_MAP = (I=>'_int', N=>'_num', S=>'_str', 'a of I'=>'_map_int', 'a of N'=>'_map_num', 'a of S'=>'_map_str');
 our %AUTOVIVIFICATION_CONVERTER_MAP = (a=>'Array', h=>'Hash');
 our %SIGIL_MAP = ('$'=>'s', '%'=>'h', '@'=>'a', ''=>'H');
 
@@ -155,7 +157,8 @@ our @BUILTIN_LIBRARIES = qw(strict warnings vars feature autodie utf8 autovivifi
 our %BUILTIN_LIBRARY_SET = map { $_ => 1 } @BUILTIN_LIBRARIES;
 
 our $MODULES_DIR = "PyModules"; # Where we copy system modules to run pythonizer on them (for use/require)
-our $SUBPROCESS_OPTIONS="-M -v 0"; # Options to pythonizer for when we run on use/require'd modules
+our $SUBPROCESS_OPTIONS="-M -v0"; # Options to pythonizer for when we run on use/require'd modules
+#our $SUBPROCESS_OPTIONS="-M -v3 -d5"; # Options to pythonizer for when we run on use/require'd modules
 
 our $PERL_VERSION=5.034;
 our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longmess', 
@@ -167,6 +170,7 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
 		_get_creation_age_days=>'_cluck,_longmess',
 		_get_access_age_days=>'_cluck,_longmess',
 		_get_mod_age_days=>'_cluck,_longmess',
+		_map_int=>'_int,_flatten', _map_num=>'_num,_flatten', _map_str=>'_flatten',
 		_system=>'_carp,_cluck,_longmess,_shortmess,_need_sh',
 		_unpack=>'_pack', _assign_sparse=>'_int',
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
@@ -289,6 +293,8 @@ our %PREDEFINED_PACKAGES = (
 		       ],
         'File::Spec::Functions'=> [{perl=>'file_name_is_absolute', type=>'S:I', python=>'os.path.isabs'},
 				   {perl=>'catfile', type=>'a:S', python=>'os.path.join'},
+				   {perl=>'rel2abs', type=>'S:S', python=>'os.path.abspath'},
+				   {perl=>'abs2rel', type=>'SS?:S', python=>'os.path.relpath'},
 			   	  ],
 	'Data::Dumper'=> [{perl=>'Dumper', type=>'m:S'}],
 	'Text::Balanced'=> [{perl=>'extract_bracketed', type=>'SS?S?:a', scalar=>'_extract_bracketed_s', scalar_type=>'SS?S?:S', scalar_out_parameter=>1}],	# First parameter to scalar version is "out" parameter

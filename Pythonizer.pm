@@ -24,7 +24,7 @@ use v5.10.1;
 use warnings;
 use strict 'subs';
 use feature 'state';
-use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType %token_precedence %SPECIAL_FUNCTION_MAPPINGS destroy insert append replace %FuncType %PyFuncType);  # SNOOPYJC
+use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType %token_precedence %SPECIAL_FUNCTION_MAPPINGS destroy insert append replace %FuncType %PyFuncType %UseRequireVars %UseRequireOptionsPassed %UseRequireOptionsDesired);  # SNOOPYJC
 use Softpano qw(abend logme out getopts standard_options);
 use Pyconfig;				# issue 32
 use Pass0 qw(pass_0);   # SNOOPYJC
@@ -58,8 +58,8 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    # issue 32 $maxlinelen=188;
    $maxlinelen=$MAXLINELEN;
    $GeneratedCode=0;    # issue 96: used to see if we generated any real code between { and }
-   %Packages = ();      # SNOOPYJC: Set of all packages defined in this file (determined on the first pass)
-   @Packages = ();      # SNOOPYJC: List of all packages defined in this file in the order declared
+   %Packages = ();      # SNOOPYJC: Set of all python names of packages defined in this file (determined on the first pass)
+   @Packages = ();      # SNOOPYJC: List of all python names of packages defined in this file in the order declared
    $CurPackage = undef; # SNOOPYJC
    $mFlag = 0;          # SNOOPYJC
    $MFlag = 0;          # SNOOPYJC
@@ -76,7 +76,7 @@ sub prolog
       # SNOOPYJC getopts("AThd:v:r:b:t:l:",\%options);
       @orig_ARGV = @ARGV;                       # SNOOPYJC
       # NOTE: Remember to add new flags to Pass0.PM (# pragma pythonizer), the help with ## at the start of pythonizer, and the readme/documentation!
-      getopts("uUkKnmMAVThsSpPd:v:r:b:B:t:l:",\%options);     # SNOOPYJC
+      getopts("uUkKnmMAVThsSpPd:v:r:b:B:t:l:R:",\%options);     # SNOOPYJC
 #
 # Three standard options -h, -v and -d
 #
@@ -148,6 +148,24 @@ sub prolog
             logme('W',"Incorrect value for length of the line in protocol of tranlation: $options{'w'}\n Minimum  is 100. Max is 256. Default value 188 is assumed \n");
          }
       }
+      # SNOOPYJC - add more options
+
+      if( exists $options{'R'} ) {
+         if($options{R} eq ':all') {
+             $::remap_all = 1;
+         } elsif($options{R} eq ':global') {
+             $::remap_global = 1;
+         } elsif($options{R} eq ':none') {
+             $::remap_global = 0;
+             $::remap_all = 0;
+         } else {
+             my @remaps = split /,/, $options{R};
+             %::remap_requests = map { $_ => 1 } @remaps;
+             $::remap_global = 0;
+             $::remap_all = 0;
+         }
+      }
+	
       if( exists $options{'l'} ){
          if($options{'l'}>=48 && $options{'l'}<=1000  ){
             $::black_line_length=int($options{'l'});
@@ -156,7 +174,6 @@ sub prolog
          }
       }
 
-      # SNOOPYJC - add more options
       if( exists $options{'T'} ) {
           $::traceback = 1;
       }
@@ -226,7 +243,9 @@ sub prolog
          unless( -r $fname ){
             abend("File does not have read permissions for the user");
          }
-          open (STDIN, '<',$fname) || die("Can't open $fname for reading $!");
+         # issue stdin open (STDIN, '<',$fname) || die("Can't open $fname for reading $!");
+         open (SYSIN, '<',$fname) || die("Can't open $fname for reading $!");   # issue stdin
+         $. = 0;
       }else{
           abend("Input file should be supplied as the first argument");
       }
@@ -249,8 +268,10 @@ sub prolog
                   $::implicit_global_my = 1;
               }
           }
-          close STDIN;
-          open (STDIN, '<',$fname) || die("Can't open $fname for reading");
+          # issue stdin close STDIN;
+          # issue stdin open (STDIN, '<',$fname) || die("Can't open $fname for reading");
+          open (SYSIN, '<',$fname) || die("Can't open $fname for reading");     # issue stdin
+          $. = 0;
       }
       $PassNo=PASS_1;
       if($::implicit_global_my == 0) {
@@ -262,8 +283,10 @@ sub prolog
       out("=" x 121,"\n");
       &Perlscan::initialize();
       get_globals();
-      close STDIN;
-      open (STDIN, '<',$fname) || die("Can't open $fname for reading");
+      # issue stdin close STDIN;
+      # issue stdin open (STDIN, '<',$fname) || die("Can't open $fname for reading");
+      open (SYSIN, '<',$fname) || die("Can't open $fname for reading"); # issue stdin
+      $. = 0;
       $PassNo=PASS_2;
       open(SYSOUT,'>',$output_file) || die("Can't open $output_file for writing");
       return;
@@ -489,17 +512,20 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
       # The code here mirrors that of pythonizer main pass where it checks for $LocalSub{...}.
       if($TokenStr =~ m'^t[ahsG]=i$') {
           $PotentialSub{$ValPy[3]} = 1;
+          trash_global_types($ValPy[3]) if !exists $LocalSub{$ValPy[3]};        # issue bootstrap
       } elsif($TokenStr =~ m'^h=\(') {
           my $comma_flip = 0;
           for(my $i=3; $i<$#ValPy; $i++) {
               if($comma_flip == 1 && $ValClass[$i] eq 'i') {
                 $PotentialSub{$ValPy[$i]} = 1;
+                trash_global_types($ValPy[$i]) if !exists $LocalSub{$ValPy[$i]};        # issue bootstrap
               } elsif($ValPy[$i] eq ',') {
                   $comma_flip = 1-$comma_flip;
               }
           }
       } elsif($TokenStr eq 'c(i)') {
           $PotentialSub{$ValPy[2]} = 1;
+          trash_global_types($ValPy[2]) if !exists $LocalSub{$ValPy[2]};        # issue bootstrap
       } elsif($ValPerl[0] ne 'use' && $ValPerl[0] ne 'require' && $ValPerl[0] ne 'no') {
           for(my $i=0; $i <= $#ValClass; $i++) {
               if($ValClass[$i] eq 'i') {
@@ -507,6 +533,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                  if(($i+1 > $#ValClass || $ValPerl[$i+1] eq '(') ||      # f(...
                    ($i == 0 || ($ValPerl[$i-1] ne '{' && $ValClass[$i-1] ne 'D'))) {      # not {key..., not ->method
                     $PotentialSub{$ValPy[$i]} = 1;
+                    trash_global_types($ValPy[$i]) if !exists $LocalSub{$ValPy[$i]};        # issue bootstrap
                  }
               }
           }
@@ -616,6 +643,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
       }
    } # while
 
+   &Perlscan::compute_desired_use_require_options();    # issue name
+
    &Perlscan::prepare_locals();         # issue 108: Prepare all 'local' vars for code generation
 
    if($::debug >= 5) {
@@ -664,6 +693,14 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        say STDERR Dumper(\%Perlscan::scalar_pos_gen_line);
        print STDERR "line_contains_pos_gen = ";
        say STDERR Dumper(\%Perlscan::line_contains_pos_gen);
+       if(\%UseRequireVars) {
+           print STDERR "UseRequireVars = ";
+           say STDERR Dumper(\%UseRequireVars);
+           print STDERR "UseRequireOptionsPassed = ";
+           say STDERR Dumper(\%UseRequireOptionsPassed);
+           print STDERR "UseRequireOptionsDesired = ";
+           say STDERR Dumper(\%UseRequireOptionsDesired);
+       }
    }
 
    foreach $varname (keys %VarSubMap ){
@@ -761,7 +798,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
 
 sub init_val            # SNOOPYJC: Get the initializer value for the var, given the type
 {
-   $type = shift;
+   my $type = shift;
 
    $type = substr($type,0,1);   # Handle 'h of S' by changing it to 'h'
 
@@ -1404,7 +1441,7 @@ sub _expr_type           # Attempt to determine the type of the expression
         }
         return 'S';             # will be changed to a string
     } elsif($class ne '(') {            # Non-parenthesized expression
-        my $m = next_same_level_tokens('>+-*/%0o.?:', $k, $#ValClass);
+        my $m = next_same_level_tokens('>+-*/%0o.?:r', $k, $#ValClass);
         if($m != -1 && $m <= $e) {
             if($ValClass[$m] eq '.') {
                 return 'S';             # String concat
@@ -1436,6 +1473,8 @@ sub _expr_type           # Attempt to determine the type of the expression
                                            expr_type($colon+1, $e, $CurSub));
                     }
                 }
+            } elsif($ValClass[$m] eq 'r') {
+                return 'a of I';
             }
             return 'N';         # Numeric
         } elsif($class eq 's' && $k+1 <= $#ValClass && $ValClass[$k+1] eq '(') {    # An array with possible subscript or hash with key
@@ -1561,7 +1600,11 @@ sub common_type         # Create a common type from 2 types
     }
     my $lcp = length(lcp($t1, $t2));
     if($lcp != 0) {                  # handle both being like a of I or a of a of N, etc
-        return substr($t1,0,$lcp) . common_type(substr($t1,$lcp), substr($t2,$lcp));
+        if($lcp == 1) {
+            return substr($t1,0,$lcp);
+        } else {
+            return substr($t1,0,$lcp) . common_type(substr($t1,$lcp), substr($t2,$lcp));
+        }
     }
     return 'm';
 }
@@ -1644,6 +1687,7 @@ sub next_matching_token                 # SNOOPYJC
 my $t=$_[0];
 my $scan_start=$_[1];
 my $scan_end=$_[2];
+    #if($scan_start > length($TokenStr)) { die "next_matching_token($t, $scan_start, $scan_end) =|$TokenStr|= failed!"; }
     my $k = index(substr($TokenStr, $scan_start, $scan_end-$scan_start+1), $t);
     return $k if($k < 0);
     return $k + $scan_start;
@@ -1885,7 +1929,8 @@ sub get_here
 #
 {
 my $here_str='';        # issue 39
-my $line=<>;		# issue 39
+# issue stdin my $line=<>;		# issue 39
+my $line=<SYSIN>;		# issue 39, issue stdin
    $line =~ s/[\r\n]+//sg;        # issue 39
    if($::debug > 2 && $PassNo != PASS_0) {
       say STDERR "get_here($_[0], $_[1]): line=$line, lno=$.";
@@ -1901,7 +1946,8 @@ my $line=<>;		# issue 39
            ($_[1] && substr($line,$spaces,length($_[0])) eq $_[0] && length($line) == $spaces+$len_eof) )){
       # issue 39 $here_str.=$line;
       $here_str.=$line."\n";
-      $line=<>;                 # issue 39
+      # issue stdin $line=<>;                 # issue 39
+      $line=<SYSIN>;                 # issue 39, issue stdin
       if(!defined $line) {
          logme('S', "Unclosed here string - terminiator '$_[0]' not found");
 	 last;
@@ -1998,14 +2044,19 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          return $line;
       }else{
 	 if($PassNo == PASS_2 && &Softpano::get_verbosity() >= 1) {		# issue ddts
-            $line=<>;
+            # issue stdin $line=<>;
+            $line=<SYSIN>;      # issue stdin
          } else {
             no warnings 'utf8';			# issue ddts: only give warnings in one pass and not with -v0
-            $line=<>;
+            # issue stdin $line=<>;
+            $line=<SYSIN>;      # issue stdin
 	 }
-	 #my $l2 = $line;
-	 #$l2 =~ s/[\n\r]//g;
-	 #say STDERR "getline(): got $l2 from <>";
+         #my $l2 = $line;
+         #$l2 =~ s/[\n\r]//g;
+         #say STDERR "$. getline(): got $l2 from <>, tell=" . tell(STDIN);
+         if(!defined $line && $::debug) {
+             say STDERR "getline: EOF on $fname at lno $.";
+         }
          return $line unless (defined($line)); # End of file
       }
 
@@ -2031,7 +2082,8 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          # data block
          # SNOOPYJC return undef if(  $PassNo==0 );
          if(  $PassNo!=PASS_2 ) {            # SNOOPYJC
-             while($line = <> ) {       # SNOOPYJC: Read in the rest of the file and discard so in the next pass we start over
+             # issue stdin while($line = <> ) {       # SNOOPYJC: Read in the rest of the file and discard so in the next pass we start over
+             while($line = <SYSIN> ) {       # issue stdin, SNOOPYJC: Read in the rest of the file and discard so in the next pass we start over
                  ;
              }
              return undef;
@@ -2039,7 +2091,8 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
 
          open(SYSDATA,'>',"$source_file.data") || abend("Can't open file $source_file.data for writing. Check permissions" );
          logme('W',"Tail data after __DATA__ or __END__ line are detected in Perl Script. They are written to a separate file $source_file.data");
-         while( $line=<> ){
+         # issue stdin while( $line=<> ){
+         while( $line=<SYSIN> ){        # issue stdin
             print SYSDATA $line;
          }
          close SYSDATA;
@@ -2050,11 +2103,13 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          # issue 79 output_line('',q['''']);
          &$output_line('',q[''']);                # issue 79, issue 45
          &$output_line('',$line,1);               # issue 79, issue 45
-         while($line=<>){
+         # issue stdin while($line=<>){
+         while($line=<SYSIN>){  # issue stdin
              # issue 79 last if( $line eq '=cut');
             &$output_line('',$line,1);            # issue 79, issue 45
             if( substr($line,0,4) eq '=cut') {      # issue 79
-                $line = <>;                         # issue 79
+                # issue stdin $line = <>;                         # issue 79
+                $line = <SYSIN>;                         # issue 79, issue stdin
                 last;
             }
          }
@@ -2065,10 +2120,12 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          $label = $1;
          &$output_line('',q[''']);              # issue 45
          &$output_line('',$line,1);             # issue 45
-         while($line=<>){
+         # issue stdin while($line=<>){
+         while($line=<SYSIN>){          # issue stdin
             &$output_line('', $line,1);         # issue 45
             if( $line =~ /^$label:/ ) {
-                $line = <>; 
+                # issue stdin $line = <>; 
+                $line = <SYSIN>;        # issue stdin
                 last;
             }
          }
@@ -2769,6 +2826,34 @@ sub eat_strings
     }
     #say STDERR "$line";
     return $line;
+}
+
+sub trash_global_types
+# issue bootstrap - if we call a sub, that sub may wind up setting a global variable
+# that we think we know the type of to a value of another type.  This happened in
+# bootstrapping for the -b option, where option processesing sets 'main.breakpoint_v' to 
+# a string and we were assuming it was an integer.
+{
+    my $pot_sub = $_[0];
+
+    for my $varname (keys %VarType) {
+        my $pDot = rindex($varname, '.');
+        next if $pDot < 0;                              # not global var
+        my $packageName = substr($varname, 0, $pDot);
+        next if !exists $Packages{$packageName};        # not ours (including things like os. sys. and _m.)
+        for my $sub (keys %{$VarType{$varname}}) {
+            my $type = $VarType{$varname}{$sub};
+            my $otype = $type;
+            next if($type =~ /^[ahsmu]$/);
+            if($type =~ /^[ahs]/) {     # if it's like "a of S", change to just 'a'
+                $type = common_type($type, substr($type,0,1));
+            } else {
+                $type = 'm';
+            }
+            say STDERR "trash_global_types($pot_sub) - setting VarType{$varname}{$sub} = $type (was $otype)" if($::debug >= 5);
+            $VarType{$varname}{$sub} = $type;
+        }
+    }
 }
 
 1;

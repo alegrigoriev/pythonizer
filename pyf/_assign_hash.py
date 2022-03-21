@@ -5,8 +5,8 @@ def _assign_hash(h, keys, values):
     values = list(values)
     if len(keys) == len(values):
         for i in range(len(keys)):
-            h[str(keys[i])] = values[i]
+            h[_str(keys[i])] = values[i]
     else:
         for i in range(len(keys)):
-            h[str(keys[i])] = values[i] if i < len(values) else None
+            h[_str(keys[i])] = values[i] if i < len(values) else None
     return h

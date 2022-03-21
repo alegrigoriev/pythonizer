@@ -14,4 +14,4 @@ assert($name eq 'name');
 assert($name[0] eq 'name');
 assert($name{name} eq 'name');
 
-print "$0 - test passed\n!";
+print "$0 - test passed!\n";

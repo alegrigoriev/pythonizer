@@ -53,6 +53,7 @@ def main():
         print('import sys,os,re,fileinput,subprocess,collections.abc,warnings,inspect,itertools,signal,traceback,io,tempfile,calendar,types,random,dataclasses,builtins,codecs,struct,pprint', file=of)
         print('import time as tm_py', file=of)
         print('import stat as st_py', file=of)
+        print('_str = lambda s: "" if s is None else str(s)', file=of)
         print('try:', file=of)
         print('    import fcntl as fc_py', file=of)
         print('except Exception:', file=of)

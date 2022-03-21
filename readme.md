@@ -1,5 +1,5 @@
 ## Translator from Perl to Python 
-### THIS IS AN ANNOUNCEMENT FOR VERSION 0.964 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
+### THIS IS AN ANNOUNCEMENT FOR VERSION 0.965 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
 
 This readme is for informational purposes only and is not intended to be updated often. 
 
@@ -58,6 +58,10 @@ Currently these user options are supported (pythonizer -h provides a list of opt
     -T -- Perform a traceback in the generated code on errors
     -n -- Trace Run: Generate code to trace subprocess.run results - used in qx, `backtick`, open('|'), and system()
     -V -- Imply "no autovivification qw(fetch delete exists store strict);"
+    -w -- the width of the screen on which you plan to view the protocol of translation. The default is 188.
+    -R -- remap comma separated list of variables: variables specified as var or *var will map all variables named 'var', 
+          $var will just map scalar to var_v, @var will just map array to var_a, %var will just map hash to var_h,
+          :global will remap all global vars (default), :all will remap all variables, :none will remap no variables. 
     -d    level of debugging  default is 0 -- production mode
           0 -- Production mode
           1 -- Testing mode. Program is autosaved in Archive (primitive versioning mechanism)

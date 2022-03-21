@@ -2,6 +2,11 @@
 History
 =======
 
+0.965 (2022-03-14)
+------------------
+
+* Change Config.Config to Config.Config_h and all Dumper variables to include _v suffix to match new package var mappings in Pythonizer.  Add _map_int, _map_num, _map_str.  Fix _flatten to handle multiple levels. Change _longmess traceback to return '()' for args if they were changed to a list and all popped off instead of '[]'.  Handle OUTPUT_FIELD_SEPARATOR and OUTPUT_RECORD_SEPARATOR in _perl_print.  Fix charnames.viacode to handle 'U+' or '0x' prefix.
+
 0.964 (2022-03-10)
 ------------------
 

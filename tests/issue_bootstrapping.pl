@@ -398,6 +398,40 @@ for my $node (@{$outref}) {
 }
 assert($result eq '123');
 
+# issue escapes in single quoted strings were not escaped in the output
+# Perl: A backslash represents a backslash unless followed by the delimiter or another backslash, in which case the delimiter or backslash is interpolated.
+
+assert(q(\x91) eq ('\\' . 'x91'));
+assert('\x91' eq ('\\' . 'x91'));
+assert('\\x91' eq ('\\' . 'x91'));
+assert('\091' eq ('\\' . '091'));
+assert('\71' eq ('\\' . '71'));
+assert('\91' eq ('\\' . '91'));
+assert('\u91' eq ('\\' . 'u91'));
+assert('\U91' eq ('\\' . 'U91'));
+assert('\N{91}' eq ('\\' . 'N{91}'));
+assert('\n91' eq ('\\' . 'n91'));
+assert('\\n91' eq ('\\' . 'n91'));
+assert('\t91' eq ('\\' . 't91'));
+assert('\z91' eq ('\\' . 'z91'));
+assert('\{91' eq ('\\' . '{91'));
+assert('\\91' eq ('\\' . '91'));
+assert('\'91' eq ("'" . '91'));
+assert('\"91' eq ('\\' . '"91'));
+assert(q(\'91) eq ('\\' . "'" . '91'));
+assert(q(\)91) eq ')91');
+assert(q(\(91) eq '(91');
+assert(q/\/91/ eq '/91');
+assert('\
+91' eq ('\\' . "\n" . '91'));
+
+# issue s/// rhs with single quotes was being interpolated
+
+my $regex = '[:punct:]';
+$regex =~ s'\[:punct:\]'!"\#%&\'()*+,\-.\/:;<=>?\@\[\\\\\]^_\x91{|}~\$'g;
+#print "$regex\n";
+assert($regex eq '!"\#%&\'()*+,\-.\/:;<=>?\@\[\\\\\]^_\x91{|}~\$');
+
 # Posix regex patterns were not implemented
 $cnt = 0;
 
@@ -449,6 +483,8 @@ $string =~ s'ascii'\x00-\x7f'g;
 #$string =~ s/ascii/\x00-\x7f/g;
 #assert($string eq "\x00-\x7f");
 #
+
+# issue: For the RHS of an re.sub(), escape any non-allowed escape sequence such as \xNN with an extra '\'
 $str = '\\x{a}';
 $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{\s*([A-Fa-f0-9])\s*\}/\\x0$1/g;
 assert($str eq '\\x0a');
@@ -641,6 +677,7 @@ assert(%Packages == 1);
 assert(@Packages == 1);
 assert(%Pack::Packages == 1);
 assert(@Pack::Packages == 1);
+assert("@Pack::Packages" eq 'package');
 
 # issue returning an anonymous hashref generated bad code
 
@@ -713,4 +750,141 @@ $quote = 'a$abc';
 $pos = unescaped_match($quote, qr'[$@]');
 assert($pos == 1);
 
-print "$0 - test passed!\n";
+# issue - open of SYSIN instead opens STDIN
+
+# issue stdin open (STDIN, '<',$fname) || die("Can't open $fname for reading");
+$fname = $0;
+open (SYSIN, '<',$fname) || die("Can't open $fname for reading");     # issue stdin
+my $line = <SYSIN>;
+assert($line =~ /^#/);
+close(SYSIN);
+
+# issue - references to our variables from other packages weren't being remapped properly
+use RefsMain qw/set_main/;
+
+$main_var_set = 0;
+
+assert($main_var_set == 0);
+set_main(1);
+assert($main_var_set == 1);
+assert($in == 42);	# set by the sub
+
+# issue - longest common prefix didn't work
+
+sub lcp {               # Longest common prefix - LOL don't ask me how it works!
+    return (join("\0", @_) =~ /^ ([^\0]*) [^\0]* (?:\0 \1 [^\0]*)* $/sx)[0];
+}
+
+assert(length(lcp('S', 'm')) == 0);
+assert(lcp('a', 'a') eq 'a');
+assert(lcp('a of S', 'a') eq 'a');
+assert(lcp('a', 'a of S') eq 'a');
+assert(lcp('a of m', 'a of S') eq 'a of ');
+
+# issue - hash key not getting converted from int
+
+@nesting_stack = ();
+push @nesting_stack, {lno=>29};
+
+%line_locals = (29=>['*local,$@%'], 32=>['$myLocal']);
+
+sub push_locals
+{
+	my $top = $nesting_stack[-1];
+	my $lno = $top->{lno};
+	my $cnt=0;
+	for my $local (@{$line_locals{$lno}}) {
+		$cnt++;
+	}
+	assert($cnt == 1);
+	my @locals = @line_locals{29, 32};
+	assert(scalar(@locals) == 2 && ($locals[1]->[0] eq '$myLocal'));
+	my @lines = (29,32);
+	my @locals2 = @line_locals{@lines};
+	assert(scalar(@locals2) == 2 && ($locals2[1]->[0] eq '$myLocal'));
+	my @lines2 = @lines[0,1];
+	assert(scalar(@lines2) == 2 && join(',', @lines2) eq '29,32');
+	my @ndx = ('0', '1');
+	my @lines3 = @lines[@ndx];
+	assert(scalar(@lines3) == 2 && join(',', @lines3) eq '29,32');
+	my %h = (0=>1, 1=>1);
+	my @lines4 = @lines[keys %h];
+	assert(scalar(@lines4) == 2 && (join(',', @lines4) eq '29,32' || join(',', @lines4) eq '32,29'));
+}
+
+push_locals();
+
+sub gen_try_block_finally
+{
+	my $top = $nesting_stack[-1];
+	my $lno = $top->{lno};
+	my $cnt=0;
+	for my $local (reverse @{$line_locals{$lno}}) {
+		$cnt++;
+	}
+	assert($cnt == 1);
+}
+
+gen_try_block_finally();
+
+# issue - delete with 2 keys instead deletes the first one!
+
+$NeedsInitializing{sub}{var1} = 'I';
+$NeedsInitializing{sub}{var2} = 'I';
+my $subname = 'sub';
+my $varname = 'var1';
+delete $NeedsInitializing{$subname}{$varname};
+assert($NeedsInitializing{sub}{var2} eq 'I');
+
+# issue - left hand substring from -1 for 1 char gives wrong result
+
+$val = '0.';
+substr($val, -1, 1) = '';
+assert($val eq '0');
+
+# issue - slice with range stopped generating proper code
+
+
+@ValClass = (1,2,3,4,5,6,7,8,9);
+$start = 3;
+$k = 5;
+@DeferredValClass=@ValClass[$start..$k];
+assert(join('', @DeferredValClass) eq '456');
+
+# issue - excess escapes in substitution rhs need to be removed
+
+$quote = '$hash{key}';
+{
+     no warnings 'uninitialized';
+     $quote =~ s/(?<![{\$])(->)?\{([A-Za-z_][A-Za-z0-9_]*)\}/$1\{\'$2\'\}/g;     # issue 13: Remove bare words in $hash{...}
+}
+assert($quote eq q/$hash{'key'}/);
+
+# issue - global var not being converted to num
+
+use Pscan qw/set_breakpoint_lno/;
+$breakpoint = 9999;
+set_breakpoint_lno('42');
+assert($breakpoint == 42);
+
+# issue - decode_scalar: substitution rhs was getting extra \ added before {
+
+$source = q/$SIG{'ALRM'}/;
+$source =~ s/\{['"](\w+)['"]\}/{$1}/;        # Change $SIG{'ALRM'} to $SIG{ALRM}
+assert($source eq '$SIG{ALRM}');
+
+# issue reference to "$var\[0]" wasn't generating the package name or the _v suffix
+
+$DEFAULT_MATCH='_m';
+$split=-1;
+$ValPy[$split+1] = "($DEFAULT_MATCH:=re.search";
+$ValPy[$split+1] =~ s/\($DEFAULT_MATCH:=re\.search/[$DEFAULT_MATCH\[0] for $DEFAULT_MATCH in (re.finditer/;
+assert($ValPy[$split+1] eq '[_m[0] for _m in (re.finditer');
+
+# issue - print of arglist was generating a tuple syntax in the output
+
+sub print_args
+{
+	print @_;
+}
+print_args($0, ' - test', ' passed!', "\n");

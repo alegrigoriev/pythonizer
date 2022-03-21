@@ -76,7 +76,7 @@ if(0) {
 }
 assert($arr[0] == 0);
 
-goto NOTYETIMPLEMENTED;
+#goto NOTYETIMPLEMENTED;
 @arr = ('a', 'b');
 my $t = 'c';
 if(($arr[0] = $s) and ($arr[1] = $t)) {
@@ -109,6 +109,6 @@ if(0) {
 } else {
     assert(0);
 }
-NOTYETIMPLEMENTED: ;
+#NOTYETIMPLEMENTED: ;
 
 print "$0 - test passed!\n";
