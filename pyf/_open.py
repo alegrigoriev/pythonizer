@@ -7,11 +7,11 @@ def _create_fh_methods(fh):
         pass
     return fh
 
-def _open(file,mode,encoding=None,errors=None,checked=True):
+def _open(file,mode,encoding=None,errors=None,checked=True,newline="\n"):
     """Replacement for perl built-in open function when the mode is known."""
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
-        (mode, encoding, errors) = _handle_open_pragma(mode, encoding, errors)
+        (mode, encoding, errors, newline) = _handle_open_pragma(mode, encoding, errors, newline)
     except NameError:
         pass
     try:
@@ -35,7 +35,9 @@ def _open(file,mode,encoding=None,errors=None,checked=True):
             return tempfile.TemporaryFile(mode=mode, encoding=encoding)
         if os.name == 'nt' and file.startswith('/tmp/'):
             file = tempfile.gettempdir() + file[4:]
-        return _create_fh_methods(open(file,mode,encoding=encoding,errors=errors))
+        if 'b' in mode:
+            newline = None
+        return _create_fh_methods(open(file,mode,encoding=encoding,errors=errors,newline=newline))
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:

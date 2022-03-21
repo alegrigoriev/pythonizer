@@ -7,7 +7,10 @@ def _longmess(*args, skip=0):
             return fn[2:]
         return fn
     def fa(a):
-       return re.sub(r'^\(\*_args=(.*)\)$', r'\1',a).replace(',)', ')')
+       result = re.sub(r'^\(\*_args=(.*)\)$', r'\1',a).replace(',)', ')')
+       if result == '[]':
+           return '()'
+       return result
     stack = inspect.stack()
     stack = stack[skip:]
     m = ''.join(map(str, args))

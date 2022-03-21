@@ -7,7 +7,7 @@ def _fileinput_next(files=None, inplace=False, backup='',*, mode='r', openhook=N
 
     if _fileinput_iter is None:
         try:
-            (mode, encoding, errors) = _handle_open_pragma(mode, encoding, errors)
+            (mode, encoding, errors, newline) = _handle_open_pragma(mode, encoding, errors)
         except NameError:
             pass
         try:

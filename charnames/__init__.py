@@ -2,7 +2,7 @@
 
 __author__ = """Joe Cool"""
 ___email__ = 'snoopyjc@gmail.com'
-__version__ = '0.964'
+__version__ = '0.965'
 
 import perllib
 import unicodedata
@@ -43,6 +43,11 @@ def viacode(code):
     if code is None:
         return None
     try:
+        if isinstance(code, str):
+            if code[0:2] == 'U+' or code[0:2] == '0x':
+                code = int(code[2:], 16)
+            elif code[0:1] == '0' or re.search('[A-Fa-f]', code):
+                code = int(code, 16)
         return unicodedata.name(chr(int(code)))
     except Exception:
         # Fix for https://bugs.python.org/issue46947:

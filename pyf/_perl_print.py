@@ -4,8 +4,19 @@ def _perl_print(*args, **kwargs):
     where it must return True if successful"""
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
-        if 'file' in kwargs and kwargs['file'] is None:
-            raise Die('print() on unopened filehandle')
+        file = sys.stdout
+        if 'file' in kwargs:
+            file = kwargs['file']
+            if file is None:
+                raise Die('print() on unopened filehandle')
+        if 'sep' not in kwargs:
+            kwargs['sep'] = OUTPUT_FIELD_SEPARATOR
+        if 'end' in kwargs:
+            kwargs['end'] += OUTPUT_RECORD_SEPARATOR
+        else:
+            kwargs['end'] = "\n" + OUTPUT_RECORD_SEPARATOR
+        if 'flush' not in kwargs and hasattr(file, '_autoflush'):
+            kwargs['flush'] = file._autoflush
         print(*args, **kwargs)
         return True
     except Exception as _e:

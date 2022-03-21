@@ -216,6 +216,40 @@ sub handle_pragma_pythonizer
                    pythonize=>\$::pythonize_standard_library, import=>\$::import_perllib, 
 		   trace=>\$::trace_run, black=>\$::black, replace=>\$::replace_usage,
                    autovivification=>\$::autovivification);
+
+    my $set_option_from_flag = sub {            # issue bootstrap
+        my ($flag, $val) = @_;
+        if($flag eq 'T') {
+            $::traceback = $val;
+        } elsif($flag eq 'A') {
+            $::autodie = $val;
+        } elsif($flag eq 'm') {
+            $mFlag = $val;
+        } elsif($flag eq 'M') {
+            $MFlag = $val;
+        } elsif($flag eq 's') {
+            $::pythonize_standard_library = $val;
+        } elsif($flag eq 'n') {
+            $::trace_run = $val;
+        } elsif($flag eq 'k') {
+            $::black = $val;
+        } elsif($flag eq 'K') {
+            $KFlag = $val;
+        } elsif($flag eq 'u') {
+            $::replace_usage = $val;
+        } elsif($flag eq 'U') {
+            $UFlag = $val;
+        } elsif($flag eq 'S') {
+            $SFlag = $val;
+        } elsif($flag eq 'p') {
+            $::import_perllib = $val;
+        } elsif($flag eq 'P') {
+            $PFlag = $val;
+        } elsif($flag eq 'V') {
+            $VFlag = $val;
+        }
+    };
+
     my %option_flags = (traceback=>'T', autodie=>'A', implicit=>'m', trace=>'n', black=>'k',
                    pythonize=>'s', import=>'p', replace=>'u');
     my %option_no_flags = (implicit=>'M', pythonize=>'S', import=>'P', autovivification=>'V', black=>'K', replace=>'U');
@@ -229,7 +263,8 @@ sub handle_pragma_pythonizer
             if($ValPerl[$i-1] eq '-') { # flags
                 for my $flag (keys %flags) {
                     if($vp =~ /$flag/) {
-                        ${$flags{$flag}} = 1;
+		        #${$flags{$flag}} = 1;
+			&$set_option_from_flag($flag, 1);
                         push @implied_options, "-$flag";
                         say STDERR "Using -$flag due to pragma pythonizer -$vp" if($say_why);
                     }
@@ -238,16 +273,18 @@ sub handle_pragma_pythonizer
                 for my $option (keys %options) {
                     if($vp =~ /^$option$/i) {
                         if($ValPerl[$i-1] eq 'no') {
-                            ${$options{$option}} = 0;
+			    #${$options{$option}} = 0;
                             if(exists $option_no_flags{$option}) {
                                 $flag = $option_no_flags{$option};
+				&$set_option_from_flag($flag, 1);
                                 say STDERR "Using -$flag due to pragma pythonizer no $vp" if($say_why);
                                 push @implied_options, "-$flag";
                             }
                         } else {
-                            ${$options{$option}} = 1;
+			    #${$options{$option}} = 1;
                             if(exists $option_flags{$option}) {
                                 $flag = $option_flags{$option};
+				&$set_option_from_flag($flag, 1);
                                 say STDERR "Using -$flag due to pragma pythonizer $vp" if($say_why);
                                 push @implied_options, "-$flag";
                             }

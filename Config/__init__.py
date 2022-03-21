@@ -2,7 +2,7 @@
 
 __author__ = """Joe Cool"""
 ___email__ = 'snoopyjc@gmail.com'
-__version__ = '0.964'
+__version__ = '0.965'
 
 import perllib
 import subprocess
@@ -16,12 +16,12 @@ def config_sh():
 Config.config_sh = config_sh
 
 try:
-    Config.Config = dict()
+    Config.Config_h = dict()
     lines = config_sh().splitlines()
     for line in lines:
         if '=' in line:
             (lhs, rhs) = line.split('=',1)
             rhs = rhs[1:-1] # Eat the quotes
-            Config.Config[lhs] = rhs
+            Config.Config_h[lhs] = rhs
 except Exception:
     traceback.print_exc()
