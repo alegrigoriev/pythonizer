@@ -4,7 +4,9 @@ my %hash = (k1=>'v1', k3=>'v3', k2=>'v2');
 my @khash = keys %hash;
 my @files = ('file1', 'file3', 'file2');
 my @arr = ();
-my %tickets = (t1=>'v1', t3=>'v3', t2=>'v2');
+my %tickets = (t1=>'v1', 
+	       t3=>'v3', 
+	       t2=>'v2');
 my @tkts = %tickets;
 my %tk = @tkts;
 aeq_unordered(\@tkts, ['t1', 't2', 't3', 'v1', 'v2', 'v3']);

@@ -16,4 +16,15 @@ my %hh = (h=>\%h);
 assert(ref \%hh eq 'HASH');
 #print ref \%hh{h};
 #assert(ref \%hh{h} eq 'HASH');
+
+# now let's try testing if something is a ref (e.g. an object) or not (TDD)
+
+use IO::File;
+my $fh = IO::File::new;
+assert(ref $fh);
+assert(!ref $i);
+assert(!ref @a);
+assert(!ref %h);
+assert(ref $fh eq 'IO::File' || ref $fh eq '_io.TextIOWrapper' || ref $fh eq 'TextIOWrapper');
+
 print "$0 - test passed!\n";

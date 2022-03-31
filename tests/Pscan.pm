@@ -17,4 +17,6 @@ sub set_breakpoint_lno
 	$::breakpoint = $_[0];
 }
 
+@PythonCode = ('*');
+
 1;

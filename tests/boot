@@ -3,7 +3,20 @@
 export PYTHONPATH=/c/pythonizer/pythonizer
 echo "Boottrapping pythonizer"
 cd ../../bootstrap
-./run
+# Copy over the library files, as defined in bump.yaml
+grep '\.py:' ../pythonizer/bump.yaml | while read -r line; do
+    dir=$(dirname $line)
+    case "$dir" in
+    .) ;;
+    *) echo cp -r ../$dir ../../bootstrap
+       cp -r ../pythonizer/$dir .;;
+    esac
+done
+./run -v2
+if [ $? -ne 0 ]; then
+    echo "Bootstrap failed!"
+    exit 1
+fi
 cd ../pythonizer/tests
 
 echo "Building perllib"
@@ -69,7 +82,7 @@ if [ "$mflag" != "-m" ]; then
 	   break
 	fi
         echo "==================== $f ====================" >run1.log
-        pypy ../../bootstrap/main.py -v0 $flags $f >>run1.log 2>&1
+        pypy -OOO ../../bootstrap/main.py -v0 $flags $f >>run1.log 2>&1
         if [ $? -ne 0 ]; then
            echo "$f run with pythonizer FAILED" >>run1.log
            ((failed++))
@@ -154,7 +167,7 @@ do
    fi
    # Make sure it says "test passed" twice
    count=`grep -c "test passed" run1.log`
-   if [ $count -ne 2 ]; then
+   if [[ $count -ne 2 && "$f" != "issue_empty_file.pl" ]]; then
       echo "test $f failed because 2 'test passed' messages were not found!" >>run1.log
       ((failed++))
       status=1

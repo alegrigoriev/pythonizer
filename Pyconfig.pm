@@ -9,7 +9,7 @@ package Pyconfig;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS %PYF_OUT_PARAMETERS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER $SHEBANG);
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS %PYF_OUT_PARAMETERS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER $SHEBANG %OVERLOAD_MAP %CLASS_METHOD_SET);
 
 # use Readonly;		# Readonly is not installed by default so skip it!
 
@@ -141,12 +141,12 @@ sub state_flag_name		# issue 128
 # issue 41
 
 our @PYTHON_KEYWORDS = qw(False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield);
-our @PYTHON_BUILTINS = qw(abs aiter all any anext ascii bin bool breakpoint bytearray bytes callable chr classmethod compile complex delattr dict dir divmod enumerate eval exec filter float format frozenset getattr globals hasattr hash help hex id input int isinstance issubclass iter len list locals map max memoryview min next object oct open ord pow print property range repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip);
-our @EXTRA_BUILTINS = qw(Array Hash ArrayHash perllib);
+our @PYTHON_BUILTINS = qw(abs aiter all any anext ascii bin bool breakpoint bytearray bytes callable chr classmethod compile complex delattr dict dir divmod enumerate eval exec filter float format frozenset getattr globals hasattr hash help hex id input int isinstance issubclass iter len list locals map max memoryview min next object oct open ord pow print property range re repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip);
+our @EXTRA_BUILTINS = qw(Array Hash ArrayHash perllib wantarray);
 our %PYTHON_KEYWORD_SET = map { $_ => 1 } @PYTHON_KEYWORDS;
 our %PYTHON_RESERVED_SET = map { $_ => 1 } (@PYTHON_KEYWORDS, @PYTHON_BUILTINS, @EXTRA_BUILTINS);
 
-our %CONVERTER_MAP = (I=>'_int', N=>'_num', S=>'_str', 'a of I'=>'_map_int', 'a of N'=>'_map_num', 'a of S'=>'_map_str');
+our %CONVERTER_MAP = (I=>'_int', N=>'_num', F=>'_flt', S=>'_str', 'a of I'=>'_map_int', 'a of N'=>'_map_num', 'a of S'=>'_map_str');
 our %AUTOVIVIFICATION_CONVERTER_MAP = (a=>'Array', h=>'Hash');
 our %SIGIL_MAP = ('$'=>'s', '%'=>'h', '@'=>'a', ''=>'H');
 
@@ -165,6 +165,7 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
 		_format=>'_int,_num', _run=>'_carp,_cluck,_longmess,_shortmess,_need_sh',
                 _lstat=>'_stat', _looks_like_binary=>'_looks_like_text,_carp,_longmess,_shortmess',
 		Array=>'ArrayHash', Hash=>'ArrayHash',
+		_bless=>'_carp,_init_package',
 		_add_element=>'_num', _subtract_element=>'_num', _open=>'_need_sh',
 		_close=>'_carp,_longmess,_shortmess', _run_s=>'_carp,_cluck,_longmess,_shortmess,_need_sh', _looks_like_text=>'_carp,_longmess,_shortmess',
 		_get_creation_age_days=>'_cluck,_longmess',
@@ -172,6 +173,7 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
 		_get_mod_age_days=>'_cluck,_longmess',
 		_map_int=>'_int,_flatten', _map_num=>'_num,_flatten', _map_str=>'_flatten',
 		_system=>'_carp,_cluck,_longmess,_shortmess,_need_sh',
+		_kill=>'_carp,_cluck',
 		_unpack=>'_pack', _assign_sparse=>'_int',
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
 our %PYF_OUT_PARAMETERS=();			# Functions with out parameters - which parameter (counting from 1) is "out"?
@@ -253,6 +255,77 @@ our $PRETTY_PRINTER = 'black -q -t py38 --fast';
 
 our $SHEBANG = '#!/usr/bin/env python3';
 
+# issue s3: implement Math::Complex - depends on use overload, which this table supports:
+our %OVERLOAD_MAP = 	(
+	'='	=> {normal=>'__copy__', unary=>1},
+	'.='	=> {normal=>'__iadd__', assign=>1},
+	'.'	=> {normal=>'__add__', reversed=>'__radd__'},
+	'+='	=> {normal=>'__iadd__', assign=>1},
+	'+'	=> {normal=>'__add__', reversed=>'__radd__'},
+	'-='	=> {normal=>'__isub__', assign=>1},
+	'-'	=> {normal=>'__sub__', reversed=>'__rsub__'},
+	'*='	=> {normal=>'__imul__', assign=>1},
+	'*'	=> {normal=>'__mul__', reversed=>'__rmul__'},
+	'/='	=> {normal=>'__itruediv__', assign=>1},
+	'/'	=> {normal=>'__truediv__', reversed=>'__rtruediv__'},
+	'%='	=> {normal=>'__imod__', assign=>1},
+	'%'	=> {normal=>'__mod__', reversed=>'__rmod__'},
+	'**='	=> {normal=>'__ipow__', modulo=>1, assign=>1},
+	'**'	=> {normal=>'__pow__', reversed=>'__rpow__', modulo=>1},
+	'=='	=> {normal=>'__eq__'},
+	'!='	=> {normal=>'__ne__'},
+	'<='	=> {normal=>'__le__'},
+	'>='	=> {normal=>'__ge__'},
+	'<'	=> {normal=>'__lt__'},
+	'>'	=> {normal=>'__gt__'},
+	'eq'	=> {normal=>'__eq__'},
+	'ne'	=> {normal=>'__ne__'},
+	'le'	=> {normal=>'__le__'},
+	'ge'	=> {normal=>'__ge__'},
+	'lt'	=> {normal=>'__lt__'},
+	'gt'	=> {normal=>'__gt__'},
+	'<=>'	=> {normal=>'__spaceship__', reversed=>'__rspaceship__'},
+	'cmp'	=> {normal=>'__cmp__', reversed=>'__rcmp__'},
+	'<<='	=> {normal=>'__ilshift__', assign=>1},
+	'<<'	=> {normal=>'__lshift__', reversed=>'__rlshift__'},
+	'>>='	=> {normal=>'__irshift__', assign=>1},
+	'>>'	=> {normal=>'__rshift__', reversed=>'__rrshift__'},
+	'&='	=> {normal=>'__iand__', assign=>1},
+	'&'	=> {normal=>'__and__', reversed=>'__rand__'},
+	'|='	=> {normal=>'__ior__', assign=>1},
+	'|'	=> {normal=>'__or__', reversed=>'__ror__'},
+	'^='	=> {normal=>'__ixor__', assign=>1},
+	'^'	=> {normal=>'__xor__', reversed=>'__rxor__'},
+	'neg'	=> {normal=>'__neg__', unary=>1},
+	'<>'	=> {normal=>'__iter__', unary=>1},
+	#'-X'	=> {normal=>'_is_file', unary=>1}, # not handled
+	#'!'	=> {normal=>'_not', unary=>1},	# not handled
+	#'++'	=> {normal=>'_incr', unary=>1},	# not handled
+	#'--'	=> {normal=>'_decr', unary=>1},	# not handled
+	'~'	=> {normal=>'__invert__', unary=>1},
+	'abs'	=> {normal=>'__abs__', unary=>1},
+	'bool'	=> {normal=>'__bool__', unary=>1},
+	'sqrt'	=> {normal=>'sqrt', unary=>1},
+	'exp'	=> {normal=>'exp', unary=>1},
+	'log'	=> {normal=>'log', unary=>1},
+	'sin'	=> {normal=>'sin', unary=>1},
+	'cos'	=> {normal=>'cos', unary=>1},
+	'atan2'	=> {normal=>'__atan2__', reversed=>'__ratan2__'},
+	#'int'	=> {normal=>'_int', unary=>1},	# not handled
+        '""'    => {normal=>'__str__', unary=>1, converter=>$CONVERTER_MAP{S}},
+	'${}'	=> {normal=>'_scalar', unary=>1},
+	'@{}'	=> {normal=>'_array', unary=>1},
+	'%{}'	=> {normal=>'_hash', unary=>1},
+	'*{}'	=> {normal=>'_typeglob', unary=>1},
+	'0+'	=> {normal=>'_num', unary=>1},
+	#'qr'	=> {normal=>'_qr', unary=>1},		# not handled
+	#'nomethod'=> {normal=>'_nomethod'},	# not handled
+	#'fallback'=> {normal=>'_fallback'},	# not handled
+	);
+
+our @CLASS_METHODS = qw/new make/;	# These names will become class methods
+our %CLASS_METHOD_SET = map { $_ => 1 } @CLASS_METHODS;
+
 # Predefined package with function implementation.  The default python name
 # for the function is "_perlName", unless python=>'...' is specified.  In perllib,
 # the '_' is removed.  Specifify the argument and result type with type=>"...". 
@@ -290,7 +363,16 @@ our %PREDEFINED_PACKAGES = (
         'IO::Handle'=> [],
 	'POSIX'=>      [{perl=>'tmpnam', type=>':a', scalar=>'_tmpnam_s', scalar_type=>':S'},
 			{perl=>'tmpfile', type=>':H'},
+			{perl=>'ceil', type=>'F:I', python=>'math.ceil'},	# issue s3
+			{perl=>'floor', type=>'F:I', python=>'math.floor'},	# issue s3
+			{perl=>'trunc', type=>'F:I', python=>'math.trunc'},	# issue s3
+			{perl=>'round', type=>'F:F', python=>'round'},		# issue s3
 		       ],
+        'File::Spec'=> [{perl=>'file_name_is_absolute', type=>'S:I', python=>'os.path.isabs'},
+				   {perl=>'catfile', type=>'a:S', python=>'os.path.join'},
+				   {perl=>'rel2abs', type=>'S:S', python=>'os.path.abspath'},
+				   {perl=>'abs2rel', type=>'SS?:S', python=>'os.path.relpath'},
+			   	  ],
         'File::Spec::Functions'=> [{perl=>'file_name_is_absolute', type=>'S:I', python=>'os.path.isabs'},
 				   {perl=>'catfile', type=>'a:S', python=>'os.path.join'},
 				   {perl=>'rel2abs', type=>'S:S', python=>'os.path.abspath'},
