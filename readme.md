@@ -1,5 +1,5 @@
 ## Translator from Perl to Python 
-### THIS IS AN ANNOUNCEMENT FOR VERSION 0.965 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
+### THIS IS AN ANNOUNCEMENT FOR VERSION 0.966 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
 
 This readme is for informational purposes only and is not intended to be updated often. 
 
@@ -93,6 +93,8 @@ If __DATA__ or __END__ are used a separate file with  the extension  .data (/pat
 
 
 ### HISTORY 
+
+Mar 31, 2022: Version 0.966 was uploaded.  It adds support for OO perl including the bless keyword and the ref function not used with '\'.  The 'wantarray' keyword is now supported using a keyword argument, and the select and kill functions are now implemented.  The Math::Complex library is now included, which is an automatically translated and fully tested version of the perl package.  Math functions ceil, floor, trunc, round, exp, log, sin, cos along with File::Spec functions file_name_is_absolute, catfile, rel2abs, abs2rel have been added.
 
 Feb 12, 2022: Version 0.950 was uploaded.  It provides a plethora of enhancements and hundreds of bug fixes over the original version.  Some of the major changes are: Implementation of true cross-module global varables and packages, implementation of use/require, autovivification and automatic type conversion of variables (with an attempt to "guess" the right type to minimize conversions), local variables, do loops, can now modify the loop counter in for loops and have any type of increment, redo and continue for while loops, eval and anonymous subs, grep and map, signal handlers, library of built-in perl packages including FileHandle, IO::File, IO::Handle, Carp, File::Temp, pack and unpack, quotemeta, splice; open now handles piped command input and output.  It also includes a test suite that run perl code thru the pythonizer and then checks the results.
 

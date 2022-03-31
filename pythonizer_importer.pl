@@ -129,6 +129,7 @@ BEGIN {
 use Pyconfig;
 
 my $fullfile = shift;
+my $debug = 0;
 
 # issue bootstrap: we could be sent a relative path because the python version
 # doesn't know the proper perl @INC, so check and make it absolute
@@ -185,11 +186,31 @@ eval {
         my %PREDEFS = map { $_ => 1 } @PREDEFS;
 	require $fullfile;
 	open(SRC, '<', $fullfile);
-        my $package;
+        my $package = undef;
+	my $in_pod = 0;
+	my $CurSub = undef;
+	my %wantarrays = ();
 	while(<SRC>) {
+	    if(substr($_,0,1) eq '=' && substr($_,1,1) =~ /\w/) {	# Skip POD
+	        $in_pod = 1;
+		next;
+	    }
+	    if($in_pod) {
+	        $in_pod = 0 if(substr($_,0,4) eq '=cut');
+		next;
+	    }
+	    next if(/^\s*#/);		# skip comment lines
+	    s/\s+#.*$//;		# eat tail comments
+	    last if(/^__DATA__/ || /^__END__/);
+	    # FIXME: Eat strings, including '...', "...", q// s/// tr/// qw// qr// multi-line, etc
+	    # FIXME: Eat here documents
 	    if(/\bpackage\s+(.*);/) {
-		$package = $1;
-		last;
+		$package = $1 unless defined $package;	# we just pick the first one
+		#last;
+	    } elsif(/\bsub\s+(\w+)/) {
+		$CurSub = $1;
+	    } elsif(/\bwantarray\b/) {
+		$wantarrays{$CurSub} = 1 if defined $CurSub;
 	    }
 	}
 	close(SRC);
@@ -200,11 +221,16 @@ eval {
 	}
 	my %pkh = %{"${package}::"};
 	#say STDERR keys %pkh;
-        #say STDERR "Symbol table for $package: " . Dumper(\%pkh);
+	#say STDERR "Symbol table for $package: " . Dumper(\%pkh);
         #require Symbol::Get;            # Remove this package ref and inline it here!
         my @global_vars = ();
+	my @overloads = ();		# issue s3
         for my $k (keys %pkh) {
             next if $k =~ /::$/;
+	    if(substr($k,0,1) eq '(') {		# issue s3: key starting with '(' is an overload
+		next if $k eq '((';		# not sure what this is
+	        push @overloads, substr($k,1);
+	    }
             next if $k !~ /^[A-Za-z_]/;
             next if $package eq 'main' && exists $PREDEFS{$k};
             #say STDERR "Checking $k";
@@ -235,6 +261,9 @@ eval {
 	say '@export_fail=' . (@export_fail ? "qw/@export_fail/;" : '();');
 	say "\$has_export_fail_sub=$has_export_fail_sub;";
         say '@global_vars=' . (@global_vars ? "qw/@global_vars/;" : '();');
+        say '@overloads=' . (@overloads ? "qw'@overloads';" : '();');
+	my @wantarrays = keys %wantarrays;
+        say '@wantarrays=' . (@wantarrays ? "qw/@wantarrays/;" : '();');
 
 	#say STDERR "expand_extras: package=$package, version=$version, export=@export, export_ok=@export_ok, export_tags=@{[%export_tags]}" if($debug);
 };

@@ -22,6 +22,14 @@ Config
 
    Config
 
+Math
+====
+
+.. toctree::
+   :maxdepth: 4
+
+   Math
+
 Sys
 ===
 

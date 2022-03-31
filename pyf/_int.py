@@ -10,6 +10,8 @@ def _int(expr):
     except Exception:
         pass
     if not isinstance(expr, (str, bytes)):
+        if isinstance(expr, complex):
+            return _int(expr.real)
         return expr
     if (m:=re.match(r'^\s*([+-]?(?:\d+))', expr)):
         return int(m.group(1))

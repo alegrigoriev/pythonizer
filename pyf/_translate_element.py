@@ -3,7 +3,7 @@ def _translate_element(base, index, table, replace=True, complement=False, delet
     """Perform a tr translate on a global, and also count the # of matches"""
     result = []
     ctr = 0;
-    var = base[index]
+    var = _str(base[index])
     pv = None
     for ch in var:
         if ord(ch) > 256 and complement:

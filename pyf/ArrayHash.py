@@ -309,3 +309,10 @@ def ArrayHash(init=None,isHash=None):
         else:
             result.append(init)
     return result
+
+def _partialclass(cls, *args, **kwds):
+    class NewCls(cls):
+        __init__ = functools.partialmethod(cls.__init__, *args, **kwds)
+    return NewCls
+
+_ArrayHashClass = _partialclass(_ArrayHash, ArrayHash)

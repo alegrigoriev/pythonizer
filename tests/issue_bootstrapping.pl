@@ -881,6 +881,196 @@ $ValPy[$split+1] = "($DEFAULT_MATCH:=re.search";
 $ValPy[$split+1] =~ s/\($DEFAULT_MATCH:=re\.search/[$DEFAULT_MATCH\[0] for $DEFAULT_MATCH in (re.finditer/;
 assert($ValPy[$split+1] eq '[_m[0] for _m in (re.finditer');
 
+# issue - removing one element from array in another package was generating bad code
+
+if($Pscan::PythonCode[-1] eq '*') {
+    $#Pscan::PythonCode--;
+}
+assert(scalar(@Pscan::PythonCode) == 0);
+
+# issue - tr was losing the s flag!
+
+$name = undef;		# give it a mixed type
+$name = 'Package::var';
+$name=~tr/:/./s;
+assert($name eq 'Package.var');
+
+# issue - substitution in a sub arg generates bad code
+$package_dir = "pd";
+my $filepy = "file.py";
+
+my $f = catfile($package_dir, $filepy =~ s'.py$'/__init__.py'r);
+assert($f eq "pd/file/__init__.py" || $f eq "pd\\file/__init__.py");
+
+$cnt = 0;
+for my $fp2 (catfile($package_dir, $filepy), catfile($package_dir, $filepy =~ s'.py$'/__init__.py'r)) {
+	if($fp2 eq "pd/file.py" || $fp2 eq "pd\\file.py") { $cnt++ }
+	if($fp2 eq "pd/file/__init__.py" || $fp2 eq "pd\\file/__init__.py") { $cnt++ }
+}
+assert($cnt == 2);
+
+# issue loop control raising wrong exception in labeled loop
+
+$cnt = 0;
+OUTER:
+    for(my $ndx = 0; $ndx < 4; $ndx++) {
+	    next if($ndx == 2);
+	    $ndx++ if(0);
+	    $cnt++;
+    }
+
+assert($cnt == 3);
+
+# issue (w/s3) elsif w/exists failing translation
+
+$name = 'name';
+%LocalSub = ();
+%VarType = (name=>{__main__=>'S'});
+$cnt = 0;
+if(0) {
+	;
+} elsif($LocalSub{$name} || (exists $VarType{$name} && exists $VarType{$name}{__main__})) {
+	$cnt++;
+}
+assert($cnt == 1);
+
+# issue - creating a hashref doesn't make it a Hash type with autovivification
+
+$IntactLno = 1;
+$IntactLine = 'line1';
+@args=('arg1', 'arg2');
+@output_buffer = ();
+my $push_record = {lno=>$., ilno=>$IntactLno, iline=>$IntactLine, args=>\@args};
+push @output_buffer, $push_record;
+$IntactLine = 'line2';
+$output_buffer[-1]->{line} .= "\n" . $IntactLine;	# this code was actually a mistake!
+assert($output_buffer[0]->{iline} eq 'line1');
+assert($output_buffer[0]->{line} eq "\nline2");
+
+# issue - exists fails with exception if base value is not there because it was copied from a non-existing
+# element
+
+%Subattributes = ();
+$cur_pos = 0;
+$ValPy[$cur_pos] = 'mySub';
+#
+# We didn't implement this change because it causes other issues: 
+####### $SubAttributes{mySub} = $SubAttributes{nonExist};	# causes it to be "None"
+# Here is the code for ArrayHash if we ever revisit it:
+#
+#     def get(self, key, default=None):
+#        if key in self:
+#            return self[key]
+#        if default is None:
+#            return ArrayHash()
+#        return default
+#
+# It was causing these tests to fail: issue_53, issue_s3, test_autovivification, test_complex,
+# test_defined.  Basically any code that checks "defined" on the result of a hash fetch that
+# doesn't exist fails with this update.  Instead we changed the source code in Perlscan.pm only to
+# copy the value if it exists.
+
+$cnt = 0;
+if(exists $SubAttributes{$ValPy[$cur_pos]}{wantarray}) {
+	assert(0);
+} else {
+	$cnt++;
+}
+assert($cnt == 1);
+$SubAttributes{mySub}{wantarray} = 1;
+if(exists $SubAttributes{$ValPy[$cur_pos]}{wantarray}) {
+	$cnt++;
+} else {
+	assert(0);
+}
+assert($cnt == 2);
+
+# issue - checking if array element is defined generates '.get(index)' which returns None if the index
+# is negative.
+
+@ValCom = ('', '# Comment');
+$c = '';
+if( defined $ValCom[-1]  && length($ValCom[-1]) > 1  ){
+	$c = $ValCom[-1];
+}
+assert($c eq '# Comment');
+
+$c = '';
+if( defined $ValCom[1]  && length($ValCom[1]) > 1  ){
+	$c = $ValCom[1];
+}
+assert($c eq '# Comment');
+
+$c = '';
+$m1 = -1;
+if( defined $ValCom[$m1]  && length($ValCom[$m1]) > 1  ){
+	$c = $ValCom[$m1];
+}
+assert($c eq '# Comment');
+
+$c = '';
+$p1 = 1;
+if( defined $ValCom[$p1]  && length($ValCom[$p1]) > 1  ){
+	$c = $ValCom[$p1];
+}
+assert($c eq '# Comment');
+
+$ValCom[-1] = undef;
+
+$c = '';
+if( defined $ValCom[-1]  && length($ValCom[-1]) > 1  ){
+	$c = $ValCom[-1];
+}
+assert($c eq '');
+
+$c = '';
+if( defined $ValCom[1]  && length($ValCom[1]) > 1  ){
+	$c = $ValCom[1];
+}
+assert($c eq '');
+
+$c = '';
+$m1 = -1;
+if( defined $ValCom[$m1]  && length($ValCom[$m1]) > 1  ){
+	$c = $ValCom[$m1];
+}
+assert($c eq '');
+
+$c = '';
+$p1 = 1;
+if( defined $ValCom[$p1]  && length($ValCom[$p1]) > 1  ){
+	$c = $ValCom[$p1];
+}
+assert($c eq '');
+
+$#ValCom = 0;		# delete the last element
+
+$c = '';
+if( defined $ValCom[-1]  && length($ValCom[-1]) > 1  ){
+	$c = $ValCom[-1];
+}
+assert($c eq '');
+
+$c = '';
+if( defined $ValCom[1]  && length($ValCom[1]) > 1  ){
+	$c = $ValCom[1];
+}
+assert($c eq '');
+
+$c = '';
+$m1 = -1;
+if( defined $ValCom[$m1]  && length($ValCom[$m1]) > 1  ){
+	$c = $ValCom[$m1];
+}
+assert($c eq '');
+
+$c = '';
+$p1 = 1;
+if( defined $ValCom[$p1]  && length($ValCom[$p1]) > 1  ){
+	$c = $ValCom[$p1];
+}
+assert($c eq '');
+
 # issue - print of arglist was generating a tuple syntax in the output
 
 sub print_args

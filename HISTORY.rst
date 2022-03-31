@@ -2,6 +2,11 @@
 History
 =======
 
+0.966 (2022-03-20)
+------------------
+
+* Convert variable to string in _substitute_global, _substitute_element, _translate_global, and _translate_element.  Change _ref to handle object checks and add _refs to handle ref with \ to a scalar, array, or hash - not perfect but it's normally correct.  Add _bless and enable _init_package to handle classes.  Fix _list_of_n and _make_list if you pass it a single Hash().  Add _flt for specific conversions to float, like in math functions.  Implement select via _select.  Implement kill via _kill.
+
 0.965 (2022-03-14)
 ------------------
 

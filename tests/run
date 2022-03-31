@@ -148,7 +148,7 @@ do
    fi
    # Make sure it says "test passed" twice
    count=`grep -c "test passed" run1.log`
-   if [ $count -ne 2 ]; then
+   if [[ $count -ne 2 && "$f" != "issue_empty_file.pl" ]]; then
       echo "test $f failed because 2 'test passed' messages were not found!" >>run1.log
       ((failed++))
       status=1

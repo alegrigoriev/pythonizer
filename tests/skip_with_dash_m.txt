@@ -17,3 +17,4 @@ test_export_vars2.pl
 test_export_vars3.pl
 test_export_vars4.pl
 test_replace_usage2.pl
+test_names.pl

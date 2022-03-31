@@ -84,6 +84,27 @@ Ready to contribute? Here's how to set up `pythonizer` for local development.
 
 7. Submit a pull request through the GitHub website.
 
+Adding New Modules
+------------------
+
+New perl to python translated modules are easily added by creating a folder for 
+them at the same level as the `Config` module, then if the module has a singular name,
+create a `__init__.py` file and put the translated python code there.  Include lines
+similar to the following near the top of the file::
+
+    __author__ = """Joe Cool"""
+    ___email__ = 'snoopyjc@gmail.com'
+    __version__ = '0.966'
+
+If the module has a sub-name, like `Math::Complex`, name the source file to
+be the second part of the name, so in this case it would be `Math/Complex.py`, and include
+a blank `__init__.py` in the same directory.
+Add a block of lines to the file `docs/modules.rst` similar to the lines that
+are there for the other modules.  Add a `docs/YourModuleName`.rst file similar to the
+ones that are already there for the new module.  Also add the module to `bump.yaml`, and to 
+the list of packages in `setup.py`.  Most importantly, make sure to document
+your new module in the `user_guide.html`.
+
 Pull Request Guidelines
 -----------------------
 
@@ -105,5 +126,5 @@ A reminder for the maintainers on how to deploy.
 Make sure all your changes are committed (including an entry in HISTORY.rst).
 Then run::
 
-$ bump2version patch # possible: major / minor / patch
+$ python bump.py
 $ git push

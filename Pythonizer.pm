@@ -34,8 +34,11 @@ require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
+   $IntactLno = 0;           # issue s6
+   $IntactEndLno = 0;        # issue s6
+   $TraceIntactLine = 0;     # issue s6
    # issue 32 $::TabSize=3;
    $::TabSize=$TABSIZE;         # issue 32
    $::breakpoint=0;
@@ -50,11 +53,11 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $PassNo=PASS_1;           # SNOOPYJC: EXTERNAL VAR: Current pass
    $InLineNo=0; # counter, pointing to the current like in InputTextA during the first pass
    %LocalSub=(); # list of local subs
-   %UseSub=();          # SNOOPYJC: list of subs declared on "use subs"
+   %UseSub=();          # SNOOPYJC: list of subs declared on "use subs", issue s3: also imported subs are added here
    %PotentialSub=();    # SNOOPYJC: List of potential sub calls
    %GlobalVar=(); # generated "external" declaration with the list of global variables.
    %InitVar=(); # SNOOPYJC: generated initialization
-   %SubAttributes=();   # SNOOPYJC: Map of sub to hash of attributes
+   %SubAttributes=();   # SNOOPYJC: Map of sub to set of attributes.  Current ones: modifies_arglist, blesses, overloads
    # issue 32 $maxlinelen=188;
    $maxlinelen=$MAXLINELEN;
    $GeneratedCode=0;    # issue 96: used to see if we generated any real code between { and }
@@ -236,10 +239,10 @@ sub prolog
              out("Option -r (refactor) was specified. file refactored using $refactor as the first pass over the source code");
             `pre_pythonizer -v 0 $fname`;
          }
-         $fsize=-s $fname;
-         if ($fsize<10){
-            abend("The size of the file is $fsize. Nothing to do. Exiting");
-         }
+         #$fsize=-s $fname;
+         #if ($fsize<10){
+         #abend("The size of the file is $fsize. Nothing to do. Exiting");
+         #}
          unless( -r $fname ){
             abend("File does not have read permissions for the user");
          }
@@ -281,6 +284,7 @@ sub prolog
           &Perlscan::init_perllib();
       }
       out("=" x 121,"\n");
+      out("  LNO|NST|ERR|Python code...                                                                          Perl original...");
       &Perlscan::initialize();
       get_globals();
       # issue stdin close STDIN;
@@ -288,6 +292,8 @@ sub prolog
       open (SYSIN, '<',$fname) || die("Can't open $fname for reading"); # issue stdin
       $. = 0;
       $PassNo=PASS_2;
+      $IntactLno = $IntactEndLno = 0;   # issue s6
+      $IntactLine = '';                 # issue s6
       open(SYSOUT,'>',$output_file) || die("Can't open $output_file for writing");
       return;
 } # prolog
@@ -420,6 +426,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          $CurSubName=$ValPy[1];
 	 $initialized{$CurSubName}{$PERL_ARG_ARRAY} = 'a';	  # SNOOPYJC
          $LocalSub{$CurSubName}=1;
+         $LocalSub{"$CurPackage.$CurSubName"}=1;                # issue s3
          %DeclaredVarH=(); # this is the list of my varible for given sub; does not needed for any other sub
 	 $we_are_in_sub_body=1;			# issue 45
          if($::debug > 3) {
@@ -478,7 +485,13 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
               } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 'shift' || $ValPerl[$k] eq 'pop') &&        # SNOOPYJC
                       ($k == $#ValClass || $ValPerl[$k+1] eq '@_' || $ValClass[$k+1] !~ /[ahfi]/)) {       # SNOOPYJC
                  $SubAttributes{$CurSubName}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args
+              } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 're' && $ValPy[$k] =~ /\b$DEFAULT_VAR\b/) ||
+                  ($ValPerl[$k] eq 'tr' && ($k == 0 || $ValClass[$k-1] ne '~'))) {      # issue s8: sets the $DEFAULT_VAR
+                  
+                $VarType{$DEFAULT_VAR}{$CurSubName} = merge_types($DEFAULT_VAR, $CurSubName, 'S');      # issue s8
+                $NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = 'S' if(!exists $initialized{$CurSubName}{$DEFAULT_VAR}); # issue s8
               }
+
           } # for
           if(scalar(@ValClass) > 0 && $ValClass[0] eq 'k' && $ValPerl[0] eq 'return') {         # SNOOPYJC: return statement
               $typ = 'm';
@@ -735,9 +748,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                 my $ld = rindex($varname, '.');         # issue bootstrap: don't assume the type of a var from a package
                 if($ld >= 0) {                          # issue bootstrap
                     # For bootstrapping, we have main.debug which is set to a string, but tested as in int
-                    if($common_type =~ /[IFN]/) {           # Integer, Float, or Numeric - change to scalar
+                    if(defined $common_type && $common_type =~ /[IFN]/) {           # Integer, Float, or Numeric - change to scalar
                         $common_type = 's';
-                    } elsif($common_type =~ / of .$/) {     # like a of S
+                    } elsif(defined $common_type && $common_type =~ / of .$/) {     # like a of S
                         $common_type =~ s/ of .$//;
                     }
                     my $package_name = substr($varname,0,$ld);
@@ -860,6 +873,8 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
         if($ValClass[$k-1] eq '^') {      # pre ++ or --
             if($k+1 <= $#ValClass && $ValPerl[$k+1] eq '[') {
                 $type = 'a of I';         # ++ $arr[$ndx]
+            } elsif($k+1 <= $#ValClass && $ValPerl[$k+1] eq '{') {
+                $type = 'h of I';         # ++ $hash{key}
             } else {
                 $type = 'I';
             }
@@ -881,6 +896,13 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             my $lim = $#ValClass;
             if($k-1 >= 0 && $ValClass[$k-1] eq '(') {   # parens around assignment - stop at the )
                 $lim = matching_br($k-1)-1;
+                if($lim+3 <= $#ValClass && $ValClass[$lim+2] eq '~' && $ValClass[$lim+3] eq 'f' &&
+                    ($ValPerl[$lim+3] eq 're' || $ValPerl[$lim+3] eq 'tr')) {
+                    # issue s8: ($my_c = $my_a) =~ s/3/1/; where $k is pointing at $my_c - 
+                    # here $my_c is set to be the string result of the substitution or
+                    # translation, not a copy of $my_a.
+                    $type = 'S';                # issue s8
+                }
             }
             my $semi = next_same_level_token(';', $k+2, $lim);  # like for($i=0; ...)
             $lim = $semi-1 if($semi != -1);
@@ -895,7 +917,7 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
                     $lim = $el-1;
                 }
             }
-            $type = expr_type($k+2, $lim, $CurSub);
+            $type = expr_type($k+2, $lim, $CurSub) if(!defined $type);  # issue s8
             if($class eq 'a' && $type !~ / of /) {
                 $type = "a of ".$type;
             } elsif($class eq 'h' && $type !~ / of /) {
@@ -914,6 +936,11 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             }
         } elsif($ValClass[$k+1] eq '^') {   # ++ or --
             $type = 'I';
+            $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
+        } elsif($ValClass[$k+1] eq '~' && $k+2 <= $#ValClass && $ValClass[$k+2] eq 'f' &&
+            ($ValPerl[$k+2] eq 're' || $ValPerl[$k+2] eq 'tr') && index($ValPy[$k+2], 're.R') < 0) {    # issue s8
+            # This is a s or tr operation, which both reads and changes the result (into a string)
+            $type = 'S';
             $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
         } elsif(!defined $type) {
             $m = next_same_level_token(')', $k, $#ValClass); 
@@ -939,6 +966,9 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
            ($k >=3 && $ValClass[$k-1] eq 't' && $ValClass[$k-2] eq '(' && $ValClass[$k-3] eq 'f' && ($ValPerl[$k-3] eq 'open' || $ValPerl[$k-3] eq 'opendir'))) { # open(my $fh
         $type = 'H';
         $initialized{$CurSub}{$name} = $type if($ValClass[$k-1] eq 't' || !&Perlscan::in_conditional($k));
+    } elsif($ValClass[0] eq 't' && ($ValPerl[0] eq 'my' || $ValPerl[0] eq 'local' || $ValPerl[0] eq 'state') &&
+            !exists $initialized{$CurSub}{$name} && !&Perlscan::in_conditional($k)) {   # issue s10
+        $initialized{$CurSub}{$name} = (defined $type ? $type : 'u');                   # issue s10
     }
 
     if(defined $type) {
@@ -1129,7 +1159,7 @@ sub in_sub_call                           # SNOOPYJC
 
     my ($i, $arg);
 
-    for($i = $k; $i >= 0; $i--) {
+    for($i = $k-1; $i >= 0; $i--) {     # issue s3
         if($ValClass[$i] eq '(') {
            if($i-1 >= 0 && $ValClass[$i-1] eq 'i') {
                my $q = matching_br($i);
@@ -1404,7 +1434,10 @@ sub _expr_type           # Attempt to determine the type of the expression
                 return $typ;
             }
             return 'h of u';
-        } elsif($class eq '"' || $class eq 'x' || $class eq 'q') {       # string or `exec` or /regex/
+        } elsif($class eq '"' || $class eq 'x') {       # string or `exec` or /regex/
+            return 'S';                 # string
+        } elsif($class eq 'q') {        # /regex/
+            return 'R' if($ValPerl[$k] eq 'qr');        # Compiled regex
             return 'S';                 # string
         } elsif($class eq 'i') {
             my $name = $ValPy[$k];
@@ -1528,7 +1561,7 @@ sub _expr_type           # Attempt to determine the type of the expression
             } else {                                    # like (1, 2, 3)
                 $t = expr_type($k+1, $m-1, $CurSub);
                 while($t ne 'm') {
-                    my $o = next_same_level_tokens(',)', $m+1, $#ValClass-1);
+                    my $o = next_same_level_tokens(',)', $m+1, $#ValClass);
                     last if($o < 0);
                     my $u = expr_type($m+1, $o-1, $CurSub);
                     $t = common_type($t, $u);
@@ -1693,6 +1726,18 @@ my $scan_end=$_[2];
     return $k + $scan_start;
 } # next_matching_token
 
+sub last_matching_token                 # SNOOPYJC
+# get the last matching token
+{
+my $t=$_[0];
+my $scan_start=$_[1];
+my $scan_end=$_[2];
+    #if($scan_start > length($TokenStr)) { die "next_matching_token($t, $scan_start, $scan_end) =|$TokenStr|= failed!"; }
+    my $k = rindex(substr($TokenStr, $scan_start, $scan_end-$scan_start+1), $t);
+    return $k if($k < 0);
+    return $k + $scan_start;
+} # last_matching_token
+
 sub next_matching_tokens                 # SNOOPYJC
 # get the next matching token
 {
@@ -1728,6 +1773,7 @@ my $balance=0;
       } elsif($t eq '(' && $s eq $t && $balance == 1) {
           return $k;
       }
+      return -1 if $balance < 0;     # issue s3 - tokens were k(fs)Di(f(s),s) and we started at 2 and ended at 13
    } # for
    return -1; # not found
 } # next_same_level_token
@@ -1757,6 +1803,7 @@ my $balance=0;
               return $k;
           }
       }
+      return -1 if $balance < 0;     # issue s3 - tokens were k(fs)Di(f(s),s) and we started at 2 and ended at 13
    } # for
    return -1; # not found
 } # next_same_level_tokens
@@ -1889,11 +1936,14 @@ sub fix_scalar_context                          # issue 37
         }
     }
 
-
+    my $last_special_function = -1;                     # issue s3: handle keys arr == 2
     for(my $i=0; $i<=$#ValClass; $i++) {
         if(index("+-*/.>",$ValClass[$i]) >= 0) {        # Scalar operator
             if($i == 0) {
                 ;
+            } elsif($last_special_function != -1) {     # issue s3
+                $did_something |= apply_scalar_context($last_special_function);
+                $last_special_function = -1;
             } elsif($i-1 == 0 || ($ValClass[$i-2] ne 'f' && $ValClass[$i-2] ne "\\")) {   # function (like shift/pop) on an array - don't apply scalar context to the array, also skip if we're getting a reference to the object
                 $did_something |= apply_scalar_context($i-1);
             }
@@ -1915,11 +1965,95 @@ sub fix_scalar_context                          # issue 37
                 $i--;
                 $did_something = 1;
             }
+        } elsif($ValClass[$i] eq 'f' && exists $SPECIAL_FUNCTION_MAPPINGS{$ValPerl[$i]}) {  # issue s3
+            $last_special_function = $i;
+            my $j = end_of_function($i);
+            say STDERR "end_of_function($i) $ValPerl[$i] = $j" if($::debug >= 5);
+            $i = $j unless $j == -1;
+        } else {                                # issue s3
+            $last_special_function = -1;        # Don't apply to function long past in the expression
         }
     }
     if($::debug && $did_something) {
         say STDERR "After fix_scalar_context: =|$TokenStr|=, ValPy = @ValPy";
     }
+}
+
+sub end_of_function                             # issue s3
+# Find the end of this function call - returns the index of the last token that's still part of the call
+{
+    my $pos = shift;    # point to the function
+
+    return $pos if($pos == $#ValClass);   # Function at end of statement with no params
+    if($ValClass[$pos+1] eq '(' && $ValPerl[$pos+1] eq '(') {
+        # easy case
+        return matching_br($pos+1);
+    }
+    my $f_type = undef;
+    if(exists $PyFuncType{$ValPy[$pos]}) {
+       $f_type = $PyFuncType{$ValPy[$pos]};
+    } elsif(exists $FuncType{$ValPerl[$pos]}) {
+        $f_type = $FuncType{$ValPerl[$pos]};
+    }
+    my ($j, $k, $limit);
+    $end_pos = $#ValClass;
+    $k = next_matching_tokens('0o>',$pos+1,$end_pos);  # stop at next and/or/comparison
+    $end_pos = $k-1 if($k != -1);
+    return $end_pos unless defined $f_type;     # this is a guess
+    # if the entire function call w/parameters is parenthesized, then the function ends
+    # at the next right paren
+    if($pos != 0 && $ValClass[$pos-1] eq '(') {
+        my $ep = matching_br($pos-1)-1;
+        # This could be missing because in control() when generating the code of a for loop, we
+        # eat the right paren before calling expression()
+        $end_pos = $ep if($ep > 0);
+    }
+    my $op = 'F';
+    my $t_pos = 0;
+    if(($ValPerl[$pos] eq 'grep' || $ValPerl[$pos] eq 'map' || $ValPerl[$pos] eq 'sort') && $ValPerl[$pos+1] eq '{') {
+        # this is like grep { function } @array - skip right to the array
+        my $close = matching_br($pos+1);
+        $pos = $close;
+        $t_pos++;
+        $end_pos = $#ValClass;  # the function may have a token '0o>' in it so point back to the end
+    }
+    for($j = $pos+1; $j <= $end_pos; $j++) {
+        my $comma = next_lower_or_equal_precedent_token($op, $j, $end_pos);
+        $op = ',' if $comma != -1 && $ValClass[$comma] eq ',';  # Now we are in a list
+        my $close = next_same_level_token(')', $j, $end_pos);
+        my $ep = (($comma==-1) ? $end_pos : $comma-1);
+        $ep = $close-1 if($close!=-1 && $close-1 < $ep);
+        my $optional = 0;
+        my $t = substr($f_type, $t_pos, 1);
+        $optional = 1 if(substr($f_type, $t_pos+1, 1) eq '?');
+        $t = substr($f_type, ++$t_pos, 1) if($t eq '?');
+        if($t eq ':') {
+            $t = substr($f_type, --$t_pos, 1);
+            $t = substr($f_type, --$t_pos, 1) if($t eq '?');
+            if($t ne 'a') {
+                $j--;
+                last;
+            }
+        }
+        $t_pos++;
+        if($t eq 'H' && $ValClass[$j] =~ /[isf]/) {      # e.g. print H a,b;
+            $j = &::end_of_variable($j);
+            $j++ if($j+1 == $comma);
+            next;
+        } elsif($optional && index("^*~/%+-.HI>&|0or?:=,A", $ValClass[$j]) >= 0) {
+            $j--;
+            last;
+        }
+        if($comma < 0 || ($comma >= 0 && $ValClass[$comma] ne ',')) {
+            $j = $ep;
+            last;
+        }
+        $j = $ep+1;
+    }
+    $k = $j;
+    $k = $end_pos if($k > $end_pos);
+    $k = &::end_of_variable($k);
+    return $k;
 }
 
 sub get_here
@@ -1992,9 +2126,20 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
        $flag = shift;           # issue 45: LOL all this just to see if I passed in a number or a string!
    }
    if($flag == 1) {             # issue 45: just output any buffered lines
+       my ($o, $l, $i, $lno);
+       $l = $IntactLno;
+       $i = $IntactLine;
+       $lno = $.;
        while($o = shift @output_buffer) {
-           output_line(@$o);
+           $IntactLno = $o->{ilno};              # issue s6
+           $IntactLine = $o->{iline};            # issue s6
+           $. = $o->{lno};                       # issue s6
+           say STDERR "pop $IntactLno: $IntactLine" if($TraceIntactLine);
+           output_line(@{$o->{args}});
        }
+       $IntactLno = $l;
+       $IntactLine = $i;
+       $. = $lno;
        return $line;
    }
    # issue 42: if(  scalar(@_)>0 ){
@@ -2018,7 +2163,12 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
        return if($PassNo != PASS_2);
        if($flag == 0) {
             my @args = @_;      # make a copy
-            push @output_buffer, \@args;
+            my $nargs = scalar(@args);
+            say STDERR "push $IntactLno: $IntactLine (for $nargs: @args)" if($TraceIntactLine);
+            my $push_record = {lno=>$., ilno=>$IntactLno, iline=>$IntactLine, args=>\@args};       # issue s6
+            #$IntactLine = '';                   # issue s6
+            # issue s6 push @output_buffer, \@args;
+            push @output_buffer, $push_record;          # issue s6
         } else {
             output_line(@_);
         }
@@ -2062,6 +2212,16 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
 
       chomp($line);
       if(  length($line)==0 || $line=~/^\s*$/ ){
+         $IntactLno = $. unless($IntactLine);       # issue s6
+         while($IntactEndLno < $.) {         # issue s6
+              if($IntactLine) {
+                  $IntactLine .= "\n";
+              } else {
+                  $IntactLine = ' ';
+              }
+              $IntactEndLno++;
+         }
+         $IntactEndLno = $.;    # issue s6
          &$output_line('');             # issue 45: blank line
          next;
       }elsif(  $line =~ /^\s*(#.*$)/ ){
@@ -2076,6 +2236,16 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
              $line .= ';';
              return $line;
          }
+         $IntactLno = $. unless($IntactLine);       # issue s6
+         while($IntactEndLno < $.) {         # issue s6
+              if($IntactLine) {
+                  $IntactLine .= "\n";
+              } else {
+                  $IntactLine = ' ';
+              }
+              $IntactEndLno++;
+         }
+         $IntactEndLno = $.;    # issue s6
          &$output_line('',$comm);          # issue 45
          next;
       }elsif(  $line =~ /^__DATA__/ || $line =~ /^__END__/){
@@ -2110,6 +2280,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
             if( substr($line,0,4) eq '=cut') {      # issue 79
                 # issue stdin $line = <>;                         # issue 79
                 $line = <SYSIN>;                         # issue 79, issue stdin
+                chomp($line);                   # SNOOPYJC
                 last;
             }
          }
@@ -2126,6 +2297,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
             if( $line =~ /^$label:/ ) {
                 # issue stdin $line = <>; 
                 $line = <SYSIN>;        # issue stdin
+                chomp($line);                   # SNOOPYJC
                 last;
             }
          }
@@ -2140,12 +2312,48 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
       # SNOOPYJC NOT GOOD IF WE ARE IN A STRING!! $line =~ s/\s+$//; # trim tailing blanks
       # SNOOPYJC NOT GOOD IF WE ARE IN A STRING!! $line =~ s/^\s+//; # trim leading blanks
       # SNOOPYJC if ($line eq '{' || $line eq '}') {
-      if ($line =~ m'^\s*[{]\s*$' || $line =~ m'^\s*[}]\s*$') { # SNOOPYJC
-          $IntactLine='';
-      }else{
-         $IntactLine=$line;
-         $IntactLine =~ s/\s+$//;       # SNOOPYJC
-         $IntactLine =~ s/^\s+//;       # SNOOPYJC
+      if($PassNo != PASS_2) {
+          $IntactLine = '';
+      } elsif($IntactEndLno != $.) {            # issue s6
+          #if ($line =~ m'^\s*[{]\s*$' || $line =~ m'^\s*[}]\s*$') { # SNOOPYJC
+          #$IntactLine='';
+          #}elsif($line eq '^') {            # issue s5
+          while($IntactEndLno < $.) {         # issue s6
+              if($IntactLine) {
+                  $IntactLine .= "\n";
+              } else {
+                  $IntactLine = ' ';
+              }
+              $IntactEndLno++;
+          }
+          if($line eq '^') {            # issue s5
+              if($IntactLine) {
+                  $IntactLine .= "\n{" if($IntactLine ne '{');            # issue s5
+              } else {
+                  $IntactLine = "{";               # issue s5
+                  $IntactLno = $.;
+              }
+          }else{
+              # issue s5 $IntactLine=$line;
+             my $il = $line;
+             $il =~ s/\s+$//;       # SNOOPYJC
+             $il =~ s/^\s+//;       # SNOOPYJC
+             if($IntactLine) {                  # issue s5
+                 $IntactLine .= "\n" . $il if($il && $il ne $IntactLine);     # issue s5
+             } else {                           # issue s5
+                 $IntactLine = $il;             # issue s5
+                 $IntactLno = $.;
+             }                                  # issue s5
+          }
+          $IntactEndLno = $.;                  # issue s6
+          say STDERR "$IntactLno $IntactLine (endLno=$.)" if($TraceIntactLine);
+          if(scalar(@output_buffer)) {          # issue s6
+              $output_buffer[-1]->{iline} .= "\n" . $IntactLine;
+              #$IntactLine = '';
+              say STDERR "appended" if($TraceIntactLine);
+          }
+      } else {
+          say STDERR "skipped $. $line" if($TraceIntactLine);
       }
       return  $line;
    }
@@ -2164,6 +2372,7 @@ my $indent=' ' x $::TabSize x $CurNest;
 my $flag=( defined($main::TrStatus) && $main::TrStatus < 0 ) ? 'F' : ' ';
 my $len=length($line);
 my $prefix=sprintf('%4u',$.)." |".sprintf('%2u',$CurNest)." | ".sprintf('%1s',$flag)." |";
+#my $prefix=sprintf('%4u',$IntactLno)." |".sprintf('%2u',$CurNest)." | ".sprintf('%1s',$flag)." |";
 my $zone_size=($maxlinelen-length($prefix))/2; # length of prefix is 20
 my $start_of_comment_zone=$zone_size+length($prefix); #  the start of comment_zone is 20+80=100.
 #                                                   So the total line length=180
@@ -2213,27 +2422,41 @@ my (@lineblock,$filler);
             out($line);
             if (index($IntactLine,"\n")==-1){
                 print_intactline($IntactLine,$zone_size,$start_of_comment_zone);
+                $IntactLine = '';       # issue s6
+                #$IntactLno++;           # issue s6
             }else{
                @lineblock=split("\n",$IntactLine);
                print_intactline($lineblock[0],$zone_size,$start_of_comment_zone);
-               for(my $i=1; $i<@lineblock;$i++){
+               #$IntactLno++;           # issue s6
+               # issue s6 for(my $i=1; $i<@lineblock;$i++){
+               for(my $i=1; $i<$#lineblock;$i++){       # issue s6
+                  $IntactLno++;           # issue s6
                   print_intactline($lineblock[$i],$zone_size,$start_of_comment_zone);
                }
+               $IntactLine = $lineblock[-1];            # issue s6
             }
          }else{
             out($line,' #PL: ',$IntactLine);
+            #$IntactLno++ if($IntactLine);        # issue s6
+            $IntactLine = '';       # issue s6
          }
      }else{
          # short line without tail comment
          $filler=' ' x ($start_of_comment_zone-$len);
           if (index($IntactLine,"\n")==-1){
               out($line,$filler,' #PL: ',$IntactLine);
+              #$IntactLno++ if($IntactLine);        # issue s6
+              $IntactLine = '';       # issue s6
           }else{
              @lineblock=split("\n",$IntactLine);
              out($line,$filler,' #PL: ',$lineblock[0]); # its short so this is OK
-             for( $i=1; $i<@lineblock;$i++){
+             #$IntactLno++;           # issue s6
+             # issue s6 for( $i=1; $i<@lineblock;$i++){
+             for( $i=1; $i<$#lineblock;$i++){   # issue s6
+                $IntactLno++;           # issue s6
                 print_intactline($lineblock[$i],$zone_size,$start_of_comment_zone);
              }
+             $IntactLine = $lineblock[-1];            # issue s6
           }
       }
    }else{
@@ -2242,15 +2465,22 @@ my (@lineblock,$filler);
      if($i==-1) {
         out($line,' ',$tailcomment); # output with the original comment instead of Perl source
         print_intactline(substr($IntactLine,0,-$orig_tail_len),$zone_size,$start_of_comment_zone); # print Perl source
+        $IntactLine = '';       # issue s6
+        $IntactLno++;           # issue s6
      }else{
         @lineblock=split("\n",$IntactLine);
         out($line,' ',$tailcomment); # output with tail comment instead of Perl comment
         print_intactline(substr($lineblock[0],0,-$orig_tail_len),$zone_size,$start_of_comment_zone);
-        for( $i=1; $i<@lineblock;$i++){
+        $IntactLno++;           # issue s6
+        # issue s6 for( $i=1; $i<@lineblock;$i++){
+        for( $i=1; $i<$#lineblock;$i++){        # issue s6
             print_intactline($lineblock[$i],$zone_size,$start_of_comment_zone);
+            $IntactLno++;           # issue s6
         }
+        $IntactLine = $lineblock[-1];            # issue s6
      }
    }
+   #$IntactLine = '';            # issue s6
 
 } # output_line
 sub print_intactline
@@ -2351,11 +2581,13 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     no warnings 'utf8';
     chomp(my @lines = <SYSOUT>);
     close SYSOUT;
+    #$DB::single = 1;
     $lno = 0;
     my @unsorted = ();
     my %dependencies = ('__main__'=>[]);
     my $insertion_point = 0;
     my @init_package_lnos = ();
+    my @nested = ();                            # issue s3
     for my $line (@lines){
         $lno++;
         # issue 24 $insertion_point = $lno+1 if($line =~ /^$PERL_ARG_ARRAY = sys.argv/ && !$insertion_point);              # SNOOPYJC
@@ -2376,6 +2608,10 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                 }
             }
             $defs{$func} = $i;
+        } elsif($line =~ /^\s+def ([A-Za-z0-9_]+)/) {            # issue s3
+            my $func = $1;
+            push @nested, $func;
+            $defs{$func} = $lno;
         } elsif($line =~ /^_init_package\(/ || $line =~ /^$PERLLIB\.init_package\(/) {
             push @init_package_lnos, $lno;
         }
@@ -2405,7 +2641,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         ### YES THEY DO!!  next if($in_def);               # Refs inside of defs don't matter
         next if($line =~ /^def / || $line =~ /^class /);
         next if($line =~ /^\s*#/);      # ignore comments
-        my @found = grep { $line =~ /\b$_\(/ } @words;  # Look for calls of this function only
+        #my @found = grep { $line =~ /\b$_\(/ } @words;  # Look for calls of this function only
+        my @found = grep { $line =~ /\b$_[(),]/ } @words;  # issue s3: Look for calls of this function and other references
         #say STDERR "found @found in $lno: $line" if(@found);
         foreach $f (@found) {
             if($in_def) {
@@ -2451,6 +2688,47 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     #say STDERR "to_move_first: @{[%to_move_first]}" if($::debug >= 3);
     #say STDERR "to_move: @{[%to_move]}" if($::debug >= 3);
     say STDERR "ordered_to_move: @ordered_to_move" if($::debug >= 3);
+
+    my %nested_issues = ();                     # issue s3: map from insertion point lno to the lno of the nested function
+    for my $n (@nested) {                       # issue s3
+        if(exists $refs{$n} && $refs{$n} < $defs{$n}) {
+            $nested_issues{$refs{$n}} = $defs{$n};
+        }
+    }
+    say STDERR "nested_issues: @{[%nested_issues]}" if($::debug >= 3);  # issue s3
+
+    if(%nested_issues) {                        # issue s3
+        my $lno = 0;
+        my @output_lines = ();
+        my %moved_lines = ();
+        for my $line (@lines) {
+            $lno++;
+            if(exists $nested_issues{$lno}) {                       # issue s3
+                # we have a reference to a function that's defined later in the code - move
+                # that function code here and adjust any nesting issues
+                $line =~ /^(\s*)/;
+                my $target_indent = length($1);
+                my $function_lno = $nested_issues{$lno};
+                say STDERR "Handling nested issue on line $function_lno with ref on line $lno" if($::debug >= 5);
+                $lines[$function_lno-1] =~ /^(\s*)/;
+                my $source_indent = length($1);
+                my $indent = ' ' x ($target_indent - $source_indent);
+                my $moved_def = 0;
+                for(my $i=$function_lno-1; $i<scalar(@lines); $i++) {
+                    $lines[$i] =~ /^(\s*)/;
+                    my $cur_indent = length($1);
+                    last if $cur_indent <= $source_indent && $moved_def;
+                    $moved_def = 1 if($lines[$i] =~ /^\s*def /);
+                    $moved_lines{$i+1} = 1;
+                    push @output_lines, ($indent . $lines[$i]);
+                }
+                push @output_lines, $line;
+            } elsif(!exists $moved_lines{$lno}) {
+                push @output_lines, $line;
+            }
+        }
+        @lines = @output_lines;
+    }
     
     # Pass 3 - regenerate the output file in the right order
 
@@ -2495,6 +2773,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                 if($lines[$i] =~ /^\s+/ || $lines[$i] =~ /^def $func\(/ || $lines[$i] =~ /^class $func[(:]/ ||
                         $lines[$i] =~ /^\s*$/ || $lines[$i] =~ /^\s*#/ || $lines[$i] =~ m'^@' ||
 			$lines[$i] =~ /^${func}_[\w]+ =/ ||	 # state variable like func_var = init
+                        $lines[$i] =~ /[.]$func = types[.]MethodType\($func,/ ||     # issue s3
                         $lines[$i] =~ /[.]$func = $func$/) {     # e.g. main.func = func
                         #say STDERR "Found def $func";
                     next if(exists $moved_lines{$i+1});         # Don't include it twice
@@ -2667,7 +2946,7 @@ sub cleanup_imports
             }
         }
     }
-    #say STDERR "cleanup_imports import_lno=$import_lno, refs=@{[%referenced_imports]}, imports=@imports, as_what=$as_what, import_as_referenced=$import_as_referenced, import_as_lno=$import_as_lno, die_referenced=$die_referenced, die_def_lno=$die_def_lno";
+    say STDERR "cleanup_imports import_lno=$import_lno, refs=@{[%referenced_imports]}, imports=@imports, as_what=$as_what, import_as_referenced=$import_as_referenced, import_as_lno=$import_as_lno, die_referenced=$die_referenced, die_def_lno=$die_def_lno" if($::debug >= 5);
     if($import_lno) {
         my $size = keys %referenced_imports;
         if($size) {
@@ -2739,10 +3018,12 @@ sub eat_strings
     state $mstring_sep = '';
     state $fstring = 0;
     my $line = shift;
+    my $ndx;
     #print STDERR "eat_strings($line)=";
     my @fstring_items = ();
     if($mstring_sep) {
         if(($ndx = index($line, $mstring_sep)) >= 0) {
+            #say STDERR "END_S:   $line";    # TEMP
             $mstring_sep = '';
             push @fstring_items, get_fstring_items(substr($line,0,$ndx)) if($fstring);
             $line = substr($line, $ndx+3);
@@ -2751,19 +3032,26 @@ sub eat_strings
             push @fstring_items, get_fstring_items($line) if($fstring);
             $line = '';
         }
+    }
+    if($mstring_sep) {
+        ;
     } elsif($line =~ /^\s*#/) {		# Comment line
         ;
     } else {
         $fstring = 0;
-        my @quotes = ('"', "'");
+#       my @quotes = ('"', "'");
         my $p;
-        for my $quote (@quotes) {
+#        for my $quote (@quotes) {
 	    OUTER:
-            while(1) {
-                $ndx = index($line, $quote);
-                last if($ndx < 0);
+#            while(1) {
+            for($ndx = 0; $ndx < length($line); $ndx++) {
+                my $quote = substr($line,$ndx,1);
+                #$ndx = index($line, $quote);
+                #last if($ndx < 0);
+                next unless($quote eq '"' || $quote eq "'");
                 last if(($p = index($line, '#')) >= 0 && $p < $ndx);            # Ignore strings in comments
-                last if(substr($line, $ndx, 3) eq "$quote$quote$quote");        # handled below
+                last if(substr($line, $ndx, 3) eq "'''");        # handled below
+                last if(substr($line, $ndx, 3) eq '"""');        # handled below
                 my $start = $ndx;
                 while($start > 0) {
                     my $c = substr($line,$start-1,1);
@@ -2784,13 +3072,14 @@ sub eat_strings
                         #substr($line,$start,$ndx2+1-$start) = '';
                         push @fstring_items, get_fstring_items(substr($line,$start,($ndx2-$start)+1)) if($fstring);
                         $line = substr($line,0,$start).substr($line,$ndx2+1);
+                        $ndx = -1;
                         last;
                     } else {
                         last OUTER;
                     }
                 }
             }
-        }
+#        }
         if(($line =~ /"""/ || $line =~ /'''/) && $line !~ /^\s*#/) {
             $fstring = 0;
             $ndx = index($line, '"""');
@@ -2815,6 +3104,7 @@ sub eat_strings
                 $line = substr($line,0,$ndx).substr($line,$ndx2+3);
             } else {                # Start of a multi-line string
                 #substr($line,$ndx) = '';
+                #say STDERR "START_S: $line";    # TEMP
                 push @fstring_items, get_fstring_items(substr($line,$ndx)) if($fstring);
                 $line = substr($line,0,$ndx);
             }
