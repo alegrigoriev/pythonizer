@@ -117,9 +117,12 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'T'=>'BASETIME',                         # SNOOPYJC
                   'W'=>'WARNING');              # SNOOPYJC
 
+   %SPECIAL_VAR_FULL=(TAINT=>'False', SAFE_LOCALES=>'False', UNICODE=>'0', UTF8CACHE=>'True', UTF8LOCALE=>'True');      # issue s23
+
    %SpecialVarType=('.'=>'I', '?'=>'S', '!'=>'I', '$'=>'I', ';'=>'S', ']'=>'F', 
                     '0'=>'S', '@'=>'S', '"'=>'S', '|'=>'I', '/'=>'S', ','=>'S',
                     '^O'=>'S', '^T'=>'S', '^V'=>'S', '^X'=>'S', '^W'=>'I',
+                    '^TAINT'=>'I', '^SAFE_LOCALES'=>'I', '^UNICODE'=>'I', 'UTF8CACHE'=>'I', 'UTF8LOCALE'=>'I',          # issue s23
                     '&'=>'S', '1'=>'S', '2'=>'S', '3'=>'S', '4'=>'S',
                     '5'=>'S', '6'=>'S', '7'=>'S', '8'=>'S', '9'=>'S',
                     '-'=>'I', '+'=>'I', '('=>'S', ')'=>'S', '>'=>'I', '<'=>'I',
@@ -2850,7 +2853,8 @@ my ($l,$m);
       	    $ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
             $ValClass[$tno]='('; # we treat anything inside curvy backets as expression
             $cut=1;
-         }elsif($s eq '(' && $tno == 2 && $ValClass[0] eq 'k' && $ValPerl[0] eq 'sub' && $ValClass[1] eq 'i') {      
+         }elsif($s eq '(' && ($tno == 2 && $ValClass[0] eq 'k' && $ValPerl[0] eq 'sub' && $ValClass[1] eq 'i') ||
+             $tno != 0 && $ValClass[$tno-1] eq 'k' && $ValPerl[$tno-1] eq 'sub') {                      # issue s26: handle sub () { ... }
             # SNOOPYJC: Eat sub arg prototype because we can't currently handle it and it lexes wrong too!
             $cut=1;
             my $close = matching_paren($source, 0);
@@ -2998,7 +3002,8 @@ my ($l,$m);
                        # issue 66 $tno++;                                     # issue 66
                        # issue 66 $ValPy[$tno]="next($DIAMOND, None)";        # issue 66: Allows for $.
                        my $rl = select_readline();                      # issue 66
-                       $ValPy[$tno]="$rl($fh)";                         # issue 66
+                       my $escaped = escape_keywords($fh);              # issue s25
+                       $ValPy[$tno]="$rl($escaped)";                         # issue 66, issue s25
                    }
                }else{           # we're just reading one line so we can't use the context manager as it closes the file handle
                    if(length($fh)==0){         # issue 66
@@ -3016,7 +3021,8 @@ my ($l,$m);
                        # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
                        # issue 66 $ValPy[$tno]="$fh.readline()";
                        my $rl = select_readline();                      # issue 66
-                       $ValPy[$tno]="$rl($fh)";           # issue 66: support $/
+                       my $escaped = escape_keywords($fh);              # issue s25
+                       $ValPy[$tno]="$rl($escaped)";           # issue 66: support $/, issue s25
                        #insert(0, 'W', "<$fh>", qq{with fileinput.input("<$fh>",openhook=lambda _,__:$fh) as $DIAMOND:});    # issue 66
                        #$tno++;                                     # issue 66
                        #$ValPy[$tno]=qq{next(with fileinput.input("<$fh>",openhook=lambda _,__:$fh), None)};        # issue 66: Allows for $.
@@ -3038,12 +3044,16 @@ my ($l,$m);
                    # issue 66 $tno++;                                     # issue 66
                    # issue 66 $ValPy[$tno]="next($DIAMOND, None)";        # issue 66: Allows for $.
                    my $rl = select_readline();                      # issue 66
-                   $ValPy[$tno]="$rl($1)";                # issue 66: Support $/, $.
+                   my $mapped_name = remap_conflicting_names($1, '$', '');      # issue s25
+                   my $escaped = escape_keywords($mapped_name);                 # issue s25
+                   $ValPy[$tno]="$rl($escaped)";                # issue 66: Support $/, $., issue s25
                }else{
                    # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
                    # issue 66 $ValPy[$tno]="$1.readline()";
                    my $rl = select_readline();                      # issue 66
-                   $ValPy[$tno]="$rl($1)";                # issue 66: Support $/, $.
+                   my $mapped_name = remap_conflicting_names($1, '$', '');      # issue s25
+                   my $escaped = escape_keywords($mapped_name);                 # issue s25
+                   $ValPy[$tno]="$rl($escaped)";                # issue 66: Support $/, $., issue s25
                    # issue 66: use a context manager so it's automatically closed
                    #insert(0, 'W', "<$1>", qq{with fileinput.input("<$1>",openhook=lambda _,__:$1) as $DIAMOND:});    # issue 66
                    #$tno++;                                     # issue 66
@@ -3408,10 +3418,17 @@ my $rc=-1;
        $cut=3;
        $ValType[$tno]="X";
        my $vn = substr($source,0,3);                    # SNOOPYJC
+       my $full = 0;
+       if($source =~ /^..(\w+)/ && exists $SPECIAL_VAR_FULL{$1}) {                      # issue s23
+           $ValPy[$tno] = $SPECIAL_VAR_FULL{$1};
+           $vn = '$^' . $1;
+           $cut = length($vn);
+           $full = 1;
+       }
        my $cs = cur_sub();
        $SpecialVarsUsed{$vn}{$cs} = 1;                       # SNOOPYJC
        $ValPerl[$tno]=$vn if($update);                  # SNOOPYJC
-       if( $s3=~/\w/  ){
+       if( !$full && $s3=~/\w/  ){              # issue s23
           if( exists($SPECIAL_VAR2{$s3}) ){
             $ValPy[$tno]=$SPECIAL_VAR2{$s3};
             if(substr($SPECIAL_VAR2{$s3},0,1) eq '_') { # SNOOPYJC

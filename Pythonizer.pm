@@ -30,11 +30,14 @@ use Pyconfig;				# issue 32
 use Pass0 qw(pass_0);   # SNOOPYJC
 use Data::Dumper;       # SNOOPYJC
 use open ':std', IN=>':crlf', IO=>':utf8';        # SNOOPYJC
+use File::Path qw(make_path);           # issue s23
+use File::Basename;                     # issue s23
+use File::Spec::Functions qw(catfile);  # issue s23
 require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function); # SNOOPYJC
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $IntactLno = 0;           # issue s6
    $IntactEndLno = 0;        # issue s6
@@ -79,7 +82,7 @@ sub prolog
       # SNOOPYJC getopts("AThd:v:r:b:t:l:",\%options);
       @orig_ARGV = @ARGV;                       # SNOOPYJC
       # NOTE: Remember to add new flags to Pass0.PM (# pragma pythonizer), the help with ## at the start of pythonizer, and the readme/documentation!
-      getopts("uUkKnmMAVThsSpPd:v:r:b:B:t:l:R:",\%options);     # SNOOPYJC
+      getopts("uUkKnmMAVThsSpPd:v:r:b:B:t:l:R:o:",\%options);     # SNOOPYJC, issue s23
 #
 # Three standard options -h, -v and -d
 #
@@ -220,6 +223,9 @@ sub prolog
       if( exists $options{'U'} ) {
           $::replace_usage = 0;
       }
+      if( exists $options{'o'} ) {              # issue s23
+          $::output_dir = $options{'o'};        # issue s23
+      }                                         # issue s23
 
 #
 # Application arguments
@@ -230,6 +236,10 @@ sub prolog
             abend("Input file $fname does not exist");
          }
          $source_file=substr($ARGV[0],0,rindex($ARGV[0],'.'));
+         if(defined $::output_dir) {            # issue s23
+             make_path($::output_dir);          # issue s23
+             $source_file = catfile($::output_dir, basename($source_file));     # issue s23 - also used for the .data file
+         }                                      # issue s23
          $output_file=$source_file.'.py';
          out("Results of transcription are written to the file  $output_file");
          if(  $refactor ){
@@ -739,6 +749,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          foreach $subname (keys %{$VarSubMap{$varname}} ){
             if($var_usage_in_subs>1 || exists $NeedsInitializing{$subname}{$varname}) { # SNOOPYJC
                 next if($varname !~ /^[A-Za-z_][A-Za-z0-9._]*$/);   # Has to be a valid python var name or with a package
+                next if($varname eq 'True' || $varname eq 'False');     # issue s23
                 if($varname =~ /^[A-Za-z_][A-Za-z0-9_]*$/) {    # Valid python var name with NO package
                     $GlobalVar{$subname}.=','.$varname;
                 }
@@ -778,6 +789,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        foreach $varname (keys %{$NeedsInitializing{$subname}}) {
            # SNOOPYJC: issue bootstrap next if(!exists $VarSubMap{$varname}{$subname});   # if it's not in VarSubMap, then it's a "my" variable, which is handled in pythonizer
 	   next if($varname =~ /__dict__$/);
+           next if($varname eq 'True' || $varname eq 'False');     # issue s23
            if($varname =~ /^[A-Za-z_][A-Za-z0-9_]*$/) {   # Has to be a valid python var name
                $InitVar{$subname} .= "\n$varname = ".init_val($NeedsInitializing{$subname}{$varname});
            } elsif($varname =~ /^[A-Za-z_][A-Za-z0-9._]*$/) {   # Has a package name

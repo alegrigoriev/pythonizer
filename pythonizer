@@ -30,6 +30,7 @@
 ##    -A -- Imply "use autodie qw(:all);"
 ##    -T -- Perform a traceback in the generated code on errors
 ##    -n -- Trace Run: Generate code to trace subprocess.run results - used in qx, `backtick`, open('|'), and system()
+##    -o dir -- Output directory for .py and .data files, created if need be (defaults to the same location as the input file)
 ##    -V -- Imply "no autovivification qw(fetch delete exists store strict);"
 ##    -w -- the width of the screen on which you plan to view the protocol of translation. The default is 188.
 ##    -R -- remap comma separated list of variables: variables specified as var or *var will map all variables named 'var', 
@@ -179,6 +180,7 @@
 # 0.964  2022/03/10  SNOOPYJC  Don't mark variables as initialized if there is a conditional at the end of the statement, don't generate bad return statment if last expression of sub is an unshift, handle @1234 as a variable but give a warning, handle assignment to args and add a warning, remove re.G on a regex in a non-normal place, fix return {}, add -l flag and default to 98 (was 88), strip escape chars where not ignored by python e.g. \[, handle method call with {} in place of argument list, initialize vars that are conditionally set in an eval block, handle TYPE on my/our declarations (and ignore it), in print mysub() - mysub is NOT a file handle, $^X was calling sys.executable() instead of referencing sys.executable properly, fix eval: If no error occurs, eval sets $@ to the empty string (we were setting it to None), calling a local sub in an expression was incorrectly setting all subsequent terms to be in list context, regex (qr) variable not being handled properly when passed as arg and used in match, generate proper code for my/local/our hash or array initialization when extra parens are used around variable name. Library: Fix _init_package for package with dotted name, don't raise exceptions in -C, -A, -M, fix Array __setitem__ with slice
 # 0.965  2022/03/14  SNOOPYJC  Added -R option to remap variables and automatically set it when we translate (or re-translate) use/require modules with cross-module conflicting names, to avoid issues with STDIN and subprocesses on windows - change pythonizer internally to open SYSIN to read the source code instead, was mapping SYSIN to stdin instead of STDIN, <package::FH> is a file handle - not a glob, regex in parens followed by a subscript needs to be treated as in list context, int used as hash key wasn't being converted to a str, multi-reference to hash or array with list or array index wasn't being mapped to proper index or key type, issue bootstrap: Generate proper code for delete $NeedsInitializing{$subname}{$varname}, fix some more type conversion issues, remove excess escape chars on RHS of s///, don't assume we know the types of global variables if we call an outside sub, for bootstrapping - manually parse the output of pythonizer_importer.pl, print ($var); was generating bad code, backslash escape sequences in single quoted strings were being interpolated in the output, print @_ was printing (...,...), implement OUTPUT_FIELD_SEPARATOR and OUTPUT_RECORD_SEPARATOR and always use _perl_print.  BOOTSTRAPPING NOW PASSES ALL TESTS!
 # 0.966  2022/03/20  SNOOPYJC  Don't message about translating a std lib file if we already have it translated, give warning on ref of $scalar, don't die on empty input file, issue s7 - complex expression with || messes up the nesting level, issue s9 - return list needs to return Array([list]), issue s10 - variables declared my/local/state with no init are initialized twice, add File::Spec file_name_is_absolute, catfile, rel2abs, abs2rel, issue s8 - int values passed to regex, s, or tr weren't being convered to strings, issue s11 - * bare_word being treated as typeglob, issue s12 - return from BEGIN block generating wrong code, issue s13 - $var = eval '...' wasn't handled and line with only 0 wasn't being tokenized and nested eval wasn't returning a result, addl fix to remove extra * on issue 37, issue s3 - add functions ceil, floor, trunc, round, exp, log, sin, cos - change exp(99999) to math.inf and also 9**9**9, handle open with single argument, issue s14 - $#Package::var doesn't work, issue bootstrap - substitution in a function arg generates bad code, bare word followed by a scalar or constant is not a string - it's a sub ref, handle multiple ''' on a line in eat_strings - symptom - import line wasn't being cleaned up in test_complex.py, issue bootstrap - generate the right exception name for plain next or last used in a labeled loop, issue s3 - fix syntax error from functions in complex ? : expression, remove extra parens from sprintf and defined functions, add 're' to the list of names that need to be escaped, add '.pattern' to a compiled regex variable used in another regex, if user imports a package that includes a predefined function - call that instead of ours, generate proper code for ${expr}[0], ignore the o flag on a regex, import exp, cos, and sin from a package if they are overloaded even if they are not in @EXPORT, add and use _flt() for conversions to float - like for math functions, properly splat the arguments even if the sub call is fully qualified, list of strings with an int at the end was being incorrectly typed as 'a of S', implement 'wantarray', issue s15 - handle 'a'.1234 as concat, issue s16 - named capture groups are not properly translated into python, implement select function, defined(&POSIX::_exit) was calling the function, implement kill via perllib.kill, assigning to a hashref or arrayref scalar from a {...} or [...] wasn't making the value a Hash or Array, generate proper code for substr with incr/decr included
+# 0.967  2022/03/31  SNOOPYJC
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -228,9 +230,9 @@ BEGIN {                                                 # SNOOPYJC
                  'mapped_name',                         # issue names
                  '@ValType', '$TokenStr');
 
-   use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call); # SNOOPYJC
+   use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function); # SNOOPYJC
 
-   $VERSION='0.966';
+   $VERSION='0.967';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -255,6 +257,7 @@ BEGIN {                                                 # SNOOPYJC
    $remap_all=0;                        # SNOOPYJC -R:all option
    $remap_global=1;                     # SNOOPYJC -R:global option
    %remap_requests=();                  # SNOOPYJC -R $var1,@var2,%var3,*var4,... - set
+   $output_dir=undef;                   # issue s23
    $HOME=$ENV{'HOME'}; # the directory used for autobackup (only if debug>0)
    if( $^O eq 'cygwin' ){
       # $^O is built-in Perl Variable that contains OS name
@@ -857,7 +860,8 @@ my ($start,$token_buffer_active);
 	        # issue close gen_chunk($ValPy[$i].'.f.close;');
                 # issue 72 gen_chunk($ValPy[$i].'.close()');	# issue close
                 $Pyf{_close} = 1;
-                gen_chunk('_close', '(', $ValPy[$i], ')');	# issue close, issue 72
+                my $escaped = escape_keywords($ValPy[$i]);      # issue s25
+                gen_chunk('_close', '(', $escaped, ')');	# issue close, issue 72, issue s25
                 gen_statement();
              }
          }
@@ -1181,6 +1185,7 @@ my ($start,$token_buffer_active);
                     } elsif($ValClass[$i] eq 'f' && substr(&Pythonizer::func_type($ValPerl[$i], $ValPy[$i]),0,1) eq 'a') {
                         $need_flatten = 1;
                         last if($elements>1);
+                        $i = end_of_function($i);               # issue s24
                     } elsif($i+2 <= $end_pos && $ValClass[$i] eq 's' && $ValClass[$i+1] eq '~' && $ValClass[$i+2] eq 'q' && substr($ValPy[$i+1],0,1) ne '.') { # see test_regex
                         $need_flatten = 1;
                         last if($elements>1);
@@ -4712,7 +4717,7 @@ my $bracketed=0;  # nessesary for the proper call of expression.
   # }elsif( ($k=next_matching_tokens('0o>?:',$begin+1,$limit))>=1 ){	# issue 16, issue 93, issue 59, issue s3
   #}elsif( ($k=next_matching_tokens('0o>',$begin+1,$limit))>=1 ){	# issue 16, issue 93, issue 59, issue s3
   } else {                      # issue s3
-      $k = &Pythonizer::end_of_function($begin);        # issue s3
+      $k = end_of_function($begin);        # issue s3
       say STDERR "end_of_function($begin) for $ValPy[$begin] is $k" if($debug >= 3);
       $end_pos=$limit=$k if($k < $end_pos);             # issue s3
       # issue s3 $end_pos=$limit=$k-1 if($k-1 < $end_pos); # if we have any of ||, &&, <,==,<=,>,>=, ?, : that function should end before it
@@ -6553,6 +6558,7 @@ my($k,$myline, $target,$open_mode,$handle);
    $Pyf{$function} = 1;	# SNOOPYJC
 
    my $orig_mode = $mode;               # SNOOPYJC: Handle complex handle
+   $handle = escape_keywords($handle);          # issue s25
    if($mode ne 's' && $handle !~ /^[A-Za-z0-9_]+$/) {
        $mode = 's';
        save_code();
@@ -6636,6 +6642,7 @@ my($k,$myline, $target,$open_mode,$handle);
    }
    $Pyf{'_opendir'} = 1;
 
+   $handle = escape_keywords($handle);          # issue s25
    my $orig_mode = $mode;               # SNOOPYJC: Handle complex handle
    if($mode ne 's' && $handle !~ /^[A-Za-z0-9_]+$/) {
        $mode = 's';
@@ -8999,6 +9006,7 @@ sub import_it
             my $subprocess_options = $SUBPROCESS_OPTIONS;
             $subprocess_options .= ' -P' if(!$import_perllib);
             $subprocess_options .= ' -s' if($pythonize_standard_library);
+            $subprocess_options .= " -o$output_dir" if($output_dir && $canwrite);      # issue s23
             $subprocess_options .= $rerun_flags;
             say STDERR "Running $0 $subprocess_options $fullfile for $ValPerl[$pos] $ValPerl[$pos+1]";
             my $interpreter=$^X . ' ';          # issue bootstrap
