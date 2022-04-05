@@ -5,9 +5,16 @@ failed=0
 tests=0
 passed=0
 flags=
+prefix=
 for f in $*
 do
    case "$f" in
+   -b*) flags="$flags $f";
+       prefix="perl -d ";
+       continue;;
+   -B*) flags="$flags $f";
+       prefix="perl -d ";
+       continue;;
    -*) flags="$flags $f"
        continue;;
    esac
@@ -21,7 +28,7 @@ do
       status=1
       continue
    fi
-   ../pythonizer -v0 $flags $f
+   ${prefix}../pythonizer -v0 $flags $f
    if [ $? -ne 0 ]; then
       echo "$f run with pythonizer FAILED"
       ((failed++))

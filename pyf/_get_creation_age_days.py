@@ -8,6 +8,10 @@ def _get_creation_age_days(path):       # -C
         t = path._ctime
     else:
         try:
+            if hasattr(path, 'fileno') and os.stat in os.supports_fd:
+                path = path.fileno()
+            elif hasattr(path, 'name'):
+                path = path.name
             t = os.path.getctime(path)
         except Exception as _e:
             OS_ERROR = str(_e)

@@ -1,5 +1,6 @@
 
 def stat_cando(self, mode, eff):
+    """Implementation of File::Stat::stat_cando.  This takes an arrayref containing the return values of stat or lstat as its first argument, and interprets it for you"""
     if os.name == 'nt':
         if (self._mode & mode):
             return True
@@ -92,6 +93,10 @@ def _stat(path):
     if isinstance(path, File_stat):
         return path     # for '_' special variable
     try:
+        if hasattr(path, 'fileno') and os.stat in os.supports_fd:
+            path = path.fileno()
+        elif hasattr(path, 'name'):
+            path = path.name
         s = os.stat(path)
     except Exception:
         return ()

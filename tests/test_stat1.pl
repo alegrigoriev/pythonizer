@@ -33,4 +33,25 @@ assert($size1 == $size);
 assert($mtime1 == $mtime);
 assert($uid1 == $uid);
 
+# test stat FILEHANDLE
+open(my $fh, '<', $0);
+
+my ($dev2,$ino2,$mode2,$nlink2,$uid2,$gid2,$rdev2,$size2,
+    $atime2,$mtime2,$ctime2,$blksize2,$blocks2) = stat $fh;
+
+assert($ino2 == $ino);
+assert($size2 == $size);
+assert($mtime2 == $mtime);
+assert($uid2 == $uid);
+
+assert((!-d _) && -r _ && -w _);
+close($fh);
+
+# test stat DIRHANDLE
+
+opendir(my $dh, '.');
+my @stat = stat $dh;
+assert(-d _ && -r _ && -w _);
+closedir($dh);
+
 print "$0 - test passed!\n";

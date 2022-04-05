@@ -197,6 +197,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'keys'=>'.keys()',	# issue 33
                 'kill'=>'_kill',      # SNOOPYJC
                 'last'=>'break', 'local'=>'', 'lc'=>'.lower()', 
+                'lcfirst'=>'_lcfirst',          # SNOOPYJC
                 'length'=>'lens',               # SNOOPYJC
 		# issue localtime 'localtime'=>'.localtime',
 		'localtime'=>'_localtime',		# issue times
@@ -218,7 +219,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'package'=>'package', 'pop'=>'.pop()', 'push'=>'.extend(',
                 'pos'=>'pos',                   # SNOOPYJC
                 'printf'=>'print',
-                'quotemeta'=>'re.escape',       # SNOOPYJC
+                'quotemeta'=>'_quotemeta',      # SNOOPYJC, issue s28
                 'rename'=>'os.replace',         # SNOOPYJC
                 'say'=>'print','scalar'=>'len', 'shift'=>'.pop(0)', 
                 'sin'=>'math.sin',              # issue s3
@@ -258,13 +259,17 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'timelocal'=>'_timelocal',	# issue times
                 'timegm'=>'_timegm',            # issue times
                 'truncate'=>'_truncate',        # SNOOPYJC
-                'uc'=>'.upper()', 'ucfirst'=>'.capitalize()', 'undef'=>'None', 'unless'=>'if not ', 'unlink'=>'os.unlink',
+                'uc'=>'.upper()', 
+                # issue s28 'ucfirst'=>'.capitalize()',
+                'ucfirst'=>'_ucfirst',          # issue s28
+                'undef'=>'None', 'unless'=>'if not ', 'unlink'=>'os.unlink',
                 'umask'=>'os.umask',            # SNOOPYJC
                    'unshift'=>'.insert(0,',
                    # SNOOPYJC 'use'=>'NoTrans!', 
                    'use'=>'import',
                 'unpack'=>'_unpack',    # SNOOPYJC
                    'until'=>'while not ','untie'=>'NoTrans!',
+                   'utime'=>'_utime',   # issue s32
                 'values'=>'.values()',	# SNOOPYJC
                  'warn'=>'print',
                  'wait'=>'_wait',       # SNOOPYJC
@@ -415,6 +420,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'keys'=>'f',
                   'kill'=>'f',          # SNOOPYJC
                   'last'=>'k', 'lc'=>'f', 'length'=>'f', 'local'=>'t', 'localtime'=>'f',
+                  'lcfirst'=>'f',       # SNOOPYJC
                   'log'=>'f',           # issue s3
                   'lstat'=>'f',
                   'my'=>'t', 'map'=>'f', 'mkdir'=>'f',
@@ -449,6 +455,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'sleep'=>'f',		# SNOOPYJC
 		  'sqrt'=>'f',		# SNOOPYJC
                   'stat'=>'f','sub'=>'k','substr'=>'f','sysread'=>'f',  'sysseek'=>'f',
+                  'stat_cando'=>'f',
                   'tell'=>'f',          # SNOOPYJC
                   'tie'=>'f',
 		  'time'=>'f', 'gmtime'=>'f', 'timelocal'=>'f',	'timegm'=> 'f', # SNOOPYJC
@@ -462,6 +469,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   # SNOOPYJC 'use'=>'c',
                   'untie'=>'f',
                   'umask'=>'f',                  # SNOOPYJC
+                  'utime'=>'f',                  # issue s32
                   'wait'=>'f',                   # SNOOPYJC
                   'waitpid'=>'f',                # SNOOPYJC
                   'wantarray'=>'d',              # SNOOPYJC
@@ -488,7 +496,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'exit'=>'I?:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':m', 'fileno'=>'H:I',
                   'fileparse'=>'Sm?:a of S', 'hex'=>'S:I', 'GetOptions'=>'a:I',
                   'glob'=>'S:a of S', 'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 
-                  'kill'=>'mI:u', 'lc'=>'S:S', 'lstat'=>'S:a of I',
+                  'kill'=>'mI:u', 'lc'=>'S:S', 'lstat'=>'m:a of I',
+                  'lcfirst'=>'S:S',
                   'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'SI?:I', 'oct'=>'S:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
                   'pack'=>'Sa:S',
 		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'rename'=>'SS:I', 'rmdir'=>'S:I',
@@ -499,8 +508,10 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'say'=>'H?a:I','scalar'=>'a:I','seek'=>'HII:u', 'shift'=>'a?:s', 'sleep'=>'I:I', 'splice'=>'aI?I?a?:a',
                   'select'=>'H?:H',             # SNOOPYJC
                   'split'=>'SSI?:a of m', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
-                  'sqrt'=>'N:F', 'stat'=>'S:a of I', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'tell'=>'H:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timegm'=>'IIIIII:I',
-                  'truncate'=>'HI:I',
+                  'stat_cando'=>'aII:I',        # issue s33
+                  'sqrt'=>'N:F', 'stat'=>'m:a of I', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'tell'=>'H:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timegm'=>'IIIIII:I',
+                  'truncate'=>'HI:I', 
+                  'utime'=>'a:I',               # issue s32
                   'timelocal'=>'IIIIII:I', 'unlink'=>'a?:I', 'values'=>'h:a', 'warn'=>'a:I', 'undef'=>'a?:u', 'unshift'=>'aa:I', 'uc'=>'S:S',
                   'unpack'=>'SS:a', 'ucfirst'=>'S:S', 'umask'=>'I?:I', 'wait'=>':I', 'waitpid'=>'II:I', '__SUB__'=>':f',
                   );
@@ -1016,7 +1027,7 @@ sub could_be_anonymous_sub_close        # SNOOPYJC
     return 0 if(!@nesting_stack);
     $top = $nesting_stack[-1];
     return 0 if(!$top->{is_sub});
-    return 1 if($top->{cur_sub} =~ /^$ANONYMOUS_SUB\d+$/);
+    return 1 if($top->{cur_sub} =~ /^$ANONYMOUS_SUB\d+[a-z]?$/);        # issue s26
     return 0;
 }
 
@@ -1189,6 +1200,10 @@ sub enter_block                 # issue 94
     if($nesting_info{in_sub} && !$nesting_info{is_sub}) {
         $nesting_info{cur_sub} = $nesting_stack[-1]{cur_sub};
     }
+    if($nesting_info{type} eq 'do') {                                               # issue s35
+        $nesting_info{delayed_block_closure} = $delayed_block_closure;              # issue s35: stack it
+        $delayed_block_closure = 0;                                                 # issue s35
+    }
     if(defined $last_label) {
         $nesting_info{label} = $last_label;
         $last_label = undef;            # We used it up
@@ -1212,6 +1227,9 @@ sub exit_block                  # issue 94
     $nesting_last = pop @nesting_stack;
     if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
         say STDERR "exit_block at line $., prior nesting_level=$nesting_level, nesting_last->{type} is now $nesting_last->{type}";
+    }
+    if($nesting_last->{type} eq 'do') {                                             # issue s35
+        $delayed_block_closure = $nesting_last->{delayed_block_closure};            # issue s35: Unstack it
     }
     determine_varclass_keepers($nesting_last->{varclasses}, $nesting_last->{lno}) if($Pythonizer::PassNo == &Pythonizer::PASS_1);
     my $label = '';
@@ -1849,7 +1867,7 @@ my ($l,$m);
       if($tno != 0 && $ValClass[$tno-1] eq 'i' && $ValPerl[$tno-1] =~ /^v\d/ &&
           $s ne '}' && $source !~ m'=>') {           # SNOOPYJC: Handle 'vNN' after the fact, making sure it's not a hash key
           $ValClass[$tno-1] = '"';
-          $ValPy[$tno-1] = interpolate_string_hex_escapes(sprintf('\'\\x{%x}\'', int(substr($ValPy[$tno-1],1))));
+          $ValPy[$tno-1] = perl_hex_escapes_to_python(sprintf('\'\\x{%x}\'', int(substr($ValPy[$tno-1],1))));
       }
       if( $s eq '#'  ){
          # plain vanilla tail comment
@@ -1881,7 +1899,7 @@ my ($l,$m);
          }
          {
           no warnings 'uninitialized';
-          say STDERR "Perlscan got ; balance=$balance, tno=$tno, nesting_last=$nesting_last" if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
+          say STDERR "Perlscan got ; balance=$balance, tno=$tno, nesting_last=".Dumper(\$nesting_last) if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
          }
          if( $balance != 0  ){
             # for statement or similar situation
@@ -1893,12 +1911,14 @@ my ($l,$m);
             # this is regular end of statement
             if( $tno>0 && $ValPerl[0] eq 'sub' ){
                $ValPy[0]='#NoTrans!'; # this is a subroutne prototype, ignore it.
-            } elsif($tno == 0 && defined $nesting_last && $nesting_last->{type} eq 'do') { # SNOOPYC
+            } elsif($tno == 0 && defined $nesting_last && $nesting_last->{type} eq 'do') {      # SNOOPYC
                # if this is a do{...}; we will generate an infinite loop unless we add a False condition here!
                $ValClass[$tno]='c'; $ValPy[$tno]=$ValPerl[$tno]='while'; $tno++;
                $ValClass[$tno]=$ValPy[$tno]=$ValPerl[$tno]='('; $tno++;
                $ValClass[$tno]='d'; $ValPy[$tno]='False'; $ValPerl[$tno]='0'; $tno++;
                $ValClass[$tno]=$ValPy[$tno]=$ValPerl[$tno]=')'; $tno++;
+            } elsif($tno == 0 && $delayed_block_closure && scalar(@nesting_stack) && $nesting_stack[-1]->{type} eq 'do') {      # issue s35
+                $delayed_do_false = 1;
             }
             # issue 86 if( $delayed_block_closure ){
             while( $delayed_block_closure ){
@@ -1948,6 +1968,15 @@ my ($l,$m);
                 exit_block();                 # issue 94
                 Pythonizer::getline(substr($source,1)); # save tail
                 $source=$s; # this was we artifically create line with one symbol on it;
+                if($delayed_do_false && $nesting_last->{type} eq 'do') {                # issue s35
+                    # if this is a do{...}; we will generate an infinite loop unless we add a False condition here!
+                    $tno++;
+                    $ValClass[$tno]='c'; $ValPy[$tno]=$ValPerl[$tno]='while'; $tno++;
+                    $ValClass[$tno]=$ValPy[$tno]=$ValPerl[$tno]='('; $tno++;
+                    $ValClass[$tno]='d'; $ValPy[$tno]='False'; $ValPerl[$tno]='0'; $tno++;
+                    $ValClass[$tno]=$ValPy[$tno]=$ValPerl[$tno]=')'; $tno++;
+                    $delayed_do_false = 0;
+                }
              }
              last; # we need to process it as a seperate one-symbol line
          }elsif( $tno>0 && (length($source)==1 || $source =~ /^}\s*$/ ||	# issue ddts: Handle spaces at end
@@ -2498,6 +2527,8 @@ my ($l,$m);
                       $arg2 = make_same_length($arg1, $arg2);
                       ($arg1, $arg2) = first_map_wins($arg1, $arg2);
                   }
+                  $arg1 = escape_non_printables(escape_only_backslash($arg1), 1);    # issue s23
+                  $arg2 = escape_non_printables(escape_only_backslash($arg2), 1);    # issue s23
                   # SNOOPYJC if( $tr_modifier eq 'd' ){
                   if($tr_modifier =~ /c/) {             # issue 125
                       $::Pyf{_maketrans_c} = 1; 
@@ -2843,6 +2874,18 @@ my ($l,$m);
                $ValCom[$tno]='X';
                $ValPy[$tno]="$MAIN_MODULE$ValPy[$tno]";
             }
+         } elsif(substr($source,1,1) eq '{') {           # issue s31
+            # issue s31: Handle *{'name'} or *{"stuff"}
+            my $name;
+            if($::implicit_global_my) {
+                $name = 'globals()';
+            } else {
+                $name = cur_package() . '.__dict__';
+            }
+            $ValClass[$tno]='s';
+            $ValType[$tno] = "X";
+            $ValPy[$tno]=$name;
+            $cut=1;
          }else{
            $cut=1;
          }
@@ -3080,13 +3123,13 @@ my ($l,$m);
                   if($tno != 0 && $ValClass[$tno-1] eq 'd' && $ValPy[$tno-1] =~ /^(\d+)\.(\d+)$/) { # e.g. 102.111 .112
                       $ValClass[$tno-1] = '"';
                       $ValPerl[$tno-1] .= $ValPerl[$tno];
-                      $ValPy[$tno-1] = interpolate_string_hex_escapes(sprintf('\'\\x{%x}\\x{%x}', int($1), int($2)));
-                      $ValPy[$tno-1] .= interpolate_string_hex_escapes(sprintf('\\x{%x}\'', int(substr($ValPy[$tno],1))));
+                      $ValPy[$tno-1] = perl_hex_escapes_to_python(sprintf('\'\\x{%x}\\x{%x}', int($1), int($2)));
+                      $ValPy[$tno-1] .= perl_hex_escapes_to_python(sprintf('\\x{%x}\'', int(substr($ValPy[$tno],1))));
                       popup();
                       $tno--;
                   } elsif($tno != 0 && $ValClass[$tno-1] eq '"') {      # e.g. v1 .20
                       $ValPy[$tno-1] = substr($ValPy[$tno-1],0,length($ValPy[$tno-1])-1) . 
-                        interpolate_string_hex_escapes(sprintf('\\x{%x}\'', int(substr($ValPy[$tno],1))));
+                        perl_hex_escapes_to_python(sprintf('\\x{%x}\'', int(substr($ValPy[$tno],1))));
                       $ValPerl[$tno-1] .= $ValPerl[$tno];
                       popup();
                       $tno--;
@@ -3278,10 +3321,16 @@ my $original;
            if(defined $source) {
                 my $quote=substr($source,0,$ExtractingTokensFromDoubleQuotedStringEnd);
                 $cut = extract_tokens_from_double_quoted_string($quote, 0);
-                #say STDERR "finish2: source=$source, cut=$cut";
-                substr($source,0,$cut)='';
-                #say STDERR "finish2: source=$source (after cut)";
                 $ExtractingTokensFromDoubleQuotedStringEnd -= $cut;
+                if($ExtractingTokensFromDoubleQuotedStringEnd <= 0 && $cut != 0) {
+                    $tno--;
+                    $cut = length($source) if $cut > length($source);   # Don't cut past the end
+                    finish();           # Try again as we may read in another line
+                } else {
+                    #say STDERR "finish2: source=$source, cut=$cut";
+                    substr($source,0,$cut)='';
+                    #say STDERR "finish2: source=$source (after cut)";
+                }
                 #say STDERR "finish2: ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd (after cut)" if($::debug>=5);
             } else {
                 $cut = extract_tokens_from_double_quoted_string('', 0);
@@ -3868,6 +3917,14 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
    return interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, 0);     # issue 39
 }
 
+use constant {l_mode => 1, u_mode=>2, L_mode=>4, U_mode=>8, F_mode=>16, Q_mode=>32};    # issue s28
+my $max_special_mode = 32;                                                              # issue s28
+my %SPECIAL_ESCAPE_MODES = (l=>l_mode, u=>u_mode, L=>L_mode, U=>U_mode, F=>F_mode, Q=>Q_mode, E=>0); # issue s28
+use constant {Bracketed=>1, InString=>2, NeedConcat=>4};    # issue s28
+my %SPECIAL_ESCAPE_FUNCTIONS = (l=>'_lcfirst', u=>'_ucfirst', L=>'.lower()', U=>'.upper()', 
+                                F=>'.casefold()', Q=>'_quotemeta', E=>'');               # issue s28
+my %SPECIAL_ESCAPES = ("'"=>'chr(39)', "\\"=>'chr(92)', '"'=>'chr(34)', "\n"=>'chr(10)');         # issue s28: backslashes are not allowed in f strings
+
 sub interpolate_strings                                         # issue 39
 # Interpolate variable references in strings
 {
@@ -3882,13 +3939,18 @@ sub interpolate_strings                                         # issue 39
 #
 # Also $ValPy[$tno] is set to the code to be generated for this string
 
+   my @special_escape_stack = ();                               # issue s28: Push the *_flags
+   my $special_escape_mode = 0;                                 # issue s28: | of the current mode
+   my $special_escape_flags = 0;                                # issue s28: | of the current flags
+
    if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
        say STDERR ">interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex)";
    }
    my ($l, $k, $ind, $result, $pc, $prev);
    local $cut;                  # Save the global version of this!
    $prev = '';
-   $quote = interpolate_string_hex_escapes(escape_non_printables($quote,0));                     # SNOOPYJC: Replace \x{ddd...} with python equiv
+   # issue s28 $quote = perl_hex_escapes_to_python(escape_non_printables($quote,0));                     # SNOOPYJC: Replace \x{ddd...} with python equiv
+   $quote = escape_non_printables($quote,0);            # issue s28: We do the perl_hex_escapes_to_python inside remove_perl_escapes now
    #
    # decompose all scalar variables, if any, Array and hashes are left "as is"
    #
@@ -3928,14 +3990,15 @@ my  $outer_delim;
     $quote = escape_curly_braces($quote);        # issue 51
     # issue 47 $k=index($quote,'$');                        # issue 51 - recompute in case it moved
     $k = -1;                            # issue 47
-    if($quote =~ m'[$@]') {             # issue 47
+    if($quote =~ m'[$@\\]') {           # issue 47, issue s28
         $k = $-[0];                     # issue 47: Match pos
     }
 
     if (index($quote,'"')==-1 && index($quote, "\n")==-1){      # issue multi-line here
        $outer_delim='"'
     # issue 53: we use single quotes in our 'bareword' so we can't use them here if we have {...}
-    }elsif(index($quote,"'")==-1 && index($quote,'{')==-1 && index($quote,"\n")==-1){     # issue 53, multi-line here
+    }elsif(index($quote,"'")==-1 && index($quote,'{')==-1 && index($quote,"\n")==-1     # issue 53, multi-line here
+        && index($quote, "\\")==-1){                            # issue s23: Don't enclose in single quotes if we have possible \Q \U, etc
       $outer_delim="'";
     }else{
       $outer_delim='"""';
@@ -3943,8 +4006,209 @@ my  $outer_delim;
    $result='f'.$outer_delim; #For python 3 we need special opening quote
    $prev = '';
    my ($sig, $dot);                     # issue 47
+   my ($next_c, $next_3, $func_1, $prior_semode, $new_semode, $func);
    while( $k > -1  ){
       $sig = substr($quote,$k,1);       # issue 47
+      if($sig eq "\\") {                # issue s28
+          # we have the first literal string  before the escape
+          if($special_escape_mode == 0 && ($special_escape_flags == 0 || !($special_escape_flags & Bracketed))) {
+              $result.=remove_perl_escapes(substr($quote,0,$k),$in_regex,1); # issue bootstrap, issue s28
+          } else {              # We are bracketed, so put these chars in one by one
+              for(my $i = 0; $i < $k; $i++) {
+                  my $ch = substr($quote,$i,1);
+                  if(exists $SPECIAL_ESCAPES{$ch}) {      # a char like ' that we have to escape
+                      if($special_escape_flags & InString) {     # first clean up what we have here
+                          $result.="'";
+                          $special_escape_flags &= ~InString;
+                          $special_escape_flags |= NeedConcat;
+                      }
+                      if($special_escape_flags & NeedConcat) {
+                          $result.="+";
+                          $special_escape_flags &= ~NeedConcat;
+                      }
+                      $result.=$SPECIAL_ESCAPES{$ch};
+                      $special_escape_flags |= NeedConcat;
+                  } else {                      # we have some other character to add in to the mix
+                      if(!($special_escape_flags & InString)) {
+                          if($special_escape_flags & NeedConcat) {
+                              $result.="+";
+                              $special_escape_flags &= ~NeedConcat;
+                          }
+                          $result.="'";
+                          $special_escape_flags |= InString;
+                      }
+                      $result.=$ch;
+                  }
+              }
+          }
+          $quote=substr($quote,$k);
+          $k=0;
+          while($k > -1) {              # issue s28
+              $sig = substr($quote,$k,1);
+              if($sig ne "\\") {
+                  if(($sig eq '$' || $sig eq '@') && $k+1 < length($quote)) {      # We need to go and interpolate something good
+                      if($special_escape_flags & InString) {     # first clean up what we have here
+                          $result.="'";
+                          $special_escape_flags &= ~InString;
+                          $special_escape_flags |= NeedConcat;
+                      }
+                      if($special_escape_flags & NeedConcat) {
+                          $result.="+";
+                          $special_escape_flags &= ~NeedConcat;
+                      }
+                      last;
+                  } elsif(exists $SPECIAL_ESCAPES{$sig}) {      # a char like ' that we have to escape
+                      if($special_escape_flags & InString) {     # first clean up what we have here
+                          $result.="'";
+                          $special_escape_flags &= ~InString;
+                          $special_escape_flags |= NeedConcat;
+                      }
+                      if($special_escape_flags & NeedConcat) {
+                          $result.="+";
+                          $special_escape_flags &= ~NeedConcat;
+                      }
+                      $result.=$SPECIAL_ESCAPES{$sig};
+                      $special_escape_flags |= NeedConcat;
+                  } else {                      # we have some other character to add in to the mix
+                      if(!($special_escape_flags & InString)) {
+                          if($special_escape_flags & NeedConcat) {
+                              $result.="+";
+                              $special_escape_flags &= ~NeedConcat;
+                          }
+                          $result.="'";
+                          $special_escape_flags |= InString;
+                      }
+                      $result.=$sig;
+                      $sig = '';
+                  }
+                  $quote = substr($quote,1);    # Eat a char
+                  $k = -1 if(length($quote) == 0);      # Done
+                  next;
+              }
+
+              # At this point we have a \ character
+
+              if(exists $SPECIAL_ESCAPE_MODES{$next_c = substr($quote,$k+1,1)}) {
+                  $quote = substr($quote,1);    # Eat the \ char
+              } else {
+                  last if($special_escape_mode == 0 && $special_escape_flags == 0);   # We're done or don't belong here
+                  if($special_escape_flags & Bracketed) {        # Escapes are not allowed in brackets, so we have to do something else
+                      if($special_escape_flags & InString) {
+                          $result.="'";
+                          $special_escape_flags &= ~InString;
+                          $special_escape_flags |= NeedConcat;
+                      }
+                      if($special_escape_flags & NeedConcat) {
+                          $result.="+";
+                          $special_escape_flags &= ~NeedConcat;
+                      }
+                      ($func, $quote) = replace_escape_with_chr($quote, $in_regex);
+                      $result.=$func;
+                      $special_escape_flags |= NeedConcat;
+                  } else {
+                      $result.=remove_perl_escapes(substr($quote,0,$k+1),$in_regex,1);
+                      $quote = substr($quote,$k+1);
+                      $k = -1 if(length($quote) == 0);      # Done
+                      $sig = '';
+                      next;
+                  }
+                  $k = -1 if(length($quote) == 0);      # Done
+                  $sig = '';
+                  next;
+              }
+
+              # At this point we have an special escape sequence
+
+              if(($next_3 = substr($quote,$k,3)) eq "L\\u" || $next_3 eq "U\\l") {    # Swap these special cases
+                  substr($quote,$k,1) = substr($next_3,2,1);
+                  substr($quote,$k+2,1) = substr($next_3,0,1);
+                  $next_c = substr($quote,$k,1);
+              }
+              $prior_semode = $special_escape_mode;
+              $new_semode = $SPECIAL_ESCAPE_MODES{$next_c};
+              $special_escape_mode |= $new_semode;
+              if(!($special_escape_flags & Bracketed)) {
+                  $result.='{';
+                  $special_escape_flags |= Bracketed;
+              }
+              if($special_escape_flags & InString) {
+                  $result.="'";
+                  $special_escape_flags &= ~InString;
+                  $special_escape_flags |= NeedConcat;
+              }
+              $func = $SPECIAL_ESCAPE_FUNCTIONS{$next_c};
+              if($func eq '') {         # \E has no function because it's the end
+                  do {          # only \L \U \F and \Q have corresponding \E, if anything else, keep popping
+                      my $stacked = pop @special_escape_stack;
+                      ($special_escape_mode, $new_semode, $func) = split /,/, $stacked;
+                      $result.=$func;
+                  } until($new_semode & (L_mode|U_mode|F_mode|Q_mode));
+                  if(scalar(@special_escape_stack)) {
+                      my $stacked = $special_escape_stack[-1];
+                      my ($sem, $new_s, $f) = split /,/, $stacked;
+                      if($new_s & (l_mode|u_mode)) {    # if we have a \l or \u just before the \L \U \F or \Q, then we can process that too
+                          pop @special_escape_stack;
+                          $special_escape_mode = $sem;
+                          $result.=$f;
+                      }
+                  }
+                  if(!scalar(@special_escape_stack) & ($special_escape_flags & Bracketed)) {
+                      # if the stack is empty and we are bracketed, then we can end them
+                      if($special_escape_flags & InString) {
+                          $result.="'";
+                          $special_escape_flags &= ~InString;
+                      }
+                      $result.='}';
+                      $special_escape_flags &= ~NeedConcat;
+                      $special_escape_flags &= ~Bracketed;
+                      $quote = substr($quote,1);    # Eat a char
+                      $k = -1;
+                      last;
+                  }
+              } else {
+                  if($special_escape_flags & NeedConcat) {
+                      $result.="+";
+                      $special_escape_flags &= ~NeedConcat;
+                  }
+                  if(($func_1 = substr($func,0,1)) eq '_') {
+                      if($::import_perllib) {
+                          $func = $PERLLIB . '.' . substr($func,1);
+                      } else {
+                          $::Pyf{$func} = 1;
+                      }
+                  }
+
+                  if($func_1 eq '.') {              # This is a tail function
+                      $result.='(';
+                      push @special_escape_stack, ($prior_semode . ','. $new_semode . ",)$func");
+                  } else {
+                      $result.="$func(";
+                      push @special_escape_stack, ($prior_semode . ','. $new_semode . ",)");
+                  }
+              }
+              $quote = substr($quote,1);    # Eat a char
+              $k = -1 if(length($quote) == 0);      # Done
+          } # while  issue s28
+      } # if  issue s28
+      if($sig eq "\\") {                        # issue s28
+          my $pos = 0;
+          if($k >= 0 && substr($quote,$k,1) eq $sig) {                        # issue s28
+              $pos = end_of_escape(substr($quote,$k), 1)+$k+1;   # issue s28: Skip the escape sequence which could be like \c@ \123 or \N{name...}
+          } else {                              # if we processed an escape sequence, then just start at the beginning of $quote
+              $k = 0 if $k < 0;
+          }
+          if(substr($quote,$pos) =~ m'[$@\\]') {
+              my $kk = $-[0] + $pos;                       # match pos
+              $result.=remove_perl_escapes(substr($quote,$k,$kk-$k),$in_regex,1);   # Put the chars in the output
+              $quote = substr($quote,$kk);       # We just put these chars in the output
+              $k=0;
+          } else {
+              $result.=remove_perl_escapes(substr($quote,$k),$in_regex,1);   # Put the chars in the output
+              $quote='';
+              $k=-1;
+          }
+          next;
+      }
       if( $k > 0 ){
          $pc = substr($quote,$k-1,1);   # issue 47
          if(is_escaped($quote,$k)) {    # issue 47
@@ -3971,19 +4235,32 @@ my  $outer_delim;
                 logme('W',"Possible unintended interpolation of " . substr($quote,$k,$dot-$k) . " in string");
             }
             # we have the first literal string  before varible
-            $result.=remove_perl_escapes(substr($quote,0,$k),$in_regex); # issue bootstrap
+            $result.=remove_perl_escapes(substr($quote,0,$k),$in_regex,1); # issue bootstrap
          }
       }
       $quote=substr($quote,$k);
       if($quote eq $sig || (substr($quote,0,1) eq $sig && substr($quote,1) =~ /^\s+$/)) {   # issue 111: Handle "...$"
+          if($special_escape_flags & Bracketed) {       # issue s28
+              if(!($special_escape_flags & InString)) {
+                  if($special_escape_flags & NeedConcat) {
+                      $result.="+";
+                      $special_escape_flags &= ~NeedConcat;
+                  }
+                  $result.="'";
+                  $special_escape_flags |= InString;
+              }
+          }
           $result.=$quote;
           $quote = '';
           last;
       }
-      $result.='{';  # we always need '{' for f-strings
+      if(!($special_escape_flags & Bracketed)) {         # issue s28
+          $result.='{';  # we always need '{' for f-strings
+          $special_escape_flags |= Bracketed;
+      }
       #say STDERR "quote1=$quote\n";
       my $end_br = -1;				# issue 43
-      if(substr($quote,1,1) eq '{') {		# issue 43: ${...}
+      if(length($quote) != 0 && substr($quote,1,1) eq '{') {		# issue 43: ${...}
          $end_br = matching_curly_br($quote, 1); # issue 43
          if(substr($quote,2,2) eq "\\(" && $end_br != -1) {
              $result .= handle_expr_in_string($quote, 3);        # ${\(expr_in_scalar_context)}
@@ -4011,10 +4288,11 @@ my  $outer_delim;
          decode_scalar($quote,0,1,$in_regex); #get's us scalar or system var, 0=don't update, 1=in_string
          if($cut == 1) {     # Just a '$' with no variable
             substr($result,-1,1) = '';      # Remove the '{'
+            $special_escape_flags &= ~Bracketed;   # issue s28
             substr($quote,$end_br-1,1) = '' if($end_br >= 0);
             $quote=substr($quote,$cut);
             $k = -1;                            # issue 47
-            if($quote =~ m'[$@]') {             # issue 47
+            if($quote =~ m'[$@\\]') {             # issue 47, issue s28
                 $k = $-[0];                     # issue 47: Match pos
             }
             if($k == 0) {
@@ -4026,10 +4304,11 @@ my  $outer_delim;
             next;
          } elsif($in_regex && $cut == 2 && substr($quote,0,2) eq '$)') {        # '$' at the end of a capture group!
             substr($result,-1,1) = '';      # Remove the '{'
+            $special_escape_flags &= ~Bracketed;   # issue s28
             substr($quote,$end_br-1,1) = '' if($end_br >= 0);
             $quote=substr($quote,$cut);
             $k = -1;                            # issue 47
-            if($quote =~ m'[$@]') {             # issue 47
+            if($quote =~ m'[$@\\]') {             # issue 47, issue s28
                 $k = $-[0];                     # issue 47: Match pos
             }
             $result .= '$)';
@@ -4043,7 +4322,7 @@ my  $outer_delim;
          #} elsif($next_c eq '{') {
          #substr($ValPerl[$tno],0,1) = '%';
          #}
-         my $next_c = substr($quote,$cut,1);    # SNOOPYJC
+         $next_c = substr($quote,$cut,1);       # SNOOPYJC
          if($in_regex && $next_c eq '[') {      # SNOOPYJC: Try to distinguish between a regex character class and a subscript
              my $nnc = substr($quote,$cut+1,1);
              if($nnc !~ m'[\d$]') {  # Only allow a digit or a $ sigil
@@ -4090,10 +4369,11 @@ my  $outer_delim;
             decode_array($quote); #get's us array or system var
             if($cut == 1) {     # Just a '@' with no variable
                 substr($result,-1,1) = '';      # Remove the '{'
+                $special_escape_flags &= ~Bracketed;   # issue s28
                 substr($quote,$end_br-1,1) = '' if($end_br >= 0);
                 $quote=substr($quote,$cut);
                 $k = -1;                            # issue 47
-                if($quote =~ m'[$@]') {             # issue 47
+                if($quote =~ m'[$@\\]') {             # issue 47, issue s28
                     $k = $-[0];                     # issue 47: Match pos
                 }
                 if($k == 0) {             # SNOOPYJC: If we have @$, then just eat the '@', but remember for the next round
@@ -4231,18 +4511,65 @@ my  $outer_delim;
       }
       #say STDERR "quote5=$quote, end_br=$end_br";
       $quote = substr($quote, $end_br) if($end_br > 0);	# issue 43
-      $result.='}'; # end of variable
+      if($special_escape_flags == Bracketed && $special_escape_mode == 0) { # issue s28: we have Bracketed but no other flags so it's ok to end the bracket here
+          $result.='}'; # end of variable
+          $special_escape_flags &= ~Bracketed;   # issue s28
+      } else {
+          $special_escape_flags |= NeedConcat;  # issue s28
+      }
       # issue 47 $k=index($quote,'$'); #next scalar
       $k = -1;                            # issue 47
-      if($quote =~ m'[$@]') {             # issue 47
+      if($quote =~ m'[$@\\]') {           # issue 47, issue s28
           $k = $-[0];                     # issue 47: Match pos
       }
-   }
+   } # while
 
    if( length($quote)>0  ){
-       #the last part
-       $result.=remove_perl_escapes($quote,$in_regex);	# issue bootstrap
+      #the last part
+      if($special_escape_mode == 0 && ($special_escape_flags == 0 || !($special_escape_flags & Bracketed))) {
+          $result.=remove_perl_escapes($quote,$in_regex,1); # issue bootstrap
+      } else {              # We are bracketed, so put these chars in one by one
+          for(my $i = 0; $i < length($quote); $i++) {
+              my $ch = substr($quote,$i,1);
+              if(exists $SPECIAL_ESCAPES{$ch}) {      # a char like ' that we have to escape
+                  if($special_escape_flags & InString) {     # first clean up what we have here
+                      $result.="'";
+                      $special_escape_flags &= ~InString;
+                      $special_escape_flags |= NeedConcat;
+                  }
+                  if($special_escape_flags & NeedConcat) {
+                      $result.="+";
+                      $special_escape_flags &= ~NeedConcat;
+                  }
+                  $result.=$SPECIAL_ESCAPES{$ch};
+                  $special_escape_flags |= NeedConcat;
+              } else {                      # we have some other character to add in to the mix
+                  if(!($special_escape_flags & InString)) {
+                      if($special_escape_flags & NeedConcat) {
+                          $result.="+";
+                          $special_escape_flags &= ~NeedConcat;
+                      }
+                      $result.="'";
+                      $special_escape_flags |= InString;
+                  }
+                  $result.=$ch;
+              }
+          }
+      }
    }
+   if($special_escape_flags & InString) {        # issue s28
+       $result.="'";
+       $special_escape_flags &= ~InString;
+   }
+   while(scalar(@special_escape_stack)) {       # issue s28
+       my $stacked = pop @special_escape_stack;
+       ($special_escape_mode, $new_semode, $func) = split /,/, $stacked;
+       $result.=$func;
+   }
+   if($special_escape_flags & Bracketed) {       # issue s28
+       $result.='}'; # end of variable
+   }
+
    if($outer_delim eq '"""') {
       if(substr($result,-1,1) eq '"' && !is_escaped($result, length($result)-1)) {  # SNOOPYJC: quote at end - we have to fix this!
           $result = substr($result,0,length($result)-1)."\\".'"';
@@ -4633,23 +4960,46 @@ sub decode_bare         # issue 108
      }                                      # SNOOPYJC
 }
 
-sub interpolate_string_hex_escapes
+sub perl_hex_escapes_to_python
 # For strings that contain perl hex escapes (\x{HHH...}), change them to python hex escapes (of 3 varieties)
-# Also handles \c escapes and \o escapes
+# Also handles \c escapes and \o escapes.  The string passed can have multiple escapes and other string sequences in it.
+# issue s28: in f"..." strings, the {...} brackets are doubled to {{...}} so we have to handle that here
 {
     my $str = shift;
+    my $has_double_brackets = (scalar(@_) == 0 ? 0 : $_[0]);   # issue s28
 
-    $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\c(.)/sprintf "\\x{%x}", (ord(uc $1) ^ 64)/eg;
-    $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\o\{\s*([0-7]+)\s*\}/sprintf "\\x{%x}", oct($1)/eg;
+    print STDERR "perl_hex_escapes_to_python($str, $has_double_brackets) = " if($::debug >= 5);
 
-    $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{\s*([A-Fa-f0-9])\s*\}/\\x0$1/g;
-    $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{\s*([A-Fa-f0-9]{2})\s*\}/\\x$1/g;
-    $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{([A-Fa-f0-9]{3})\}/\\u0$1/g;
-    $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{([A-Fa-f0-9]{4})\}/\\u$1/g;
-    $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{([A-Fa-f0-9]{5})\}/\\U000$1/g;
-    $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{([A-Fa-f0-9]{6})\}/\\U00$1/g;
-    $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{([A-Fa-f0-9]{7})\}/\\U0$1/g;
-    $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{([A-Fa-f0-9]{8})\}/\\U$1/g;
+
+    if($has_double_brackets) {
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\c(.)/sprintf "\\x{{%x}}", (ord(uc $1) ^ 64)/eg;
+
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\o\{\{\s*([0-7]+)\s*\}\}/sprintf "\\x{{%x}}", oct($1)/eg;
+
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{\{\s*([A-Fa-f0-9])\s*\}\}/\\x0$1/g;
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{\{\s*([A-Fa-f0-9]{2})\s*\}\}/\\x$1/g;
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{\{([A-Fa-f0-9]{3})\}\}/\\u0$1/g;
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{\{([A-Fa-f0-9]{4})\}\}/\\u$1/g;
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{\{([A-Fa-f0-9]{5})\}\}/\\U000$1/g;
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{\{([A-Fa-f0-9]{6})\}\}/\\U00$1/g;
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{\{([A-Fa-f0-9]{7})\}\}/\\U0$1/g;
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{\{([A-Fa-f0-9]{8})\}\}/\\U$1/g;
+    } else {
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\c(.)/sprintf "\\x{%x}", (ord(uc $1) ^ 64)/eg;
+
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\o\{\s*([0-7]+)\s*\}/sprintf "\\x{%x}", oct($1)/eg;
+
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{\s*([A-Fa-f0-9])\s*\}/\\x0$1/g;
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{\s*([A-Fa-f0-9]{2})\s*\}/\\x$1/g;
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{([A-Fa-f0-9]{3})\}/\\u0$1/g;
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{([A-Fa-f0-9]{4})\}/\\u$1/g;
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{([A-Fa-f0-9]{5})\}/\\U000$1/g;
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{([A-Fa-f0-9]{6})\}/\\U00$1/g;
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{([A-Fa-f0-9]{7})\}/\\U0$1/g;
+        $str =~ s/(?:(?<=[\\][\\])|(?<![\\]))\\x\{([A-Fa-f0-9]{8})\}/\\U$1/g;
+    }
+
+    say STDERR "$str" if($::debug >= 5);
 
     return $str;
 }
@@ -4675,7 +5025,7 @@ sub escape_non_printables               # SNOOPYJC: Escape non-printable chars
                $new .= $ch;
            }
        }
-       $string = interpolate_string_hex_escapes($new);
+       $string = perl_hex_escapes_to_python($new);
    }
    return $string;
 }
@@ -4708,9 +5058,11 @@ my $result;
 }
 
 # ref https://docs.python.org/3/reference/lexical_analysis.html?highlight=escape#string-and-bytes-literals
-$allowed_escapes = "\n\\'\"abfnrtv01234567xNuU";
+# issue s28 $allowed_escapes = "\n\\'\"abfnrtv01234567xNuU";
+$allowed_escapes = "\n\\'\"abfnrtv01234567xNoc";         # issue s28: \u and \U in perl are not the same as \U in python!  We allow o and c because we remove them at the end in perl_hex_escapes_to_python
 # ref https://docs.python.org/3/library/re.html
-$allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDsSwWZgabfnrtv0123456789xNuU/;
+# issue s28 $allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDsSwWZgabfnrtv0123456789xNuU/;
+$allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDsSwWZgabfnrtv0123456789xNoc/;        # issue s28: remove \u and \U
 
 sub remove_perl_escapes         # issue bootstrap
 # Remove any escape sequences allowed by perl but not allowed by python, e.g. \[ \{ \$ \@ etc
@@ -4718,11 +5070,14 @@ sub remove_perl_escapes         # issue bootstrap
 {
     my $string = shift;
     my $in_regex = shift;
+    my $has_double_brackets = (scalar(@_) == 0 ? 0 : $_[0]);   # issue s28
 
     return $string if($string !~ /\\/);	# quickly scan for an escape char
 
     my $result = '';
     my $allowed = ($in_regex ? $allowed_escapes_in_regex : $allowed_escapes);
+    my $mode = 0;               # issue s28
+    my @stack = ();             # issue s28
 
     for(my $i =0; $i < length($string); $i++) {
         my $ch = substr($string,$i,1);
@@ -4730,15 +5085,65 @@ sub remove_perl_escapes         # issue bootstrap
             my $ch2 = substr($string,$i+1,1);
             if(index($allowed, $ch2) >= 0) {
                 $result .= $ch . $ch2;
+            } elsif(exists $SPECIAL_ESCAPE_MODES{$ch2}) {       # issue s28
+                my $next_3 = substr($string,$i+1,3);
+                if($next_3 eq "u\\L" || $next_3 eq "l\\U") {    # swap \u\L to \L\u and \l\U to \U\l
+                    substr($string,$i+1,1) = substr($next_3,2,1);
+                    substr($string,$i+3,1) = substr($next_3,0,1);
+                    $ch2 = substr($string,$i+1,1);
+                }
+                my $m = $SPECIAL_ESCAPE_MODES{$ch2};
+                if($m == 0) {   # \E
+                    if(scalar(@stack) == 0) {
+                        $mode = 0;
+                    } else {
+                        $mode = pop @stack;
+                    }
+                } else {
+                    if($m & L_mode) {           # these modes are mutually exclusive
+                        $mode &= ~U_mode;
+                        $mode &= ~F_mode;
+                    } elsif($m & U_mode) {
+                        $mode &= ~L_mode;
+                        $mode &= ~F_mode;
+                    } elsif($m & F_mode) {
+                        $mode &= ~U_mode;
+                        $mode &= ~L_mode;
+                    }
+                    push @stack, $mode;
+                    $mode |= $m;
+                }
             } else {
                 $result .= $ch2;
             }
             $i++;
             next;
         }
+        if($mode & L_mode) {            # issue s28
+            $ch = lc $ch;
+        } elsif($mode & U_mode) {
+            $ch = uc $ch;
+        } elsif($mode & F_mode) {
+            $ch = fc $ch;
+        }
+        if($mode & l_mode) {
+            $ch = lc $ch;
+            $mode = (scalar(@stack) ? pop @stack : 0);
+        } elsif($mode & u_mode) {
+            $ch = uc $ch;
+            $mode = (scalar(@stack) ? pop @stack : 0);
+        }
+        if($mode & Q_mode) {
+            $ch = quotemeta $ch;
+            if(!$is_regex && substr($ch,0,1) eq "\\") {  # we need to double the escapes so the "\" character comes thru as we are not generating a 'r' string in python
+                $ch = "\\" . $ch;
+            }
+        }
+
         $result .= $ch;
     }
-    return $result;
+    # issue s28 return $result;
+    return perl_hex_escapes_to_python($result, $has_double_brackets); # issue s28: We interpolate after now to handle perl \u and \U properly
 }
 
 sub escape_triple_singlequotes          # SNOOPYJC
@@ -4831,6 +5236,13 @@ sub perl_regex_to_python
     }
 
     return $regex;
+}
+
+sub escape_only_backslash               # issue s23
+# Escape only the backslach character in the given string
+{
+    my $string = shift;
+    return $string =~ s/\\/\\\\/gr;
 }
 
 sub escape_backslash
@@ -5689,12 +6101,74 @@ sub get_rest_of_variable_name   # issue ws after sigil
     return $source;
 }
 
-my %ch_escapes = (t=>"\t", n=>"\n", r=>"\r", f=>"\f", b=>"\b", a=>"\a", e=>"\e");
+my %ch_escapes = (t=>"\t", n=>"\n", r=>"\r", f=>"\f", b=>"\b", a=>"\a", e=>"\e", v=>"\013");
 
-sub unescape_string             # SNOOPYJC
-# Given a string remove all escapes in it, except for \-
+sub end_of_escape               # issue s28
+# Given a string that starts with an escape sequence, return the index to the last char of
+# that escape sequence.
 {
     my $arg = shift;
+    my $has_double_brackets = shift;
+
+    my $i = 0;
+    # Code skeleton stolen from unescape_string
+
+    my $ch2 = substr($arg,$i+1,1);
+    if(exists $ch_escapes{$ch2}) {
+        $i++;
+    } elsif($ch2 eq 'x') {
+        my $ch3 = substr($arg,$i+2,1);
+        if($ch3 eq '{') {
+            my $end_br = matching_curly_br($arg, $i+2);
+            if($has_double_brackets) {          # issue s28
+                $i++;
+                $end_br--;
+            }
+            $i = $end_br;
+            $i++ if $has_double_brackets;
+        } else {
+            if(substr($arg,$i+2) =~ /([0-9a-fA-F]+)/) {
+                $i += length($1)+1;
+            } else {
+                $i++;
+            }
+        }
+    } elsif($ch2 eq 'c') {
+        $i+=2;
+    } elsif($ch2 eq 'o' && substr($arg,$i+2,1) eq '{') {
+        my $end_br = matching_curly_br($arg, $i+2);
+        if($has_double_brackets) {          # issue s28
+            $i++;
+            $end_br--;
+        }
+        $i = $end_br;
+        $i++ if $has_double_brackets;
+    } elsif($ch2 eq 'N' && substr($arg,$i+2,1) eq '{') {
+        my $end_br = matching_curly_br($arg, $i+2);
+        if($has_double_brackets) {          # issue s28
+            $i++;
+            $end_br--;
+        }
+        $i = $end_br;
+        $i++ if $has_double_brackets;
+    } elsif(substr($arg,$i+1) =~ /([0-7]+)/) {
+        $i += length($1);
+    } elsif($ch2 eq '-') {
+        $i++;
+    } elsif($ch2 eq "\\") {     # issue s27
+        $i++
+    } else {
+        $i++;
+    }
+    say STDERR "end_of_escape($arg) = $i" if($::debug >= 5);
+    return $i;
+}
+
+sub unescape_string             # SNOOPYJC
+# Given a string remove all escapes in it, except for \-, issue s27: and \\
+{
+    my $arg = shift;
+    my $has_double_brackets = (@_ >= 1 ? $_[0] : 0);    # issue s28
     my $result = '';
 
     for(my $i = 0; $i < length($arg); $i++) {
@@ -5708,8 +6182,13 @@ sub unescape_string             # SNOOPYJC
                 my $ch3 = substr($arg,$i+2,1);
                 if($ch3 eq '{') {
                     my $end_br = matching_curly_br($arg, $i+2);
+                    if($has_double_brackets) {          # issue s28
+                        $i++;
+                        $end_br--;
+                    }
                     $ch = chr(hex(substr($arg,$i+3,$end_br-($i+3))));
                     $i = $end_br;
+                    $i++ if $has_double_brackets;
                 } else {
                     if(substr($arg,$i+2) =~ /([0-9a-fA-F]+)/) {
                         $ch = chr(hex($1));
@@ -5725,10 +6204,19 @@ sub unescape_string             # SNOOPYJC
                 $i+=2;
             } elsif($ch2 eq 'o' && substr($arg,$i+2,1) eq '{') {
                 my $end_br = matching_curly_br($arg, $i+2);
+                if($has_double_brackets) {          # issue s28
+                    $i++;
+                    $end_br--;
+                }
                 $ch = chr(oct(substr($arg,$i+3,$end_br-($i+3))));
                 $i = $end_br;
+                $i++ if $has_double_brackets;
             } elsif($ch2 eq 'N' && substr($arg,$i+2,1) eq '{') {
                 my $end_br = matching_curly_br($arg, $i+2);
+                if($has_double_brackets) {          # issue s28
+                    $i++;
+                    $end_br--;
+                }
                 my $charname = substr($arg,$i+3,$end_br-($i+3));
                 if(substr($charname,0,2) eq 'U+') {
                     $charname = charnames::viacode($charname);
@@ -5743,12 +6231,16 @@ sub unescape_string             # SNOOPYJC
                     $ch="\0";
                 }
                 $i = $end_br;
+                $i++ if $has_double_brackets;
             } elsif(substr($arg,$i+1) =~ /([0-7]+)/) {
                 $ch = chr(oct($1));
                 $i += length($1);
             } elsif($ch2 eq '-') {
                 $ch = "\\-";
                 $i++;
+            } elsif($ch2 eq "\\") {     # issue s27
+                $ch = "\\\\";           # issue s27 - this is 2 backslashes
+                $i++
             } else {
                 $ch = $ch2;
                 $i++;
@@ -5772,7 +6264,9 @@ sub expand_ranges                       # SNOOPYJC
         for(my $i = 0; $i < length($arg); $i++) {
             my $ch = substr($arg,$i,1);
             if($ch eq "\\") {
-                $result .= $ch;
+                # issue s23 $result .= $ch;
+                $ch = substr($arg,$i+1,1);      # issue s23
+                $i++;                           # issue s23
             }
             $result .= $ch;
         }
@@ -5799,7 +6293,8 @@ sub expand_ranges                       # SNOOPYJC
             $result .= $ch;
         }
     }
-    return escape_non_printables($result, 1);
+    # issue s23 return escape_non_printables($result, 1);
+    return $result;             # issue s23
 }
 
 sub make_same_length                    # SNOOPYJC
@@ -6300,6 +6795,33 @@ sub is_concat                   # issue s15
     return 0 if($tno == 0);
     return 0 if $ValClass[$tno-1] eq '"' && $ValPerl[$tno-1] =~ /^v\d*/ && substr($ValPy[$tno-1],1,2) eq "\\x"; # version string
     return (index('"sahgjGx)', $ValClass[$tno-1]) >= 0);
+}
+
+sub replace_escape_with_chr             # issue s28
+# We can't use \ in f"{...}" so we must replace this escape character with the equivalent chr(...) call
+# Return a 2-element list with the function and the updated string w/o the escape
+{
+    my $string = shift;
+    my $in_regex = shift;
+
+    my $ch2 = substr($string,1,1);
+    if(exists($SPECIAL_ESCAPES{$ch2})) {
+        $string = substr($string,2);
+        return ($SPECIAL_ESCAPES{$ch2} . '+' . $SPECIAL_ESCAPES{$ch2}, $string) if($ch2 eq "\\" && $in_regex);
+        return ($SPECIAL_ESCAPES{$ch2}, $string);
+    } elsif($ch2 eq '-') {              # unescape_string doesn't handle \-
+        $string = substr($string,2);
+        return ('chr(45)', $string);
+    } else {
+        my $bs2 = index($string, "\\", 2);
+        my $rest = '';
+        if($bs2 != -1) {
+            $rest = substr($string, $bs2);
+            $string = substr($string,0,$bs2);
+        }
+        my $u = unescape_string($string, 1);    # pass "has_double_brackets"
+        return ("chr(" . ord(substr($u,0,1)) . ")", substr($u,1) . $rest);
+    }
 }
 
 1;

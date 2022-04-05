@@ -180,7 +180,8 @@
 # 0.964  2022/03/10  SNOOPYJC  Don't mark variables as initialized if there is a conditional at the end of the statement, don't generate bad return statment if last expression of sub is an unshift, handle @1234 as a variable but give a warning, handle assignment to args and add a warning, remove re.G on a regex in a non-normal place, fix return {}, add -l flag and default to 98 (was 88), strip escape chars where not ignored by python e.g. \[, handle method call with {} in place of argument list, initialize vars that are conditionally set in an eval block, handle TYPE on my/our declarations (and ignore it), in print mysub() - mysub is NOT a file handle, $^X was calling sys.executable() instead of referencing sys.executable properly, fix eval: If no error occurs, eval sets $@ to the empty string (we were setting it to None), calling a local sub in an expression was incorrectly setting all subsequent terms to be in list context, regex (qr) variable not being handled properly when passed as arg and used in match, generate proper code for my/local/our hash or array initialization when extra parens are used around variable name. Library: Fix _init_package for package with dotted name, don't raise exceptions in -C, -A, -M, fix Array __setitem__ with slice
 # 0.965  2022/03/14  SNOOPYJC  Added -R option to remap variables and automatically set it when we translate (or re-translate) use/require modules with cross-module conflicting names, to avoid issues with STDIN and subprocesses on windows - change pythonizer internally to open SYSIN to read the source code instead, was mapping SYSIN to stdin instead of STDIN, <package::FH> is a file handle - not a glob, regex in parens followed by a subscript needs to be treated as in list context, int used as hash key wasn't being converted to a str, multi-reference to hash or array with list or array index wasn't being mapped to proper index or key type, issue bootstrap: Generate proper code for delete $NeedsInitializing{$subname}{$varname}, fix some more type conversion issues, remove excess escape chars on RHS of s///, don't assume we know the types of global variables if we call an outside sub, for bootstrapping - manually parse the output of pythonizer_importer.pl, print ($var); was generating bad code, backslash escape sequences in single quoted strings were being interpolated in the output, print @_ was printing (...,...), implement OUTPUT_FIELD_SEPARATOR and OUTPUT_RECORD_SEPARATOR and always use _perl_print.  BOOTSTRAPPING NOW PASSES ALL TESTS!
 # 0.966  2022/03/20  SNOOPYJC  Don't message about translating a std lib file if we already have it translated, give warning on ref of $scalar, don't die on empty input file, issue s7 - complex expression with || messes up the nesting level, issue s9 - return list needs to return Array([list]), issue s10 - variables declared my/local/state with no init are initialized twice, add File::Spec file_name_is_absolute, catfile, rel2abs, abs2rel, issue s8 - int values passed to regex, s, or tr weren't being convered to strings, issue s11 - * bare_word being treated as typeglob, issue s12 - return from BEGIN block generating wrong code, issue s13 - $var = eval '...' wasn't handled and line with only 0 wasn't being tokenized and nested eval wasn't returning a result, addl fix to remove extra * on issue 37, issue s3 - add functions ceil, floor, trunc, round, exp, log, sin, cos - change exp(99999) to math.inf and also 9**9**9, handle open with single argument, issue s14 - $#Package::var doesn't work, issue bootstrap - substitution in a function arg generates bad code, bare word followed by a scalar or constant is not a string - it's a sub ref, handle multiple ''' on a line in eat_strings - symptom - import line wasn't being cleaned up in test_complex.py, issue bootstrap - generate the right exception name for plain next or last used in a labeled loop, issue s3 - fix syntax error from functions in complex ? : expression, remove extra parens from sprintf and defined functions, add 're' to the list of names that need to be escaped, add '.pattern' to a compiled regex variable used in another regex, if user imports a package that includes a predefined function - call that instead of ours, generate proper code for ${expr}[0], ignore the o flag on a regex, import exp, cos, and sin from a package if they are overloaded even if they are not in @EXPORT, add and use _flt() for conversions to float - like for math functions, properly splat the arguments even if the sub call is fully qualified, list of strings with an int at the end was being incorrectly typed as 'a of S', implement 'wantarray', issue s15 - handle 'a'.1234 as concat, issue s16 - named capture groups are not properly translated into python, implement select function, defined(&POSIX::_exit) was calling the function, implement kill via perllib.kill, assigning to a hashref or arrayref scalar from a {...} or [...] wasn't making the value a Hash or Array, generate proper code for substr with incr/decr included
-# 0.967  2022/03/31  SNOOPYJC
+# 0.967  2022/03/31  SNOOPYJC  Implement -oOutputDir, issue s24 - @X = (split /regex/, $x) generates incorrect code, issue s25 - Reserved word 'in' used as file handle in diamond operator needs to be escaped
+# 0.962  2022/04/02  SNOOPYJC  issue s27 - 'tr' from backslash generates bad code, issue s26 - Multiple anonymous subroutines on the same line all get the same name and all but the last sub don't get a return statement automatically inserted, issue s29 - 'return' or implied return at end of anon sub in a BEGIN block generates incorrect code, issue s31: Assignment to typeglob with a variable name doesn't generate any code, issue s33: stat function doesn't work on a FILEHANDLE or DIRHANDLE and stat_cando doesn't work, issue s36 - Bareword in boolean context should not be translated as a string, issue s35: ... or do {...}; without a while/until generates an infinite loop, issue s37: Assignment to variables with /BEGIN|UNITCHECK|CHECK|INIT/ in their names generates incorrect code, issue s34: Bad code generated for my ( $ldev, $lino, $perm ) = ( lstat $root )[ 0, 1, 2 ] or next ROOT_DIR;, fix issue scanning line in PASS 1 that ends with an interpolated string with the ; on the next line, add the Cwd package, issue s38: Assigning to a hashref marked as an array with a qw containing the list of keys generates bad code
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -230,9 +231,9 @@ BEGIN {                                                 # SNOOPYJC
                  'mapped_name',                         # issue names
                  '@ValType', '$TokenStr');
 
-   use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function); # SNOOPYJC
+   use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.967';
+   $VERSION='0.968';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -737,6 +738,11 @@ my ($start,$token_buffer_active);
             %new_state_var_init=();
             $CurSub='__main__';         # issue 41
          }
+         if($#ValClass > 1 && $ValClass[1] eq 'c' && $ValPerl[1] eq 'while') { # issue s35: end of 'do' in the delayed case
+             #control(1);                        # issue s35
+             my $lno = $Perlscan::nesting_last->{lno};  # issue s35
+             gen_statement("$DO_CONTROL$lno = False");  # issue s35
+         }                                      # issue s35
          #if($nested_sub_at_level >= 0) {
              #say STDERR "Got } on line $., nested_sub_at_level=$nested_sub_at_level, nesting_level=$Perlscan::nesting_level";
          #}
@@ -851,7 +857,7 @@ my ($start,$token_buffer_active);
             }
             correct_nest(0,0);
          }
-      }elsif( $ValPerl[0] =~ /BEGIN|UNITCHECK|CHECK|INIT/ ){    # SNOOPYJC
+      }elsif( $ValPerl[0] =~ /^(?:BEGIN|UNITCHECK|CHECK|INIT)$/ ){    # SNOOPYJC, issue s37
          correct_nest(0,0);
          gen_chunk($ValPy[0],"    # $ValPerl[0]:"); # SNOOPYJC
       }elsif(  $ValPerl[0] eq 'close' ){
@@ -1495,7 +1501,7 @@ my ($start,$token_buffer_active);
             gen_statement();
             gen_statement("raise $EVAL_RETURN_EXCEPTION");
             $eval_stack[-1]->{had_return} = 1;
-         } elsif($ValPy[0] eq 'return' && &Perlscan::in_BEGIN()) {      # issue s12
+         } elsif($ValPy[0] eq 'return' && &Perlscan::in_BEGIN() && !&Perlscan::in_sub()) {      # issue s12, issue s29
              gen_statement("break");                                    # issue s12
          } elsif($ValPy[0] eq 'return' && $CurSub eq '__main__' && $nested_sub_at_level < 0) {   # SNOOPYJC, issue 41, issue 78
              gen_statement("if __name__ == '__main__':");
@@ -2317,7 +2323,10 @@ sub fix_multi_subscripts                                # issue 84
 
     return if($ValClass[0] eq 'f' && $ValPerl[0] eq 'delete');          # issue delete - don't do this transformation
 
-    for(my $i = 0; $i <= $#ValClass; $i++) {
+    my $start = 0;                                                      # issue s34
+    $start = 2 if($ValClass[0] =~ /[Cc]/ && 1 <= $#ValClass && $ValClass[1] eq '(');       # issue s34
+
+    for(my $i = $start; $i <= $#ValClass; $i++) {                       # isue s34
         if(index('a@(', $ValClass[$i]) >= 0) {
             my $sub_start = $i+1;
             if($ValClass[$i] eq '@') {
@@ -2448,7 +2457,8 @@ sub fix_global_and_eval_regex                                    # SNOOPYJC
         $ValPy[$q] =~ s/.re\.E//;
         $ValPy[$q] =~ /,e'''(.*)'''/s;
         my $expr = $1;
-        my $subname = "$ANONYMOUS_SUB$.";
+        # issue s26my $subname = "$ANONYMOUS_SUB$.";
+        my $subname = new_anonymous_sub();     # issue s26
         $nested_subs{$subname} = "$DEFAULT_MATCH";
         #say STDERR "expr=$expr, subname=$subname";
         $ValPy[$q] =~ s/,e'''.*'''/,$subname/s;
@@ -2725,6 +2735,7 @@ sub finish
     if(($CurSub ne '__main__' || scalar(@eval_stack) != 0 || $nested_sub_at_level > 0) && # issue 42, issue 41, issue 78
         defined $line &&                                        # issue 42
         ($line eq '}' || $line =~ m'^}\s*#' || $line eq '};' ||
+        (substr($line,0,1) eq '}' && &Perlscan::could_be_anonymous_sub_close()) ||      # issue s26
          $line =~ m'^\s*}\s*$' || $line =~ m'^\s*};\s*$' ||     # SNOOPYJC
          $line =~ m'^\s*};\s*#') &&                                # issue 42
         #$ValPerl[0] ne 'return' && $Pythonizer::CurNest==1) {      # issue 45
@@ -2732,11 +2743,22 @@ sub finish
         $Pythonizer::CurNest == $eval_nest+1 ||             # issue s13
         $Perlscan::nesting_level == $nested_sub_at_level)) {    # issue 78
         if($debug >= 5) {                                       # issue 45
-            say STDERR "finish: prev_line=$prev_line, PythonCode=@Perlscan::PythonCode";               # issue 45
+            say STDERR "finish: prev_line=$prev_line, line=$line, PythonCode=@Perlscan::PythonCode";               # issue 45
         }                                                       # issue 45
         my $comment='';                                         # SNOOPYJC
         $comment = $1 if($line =~ m'^\s*}(;)$');                # SNOOPYJC: Don't lose a trailing semicolon
         $comment = $1 if($line =~ m'^\s*}(;?\s*#.*)$');            # SNOOPYJC
+        if(!$comment && &Perlscan::could_be_anonymous_sub_close() && $line ne '}' && $line ne '};') {    # issue s26
+            # issue s26: if we have like $prev_line = "2}));" and $line = "}));", remove from $prev_line what
+            # we have in $line, but save it (sans the '{') in $comment for the next round.
+            if(rindex($prev_line, $line) != -1) {                       # issue s26
+                $prev_line = substr($prev_line, 0, length($prev_line)-length($line));   # issue s26
+                $comment = substr($line,1);                             # issue s26
+                if($debug >= 5) {
+                    say STDERR "finish: updated prev_line=$prev_line, comment=$comment";
+                }
+            }
+        }
         if($generated_code == 0 && index('fds"(-a', $ValClass[0]) >= 0) {   # issue 45
             $prev_line =~ s/\s+#.*$//;                          # issue 45: remove comments
             $prev_line =~ s/\s+$//;                             # SNOOPYJC: remove trailing spaces
@@ -3208,7 +3230,7 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
        }elsif($k+2 < $split && $ValPerl[$k] eq '(' && $ValClass[$k+1] eq 'a' && $ValPerl[$k+2] eq ')') { # SNOOPYJC local (@arr) = ...
            gen_chunk($ValPy[$k+1]);
            $k += 3;
-      } elsif($ValPy[$k] eq '[' && $k+3 < $#ValClass && $ValClass[$k+1] eq 'a' && $ValClass[$k+2] eq 'y' && $ValPerl[$k+2] eq 'multi' &&
+      } elsif($ValPy[$k] eq '[' && $k+3 < $#ValClass && $ValClass[$k+1] =~ /[as]/ && $ValClass[$k+2] eq 'y' && $ValPerl[$k+2] eq 'multi' &&
               $ValPy[$k+2] !~ /\.get\(/ &&
               ($ValPy[$k+3] eq '[' || ($ValClass[$k+3] eq 'f' && $ValPy[$k+3] eq $CONVERTER_MAP{'a of I'} && $ValPy[$k+5] eq '['))) {
           # [@a[_i] for _i in [list]] = values   => _assign_sparse(a, [list], [values])
@@ -3221,17 +3243,23 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
           gen_chunk(',');
           $add_right_paren++;
           $skip_assign_op = 1;
-      } elsif($ValPy[$k] eq '[' && $k+3 < $#ValClass && $ValClass[$k+1] eq 'a' && $ValClass[$k+2] eq 'y' && $ValPerl[$k+2] eq 'multi' &&
+      } elsif($ValPy[$k] eq '[' && $k+3 < $#ValClass && $ValClass[$k+1] =~ /[as]/ && $ValClass[$k+2] eq 'y' && $ValPerl[$k+2] eq 'multi' &&
               $ValPy[$k+2] =~ /\.get\(/ &&
-              ($ValPy[$k+3] eq '[' || ($ValClass[$k+3] eq 'f' && $ValPy[$k+3] eq $CONVERTER_MAP{'a of S'} && $ValPy[$k+5] eq '['))) {
+              ($ValPy[$k+3] eq '[' || 
+               ($ValClass[$k+3] eq 'q' && $ValPy[$k+3] =~ /\.split\(\)$/) ||            # issue s38
+                  ($ValClass[$k+3] eq 'f' && $ValPy[$k+3] eq $CONVERTER_MAP{'a of S'} && $ValPy[$k+5] eq '['))) {
           # issue bootstrap
           # [@a.get(_i) for _i in [list]] = values   => _assign_hash(a, [list], [values])
           $Pyf{_assign_hash} = 1;
           gen_chunk('_assign_hash', '(', $ValPy[$k+1], ',');
           my $open = $k+3;
-          $open = $k+5 if($ValClass[$open] eq 'f');
-          my $l = matching_br($open);
-          $TrStatus = expression($open+1, $l-1, 0);
+          if($ValClass[$open] eq 'q') {                         # issue s38: qw/.../
+              $TrStatus = expression($open, $open, 0);          # issue s38
+          } else {
+              $open = $k+5 if($ValClass[$open] eq 'f');
+              my $l = matching_br($open);
+              $TrStatus = expression($open+1, $l-1, 0);
+          }
           gen_chunk(',');
           $add_right_paren++;
           $skip_assign_op = 1;
@@ -4263,6 +4291,9 @@ my  $assign_end=matching_br($assign_start);
    #
    # issue 58: Replace ($this, $that) with $this, and ($this) with $this
    return if(scalar(@_) >=2);           # SNOOPYJC
+   if($ValClass[$assign_start+1] eq 't') {      # issue s34: handle my (..., ...) =
+       destroy($assign_start+1, 1);             # issue s34: delete the 'my'
+   }
    if($ValClass[$assign_start+1] eq '(') {
        my $end = matching_br($assign_start+1);
        my $comma = index($TokenStr,',',$assign_start+2);
@@ -4366,7 +4397,7 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
       my $in_do = 0;
       if(defined $Perlscan::nesting_last && $Perlscan::nesting_last->{type} eq 'do') {
           my $lno = $Perlscan::nesting_last->{lno};
-          $ValPy[0] =~ s/^while\s*/$DO_CONTROL$lno = (/;
+          $ValPy[$begin] =~ s/^while\s*/$DO_CONTROL$lno = (/;
           $in_do = 1;
           correct_nest(1,1);
           $Perlscan::nesting_last = undef;
@@ -6023,6 +6054,16 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
                 gen_chunk(',need_len=True))[0])', ',', $SUBSCRIPT_TEMP, '[1])[1]');
             }
         }
+    }elsif($perl_name eq 'stat_cando') {                # issue s33
+        if($import_perllib) {
+            gen_chunk("$PERLLIB.$py_name");
+        } else {
+            gen_chunk($py_name);
+        }
+        if(substr($ValPy[$start],0,1) eq '*') {
+            $ValPy[$start] = substr($ValPy[$start],1);  # unsplat it
+        }
+        $k = expression($start, $end_pos, 1);
    }elsif(exists $PYF_OUT_PARAMETERS{$orig_py_name}) { # SNOOPYJC: Function with an "out" parameter (we assume it's the first one)
        if($bracketed == -1) {
            gen_chunk("(($DEFAULT_VAR:=($SUBSCRIPT_TEMP:=", $py_name, "($DEFAULT_VAR))[0]),$SUBSCRIPT_TEMP", '[1])[1]');
@@ -7073,11 +7114,13 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
          if($pos>-1 && $ValClass[$pos] eq '~' && $ValPerl[$pos] ne '~') {    # issue 99, SNOOPYJC: Handle '~' operator
             $cur_pos=regex_and_translate($cur_pos,$cur_pos,$pos,$limit)-1;       # issue 99 (-1 is because we add 1 to it below), issue 106
          } elsif( ($LocalSub{$ValPy[$cur_pos]} || $ValPerl[$cur_pos] =~ /::/ ||
+                 (in_boolean_context($cur_pos) && !$Constants{$ValPy[$cur_pos]} &&
+                 substr($ValPerl[$cur_pos],0,1) ne '-') ||           # issue s36 & handle issue 88 (-bareword)
                  ($cur_pos+1 <= $#ValClass && $ValClass[$cur_pos+1] =~ /[ahsd"]/)       # issue s3: bare followed by sub arg is a sub call
              ) && ($cur_pos+1 > $#ValClass || $ValPerl[$cur_pos+1] ne '=>')){		# issue 13: local sub call with no parens, SNOOPYJC: Handle module call with no parens
             if($cur_pos+1 <= $end_pos && $ValClass[$cur_pos+1] eq 'i' && 
                !$LocalSub{$ValPy[$cur_pos+1]} && !$Constants{$ValPy[$cur_pos+1]}) {    # SNOOPYJC: like new Package()
-                gen_chunk($ValPy[$cur_pos+1], '.');
+                gen_chunk(escape_keywords($ValPy[$cur_pos+1],1), '.');
                 gen_chunk(escape_keywords($ValPy[$cur_pos]));				# issue 13, issue 41
                 $cur_pos++;
                 if($cur_pos+1 <= $end_pos && $ValClass[$cur_pos+1] eq '(' && $ValPerl[$cur_pos+1] eq '(') {  # SNOOPYJC: eat the parens
@@ -7088,6 +7131,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
                     $cur_pos++;
                 }
             } else {
+	        &Perlscan::add_package_name_sub($cur_pos);		# SNOOPYJC
                 gen_chunk(escape_keywords($ValPy[$cur_pos]));				# issue 13, issue 41
             }
             my $skip_parens = 0;
@@ -8262,7 +8306,8 @@ sub handle_anonymous_sub_in_expression
 # generate the code for the sub, then continue lexxing and generating the
 # rest of the expression, with the sub replaced by a reference to it.
 {
-    my $subname = "$ANONYMOUS_SUB$.";
+    # issue s26 my $subname = "$ANONYMOUS_SUB$.";
+    my $subname = new_anonymous_sub();     # issue s26
     $nested_subs{$subname} = "\*$PERL_ARG_ARRAY";
     $saved_sub_tokens = package_tokens();
     p_replace($saved_sub_tokens, $#ValClass,'"',$subname,$subname);     # Change the 'sub' to the subname reference
@@ -9934,6 +9979,20 @@ sub capture_expression_value_if_needed                  # issue substr/incr/decr
         }
     }
     return undef;
+}
+
+sub in_boolean_context          # issue s36
+# Check if this bareword is in a boolean context, and therefore is a subref and not a string
+{
+    my $pos = shift;
+
+    return 1 if $pos-2 >= 0 && $ValClass[$pos-2] =~ /[Cc]/ && ($pos+1 > $#ValClass || $ValClass[$pos+1] !~ /[.<,]/);    # if(BARE
+    return 1 if $pos-1 >= 0 && $ValClass[$pos-1] =~ /[Cc]/ && ($pos+1 > $#ValClass || $ValClass[$pos+1] !~ /[.<,]/);    # if BARE (e.g. as stmt modifier)
+    return 1 if $pos != 0 && $ValClass[$pos-1] =~ /[0o]/ && ($pos+1 > $#ValClass || $ValClass[$pos+1] !~ /[.<,]/);
+    return 1 if $pos+1 < $#ValClass && $ValClass[$pos+1] =~ /[0o]/ && ($pos == 0 || $ValClass[$pos-1] !~ /[.<,]/);
+    return 1 if $pos+1 < $#ValClass && $ValClass[$pos+1] eq ':' && $pos != 0 && $ValPerl[$pos-1] eq '?';
+    return 0;
+
 }
 
 __DATA__
