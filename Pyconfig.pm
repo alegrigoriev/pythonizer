@@ -381,6 +381,14 @@ our %PREDEFINED_PACKAGES = (
 	'Data::Dumper'=> [{perl=>'Dumper', type=>'m:S'}],
 	'Text::Balanced'=> [{perl=>'extract_bracketed', type=>'SS?S?:a', scalar=>'_extract_bracketed_s', scalar_type=>'SS?S?:S', scalar_out_parameter=>1}],	# First parameter to scalar version is "out" parameter
 	'Storable'=> [{perl=>'dclone', type=>'m:m', python=>'copy.deepcopy'}],
+	'Cwd'=> [{perl=>'getcwd', type=>':S', python=>'os.getcwd'},
+		 {perl=>'cwd', type=>':S', python=>'os.getcwd'},
+		 {perl=>'fastcwd', type=>':S', python=>'os.getcwd'},
+		 {perl=>'fastgetcwd', type=>':S', python=>'os.getcwd'},
+		 {perl=>'abs_path', type=>'S?:S', python=>'_abspath'},
+		 {perl=>'realpath', type=>'S?:S', python=>'_abspath'},
+		 {perl=>'fast_abs_path', type=>'S?:S', python=>'_abspath'},
+	        ],
 	       );
 
 

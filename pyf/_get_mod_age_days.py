@@ -8,6 +8,10 @@ def _get_mod_age_days(path):        # -M
         t = path._mtime
     else:
         try:
+            if hasattr(path, 'fileno') and os.stat in os.supports_fd:
+                path = path.fileno()
+            elif hasattr(path, 'name'):
+                path = path.name
             t = os.path.getmtime(path)
         except Exception as _e:
             OS_ERROR = str(_e)

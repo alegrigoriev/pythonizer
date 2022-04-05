@@ -4,6 +4,10 @@ def _lstat(path):
     if isinstance(path, File_stat):
         return path     # for '_' special variable
     try:
+        if hasattr(path, 'fileno') and os.lstat in os.supports_fd:
+            path = path.fileno()
+        elif hasattr(path, 'name'):
+            path = path.name
         s = os.lstat(path)
     except Exception:
         return ()

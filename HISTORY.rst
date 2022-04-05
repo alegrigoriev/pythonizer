@@ -2,6 +2,11 @@
 History
 =======
 
+0.968 (2022-04-01)
+------------------
+
+* Add _utime, fix _stat and friends to work on filehandles and dirhandles.  Add _abspath for Cwd::abs_path.
+
 0.967 (2022-03-31)
 ------------------
 

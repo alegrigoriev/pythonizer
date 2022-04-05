@@ -58,6 +58,15 @@ assert($cnt == 30);
 $cnt += 2 and $cnt += 3 if $is_raining;
 assert($cnt == 30);
 
+# issue s35:
+go_outside() and do {$cnt++; play(); take_the_umbrella()};
+assert($cnt == 35);
+
+go_outside() and do {$cnt++; play() and take_the_umbrella()};
+assert($cnt == 40);
+
+go_outside() and do {$cnt++; play() or take_the_umbrella()};
+assert($cnt == 43);
 
 sub go_outside {
 	$cnt++;

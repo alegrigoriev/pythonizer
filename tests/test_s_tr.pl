@@ -326,4 +326,14 @@ $ldel = "\c@\ca\cz\o{1}-abc\x{ 1A }";
 $ldel =~ tr/\N{U+0}-\N{U+1a}//d;
 assert($ldel eq "-abc");
 
+# tests for issue s27:
+#
+my $fd = 'c:\\users\\user';
+$fd =~ tr{\\}(/);
+assert($fd eq 'c:/users/user');
+
+$fd = 'c:\\users\\user';
+$fd =~ tr'\\'/';
+assert($fd eq 'c:/users/user');
+
 print "$0 - test passed!\n";

@@ -37,7 +37,7 @@ require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function); # SNOOPYJC
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $IntactLno = 0;           # issue s6
    $IntactEndLno = 0;        # issue s6
@@ -69,6 +69,8 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $CurPackage = undef; # SNOOPYJC
    $mFlag = 0;          # SNOOPYJC
    $MFlag = 0;          # SNOOPYJC
+   %anonymous_subs_used = ();   # issue s26
+
 #
 #::prolog --  Decode parameter for the pythonizer. all parameters are exported
 #
@@ -610,7 +612,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                   }
                   $ValPy[$i] =~ /,e'''(.*)'''/s;
                   my $expr = $1;
-                  my $subname = "$ANONYMOUS_SUB$.";
+                  # issue s26 my $subname = "$ANONYMOUS_SUB$.";
+                  my $subname = new_anonymous_sub();     # issue s26
                   $::nested_subs{$subname} = "$DEFAULT_MATCH";
                   $::saved_eval_tokens = 1;
                   $::saved_eval_lno = $.;
@@ -639,7 +642,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
           }
       }
       if($#ValClass != 0 && $ValClass[$#ValClass] eq 'k' && $ValPerl[$#ValClass] eq 'sub') {
-         my $subname = "$ANONYMOUS_SUB$.";
+         # issue s26 my $subname = "$ANONYMOUS_SUB$.";
+         my $subname = new_anonymous_sub();     # issue s26
          $::nested_subs{$subname} = "\*$PERL_ARG_ARRAY";
          $::saved_sub_tokens = &::package_tokens();
          $::nested_sub_at_level = $Perlscan::nesting_level;
@@ -819,6 +823,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
    ($::debug) && out("\nList of local subroutines:");
    ($::debug) && out(join(' ', keys %LocalSub));
    #here we have already populated array Sub2name with the list of subs and $global_list with the list of global variables
+   %anonymous_subs_used = ();   # issue s26: Clear it for PASS_2
 }
 
 sub init_val            # SNOOPYJC: Get the initializer value for the var, given the type
@@ -1450,6 +1455,7 @@ sub _expr_type           # Attempt to determine the type of the expression
             return 'S';                 # string
         } elsif($class eq 'q') {        # /regex/
             return 'R' if($ValPerl[$k] eq 'qr');        # Compiled regex
+            return 'a of S' if($ValPy[$k] =~ /\.split\(\)$/);     # issue s38: qw/.../
             return 'S';                 # string
         } elsif($class eq 'i') {
             my $name = $ValPy[$k];
@@ -2620,7 +2626,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                 }
             }
             $defs{$func} = $i;
-        } elsif($line =~ /^\s+def ([A-Za-z0-9_]+)/) {            # issue s3
+        } elsif($line =~ /^\s+def ((?:$ANONYMOUS_SUB)[A-Za-z0-9_]+)/) {            # issue s3
             my $func = $1;
             push @nested, $func;
             $defs{$func} = $lno;
@@ -3156,6 +3162,25 @@ sub trash_global_types
             $VarType{$varname}{$sub} = $type;
         }
     }
+}
+
+sub new_anonymous_sub                   # issue s26
+# Create a new anonymous sub and return the name
+{
+    my $result = "$ANONYMOUS_SUB$.";
+    if(exists $anonymous_subs_used{$result}) {
+        my $suffix = $anonymous_subs_used{$result};
+        if($suffix eq '') {
+            $suffix = 'a';
+        } else {
+            $suffix = chr((ord $suffix) + 1);
+        }
+        $anonymous_subs_used{$result} = $suffix;
+        $result .= $suffix;
+    } else {
+        $anonymous_subs_used{$result} = '';
+    }
+    return $result;
 }
 
 1;

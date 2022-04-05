@@ -6,6 +6,8 @@ def _is_tty(path):        # -t
         return path.isatty()
     if isinstance(path, tuple):
         raise ValueError('-t not supported on File_stat')
+    if hasattr(path, 'name'):
+        path = path.name
     try:
         with open(path, 'r') as t:
             return t.isatty()
