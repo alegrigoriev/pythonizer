@@ -10,12 +10,15 @@ if ( !opendir $d, $curdir ) {
 else {
     if ( 1 ) {
         @files = map { /\A(.*)\z/s; $1 } readdir $d;
+	#@files = map sub {$_ = $_[0]; /\A(.*)\z/s; $1} , readdir $d;
     }
     else {
         @files = readdir $d;
     }
     closedir $d;
 }
+
+#print "@files\n";
 
 my $issues = 0;
 my $tests = 0;

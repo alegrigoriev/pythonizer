@@ -84,6 +84,7 @@ if [ "$mflag" != "-m" ]; then
 	   rm -f run1.log
            continue
         fi
+        cp $pyf $pyf.good
 	gd
 	lines=`cat run1.log | wc -l`
 	if [ $lines -gt 1 ]; then
@@ -157,6 +158,7 @@ do
       rm -f run1.log
       continue
    fi
+   cp $pyf $pyf.good
    gd
    lines=`cat run1.log | wc -l`
    if [ $lines -gt 3 ]; then

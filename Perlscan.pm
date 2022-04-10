@@ -64,7 +64,7 @@ use File::Spec::Functions qw(file_name_is_absolute catfile);   # SNOOPYJC
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw(Exporter);
-@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence %SpecialVarsUsed @EndBlocks %SpecialVarR2L get_sub_vars_with_class %FileHandles add_package_to_mapped_name %FuncType %PyFuncType %UseRequireVars %UseRequireOptionsPassed %UseRequireOptionsDesired mapped_name);	# issue 41, issue 65, issue 74, issue 92, issue 93, issue 78, issue names
+@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence %SpecialVarsUsed @EndBlocks %SpecialVarR2L get_sub_vars_with_class %FileHandles add_package_to_mapped_name %FuncType %PyFuncType %UseRequireVars %UseRequireOptionsPassed %UseRequireOptionsDesired mapped_name %WHILE_MAGIC_FUNCTIONS);	# issue 41, issue 65, issue 74, issue 92, issue 93, issue 78, issue names, issue s40
 #our (@ValClass,  @ValPerl,  @ValPy, $TokenStr); # those are from main::
 
   $VERSION = '0.93';
@@ -141,11 +141,31 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'map'=>{list=>'map', scalar=>'map_s'},			# issue 37: Note: The "_s" gets removed when emitting the code
 		'keys'=>{list=>'.keys()', scalar=>'.keys()_s'},		# issue s3: Note: The "_s" gets removed when emitting the code
 		'values'=>{list=>'.values()', scalar=>'.values()_s'},	# issue s3: Note: The "_s" gets removed when emitting the code
+                'chomp'=>{list=>'.rstrip("\n")', scalar=>'.rstrip("\n")_s'}, # issue s48: Note: The "_s" gets removed when emitting the code
+                'chop'=>{list=>'[0:-1]', scalar=>'[0:-1]_s'},           # issue s48: Note: The "_s" gets removed when emitting the code
+                'readdir'=>{list=>'_readdirs', scalar=>'_readdir'},     # issue s40
+                'readline'=>{list=>'.readlines()', scalar=>'_readline_full'},  # issue s40
                 );
 
    %SPECIAL_FUNCTION_TYPES=('tm_py.ctime'=>'I?:S', '_cgtime'=>'I?:S', '_splice_s'=>'aI?I?a?:s',
                             '.keys()_s'=>'h:I', '.values()_s'=>'h:I',           # issue s3
+                            '_readdir'=>'H:S', '_readline_full'=>'H:S',         # issue s40
+                            '.rstrip("\n")_s'=>'S:m', '[0:-1]_s'=>'S:m',        # issue s48
                             '_reverse_scalar'=>'a:S', 'filter_s'=>'Sa:I', 'map_s'=>'fa:I');
+
+   # issue s40:
+   # From the documentation: If the condition expression of a while statement is 
+   # based on any of a group of iterative expression types then it gets some magic 
+   # treatment. The affected iterative expression types are readline, the <FILEHANDLE>
+   # input operator, readdir, glob, the <PATTERN> globbing operator, and each. If the
+   # condition expression is one of these expression types, then the value yielded by
+   # the iterative operator will be implicitly assigned to $_. If the condition
+   # expression is one of these expression types or an explicit assignment of one of
+   # them to a scalar, then the condition actually tests for definedness of the
+   # expression's value, not for its regular truth value.                     
+   %WHILE_MAGIC_FUNCTIONS=('glob'=>1, 'readline'=>1, 'readdir'=>1,
+                          # this one causes problems: 'each'=>1, 
+                          );            # issue s40
 
    %keyword_tr=('eq'=>'==','ne'=>'!=','lt'=>'<','gt'=>'>','le'=>'<=','ge'=>'>=',
                 'and'=>'and','or'=>'or','not'=>'not',
@@ -249,7 +269,10 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 # SNOOPYJC 'ref'=>'type', 
                 'ref'=>'_ref',                  # SNOOPYJC
                 # SNOOPYJC 'require'=>'NoTrans!', 
-	        'opendir'=>'_opendir', 'closedir'=>'_closedir', 'readdir'=>'_readdir', 'seekdir'=>'_seekdir', 'telldir'=>'_telldir', 'rewinddir'=>'_rewinddir',	# SNOOPYJC
+	        'opendir'=>'_opendir', 'closedir'=>'_closedir', 
+                'readdir'=>'_readdirs',                 # issue s40: Start with the list version
+                'seekdir'=>'_seekdir', 'telldir'=>'_telldir', 'rewinddir'=>'_rewinddir',	# SNOOPYJC
+                'readline'=>'.readlines()',     # issue s40
                 'redo'=>'continue',             # SNOOPYJC
                 'require'=>'__import__',        # SNOOPYJC
                 'return'=>'return', 'rmdir'=>'os.rmdir',
@@ -431,6 +454,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'or'=>'o',                    # issue 93
                   'own'=>'t', 'oct'=>'f', 'ord'=>'f', 'open'=>'f',
 		  'opendir'=>'f', 'closedir'=>'f', 'readdir'=>'f', 'seekdir'=>'f', 'telldir'=>'f', 'rewinddir'=>'f',	# SNOOPYJC
+                  'readline'=>'f',      # issue s40
                   'push'=>'f', 'pop'=>'f', 'print'=>'f', 'package'=>'c',
                   'pack'=>'f',
                   'pos'=>'f',                   # SNOOPYJC
@@ -490,9 +514,12 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'caller'=>'I?:a',
                   'carp'=>'a:u', 'confess'=>'a:u', 'croak'=>'a:u', 'cluck'=>'a:u',   # SNOOPYJC
                   'longmess'=>'a:S', 'shortmess'=>'a:S',                             # SNOOPYJC
-                  'chdir'=>'S:I','chomp'=>'S:m', 'chop'=>'S:m', 'chmod'=>'Ia:I','chr'=>'I?:S','close'=>'H:I',
+                  'chdir'=>'S:I',
+                  # issue s48 'chomp'=>'S:m', 'chop'=>'S:m', 
+                  'chomp'=>'a:m', 'chop'=>'a:m',        # issue s48
+                  'chmod'=>'Ia:I','chr'=>'I?:S','close'=>'H:I',
                   'cmp'=>'SS:I', '<=>'=>'NN:I',
-                  'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:m', 'dirname'=>'S:S', 'each'=>'h:a', 'exists'=>'u:I', 
+                  'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:m', 'dirname'=>'S:S', 'each'=>'h:a', 'exists'=>'m:I', 
                   'exit'=>'I?:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':m', 'fileno'=>'H:I',
                   'fileparse'=>'Sm?:a of S', 'hex'=>'S:I', 'GetOptions'=>'a:I',
                   'glob'=>'S:a of S', 'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 
@@ -500,14 +527,15 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'lcfirst'=>'S:S',
                   'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'SI?:I', 'oct'=>'S:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
                   'pack'=>'Sa:S',
-		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:S', 'rename'=>'SS:I', 'rmdir'=>'S:I',
+		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:a of S', 'rename'=>'SS:I', 'rmdir'=>'S:I',
+                  'readline'=>'H:a of S',    # issue s40
                   'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:m',
                   'push'=>'aa:I', 'pop'=>'a:s', 'pos'=>'s:I', 'print'=>'H?a:I', 'printf'=>'H?Sa:I', 'quotemeta'=>'S:S', 'rand'=>'F?:F',
                   'rindex'=>'SSI?:I','read'=>'HsII?:I', '.read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
                   '_refs'=>'u:S',               # issue s3
                   'say'=>'H?a:I','scalar'=>'a:I','seek'=>'HII:u', 'shift'=>'a?:s', 'sleep'=>'I:I', 'splice'=>'aI?I?a?:a',
                   'select'=>'H?:H',             # SNOOPYJC
-                  'split'=>'SSI?:a of m', 'sprintf'=>'Sa:S', 'sort'=>'fa:a','system'=>'a:I',
+                  'split'=>'SSI?:a of m', 'sprintf'=>'Sa:S', 'sort'=>'f?a:a','system'=>'a:I',
                   'stat_cando'=>'aII:I',        # issue s33
                   'sqrt'=>'N:F', 'stat'=>'m:a of I', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'tell'=>'H:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timegm'=>'IIIIII:I',
                   'truncate'=>'HI:I', 
@@ -551,6 +579,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
         $PyFuncType{'signal.signal'} = 'If:f';
         $PyFuncType{'signal.getsignal'} = 'I:f';
         $PyFuncType{'pdb.set_trace'} = ':I';
+        $PyFuncType{'_get_element'} = 'mI:m';           # issue s43
 
         for my $d (keys %DASH_X) {
             $FuncType{"-$d"} = 'm:I';
@@ -656,6 +685,7 @@ $statement_starting_lno = 0;            # issue 116
 $last_varclass_lno = 0;         # SNOOPYJC: Last entry in the above
 %last_varclass_sub=();             # SNOOPYJC: What sub were we in when we set the last %line_varclasses for this name
 $ate_dollar = -1;               # issue 50: if we ate a '$', where was it?
+$add_comma_after_anon_sub_end = 0;      # issue s39: Insert a ',' after the end of the anon sub we added
 sub initialize                  # issue 94
 {
     $nesting_level = 0;
@@ -664,6 +694,7 @@ sub initialize                  # issue 94
     $last_block_lno=0;
     $ate_dollar = -1;
     $nesting_last=undef;            # issue 94: Last thing we popped off the stack
+    $add_comma_after_anon_sub_end = 0;  # issue s39
     if($Pythonizer::PassNo==&Pythonizer::PASS_1) {
         push @UseLib, dirname($Pythonizer::fname);   # SNOOPYJC: Always good to look here!
     }
@@ -1166,6 +1197,7 @@ sub enter_block                 # issue 94
     $nesting_info{type} = '';
     $nesting_info{type} = $ValPy[$begin];
     $nesting_info{type} =~ s/:\s*$//;           # Change "else: " to "else"
+    $nesting_info{type} = 'if' if($nesting_info{type} eq '{' && $delayed_block_closure); # issue s44: Here it looks like a {...} but it's really an if from bash_style_or_and_fix
     $nesting_info{loop_ctr} = $nesting_stack[-1]{loop_ctr} if(scalar(@nesting_stack) && exists($nesting_stack[-1]{loop_ctr}));
     if($nesting_info{type} eq 'for') {
         my $lcx = index($TokenStr,'s=');
@@ -1182,10 +1214,12 @@ sub enter_block                 # issue 94
     $nesting_info{varclasses} = dclone($line_varclasses{$last_block_lno}) if($Pythonizer::PassNo == &Pythonizer::PASS_1);
     $nesting_info{level} = $nesting_level;
     # Note a {...} block by itself is considered a loop
-    $nesting_info{is_loop} = ($begin <= $#ValClass && ($ValPy[$begin] eq '{' || $ValPerl[$begin] eq 'for' || 
+    $nesting_info{is_loop} = ($begin <= $#ValClass && (($ValPy[$begin] eq '{' && $nesting_info{type} ne 'if') ||        # issue s44
+                                                       $ValPerl[$begin] eq 'for' || 
                                                        $ValPerl[$begin] eq 'foreach' || $ValPerl[$begin] eq 'continue' ||
                                                        $ValPerl[$begin] eq 'while' || $ValPerl[$begin] eq 'until'));
     $nesting_info{is_cond} = ($begin <= $#ValClass && ($ValPerl[$begin] eq 'if' || $ValPerl[$begin] eq 'unless' ||
+                                                       $nesting_info{type} eq 'if' ||           # issue s44
                                                        is_eval() ||    # issue ddts
                                                        $ValPerl[$begin] eq 'elsif' || $ValPerl[$begin] eq 'else'));
     # SNOOPYJC: eval doesn't have to be first! $nesting_info{is_eval} = ($begin <= $#ValClass && $ValPerl[$begin] eq 'eval');
@@ -1899,6 +1933,8 @@ my ($l,$m);
          }
          {
           no warnings 'uninitialized';
+          $Data::Dumper::Indent=0;
+          $Data::Dumper::Terse = 1;
           say STDERR "Perlscan got ; balance=$balance, tno=$tno, nesting_last=".Dumper(\$nesting_last) if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
          }
          if( $balance != 0  ){
@@ -1997,6 +2033,9 @@ my ($l,$m);
                 #say STDERR "parens_are_balanced";
                 # issue 45 Pythonizer::getline('}'); # make it a separate statement
                 #exit_block();                 # issue 94
+                substr($source,1,0) = ',' if $add_comma_after_anon_sub_end;     # issue s39
+                say STDERR "source=$source after add_comma_after_anon_sub_end which is $add_comma_after_anon_sub_end" if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
+                $add_comma_after_anon_sub_end = 0;                              # issue s39
                 Pythonizer::getline($source); # make it a separate statement # issue 45
                 popup(); # kill the last symbol
                 last; # we truncate '}' and will process it as the next line
@@ -2071,7 +2110,26 @@ my ($l,$m);
             $TokenStr=join('',@ValClass);       # issue 50
 	    $tno--;				# issue 50 - no need to keep arrow operator in python
       	    $ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
-          }
+         } elsif($s eq '{' && $ValClass[$tno-1] eq 'f' && semicolon_in_block($source)) {     # issue s39
+             # issue s39: for functions like map with a block of code, if we have multiple statements in that code,
+             # the insert an anonymous sub, which we will pull out during code generation.  For example:
+             # input line: @files = map { /\A(.*)\z/s; $1 } readdir $d;
+             # gen:        @files = map sub {$_ = $_[0]; /\A(.*)\z/s; $1}, readdir $d;
+             $add_comma_after_anon_sub_end = 1;         #                ^ Tells us to add this comma later
+             say STDERR "Setting add_comma_after_anon_sub_end = 1" if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
+             substr($source,1,0) = '$_ = $_[0];';       # Grab the default var from the 1st arg
+             $ValClass[$tno] = 'k';
+             $ValPerl[$tno] = 'sub';
+             $ValPy[$tno] = 'def';
+             $tno++;
+             enter_block();
+             Pythonizer::getline('^');
+	     Pythonizer::getline(substr($source,1));    # make it a new line to be proceeed later
+             # Note that if the user enters the code like the above, it won't work (it returns a list of subs),
+             # but we check for that during code generation and generate the code to call the function on
+             # each list item.
+             last;
+         }
          $ValClass[$tno]='('; # we treat anything inside curvy backets as expression
          $ValPy[$tno]='[';
          $cut=1;
@@ -3244,6 +3302,8 @@ my ($l,$m);
                 $ValPerl[$i+1] = $ValPy[$i+1] = '(';
                 my $match = &Pythonizer::matching_br($i+1);
                 $ValPerl[$match] = $ValPy[$match] = ')' if($match > 0);
+            } elsif($ValClass[0] eq 'c' && $ValPerl[0] eq 'while' && $ValClass[$i] eq 'f' && exists $WHILE_MAGIC_FUNCTIONS{$ValPerl[$i]}) {       # issue s40
+                $i = handle_while_magic_function($i);                                            # issue s40
             }
         }
         $TokenStr=join('',@ValClass);
@@ -4968,7 +5028,7 @@ sub perl_hex_escapes_to_python
     my $str = shift;
     my $has_double_brackets = (scalar(@_) == 0 ? 0 : $_[0]);   # issue s28
 
-    print STDERR "perl_hex_escapes_to_python($str, $has_double_brackets) = " if($::debug >= 5);
+    print STDERR "perl_hex_escapes_to_python($str, $has_double_brackets) = " if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
 
 
     if($has_double_brackets) {
@@ -6822,6 +6882,49 @@ sub replace_escape_with_chr             # issue s28
         my $u = unescape_string($string, 1);    # pass "has_double_brackets"
         return ("chr(" . ord(substr($u,0,1)) . ")", substr($u,1) . $rest);
     }
+}
+
+sub semicolon_in_block          # issue s39
+# Return 1 if there is a semicolon in a {...} block like in a map/grep function
+{
+    my $source = shift;
+
+    my $end_br = matching_curly_br($source, 0);
+    $end_br = length($source) if $end_br < 0;
+    return 1 if(index(substr($source,0,$end_br),';') > 0);
+    return 0;
+}
+
+sub handle_while_magic_function                 # issue s40
+# From the documentation: If the condition expression of a while statement is 
+# based on any of a group of iterative expression types then it gets some magic 
+# treatment. The affected iterative expression types are readline, the <FILEHANDLE>
+# input operator, readdir, glob, the <PATTERN> globbing operator, and each. If the
+# condition expression is one of these expression types, then the value yielded by
+# the iterative operator will be implicitly assigned to $_. If the condition
+# expression is one of these expression types or an explicit assignment of one of
+# them to a scalar, then the condition actually tests for definedness of the
+# expression's value, not for its regular truth value.                     
+#
+# Arg: position of the function.  Returns: New position of the function
+{
+     my $pos = shift;
+
+     $TokenStr = join('', @ValClass);   # Required to use certain functions
+     if(index($TokenStr,'=') < 0) {     # If we don't have an assignment, then assign the default variable
+         insert(2,'=','=',':=');
+         insert(2,'s','$_',$DEFAULT_VAR);
+         $pos += 2;
+         say STDERR "handle_while_magic_function: inserted $DEFAULT_VAR:=" if($::debug);
+     }
+     my $match = &Pythonizer::matching_br(1);
+     return $pos if $match < 0;
+     insert(2,'(','(','(');
+     insert(2,'f','defined',$keyword_tr{defined});
+     insert($match+2,')',')',')');
+     $pos += 2;
+     say STDERR "handle_while_magic_function: inserted 'defined' function" if($::debug);
+     return $pos;
 }
 
 1;

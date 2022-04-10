@@ -1198,6 +1198,7 @@ sub in_sub_call                           # SNOOPYJC
     return 0;
 }
 
+=pod    # issue s48
 sub arg_type_from_pos                           # SNOOPYJC
 # If this token is a function arg, return what arg type it is, else return 'u'
 {
@@ -1217,8 +1218,8 @@ sub arg_type_from_pos                           # SNOOPYJC
         } elsif($ValClass[$i] eq ')') {
             $i = reverse_matching_br($i);
             return 'u' if($i < 0);
-        } elsif($ValClass[$i] eq '=' && $ValPy[$i] ne ':=') {
-            return 'u';
+        # issue s48 } elsif($ValClass[$i] eq '=' && $ValPy[$i] ne ':=') {
+        # issue s48 return 'u';
         }
     }
     return 'u' if($i < 0 || $ValClass[$i] ne 'f');
@@ -1251,13 +1252,86 @@ sub arg_type_from_pos                           # SNOOPYJC
     }
     return $ty;
 }
+=cut
+
+sub arg_type_from_pos           # issue s48 - split up this function into 2
+{
+    my ($fname, $pname, $arg) = arg_from_pos($_[0], 0);
+    my $ty = arg_type($fname, $pname, $arg);
+    if($::debug > 3) {
+        no warnings 'uninitialized';
+        say STDERR "arg_type_from_pos($k): ($fname, $pname, $arg) = $ty";
+    }
+    return $ty;
+}
+
+sub arg_from_pos                           # issue s48
+# If this token is a function arg, return which arg of which function it is, 
+# returning ($perlName, $pyName, $arg#) else return (undef, undef, undef).  Arg# counts from 0.
+{
+    my $k = shift;
+    my $quiet = (scalar(@_) > 0 ? $_[0] : 0);
+
+    my ($i, $arg);
+
+    for($i = $k; $i >= 0; $i--) {
+        if($ValClass[$i] eq '(') {
+           if($i-1 >= 0 && $ValClass[$i-1] eq 'f') {
+              $i--;
+              last;
+           }
+           # issue s48 return (undef, undef, undef);
+        } elsif($ValClass[$i] eq 'f' && $i != $k) {
+            last;
+        } elsif($ValClass[$i] eq ')') {
+            $i = reverse_matching_br($i);
+            return (undef, undef, undef) if($i < 0);
+        # issue s48 Handle chomp(my @tester=<FH>)
+        # issue s48 } elsif($ValClass[$i] eq '=' && $ValPy[$i] ne ':=') {
+        # issue s48 return (undef, undef, undef);
+        }
+    }
+    return (undef, undef, undef) if($i < 0 || $ValClass[$i] ne 'f');
+    my $fname = $ValPerl[$i];
+    my $pname = $ValPy[$i];
+    if($ValClass[$i+1] eq '(' && $ValPerl[$i+1] eq '(') {       # issue s48: not like map {...} a
+        my $q = matching_br($i+1);
+        return (undef, undef, undef) if($k >= $q);              # not in the parens like f(...)..k.. or pointing to the close paren
+        return (undef, undef, undef) if($k == $i+1);            # not IN the parens if we ARE at the parens
+        $i++;
+    }
+    # Figure out which arg of the function this is: note some functions the first arg
+    # is not separated from the second arg with spaces
+    if($k == $i+1) {
+        $arg = 0;           # That was easy
+    } else {
+        $arg = 1;
+        my $j = $i+2;
+        $j++ if($j <= $k && $ValClass[$j] eq ',');
+        for( ; $j<=$k; $j++) {
+            last if($k == $j);
+            $arg++ if($ValClass[$j] eq ',');
+            $arg++ if($ValClass[$j] eq ')' and $ValPerl[$j] eq '}');    # issue s48: like map {...} a
+            #$j = matching_br($j) if($ValClass[$j] eq '(');
+            $j = &::end_of_variable($j);
+            return (undef, undef, undef) if($j < 0);
+        }
+    }
+    if(!$quiet && $::debug > 3) {
+        say STDERR "arg_from_pos($k) = ($fname, $pname, $arg)";
+    }
+    return ($fname, $pname, $arg);
+}
 
 sub arg_type            # Given the name of a built-in function, and the arg#, return the required type
 {
     my $fname = shift;          # Perl name
     my $name = shift;           # Python name
     my $arg = shift;
+    my $repeat = (scalar(@_) > 0 ? $_[0] : 1);  # Flag to repeat the last arg if we run out - default = True
+    my $return_optional = (scalar(@_) > 1 ? $_[0] : 0); # Flag to return if the next arg is optional or not
 
+    return 'u' if(!defined $fname);             # issue s48
     my $ft = undef;
     if(exists $PyFuncType{$name}) {
         $ft = $PyFuncType{$name};
@@ -1268,7 +1342,16 @@ sub arg_type            # Given the name of a built-in function, and the arg#, r
     my $argc = 0;
     for(my $i = 0; $i < length($ft); $i++) {
         my $c = substr($ft,$i,1);
-        return 's' if($c eq ':');       # We reached the end
+        # issue s48 return 's' if($c eq ':');       # We reached the end
+        if($c eq ':') {         # issue s48: return the last arg type if we have more than there are
+            if($repeat) {       # issue s48
+                $c = substr($ft,$i-1,1);
+                return $c if $c ne '?';     # Skip the "optional" indicator if present
+                return substr($ft,$i-2,2) if $return_optional;
+                return substr($ft,$i-2,1);
+            }
+            return '';
+        }
         if($c eq 'H' && substr($ft,$i+1,1) eq '?') {
             $i++;
             $argc++;
@@ -1276,12 +1359,15 @@ sub arg_type            # Given the name of a built-in function, and the arg#, r
         }
         next if($c eq '?');
         if($argc == $arg) {
+            if($return_optional && substr($ft,$i+1,1) eq '?') { # issue s48
+                return "$c?";
+            }
             return $c;
         }
-        if($c eq 'a') {
+        # issue s48 if($c eq 'a') {
             # SNOOPYJC return 's';                 # unknown scalar
-            return 'a';         # SNOOPYJC: Needed for scalar/list context
-        }
+            # issue s48 return 'a';         # SNOOPYJC: Needed for scalar/list context
+        # issue s48 }
         $argc++;
     }
     return undef;                 # probably not part of this function
@@ -1427,6 +1513,8 @@ sub _expr_type           # Attempt to determine the type of the expression
                 }
                 return $typ;
             }
+            return 'I' if($ValPerl[$k] eq $INDEX_TEMP);         # We use this for ints only
+            return 'S' if($ValPerl[$k] eq $KEY_TEMP);           # We use this for strings only
             return 'I' if(substr($ValPerl[$k],0,2) eq '$#');
             return 's';                 # scalar
         } elsif($class eq 'a') {        # array
@@ -1856,7 +1944,9 @@ sub apply_scalar_context                        # issue 37
             return 1;
         }
     } elsif($ValClass[$pos] eq '(' && $ValPerl[$pos] eq '(' && 
-            $pos+1 <= $#ValClass && $ValClass[$pos+1] eq ')') {  # goatse: $s = () = ...
+            $pos+2 <= $#ValClass && $ValClass[$pos+1] eq ')' && 
+            $ValClass[$pos+2] eq '='                            # issue s46
+        ) {  # goatse: $s = () = ...
         append(')',')',')');
         insert($pos+3,'(','(','(');
         insert($pos+3,'f','scalar','len');
@@ -1906,6 +1996,8 @@ sub fix_scalar_context                          # issue 37
     if($ValClass[0] eq 'c' || $ValClass[0] eq 'C') {            # issue 37
         if($TokenStr =~ /^[cC]\(s=[ahf]/ || $TokenStr =~ /^[cC]\(s=\(\)=/) {         # issue 65, goatse, issue 30
             $did_something |= apply_scalar_context(4);
+        } elsif($TokenStr =~ /^[cC]\(f\(s=[ahf]/ && $ValPerl[2] eq 'defined') {         # issue s40: Added by handle_while_magic_function
+            $did_something |= apply_scalar_context(6);                                  # issue s40
         } elsif($#ValClass > 7 && $ValClass[3] eq '(' && $ValClass[2] eq 's') {    # Array subscript or hashref
             $j=&::end_of_variable(2);                      # Look for $arr[ndx]=@arr or $arr[ndx]=func()
             if($j+2 <= $#ValClass && $ValClass[$j+1] eq '=' && $ValClass[$j+2] =~ /[ahf]/) {        # issue 30
@@ -1955,13 +2047,48 @@ sub fix_scalar_context                          # issue 37
     }
 
     my $last_special_function = -1;                     # issue s3: handle keys arr == 2
+    my $last_special_function_end = -1;                 # issue s48
+    my $in_function_until = -1;                         # issue s48
     for(my $i=0; $i<=$#ValClass; $i++) {
+        if($in_function_until != -1 && $i <= $in_function_until && $ValClass[$i] ne ',') {      # issue s48
+            # First check to see if we have an assignment in a function call, like chomp($cwd = `pwd`) and fix the context
+            # of the RHS of the assignment.
+            if($ValClass[$i] eq 's') {  # issue s48
+                my $j = &::end_of_variable($i);
+                if($j+2 <= $#ValClass && $ValClass[$j+1] eq '=') {
+                    if($ValClass[$j+2] =~ /[ahf]/) {
+                        $did_something |= apply_scalar_context($j+2);
+                    }
+                    if($last_special_function != -1) {
+                        $did_something |= apply_scalar_context($last_special_function);
+                        $last_special_function = -1;
+                    }
+                }
+            }
+            # issue s48: Get the required type of this arg, and if it's a scalar type, change the
+            # operand to be in scalar context.
+            my ($fname, $pname, $arg) = arg_from_pos($i);
+            if(!defined $fname && $::debug >= 5) {
+                say STDERR "Can't get type of token $i on function in =|$TokenStr|=, ValPy=@ValPy";
+            }
+            my $arg_type = arg_type($fname, $pname, $arg, 0);   # 0 = don't repeat the last arg if we're past the end
+            # Check the next arg too because this array could just be splatted into multiple arguments like for timegm
+            my $next_arg_type = 'u';
+            $next_arg_type = arg_type($fname, $pname, $arg+1, 0, 1) if defined $arg;
+            $next_arg_type = '' unless defined($next_arg_type);
+            if($arg_type =~ /[sSIFN]/ && $next_arg_type !~ /^[sSIFN]$/) {
+                $did_something |= apply_scalar_context($i);
+            }
+        } elsif($i > $in_function_until+1) {
+            $last_special_function = -1;        # Don't keep this long past the end of the function call
+        }
         if(index("+-*/.>",$ValClass[$i]) >= 0) {        # Scalar operator
             if($i == 0) {
                 ;
-            } elsif($last_special_function != -1) {     # issue s3
+            } elsif($last_special_function != -1 && $i == $last_special_function_end+1) {     # issue s3
                 $did_something |= apply_scalar_context($last_special_function);
                 $last_special_function = -1;
+                $last_special_function_end = -1;
             } elsif($i-1 == 0 || ($ValClass[$i-2] ne 'f' && $ValClass[$i-2] ne "\\")) {   # function (like shift/pop) on an array - don't apply scalar context to the array, also skip if we're getting a reference to the object
                 $did_something |= apply_scalar_context($i-1);
             }
@@ -1975,21 +2102,33 @@ sub fix_scalar_context                          # issue 37
                 if($close != -1) {
                     destroy($close,1);
                     destroy($i,2);
+                    $last_special_function-=2;       # issue s3
+                    $last_special_function_end-=2;
+                    $in_function_until-=2;           # issue s46
                     $i--;
                     $did_something = 1;
                 }
             } elsif(apply_scalar_context($i+1) == 1) {
                 destroy($i,1);
                 $i--;
+                $last_special_function--;       # issue s3
+                $last_special_function_end--;
+                $in_function_until--;           # issue s46
                 $did_something = 1;
             }
-        } elsif($ValClass[$i] eq 'f' && exists $SPECIAL_FUNCTION_MAPPINGS{$ValPerl[$i]}) {  # issue s3
-            $last_special_function = $i;
+        } elsif($ValClass[$i] eq 'f') {                 # issue s48: Examine all function args looking for scalar type requirements
+
             my $j = end_of_function($i);
-            say STDERR "end_of_function($i) $ValPerl[$i] = $j" if($::debug >= 5);
-            $i = $j unless $j == -1;
-        } else {                                # issue s3
-            $last_special_function = -1;        # Don't apply to function long past in the expression
+            say STDERR "end_of_function($i) =|$TokenStr|= $ValPerl[$i] = $j" if($::debug >= 5);
+            if($j != -1 && $j > $in_function_until) {
+                $in_function_until = $j;
+            }
+            if(exists $SPECIAL_FUNCTION_MAPPINGS{$ValPerl[$i]}) {  # issue s3
+                $last_special_function = $i;
+                $last_special_function_end = $j;
+            }
+        # issue s48 } else {                                # issue s3
+        # issue s48    $last_special_function = -1;        # Don't apply to function long past in the expression
         }
     }
     if($::debug && $did_something) {
@@ -2005,7 +2144,9 @@ sub end_of_function                             # issue s3
     return $pos if($pos == $#ValClass);   # Function at end of statement with no params
     if($ValClass[$pos+1] eq '(' && $ValPerl[$pos+1] eq '(') {
         # easy case
-        return matching_br($pos+1);
+        $e = matching_br($pos+1);
+        return $e if($e >= 0);
+        return $#ValClass;
     }
     my $f_type = undef;
     if(exists $PyFuncType{$ValPy[$pos]}) {
@@ -2014,7 +2155,8 @@ sub end_of_function                             # issue s3
         $f_type = $FuncType{$ValPerl[$pos]};
     }
     my ($j, $k, $limit);
-    $end_pos = $#ValClass;
+    my $end_pos = $#ValClass;
+    $limit = $#ValClass;                # issue s48
     $k = next_matching_tokens('0o>',$pos+1,$end_pos);  # stop at next and/or/comparison
     $end_pos = $k-1 if($k != -1);
     return $end_pos unless defined $f_type;     # this is a guess
@@ -2024,7 +2166,14 @@ sub end_of_function                             # issue s3
         my $ep = matching_br($pos-1)-1;
         # This could be missing because in control() when generating the code of a for loop, we
         # eat the right paren before calling expression()
-        $end_pos = $ep if($ep > 0);
+        $end_pos = $ep if($ep > 0 && $ep < $end_pos);
+        $limit = $end_pos;              # issue s48
+    } elsif($pos >= 2 && $ValClass[$pos-1] eq '!' && $ValClass[$pos-2] eq '(') {        # issue s48: Handle if(!func(args))
+        my $ep = matching_br($pos-2)-1;
+        $limit = $end_pos = $ep if($ep > 0);
+    }elsif($pos != 0 && $ValPerl[$pos-1] eq '?') { # If we are in a ?...: operation, then the function has to end before the ':'
+        my $colon = next_same_level_token(':', $pos+1, $limit);
+        $limit = $end_pos = $colon-1 if($colon > 0);
     }
     my $op = 'F';
     my $t_pos = 0;
@@ -2033,14 +2182,30 @@ sub end_of_function                             # issue s3
         my $close = matching_br($pos+1);
         $pos = $close;
         $t_pos++;
-        $end_pos = $#ValClass;  # the function may have a token '0o>' in it so point back to the end
+        $end_pos = $limit;  # issue s48: the function may have a token '0o>' in it so point back to the end
     }
+    my $balance = 0;
+    EOFLOOP:
     for($j = $pos+1; $j <= $end_pos; $j++) {
+        if($ValClass[$j] eq '(') {
+            $balance++;
+        } elsif($ValClass[$j] eq ')') {
+            $balance--;
+            if($balance < 0) {  # if we see a ')' that we have no '(' for, then this must be the end
+                $j--;
+                last;
+            }
+        }
         my $comma = next_lower_or_equal_precedent_token($op, $j, $end_pos);
+        if($ValClass[$j] eq 'f') {      # issue s48
+            $j = end_of_function($j);
+        } elsif($ValClass[$j] eq 's') { # issue s48
+            $j = &::end_of_variable($j);
+        }
         $op = ',' if $comma != -1 && $ValClass[$comma] eq ',';  # Now we are in a list
-        my $close = next_same_level_token(')', $j, $end_pos);
+        # issue s48 my $close = next_same_level_token(')', $j, $end_pos);
         my $ep = (($comma==-1) ? $end_pos : $comma-1);
-        $ep = $close-1 if($close!=-1 && $close-1 < $ep);
+        # issue s48 $ep = $close-1 if($close!=-1 && $close-1 < $ep);
         my $optional = 0;
         my $t = substr($f_type, $t_pos, 1);
         $optional = 1 if(substr($f_type, $t_pos+1, 1) eq '?');
@@ -2061,8 +2226,26 @@ sub end_of_function                             # issue s3
         } elsif($optional && index("^*~/%+-.HI>&|0or?:=,A", $ValClass[$j]) >= 0) {
             $j--;
             last;
+        } elsif(!$optional && $comma != -1 && $ValClass[$comma] ne ',' &&
+                substr($f_type, $t_pos, 1) ne ':' && substr($f_type, $t_pos+1, 1) ne '?') {       # issue s46
+            # issue s46: If we came to a lower-precedent operator that's not a comma, but
+            # we still need more non-optional arguments to this function, then skip over that
+            # looking for our real comma.
+            $comma = next_same_level_token(',', $j, $end_pos);
+            $ep = (($comma==-1) ? $end_pos : $comma-1);
         }
         if($comma < 0 || ($comma >= 0 && $ValClass[$comma] ne ',')) {
+            for(my $p = $j+1; $p <= $ep; $p++) {        # see if we need to end earlier than $ep
+                if($ValClass[$p] eq '(') {
+                    $balance++;
+                } elsif($ValClass[$p] eq ')') {
+                    $balance--;
+                    if($balance < 0) {
+                        $j = $p-1;
+                        last EOFLOOP;
+                    }
+                }
+            }
             $j = $ep;
             last;
         }
