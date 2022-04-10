@@ -13,4 +13,9 @@ def _each(h_a):
 
     if hasattr(h_a, 'keys'):
         return [v, h_a[v]]
-    return v
+    ndx_key = key + 'i'
+    i = 0;
+    if hasattr(_each, ndx_key):
+        i = getattr(_each, ndx_key)
+    setattr(_each, ndx_key, i+1)
+    return [i, v]

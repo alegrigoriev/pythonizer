@@ -9,7 +9,7 @@ package Pyconfig;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS %PYF_OUT_PARAMETERS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER $SHEBANG %OVERLOAD_MAP %CLASS_METHOD_SET);
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $KEY_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS %PYF_OUT_PARAMETERS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER $SHEBANG %OVERLOAD_MAP %CLASS_METHOD_SET);
 
 # use Readonly;		# Readonly is not installed by default so skip it!
 
@@ -32,7 +32,8 @@ our $PERL_ARG_ARRAY = "_args";
 our $PERL_SORT_ = "";
 our $ARG_PARSER = "_parser";
 our $ELSIF_TEMP = "_e";                         # issue 58: used to capture complicated assignment in elsif, for and while loops
-our $INDEX_TEMP = "_i";                         # SNOOPYJC: Used as a loop index for temp expressions
+our $INDEX_TEMP = "_i";                         # SNOOPYJC: Used as a loop index for int temp expressions only
+our $KEY_TEMP = "_k";				# SNOOPYJC: Used as a loop index for hash keys
 our $SUBSCRIPT_TEMP = "_s";                     # Used to capture complicated expressions in subscripts for arrays that need type conversion involved in ++/-- or +=/-= etc
 our $DIAMOND = "_dia";                          # issue 66: for the <> operator
 our $EVAL_RESULT = "_eval_result";              # issue 42
@@ -84,7 +85,8 @@ our %GLOBALS = ($SCRIPT_START=>'tm_py.time()',
 		OUTPUT_FIELD_SEPARATOR=>"''",
 		OUTPUT_RECORD_SEPARATOR=>"''",
                 $SUBPROCESS_RC=>0, 
-		WARNING=>1,
+		# issue s45 WARNING=>1,
+		WARNING=>0,		# issue s45
                 AUTODIE=>0, 
                 TRACEBACK=>0, 
 		TRACE_RUN=>0,

@@ -2,6 +2,11 @@
 History
 =======
 
+0.969 (2022-04-05)
+------------------
+
+* Add _readdirs to handle readdir in list context, fix _each to handle arrays properly.  Fix _lstat so it actually works.
+
 0.968 (2022-04-01)
 ------------------
 
