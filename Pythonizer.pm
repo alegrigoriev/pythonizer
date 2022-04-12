@@ -670,7 +670,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
       }
    } # while
 
-   &Perlscan::compute_desired_use_require_options();    # issue name
+   # issue s4 &Perlscan::compute_desired_use_require_options();    # issue name
 
    &Perlscan::prepare_locals();         # issue 108: Prepare all 'local' vars for code generation
 
@@ -720,6 +720,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        say STDERR Dumper(\%Perlscan::scalar_pos_gen_line);
        print STDERR "line_contains_pos_gen = ";
        say STDERR Dumper(\%Perlscan::line_contains_pos_gen);
+=pod    # issue s4 - we don't do this any more
        if(\%UseRequireVars) {
            print STDERR "UseRequireVars = ";
            say STDERR Dumper(\%UseRequireVars);
@@ -728,6 +729,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
            print STDERR "UseRequireOptionsDesired = ";
            say STDERR Dumper(\%UseRequireOptionsDesired);
        }
+=cut
    }
 
    foreach $varname (keys %VarSubMap ){
@@ -2076,7 +2078,7 @@ sub fix_scalar_context                          # issue 37
             my $next_arg_type = 'u';
             $next_arg_type = arg_type($fname, $pname, $arg+1, 0, 1) if defined $arg;
             $next_arg_type = '' unless defined($next_arg_type);
-            if($arg_type =~ /[sSIFN]/ && $next_arg_type !~ /^[sSIFN]$/) {
+            if(defined $arg_type && $arg_type =~ /[sSIFN]/ && $next_arg_type !~ /^[sSIFN]$/) {
                 $did_something |= apply_scalar_context($i);
             }
         } elsif($i > $in_function_until+1) {
@@ -2705,6 +2707,7 @@ sub correct_nest
 #     NOTE: Special case -- if 0,0 is passed both set to zero
 # Each argument checked against the min and max threholds befor processing. If the threshold exceeded the operation ignored.
 {
+    say STDERR "correct_nest(@_)" if($::debug >= 5);
 my $delta;
    if(  scalar(@_)==0 ){
       # if no arguments given  set NextNest equal to CurNest
