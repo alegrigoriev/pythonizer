@@ -670,6 +670,7 @@ sub TRY_BLOCK_HAS_CONTINUE { 4 }      # Has a 'continue' block
 sub TRY_BLOCK_HAS_NEXT     { 8 }         # Has a 'last' stmt for this loop
 sub TRY_BLOCK_HAS_LAST    { 16 }         # Has a 'next' stmt for this loop
 sub TRY_BLOCK_REDO_LOOP   { 32 }         # Needs a nested loop for 'redo'
+sub TRY_BLOCK_CONTINUE_NEEDED_ONE { 64 } # The 'continue' needed to use a try block: issue s49
 $statement_starting_lno = 0;            # issue 116
 %line_contains_stmt_modifier=();        # issue 116
 %line_contains_for_loop_with_modified_counter=();       # SNOOPYJC
@@ -1123,7 +1124,11 @@ sub is_continue_block
         return 0 if($nesting_level == 0);
         $top = $nesting_stack[-1];
     }
-    return 1 if($top->{type} eq 'continue');
+    if($top->{type} eq 'continue') {
+        say STDERR "is_continue_block($at_bottom) = 1" if($::debug >= 4);
+        return 1;
+    }
+    say STDERR "is_continue_block($at_bottom) = 0" if($::debug >= 4);
     return 0;
 }
 
@@ -1217,6 +1222,7 @@ sub enter_block                 # issue 94
     $nesting_info{is_loop} = ($begin <= $#ValClass && (($ValPy[$begin] eq '{' && $nesting_info{type} ne 'if') ||        # issue s44
                                                        $ValPerl[$begin] eq 'for' || 
                                                        $ValPerl[$begin] eq 'foreach' || $ValPerl[$begin] eq 'continue' ||
+                                                       $ValPerl[$begin] eq 'do' ||                      # issue s50
                                                        $ValPerl[$begin] eq 'while' || $ValPerl[$begin] eq 'until'));
     $nesting_info{is_cond} = ($begin <= $#ValClass && ($ValPerl[$begin] eq 'if' || $ValPerl[$begin] eq 'unless' ||
                                                        $nesting_info{type} eq 'if' ||           # issue s44
@@ -1238,9 +1244,19 @@ sub enter_block                 # issue 94
         $nesting_info{delayed_block_closure} = $delayed_block_closure;              # issue s35: stack it
         $delayed_block_closure = 0;                                                 # issue s35
     }
+    if($nesting_info{type} eq 'continue' && exists $line_needs_try_block{$nesting_last->{lno}}) {       # issue s49
+        # propagate this flag from the main loop into the continue block
+        $line_needs_try_block{$.} |= ($line_needs_try_block{$nesting_last->{lno}} & TRY_BLOCK_CONTINUE_NEEDED_ONE);
+        if($::debug >= 4 && ($line_needs_try_block{$nesting_last->{lno}} & TRY_BLOCK_CONTINUE_NEEDED_ONE)) {
+            say STDERR "TRY_BLOCK_CONTINUE_NEEDED_ONE propagaged";
+        }
+    }
     if(defined $last_label) {
         $nesting_info{label} = $last_label;
         $last_label = undef;            # We used it up
+    } elsif($#ValClass >= 0 && $ValClass[0] eq 'i' && $ValPy[0] =~ /^for / && $ValPerl[0] =~ /[A-Z]+/) {   # issue s30: BEGIN and friends
+        $nesting_info{label} = $ValPerl[0];
+        $all_labels{$ValPerl[0]} = 1;
     }
     push @nesting_stack, \%nesting_info;
     if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
@@ -1342,19 +1358,54 @@ sub handle_pos_ref
     }
 }
 
+sub handle_return               # issue s30
+{
+    return if($Pythonizer::PassNo != &Pythonizer::PASS_1);
+    if(in_BEGIN()) {
+        handle_return_in_expression(0);
+    }
+}
+
 sub handle_return_in_expression         # SNOOPYJC: Handle 'return' in the middle of an expression
 {
     return if($Pythonizer::PassNo != &Pythonizer::PASS_1);
     # In the first pass, just mark that we need a try/except block for this sub,
     # but do nothing if we're in an eval since that case is already handled.
+    my $exc = 0;
     for $ndx (reverse 0 .. $#nesting_stack) {
         return if($nesting_stack[$ndx]->{is_eval});     # We already have an exception to get out of an eval
         if($nesting_stack[$ndx]->{is_sub}) {
             $line_needs_try_block{$nesting_stack[$ndx]->{lno}} |= TRY_BLOCK_EXCEPTION;  # Need an exception to return from this sub
             $uses_function_return_exception = 1;
             return;
+        } elsif($nesting_stack[$ndx]->{is_loop}) {
+            if($nesting_stack[$ndx]->{type} eq 'for _ in range(1)') {  # issue s30: This is a BEGIN
+                $line_needs_try_block{$nesting_stack[$ndx]->{lno}} |= $exc;  # May need an exception to return from this BEGIN
+                return;
+            }
+            $exc = TRY_BLOCK_EXCEPTION;
+        } elsif($nesting_stack[$ndx]->{type} eq 'for _ in range(1)') {  # issue s30: This is a BEGIN
+            $line_needs_try_block{$nesting_stack[$ndx]->{lno}} |= $exc;  # May need an exception to return from this BEGIN
+            return;
         }
     }
+}
+
+sub return_in_BEGIN_needs_raise         # issue s30: Does this 'return' in a BEGIN need a raise, or just a 'break'?
+{
+    for $ndx (reverse 0 .. $#nesting_stack) {
+        return if($nesting_stack[$ndx]->{is_eval});     # We already have an exception to get out of an eval
+        if($nesting_stack[$ndx]->{is_loop}) {
+            if($nesting_stack[$ndx]->{type} eq 'for _ in range(1)') {  # issue s30: This is a BEGIN
+                return 0;               # Just generate a 'break'
+            } else {
+                return 1;               # Must generate a 'raise'
+            }
+        } elsif($nesting_stack[$ndx]->{type} eq 'for _ in range(1)') {  # issue s30: This is a BEGIN
+            return 0;
+        }
+    }
+    return 0;
 }
 
 sub handle_last_next            # issue 94
@@ -1390,6 +1441,49 @@ sub track_potential_sub_call    # issue 94
     }
 }
 
+sub set_continue_needed_try_block       # issue s49
+{
+    my $at_bottom = shift;
+    my $value = shift;
+
+    my $top = $nesting_last;
+    if(!$at_bottom) {
+        return if($nesting_level == 0);
+        $top = $nesting_stack[-1];
+    }
+    if($value) {
+        $line_needs_try_block{$top->{lno}} |= TRY_BLOCK_CONTINUE_NEEDED_ONE;
+        say STDERR "set_continue_needed_try_block, setting line_needs_try_block{$top->{lno}} to TRY_BLOCK_CONTINUE_NEEDED_ONE" if($::debug >= 3);
+    } elsif(exists $line_needs_try_block{$top->{lno}}) {
+        $line_needs_try_block{$top->{lno}} &= ~TRY_BLOCK_CONTINUE_NEEDED_ONE;
+        say STDERR "set_continue_needed_try_block, clearing TRY_BLOCK_CONTINUE_NEEDED_ONE from line_needs_try_block{$top->{lno}}" if($::debug >= 3);
+    } else {
+        say STDERR "set_continue_needed_try_block, line_needs_try_block{$top->{lno}} not set - no need to clear TRY_BLOCK_CONTINUE_NEEDED_ONE" if($::debug >= 3);
+    }
+}
+
+sub continue_needed_try_block           # issue s49
+{
+    my $at_bottom = shift;
+
+    my $top = $nesting_last;
+    if(!$at_bottom) {
+        return 0 if($nesting_level == 0);
+        $top = $nesting_stack[-1];
+    }
+    if($::debug >= 4) {
+        no warnings 'uninitialized';
+        print STDERR "continue_needed_try_block($at_bottom), top=@{[%$top]} returns ";
+    }
+    if(exists $line_needs_try_block{$top->{lno}} && 
+        ($line_needs_try_block{$top->{lno}} & TRY_BLOCK_CONTINUE_NEEDED_ONE)) {
+        say STDERR "1" if($::debug >= 4);
+        return 1 
+    }
+    say STDERR "0" if($::debug >= 4);
+    return 0;
+}
+
 sub needs_try_block                # issue 94, issue 108
 {
     my $at_bottom = shift;
@@ -1401,10 +1495,14 @@ sub needs_try_block                # issue 94, issue 108
     }
     if($::debug >= 4) {
         no warnings 'uninitialized';
-        say STDERR "needs_try_block($at_bottom), top=@{[%$top]}";
+        print STDERR "needs_try_block($at_bottom), top=@{[%$top]} returns ";
     }
-    return 1 if(exists $line_needs_try_block{$top->{lno}} && 
-        ($line_needs_try_block{$top->{lno}} & (TRY_BLOCK_EXCEPTION|TRY_BLOCK_FINALLY)));
+    if(exists $line_needs_try_block{$top->{lno}} && 
+        ($line_needs_try_block{$top->{lno}} & (TRY_BLOCK_EXCEPTION|TRY_BLOCK_FINALLY))) {
+        say STDERR "1" if($::debug >= 4);
+        return 1 
+    }
+    say STDERR "0" if($::debug >= 4);
     return 0;
 }
 
@@ -1437,10 +1535,14 @@ sub has_continue                # SNOOPYJC
     }
     if($::debug >= 4) {
         no warnings 'uninitialized';
-        say STDERR "has_continue($at_bottom), top=@{[%$top]}";
+        print STDERR "has_continue($at_bottom), top=@{[%$top]} returns ";
     }
-    return 1 if(exists $line_needs_try_block{$top->{lno}} && 
-        ($line_needs_try_block{$top->{lno}} & TRY_BLOCK_HAS_CONTINUE));
+    if(exists $line_needs_try_block{$top->{lno}} && 
+        ($line_needs_try_block{$top->{lno}} & TRY_BLOCK_HAS_CONTINUE)) {
+        say STDERR "1" if($::debug >= 4);
+        return 1;
+    }
+    say STDERR "0" if($::debug >= 4);
     return 0;
 }
 
@@ -1468,9 +1570,13 @@ sub needs_implicit_continue
     }
     if($::debug >= 4) {
         no warnings 'uninitialized';
-        say STDERR "needs_implicit_continue($at_bottom), top=@{[%$top]}";
+        print STDERR "needs_implicit_continue($at_bottom), top=@{[%$top]} returns ";
     }
-    return $top->{implicit_continue} if(exists $top->{implicit_continue});
+    if(exists $top->{implicit_continue}) {
+        say STDERR $top->{implicit_continue} if($::debug >= 4);
+        return $top->{implicit_continue} 
+    }
+    say STDERR "0" if($::debug >= 4);
     return 0;
 }
 
@@ -1485,10 +1591,14 @@ sub needs_redo_loop                # SNOOPYJC
     }
     if($::debug >= 4) {
         no warnings 'uninitialized';
-        say STDERR "needs_try_block($at_bottom), top=@{[%$top]}";
+        print STDERR "needs_redo_loop($at_bottom), top=@{[%$top]} returns ";
     }
-    return 1 if(exists $line_needs_try_block{$top->{lno}} && 
-                ($line_needs_try_block{$top->{lno}} & TRY_BLOCK_REDO_LOOP));
+    if(exists $line_needs_try_block{$top->{lno}} && 
+                ($line_needs_try_block{$top->{lno}} & TRY_BLOCK_REDO_LOOP)) {
+        say STDERR "1" if($::debug >= 4);
+        return 1;
+    }
+    say STDERR "0" if($::debug >= 4);
     return 0;
 }
 
@@ -1517,6 +1627,19 @@ sub loop_ndx_with_label                     # SNOOPYJC
         }
     }
     return -1;
+}
+
+sub begin_loop_label                     # issue s30
+# Get the label (name) of the current BEGIN-type block, if any.  Returns "BEGIN" for a BEGIN block.
+{
+    for $ndx (reverse 0 .. $#nesting_stack) {
+        next if $nesting_stack[$ndx]->{type} ne 'for _ in range(1)';
+        if(exists $nesting_stack[$ndx]->{label}) {
+            return $nesting_stack[$ndx]->{label};
+        }
+        return '';
+    }
+    return '';
 }
 
 sub cur_loop_label                     # issue 94
@@ -3273,6 +3396,8 @@ my ($l,$m);
             handle_use_require(0);                                                              # issue names
         } elsif($#ValClass == 3 && $ValClass[0] eq 't' && $ValClass[1] eq 'a' && $ValPerl[1] eq '@ISA' && $ValClass[2] eq '=' && $ValClass[3] eq 'q' && cur_sub() eq '__main__') { # issue s3
             $SpecialVarsUsed{'@ISA'}{__main__} = $ValPy[3];             # issue s3
+        } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'return') {
+            handle_return();    # issue s30
         }
         for(my $i=1; $i <= $#ValClass; $i++) {
             if($ValClass[$i] eq 'k') {
@@ -6604,7 +6729,7 @@ sub handle_use_require          # issue names
          return;
      }
 
-     return;             # issue names - had to map them all
+     # issue s4: return;             # issue names - had to map them all
 
      # Ok - now for the real ones
 
@@ -6656,6 +6781,25 @@ sub handle_import               # issue names
         $file .= '.pm';
     }
 
+     # issue s4
+     my ($desired_version, @desired_imports);
+     for(my $i = $pos+2; $i <= $#ValClass; $i++) {   # See what we have next
+         if($ValClass[$i] eq 'i' && $ValPerl[$i] =~ /^v\d/) {
+             $desired_version .= $ValPerl[$i];
+         } elsif($ValClass[$i] eq 'd') {
+             $desired_version .= $ValPerl[$i];
+         } elsif($ValClass[$i] eq '"') {
+             push @desired_imports, $ValPerl[$i];
+         } elsif($ValClass[$i] eq 'q') {        # qw
+            if(index(q('"), substr($ValPy[$i],0,1)) >= 0) {
+                push @desired_imports, unquote_string($ValPy[$i]);
+            } else {
+                push @desired_imports, split(' ', $ValPy[$i]);         # qw(...) on use stmt doesn't generate the split
+            }
+        }
+    }
+    $desired_version = substr($desired_version,1) if($desired_version && substr($desired_version,0,1) eq 'v');
+
     my %found_map = ();
 
     my $path;
@@ -6680,18 +6824,29 @@ sub handle_import               # issue names
         say STDERR "handle_import($fullfile): file not found" if($::debug);
         return;
     }
+
+    # issue s4 - do an import of the module to see what names we have to care about.  
+    # import_perl_to_python has the side-effect of calling add_package_to_mapped_name,
+    # which is what we need to get the s4 issue fixed.
+    my ($fmap, $extras, $version) = &::expand_extras(\@desired_imports, $fullfile);
+    %found_map = %{$fmap};
+    my %actual_imports = map { $_ => 1 } @{$extras};
+    my @py_export = map { &::import_perl_to_python(\%found_map, $_) } keys %actual_imports;
+    say STDERR "For @ValPerl, found ($path, " . join(', ', @py_export) . ")" if($debug);
+
+=pod    # issue s4 - we don't need this any more that we default -R
     my $dir = dirname(__FILE__);
     #say STDERR "before: tell(STDIN)=" . tell(STDIN) . ", eof(STDIN)=" . eof(STDIN);
     say STDERR "\@export_info = `perl $dir/pythonizer_importer.pl $fullfile`;" if($::debug >= 3);
     @export_info = `perl $dir/pythonizer_importer.pl $fullfile`;
     #say STDERR "after:  tell(STDIN)=" . tell(STDIN) . ", eof(STDIN)=" . eof(STDIN);
     say STDERR "handle_import($fullfile): got @export_info" if($::debug>=3);
-    if ($export_info[-1] !~ /\@global_vars=qw/) {
+    if ($export_info[-3] !~ /\@global_vars=qw/) {       # issue s4 - we added @overloads and @wantarrays
         logme('W', "Could not import $fullfile for $ValPerl[$pos] " . $ValPerl[$pos+1]);
         return;
     }
     chomp(my $pkg = $export_info[0]);
-    chomp(my $vars = $export_info[-1]);
+    chomp(my $vars = $export_info[-3]);         # issue s4 - we added @overloads and @wantarrays
     say STDERR "handle_import($fullfile): Found $pkg $vars for Pass 1 $ValPerl[$pos] " . $ValPerl[$pos+1] if($::debug);
     $pkg =~ s'\$package=\''';
     $pkg =~ s/';//;
@@ -6719,8 +6874,10 @@ sub handle_import               # issue names
             $UseRequireOptionsPassed{$fullfile} = $opts;
         }
     }
+=cut
 }
 
+=pod    # issue s4 - we don't need this any more that we default -R
 sub get_pythonizer_options_used
 # Try to get the options used when pythonizing the given file
 {
@@ -6820,6 +6977,7 @@ sub compute_desired_use_require_options
         }
     }
 }
+=cut
 
 my %regex_flag_map = (A=>'a', I=>'i', L=>'L', M=>'m', S=>'s', U=>'u', X=>'x');
 
