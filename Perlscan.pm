@@ -143,6 +143,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'values'=>{list=>'.values()', scalar=>'.values()_s'},	# issue s3: Note: The "_s" gets removed when emitting the code
                 'chomp'=>{list=>'.rstrip("\n")', scalar=>'.rstrip("\n")_s'}, # issue s48: Note: The "_s" gets removed when emitting the code
                 'chop'=>{list=>'[0:-1]', scalar=>'[0:-1]_s'},           # issue s48: Note: The "_s" gets removed when emitting the code
+                'split'=>{list=>'_split', scalar=>'_split_s'},          # issue s52
                 'readdir'=>{list=>'_readdirs', scalar=>'_readdir'},     # issue s40
                 'readline'=>{list=>'.readlines()', scalar=>'_readline_full'},  # issue s40
                 );
@@ -151,6 +152,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                             '.keys()_s'=>'h:I', '.values()_s'=>'h:I',           # issue s3
                             '_readdir'=>'H:S', '_readline_full'=>'H:S',         # issue s40
                             '.rstrip("\n")_s'=>'S:m', '[0:-1]_s'=>'S:m',        # issue s48
+                            '_split_s'=>'SSI?:I',                               # issue s52
                             '_reverse_scalar'=>'a:S', 'filter_s'=>'Sa:I', 'map_s'=>'fa:I');
 
    # issue s40:
@@ -182,7 +184,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		# issue 54 'chdir'=>'.os.chdir','chmod'=>'.os.chmod',
                 'carp'=>'_carp', 'confess'=>'_confess', 'croak'=>'_croak', 'cluck'=>'_cluck',   # SNOOPYJC
                 'longmess'=>'_longmess', 'shortmess'=>'_shortmess',                             # SNOOPYJC
-		'chdir'=>'os.chdir','chmod'=>'_chmod',	# issue 54
+		'chdir'=>'_chdir','chmod'=>'_chmod',	# issue 54
 		'chomp'=>'.rstrip("\n")','chop'=>'[0:-1]','chr'=>'chr',
 		# issue close 'close'=>'.f.close',
 		'close'=>'_close',	# issue close, issue 72
@@ -209,6 +211,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'hex'=>'int',                           # SNOOPYJC
                 'if'=>'if ', 'index'=>'.find',
 		'int'=>'_int',				# issue int
+                'isa'=>'_isa',                          # issue s54
 		'GetOptions'=>'argparse',		# issue 48
 		'gmtime'=>'_gmtime',    		# issue times
                 'grep'=>'filter', 'goto'=>'goto', 'getcwd'=>'os.getcwd',
@@ -275,7 +278,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'readline'=>'.readlines()',     # issue s40
                 'redo'=>'continue',             # SNOOPYJC
                 'require'=>'__import__',        # SNOOPYJC
-                'return'=>'return', 'rmdir'=>'os.rmdir',
+                'return'=>'return', 'rmdir'=>'_rmdir',
                 'tell'=>'_tell',                # SNOOPYJC
                 'tie'=>'NoTrans!',
 		'time'=>'_time',		# SNOOPYJC
@@ -434,6 +437,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'glob'=>'f',		# SNOOPYJC
                   'if'=>'c',  'index'=>'f',
 		  'int'=>'f',		# issue int
+                  'isa'=>'f',           # issue s54
                   'for'=>'c', 'foreach'=>'c',
 		  'GetOptions'=>'f',	# issue 48
                   'goto'=>'k',          # SNOOPYJC
@@ -523,6 +527,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'exit'=>'I?:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':m', 'fileno'=>'H:I',
                   'fileparse'=>'Sm?:a of S', 'hex'=>'S:I', 'GetOptions'=>'a:I',
                   'glob'=>'S:a of S', 'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 
+                  'isa'=>'mS:I',                # issue s54
                   'kill'=>'mI:u', 'lc'=>'S:S', 'lstat'=>'m:a of I',
                   'lcfirst'=>'S:S',
                   'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'SI?:I', 'oct'=>'S:I', 'ord'=>'S:I', 'open'=>'HSS?:I',
@@ -1256,7 +1261,7 @@ sub enter_block                 # issue 94
         $last_label = undef;            # We used it up
     } elsif($#ValClass >= 0 && $ValClass[0] eq 'i' && $ValPy[0] =~ /^for / && $ValPerl[0] =~ /[A-Z]+/) {   # issue s30: BEGIN and friends
         $nesting_info{label} = $ValPerl[0];
-        $all_labels{$ValPerl[0]} = 1;
+        # we set this only if we need to use it $all_labels{$ValPerl[0]} = 1;
     }
     push @nesting_stack, \%nesting_info;
     if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
@@ -1380,11 +1385,13 @@ sub handle_return_in_expression         # SNOOPYJC: Handle 'return' in the middl
             return;
         } elsif($nesting_stack[$ndx]->{is_loop}) {
             if($nesting_stack[$ndx]->{type} eq 'for _ in range(1)') {  # issue s30: This is a BEGIN
+                $all_labels{$nesting_stack[$ndx]->{label}} = 1 if $exc;
                 $line_needs_try_block{$nesting_stack[$ndx]->{lno}} |= $exc;  # May need an exception to return from this BEGIN
                 return;
             }
             $exc = TRY_BLOCK_EXCEPTION;
         } elsif($nesting_stack[$ndx]->{type} eq 'for _ in range(1)') {  # issue s30: This is a BEGIN
+            $all_labels{$nesting_stack[$ndx]->{label}} = 1 if $exc;
             $line_needs_try_block{$nesting_stack[$ndx]->{lno}} |= $exc;  # May need an exception to return from this BEGIN
             return;
         }
@@ -2409,6 +2416,11 @@ my ($l,$m);
          } elsif(substr($w,0,6) eq 'Carp::' && $w =~ /carp|confess|croak|cluck/) {      # SNOOPYJC
              $w = substr($w,6);
          }
+         if(substr($w,0,10) eq "UNIVERSAL'" && $w =~ /isa/) {    # issue s54
+             $w = substr($w,10);
+         } elsif(substr($w,0,11) eq 'UNIVERSAL::' && $w =~ /isa/) {      # issue s54
+             $w = substr($w,11);
+         }
          if( exists($keyword_tr{$w}) ){
             $ValPy[$tno]=$keyword_tr{$w};
          }
@@ -2422,7 +2434,7 @@ my ($l,$m);
 	 }					# SNOOPYJC
          if( exists($TokenType{$w}) ){
             $class=$TokenType{$w};
-            if($class eq 'f' && !$core && exists $Pythonizer::UseSub{$w}) {     # SNOOPYJC
+            if($class eq 'f' && !$core && (exists $Pythonizer::UseSub{$w} || exists $Pythonizer::LocalSub{$w})) {     # SNOOPYJC
                 $class = 'i';
                 $ValPy[$tno] = $w;
             } elsif($class eq 'q' && $tno != 0 && $ValClass[$tno-1] eq 'q') {   # issue 120: flags!
@@ -2598,12 +2610,24 @@ my ($l,$m);
                   $arg1=remove_escaped_delimiters($delim, $original_regex);     # issue 51, issue 111
                   $source=substr($source,$cut); #cut to symbol after the delimiter
                   $cut=0;
-                  if( $w eq 'm' || ($w eq 'qr' &&  $ValClass[$tno-1] eq '~') ){
+                  if( ($w eq 'm' || $w eq 'qr') && ($tno>=1 && $ValPerl[$tno-1] eq 'split') ||
+                      ($tno>=2 && $ValClass[$tno-1] eq '(' && $ValPerl[$tno-2] eq 'split')) {   # issue s52
+                      # in split regex should be  plain vanilla -- no re.match is needed.
+                      ($modifier,undef)=is_regex($arg1); # modifies $source as a side effect
+                      if( length($modifier) > 1 ){
+                        #regex with modifiers
+                         $quoted_regex='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex)."$modifier)";   # issue 111
+                      }else{
+                        # No modifier
+                        $quoted_regex=put_regex_in_quotes($arg1, $delim, $original_regex);       # issue 111
+                      }
+                      $ValPy[$tno]=$quoted_regex;
+                  } elsif( $w eq 'm' || ($w eq 'qr' &&  $ValClass[$tno-1] eq '~') ){
                      $ValClass[$tno]='q';
                      $ValPy[$tno]=perl_match($arg1, $delim, $original_regex); # it calls is_regex internally, issue 111
-                  }elsif( $w eq 'qr' && $tno>=2 && $ValClass[$tno-1] eq '(' && $ValPerl[$tno-2] eq 'split' ){
-                      # in split regex should be  plain vanilla -- no re.match is needed.
-                      $ValPy[$tno]='r'.$quoted_regex; #  double quotes neeed to be escaped just in case
+                  # issue s52 }elsif( $w eq 'qr' && $tno>=2 && $ValClass[$tno-1] eq '(' && $ValPerl[$tno-2] eq 'split' ){
+                  # issue s52    # in split regex should be  plain vanilla -- no re.match is needed.
+                  # issue s52    $ValPy[$tno]='r'.$quoted_regex; #  double quotes neeed to be escaped just in case
                   }elsif( $w eq 's' ){
                      $ValPerl[$tno]='re';
                      $ValClass[$tno]='f';
@@ -3009,33 +3033,52 @@ my ($l,$m);
                $ValCom[$tno]='X';
                $ValPy[$tno]="$MAIN_MODULE$ValPy[$tno]";
             }
-	    # We set a bit so LocalSub is True (and we don't change it to a string) but we can 
-	    # still check if it's actually defined locally in add_package_name_sub
-            $Pythonizer::LocalSub{$ValPy[$tno]} |= 8;	
-            $Pythonizer::LocalSub{cur_package() . '.' . $ValPy[$tno]} |= 8;          # issue s3
-	    # issue 117 - if this is "&sub" with no parens, then pass along @_ (but not if it's a reference to the sub, and not in main)
-	    if(cur_sub() ne '__main__' && ($tno == 0 || ($ValClass[$tno-1] ne "\\" && $ValPerl[$tno-1] ne 'defined')) && 
-               !($tno-2 >= 0 && $ValClass[$tno-1] eq '(' && $ValPerl[$tno-2] eq 'defined') &&
-               substr($source,$cut) !~ /^\s*\(/) {	# issue 117
-                if( $::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0 ){
-                    say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
+            $w = $1;                                    # issue s58
+            my $core = 0;                          # SNOOPYJC
+            if(substr($w,0,5) eq "CORE'") {        # SNOOPYJC
+                $w = substr($w,5);
+                $core = 1;
+            } elsif(substr($w,0,6) eq 'CORE::') {  # SNOOPYJC
+                $w = substr($w,6);
+                $core = 1;
+            }
+            if( exists($TokenType{$w}) ){		# issue s58: Handle &Carp::cluck
+               $class=$TokenType{$w};
+               if($class eq 'f' && !$core && (exists $Pythonizer::UseSub{$w} || exists $Pythonizer::LocalSub{$w})) {     # SNOOPYJC
+                   $class = 'i';
+	       } elsif(exists $keyword_tr{$w}) {
+                   $ValPy[$tno] = $keyword_tr{$w};
+               }
+	       $ValClass[$tno] = $class;
+	    } else {
+                # We set a bit so LocalSub is True (and we don't change it to a string) but we can 
+                # still check if it's actually defined locally in add_package_name_sub
+                $Pythonizer::LocalSub{$ValPy[$tno]} |= 8;	
+                $Pythonizer::LocalSub{cur_package() . '.' . $ValPy[$tno]} |= 8;          # issue s3
+                # issue 117 - if this is "&sub" with no parens, then pass along @_ (but not if it's a reference to the sub, and not in main)
+                if(cur_sub() ne '__main__' && ($tno == 0 || ($ValClass[$tno-1] ne "\\" && $ValPerl[$tno-1] ne 'defined')) && 
+                   !($tno-2 >= 0 && $ValClass[$tno-1] eq '(' && $ValPerl[$tno-2] eq 'defined') &&
+                   substr($source,$cut) !~ /^\s*\(/) {	# issue 117
+                    if( $::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0 ){
+                        say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
+                    }
+                    $tno++;
+                    $ValClass[$tno]=$ValPerl[$tno]=$ValPy[$tno]='(';
+                    if( $::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0 ){
+                        say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
+                    }
+                    $tno++;
+                    $ValClass[$tno]='a';
+                    $ValPerl[$tno]='@_';
+                    $ValType[$tno]="X";
+                    $ValPy[$tno]="$PERL_ARG_ARRAY";
+                    if( $::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0 ){
+                        say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
+                    }
+                    $tno++;
+                    $ValClass[$tno]=$ValPerl[$tno]=$ValPy[$tno]=')';
                 }
-	        $tno++;
-		$ValClass[$tno]=$ValPerl[$tno]=$ValPy[$tno]='(';
-                if( $::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0 ){
-                    say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
-                }
-		$tno++;
-		$ValClass[$tno]='a';
-		$ValPerl[$tno]='@_';
-                $ValType[$tno]="X";
-                $ValPy[$tno]="$PERL_ARG_ARRAY";
-                if( $::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0 ){
-                    say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
-                }
-	        $tno++;
-		$ValClass[$tno]=$ValPerl[$tno]=$ValPy[$tno]=')';
-	    }
+            }
          }else{
            $cut=1;
          }
@@ -5554,8 +5597,16 @@ sub remove_oddities
 	    $line = ($1 =~ s/,/ = /gr) . " = None";
     }
     
-    # FIXME: Change "_list_of_n((7, 7, 7), 3" to "(7, 7, 7)"
+    # Can't do this here because the list can contain an array value which we won't know.
+    # Instead, we check when we generate the code and don't put the _list_of_n in in the first place.
+    #
+    # Change "_list_of_n((7, 7, 7), 3" to "(7, 7, 7)"
+    # Change: 'perllib.list_of_n(("", "", ""), 3)' to '("", "", "")'
+    # 
     # if($line =~ /\b_list_of_n\(\(.*\), (\d+)\)/) {
+    #    if($line =~ /list_of_n\(/) {
+    #        $line = optimize_list_of_n($line, $-[0]);
+    #    }
 
     # Change ((...)) to (...) unless there are ',' inside the "..."
     my $pos = -1;
@@ -5597,6 +5648,51 @@ sub in_string
     }
     return 1;
 }
+
+=pod
+sub optimize_list_of_n                                          # SNOOPYJC
+# See if we can optimize out this _list_of_n call
+{
+    my $line = shift;   # Line of python code
+    my $pos = shift;    # Points to start of "list_of_n("
+
+    return $line if in_string($line, $pos);
+    my $open = $pos + length('list_of_n');        # Point to '('
+    return $line if substr($line, $open+1, 1) ne '(';    # We must have list_of_n((...), N)
+    my $close = python_matching_paren($line, $open);
+    return $line if $close < 0;
+    my $tuple_start = $open+1;
+    my $tuple_end = python_matching_paren($line, $tuple_start);
+    return $line if $tuple_end < 0;
+    return $line if substr($line, $tuple_end+1, 2) ne ', ';
+    my $count = substr($line, $tuple_end+3, ($close-($tuple_end+3)));
+    return $line if $count !~ /\d+/;
+    # LOL it's never that easy:
+    #my $commas = substr($line, $tuple_start, ($tuple_end+1-$tuple_start)) =~ tr/,//;
+    my $tuple_contents = substr($line, $tuple_start+1, ($tuple_end-1-$tuple_start));
+    $tuple_contents = &Pythonizer::eat_strings($tuple_contents);
+    my $commas = 0;
+    for(my $i = 0; $i < length($tuple_contents); $i++) {
+        my $ch = substr($tuple_contents,$i,1);
+        if($ch eq '(') {
+            my $end = python_matching_paren($tuple_contents, $i);
+            return $line if($end < 0);
+            $i = $end;
+        } elsif($ch eq ',') {
+            $commas++;
+        }
+    }
+    return $line if $count != ($commas+1);
+
+    if(substr($line, $pos-1, 1) eq '_') {       # _list_of_n
+        $pos--;
+    } elsif(substr($line, $pos-(length($PERLLIB)+1), length($PERLLIB)+1) eq "$PERLLIB.") {
+        $pos -= (length($PERLLIB)+1);
+    }
+    # remove the list_of_n call and just leave the prefix, the tuple, and the suffix
+    return substr($line, 0, $pos-1) . substr($line, $tuple_start, ($tuple_end+1-$tuple_start)) . substr($line, $close+1);
+}
+=cut
 
 sub python_matching_paren
 # Find matching paren in python code, if found.

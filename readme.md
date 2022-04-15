@@ -1,5 +1,5 @@
 ## Translator from Perl to Python 
-### THIS IS AN ANNOUNCEMENT FOR VERSION 0.970 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
+### THIS IS AN ANNOUNCEMENT FOR VERSION 0.971 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
 
 This readme is for informational purposes only and is not intended to be updated often. 
 
@@ -63,6 +63,7 @@ Currently these user options are supported (pythonizer -h provides a list of opt
     -R -- remap comma separated list of variables: variables specified as var or *var will map all variables named 'var', 
           $var will just map scalar to var_v, @var will just map array to var_a, %var will just map hash to var_h,
           :global will remap all global vars (default), :all will remap all variables, :none will remap no variables. 
+    -a -- Add __author__, __email__, and __version__ strings to the generated code
     -d    level of debugging  default is 0 -- production mode
           0 -- Production mode
           1 -- Testing mode. Program is autosaved in Archive (primitive versioning mechanism)

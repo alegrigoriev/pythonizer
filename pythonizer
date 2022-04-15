@@ -36,6 +36,7 @@
 ##    -R -- remap comma separated list of variables: variables specified as var or *var will map all variables named 'var', 
 ##          $var will just map scalar to var_v, @var will just map array to var_a, %var will just map hash to var_h,
 ##          :global will remap all global vars (default), :all will remap all variables, :none will remap no variables. 
+##    -a -- Add __author__, __email__, and __version__ strings to the generated code
 ##    -d    level of debugging  default is 0 -- production mode
 ##          0 -- Production mode
 ##          1 -- Testing mode. Program is autosaved in Archive (primitive versioning mechanism)
@@ -184,6 +185,7 @@
 # 0.968  2022/04/02  SNOOPYJC  issue s27 - 'tr' from backslash generates bad code, issue s26 - Multiple anonymous subroutines on the same line all get the same name and all but the last sub don't get a return statement automatically inserted, issue s29 - 'return' or implied return at end of anon sub in a BEGIN block generates incorrect code, issue s31: Assignment to typeglob with a variable name doesn't generate any code, issue s33: stat function doesn't work on a FILEHANDLE or DIRHANDLE and stat_cando doesn't work, issue s36 - Bareword in boolean context should not be translated as a string, issue s35: ... or do {...}; without a while/until generates an infinite loop, issue s37: Assignment to variables with /BEGIN|UNITCHECK|CHECK|INIT/ in their names generates incorrect code, issue s34: Bad code generated for my ( $ldev, $lino, $perm ) = ( lstat $root )[ 0, 1, 2 ] or next ROOT_DIR;, fix issue scanning line in PASS 1 that ends with an interpolated string with the ; on the next line, add the Cwd package, issue s38: Assigning to a hashref marked as an array with a qw containing the list of keys generates bad code
 # 0.969  2022/04/05  SNOOPYJC  issue s39 - Having multiple statements in map {...} or grep {...} generates bad code, issue s40 - readdir in list context needs to return all of the entries, add readline function, issue s41 - Multi-variable split assignment with a bash style and/or generates syntax error code, issue s43: Multi-index of a function that returns an empty array doesn't work, issue s44 - Bash style and/or with 'next LABEL;' generates incorrect loop break, issue s45 - Turn warning off by default, issue s46 - Non-parenthesized function call with | operator isn't parsed properly, issue s47 - Map of a qw generates bad code syntax, issue s48 - When an array or hash is passed to a function that expects a number, the length needs to be passed instead
 # 0.970  2022/04/10  SNOOPYJC  issue s4: use Config with -m doesn't work, issue s50 - next LABEL inside a do {...} generates incorrect code, causing the do to become an infinite loop, issue s30 - 'return' inside of a loop in a BEGIN block generates incorrect code, issue s49 - next OUTER loop from an inner loop that uses a 'continue' generates syntax error code
+# 0.971  2022/04/12  SNOOPYJC  issue s19: add option to add __author__ etc, issue s51: add more functions to File::Spec, issue s53: pushing something to @_ generates an AttributeError at runtime, issue s54: implement UNIVERSAL::isa, implement File::Path, issue s57: if ref X is used in an expression that compares with HASH, SCALAR, etc then call our refs function and not ref even if a backslash isn't used, issue s55: Converting an array into an array ref using [@arr] shouldn't generate an outer array, issue s56: chdir and rmdir don't return the proper result, issue s58: Referencing a built-in sub with & generates bad code, issue s59: Don't insert _list_of_n if the RHS contains the same # of elements as the LHS
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -235,7 +237,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.970';
+   $VERSION='0.971';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -261,6 +263,7 @@ BEGIN {                                                 # SNOOPYJC
    $remap_global=1;                     # SNOOPYJC -R:global option
    %remap_requests=();                  # SNOOPYJC -R $var1,@var2,%var3,*var4,... - set
    $output_dir=undef;                   # issue s23
+   $gen_author=0;                       # issue s19
    $HOME=$ENV{'HOME'}; # the directory used for autobackup (only if debug>0)
    if( $^O eq 'cygwin' ){
       # $^O is built-in Perl Variable that contains OS name
@@ -333,6 +336,19 @@ BEGIN {                                                 # SNOOPYJC
    output_line('', $comment);                                                           # SNOOPYJC
    if(@Pass0::implied_options) {
        output_line('', "# Implied $us options: " . join(' ', @Pass0::implied_options));
+   }
+   if($gen_author) {            # issue s19
+       my $dir = dirname(__FILE__);
+       open(AUTH, "<", "$dir/$AUTHORS_FILE");
+       while(<AUTH>) {
+           if(/^\* (.*) <(.*@.*)>/) {
+               $author = $1;
+               $email = $2;
+           }
+       }
+       output_line('', '__author__ = """' . $author . '"""');
+       output_line('', "__email__ = '$email'");
+       output_line('', "__version__ = '$VERSION'");
    }
 
    if (defined $line && $line =~ /^\s*#!/){
@@ -1535,6 +1551,10 @@ my ($start,$token_buffer_active);
              } elsif($ValClass[1] eq '&' && $ValClass[2] eq 's' && $CurSub ne '__main__') {      # SNOOPYJC goto &$func_ref;
                 gen_chunk('return');
                 gen_chunk($ValPy[2],"(*$PERL_ARG_ARRAY)");
+             } elsif($ValClass[1] eq 'f' && $#ValClass == 1) {          # issue s58
+                 append('a', '@_', "$PERL_ARG_ARRAY");                 # issue s58
+                 gen_chunk('return');                                   # issue s58
+                 $TrStatus = function(1);                               # issue s58
              } else {
                 logme('S', "goto $ValPerl[1] is not supported!");
                 if($Pythonizer::CurNest) {                             # SNOOPYJC
@@ -2122,7 +2142,10 @@ sub fix_type_issues
                         next;
                     # issue bootstrap } elsif($ValClass[$j] =~ /[ah]/) {     # We will * an array, and iterate a hash, so just skip this
                     # issue bootstrap last;
-                    } elsif($optional && index("^*~/%+-.HI>&|0or?:=,A", $ValClass[$j]) >= 0) {
+                    } elsif($optional && 
+                        ($j == 0 || $ValClass[$j-1] ne ',') &&              # issue s52
+                        # issue s52 index("^*~/%+-.HI>&|0or?:=,A", $ValClass[$j]) >= 0) {
+                        index("^*~/%.HI>&|0or?:=,A", $ValClass[$j]) >= 0) {  # issue s52: Eliminated unary ops here
                         $j--;
                         last;
                     } else {
@@ -2691,6 +2714,14 @@ sub fix_expression_issues
             replace($oop+1,'(','(','(');
             replace($oop,'f',$func,$py);
         }
+   } elsif($oop >= 0 && $ValPerl[$oop+2] eq 'isa') {
+        # issue s54: Check for use of $obj->isa('ClassName'), and change it to a normal function call
+        replace($oop+3,',',',',',');
+        my $func = $ValPerl[$oop+2];
+        my $py = '_' . $func;
+        replace($oop+2,$ValClass[$oop],$ValPerl[$oop],$ValPy[$oop]);
+        replace($oop+1,'(','(','(');
+        replace($oop,'f',$func,$py);
    }
 
    # SNOOPYJC: Handle read in expressions
@@ -2755,12 +2786,32 @@ sub fix_expression_issues
        $st = $pos+1;
        last if($st > $limit);
    }
-
+  
+   # issue s55 - change [@arr] to \@arr and {%hash} to \%hash
+   $st = $start;
+   while(($pos = next_matching_tokens('ah', $st, $limit)) >= 0) {
+       if($pos-1 >= 0 && $pos+1 <= $limit) {
+           my $open = ($ValClass[$pos] eq 'a' ? '[' : '{');
+           my $close = ($ValClass[$pos] eq 'a' ? ']' : '}');
+           if($ValPerl[$pos-1] eq $open && $ValPerl[$pos+1] eq $close) {
+               replace($pos-1, '\\', '\\', '');
+               destroy($pos+1,1);
+               $limit--;
+           }
+       }
+       $st = $pos+1;
+       last if($st > $limit);
+   }
+   
+   # NOTE: Add new updates here, not at the bottom of this function!
+   
    # issue 81: Handle anonymous sub in expression
    # It's always the last thing because we stop lexxing there
    if($#ValClass != 0 && $ValClass[$#ValClass] eq 'k' && $ValPerl[$#ValClass] eq 'sub') {
        handle_anonymous_sub_in_expression();
    }
+
+   # NOTE: Do NOT add new updates here!
 
 #   goto SKIPITFORNOW;
 #   $st = $start;
@@ -3431,6 +3482,9 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
       # issue 14 gen_chunk($ValPy[$split]); # generate appropriate operation hidden under generic token '=' (  +=, -=, etc)
       gen_chunk($ValPy[$split]) unless $skip_assign_op == 1; # issue 14: generate appropriate operation hidden under generic token '=' (  +=, -=, etc)
 
+      if(defined $number_of_elements && rhs_has_same_number_of_elements($number_of_elements, $split+1, $limit)) { # issue s59
+          undef $number_of_elements;
+      }
       if(defined $number_of_elements) {         # issue 56, SNOOPYJC: Handle goatse
         $Pyf{"_list_of_n"} = 1;		# issue 56
         gen_chunk('_list_of_n', '(');   # issue 56
@@ -5157,15 +5211,26 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
        return $start+1;		# issue 19
    }elsif( $perl_name eq 'split' ){
       $k=$start; # pos of the first arg
-      if ($k > $#ValClass || ($bracketed==1 && $ValPerl[$k] eq ')')){   # SNOOPYJC: handle ... = split;
+      if ($bracketed==-1 ||                     # issue s52
+          $k > $#ValClass || ($bracketed==1 && $ValPerl[$k] eq ')')){   # SNOOPYJC: handle ... = split;
          # special case of splitting default varible on white space
 	 # issue split gen_chunk("default_var.split(' ')");
-         gen_chunk("${DEFAULT_VAR}.split()");	# issue split - split on white space, issue 32
+         if($py_name =~ /_s$/) {             # issue s52: Scalar version
+             gen_chunk("len(${DEFAULT_VAR}.split())");	# issue s52
+         } else {
+             gen_chunk("${DEFAULT_VAR}.split()");	# issue split - split on white space, issue 32
+         }
          # SNOOPYJC return $end_pos+1;
          return $limit+1;                       # SNOOPYJC
       }
       $arg1=$ValPy[$k];  # first argument is present
       $arg1type=$ValClass[$k];
+      if($arg1type eq 'f' && $arg1 eq $CONVERTER_MAP{S} && $ValClass[$k+2] eq 'q') {    # issue s52: _str(qr/.../)
+          # issue s52: Just ignore the converter in this case
+          $arg1 = $ValPy[$k+2];
+          $arg1type = $ValClass[$k+2];
+          $k += 3;
+      }
       $flags = '';                      # issue 21
       if($arg1type ne '"' && $k+1 <= $#ValClass && $ValClass[$k+1] eq 'i') {    # issue 21: we have FLAGS!
           $k++;
@@ -5180,7 +5245,11 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
          # issue 21 if( $arg1 eq ' ' || $arg1type eq '"' ){
          if( $arg1type eq '"' ){                        # issue 21: string
             $arg1 ='' if($arg1 eq "' '");               # issue 21: string of ' ' is a special case
-            gen_chunk("${DEFAULT_VAR}.split($arg1)");           # issue 32
+            if($py_name =~ /_s$/) {             # issue s52: Scalar version
+                gen_chunk("len(${DEFAULT_VAR}.split($arg1))");           # issue 32, issue s52
+            } else {
+                gen_chunk("${DEFAULT_VAR}.split($arg1)");           # issue 32
+            }
          }else{
 	    # issue 21 gen_chunk($py_name,"($arg1,default_var"); # this is a regex function
             gen_chunk($py_name,"($arg1, $DEFAULT_VAR$flags)"); # this is a regex function	# issue 21, issue 32
@@ -5189,6 +5258,7 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
          return $limit+1;                     # SNOOPYJC
       }
       $k+=2; # $k now points to the start of the second argument
+      my $add_paren = 0;
       if( $k==$end_pos ){
          $arg2=$ValPy[$k];
          $k+=1;
@@ -5196,13 +5266,22 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
 	 # issue 21    gen_chunk("$arg2.lstrip($arg1");
          if( $arg1type eq '"' ){        # issue 21
             $arg1 ='' if($arg1 eq "' '");       # issue 21: string of ' ' is a special case
-            gen_chunk("$arg2.split($arg1");	# issue 21
+            if($py_name =~ /_s$/) {             # issue s52: Scalar version
+                $add_paren = 1;                 # issue s52
+                gen_chunk("len($arg2.split($arg1");	# issue s52
+            } else {
+                gen_chunk("$arg2.split($arg1");	# issue 21
+            }
          }else{
             gen_chunk($py_name,"($arg1,$arg2$flags"); # issue 21: this is a regex function
          }
       }elsif( ($split=next_same_level_token(',',$k+1,$end_pos))>-1 ){
          #we have third argument to split
          if($arg1type eq '"') {                 # issue 21
+            if($py_name =~ /_s$/) {             # issue s52: Scalar version
+                $add_paren = 1;                 # issue s52
+                gen_chunk('len(');
+            }
             $k=expression($k,$split-1);         # issue 21
             if($arg1 eq "' '") {       # issue 21: string of ' ' is a special case
                 gen_chunk(".split(maxsplit=");       # issue 21
@@ -5220,6 +5299,10 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
 	 gen_chunk("-1");	        # issue 21: # of times to split is different in python
          gen_chunk($flags) if($flags);  # issue 21
       }elsif($arg1type eq '"') {        # issue 21: Expression with string pattern and 2 args
+         if($py_name =~ /_s$/) {             # issue s52: Scalar version
+            $add_paren = 1;                 # issue s52
+            gen_chunk('len(');
+         }
          $k=expression($k,$end_pos);	# issue 21
          $arg1 ='' if($arg1 eq "' '");       # issue 21: string of ' ' is a special case
          gen_chunk(".split($arg1");     # issue 21
@@ -5228,6 +5311,7 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
          $k=expression($k,$end_pos);	# issue 21
          gen_chunk($flags) if($flags);  # issue 21
       }
+      gen_chunk(')') if($add_paren);    # issue s52
       gen_chunk(')');
    }elsif($perl_name eq 'print' || $perl_name eq 'printf') {
       $TrStatus=print3($begin); # in Python3 this is a function
@@ -6303,10 +6387,10 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
        gen_chunk(')');
    }else{
       $py_name = 'len' if($py_name eq 'lens');          # SNOOPYJC: string len has a different type but same function
-      if($py_name eq '_ref' && $ValClass[$start] eq "\\") {     # issue s3
+      if($py_name eq '_ref' && ($ValClass[$start] eq "\\" || expression_uses_builtin_types($begin))) {     # issue s3, issue s57
           $py_name = '_refs';
           $Pyf{_refs} = 1;
-      } elsif($py_name eq "$PERLLIB.ref" && $ValClass[$start] eq "\\") {     # issue s3
+      } elsif($py_name eq "$PERLLIB.ref" && ($ValClass[$start] eq "\\" || expression_uses_builtin_types($begin))) {     # issue s3, issue s57
           $py_name = "$PERLLIB.refs";
       }
       gen_chunk($py_name);
@@ -10100,6 +10184,56 @@ sub in_boolean_context          # issue s36
     return 1 if $pos+1 < $#ValClass && $ValClass[$pos+1] eq ':' && $pos != 0 && $ValPerl[$pos-1] eq '?';
     return 0;
 
+}
+
+sub expression_uses_builtin_types               # issue s57
+# Check to see if this ref is compared with a built-in type like HASH, ARRAY, SCALAR, etc
+{
+    my $fpos = shift;		# Pointer to function start
+    my $eof = end_of_function($fpos);
+
+    my $comparator = undef;
+    if($fpos-2 >= 0 && $ValClass[$fpos-1] eq '>') {
+        $comparator = $fpos-2;
+    } elsif($eof+2 <= $#ValClass && $ValClass[$eof+1] eq '>') {
+        $comparator = $eof+2;
+    }
+    if(defined $comparator && $ValClass[$comparator] eq '"' && $ValPerl[$comparator] =~ /^(?:HASH|ARRAY|SCALAR|REGEX)$/) {
+        return 1;
+    }
+    return 0;
+}
+
+sub rhs_has_same_number_of_elements                     # issue s59
+# Does the RHS of this expression have the same # of elements as the LHS?
+{
+    my ($number_of_elements, $start, $limit) = @_;
+
+    return 0 if($number_of_elements == 1);      # Else we generate wrong code like [a] = 0
+
+    if($start == $limit && $ValClass[$start] eq 'q' && $ValPy[$start] =~ /\.split\(\)$/) {
+        my $words = $ValPy[$start];
+        $words =~ s/\.split\(\)$//;
+        $words =~ s/'//;
+        my $count = split ' ', $words;
+        return ($count == $number_of_elements);
+    }
+    return 0 if $ValClass[$start] ne '(';
+    my $match = matching_br($start);
+    return 0 if $match != $limit;
+    my $commas = 0;
+    for(my $i=$start+1; $i < $limit; $i++) {
+        if($ValClass[$i] eq ',') {
+            $commas++;
+        } elsif($ValClass[$i] eq '(') {
+            $match = matching_br($i);
+            return 0 if $match < 0;
+            $i = $match;
+        } elsif($ValClass[$i] =~ /[ah]/) {      # no arrays or hashes allowed
+            return 0;
+        }
+    }
+    return ($number_of_elements == $commas+1);
 }
 
 __DATA__
