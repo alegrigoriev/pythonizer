@@ -84,7 +84,7 @@ sub prolog
       # SNOOPYJC getopts("AThd:v:r:b:t:l:",\%options);
       @orig_ARGV = @ARGV;                       # SNOOPYJC
       # NOTE: Remember to add new flags to Pass0.PM (# pragma pythonizer), the help with ## at the start of pythonizer, and the readme/documentation!
-      getopts("uUkKnmMAVThsSpPd:v:r:b:B:t:l:R:o:",\%options);     # SNOOPYJC, issue s23
+      getopts("auUkKnmMAVThsSpPd:v:r:b:B:t:l:R:o:",\%options);     # SNOOPYJC, issue s23, issue s19
 #
 # Three standard options -h, -v and -d
 #
@@ -228,6 +228,9 @@ sub prolog
       if( exists $options{'o'} ) {              # issue s23
           $::output_dir = $options{'o'};        # issue s23
       }                                         # issue s23
+      if( exists $options{'a'} ) {              # issue s19
+          $::gen_author = 1;                    # issue s19
+      }                                         # issue s19
 
 #
 # Application arguments
@@ -497,6 +500,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
               } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 'shift' || $ValPerl[$k] eq 'pop') &&        # SNOOPYJC
                       ($k == $#ValClass || $ValPerl[$k+1] eq '@_' || $ValClass[$k+1] !~ /[ahfi]/)) {       # SNOOPYJC
                  $SubAttributes{$CurSubName}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args
+              } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 'push' || $ValPerl[$k] eq 'unshift') &&
+                      $ValPerl[$k+1] eq '@_') {                         # issue s53
+                 $SubAttributes{$CurSubName}{modifies_arglist} = 1;     # issue s53
               } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 're' && $ValPy[$k] =~ /\b$DEFAULT_VAR\b/) ||
                   ($ValPerl[$k] eq 'tr' && ($k == 0 || $ValClass[$k-1] ne '~'))) {      # issue s8: sets the $DEFAULT_VAR
                   
@@ -2225,7 +2231,10 @@ sub end_of_function                             # issue s3
             $j = &::end_of_variable($j);
             $j++ if($j+1 == $comma);
             next;
-        } elsif($optional && index("^*~/%+-.HI>&|0or?:=,A", $ValClass[$j]) >= 0) {
+        } elsif($optional && 
+            ($j == 0 || $ValClass[$j-1] ne ',') &&              # issue s52
+            # issue s52 index("^*~/%+-.HI>&|0or?:=,A", $ValClass[$j]) >= 0) {
+            index("^*~/%.HI>&|0or?:=,A", $ValClass[$j]) >= 0) {  # issue s52: Eliminated unary ops here
             $j--;
             last;
         } elsif(!$optional && $comma != -1 && $ValClass[$comma] ne ',' &&

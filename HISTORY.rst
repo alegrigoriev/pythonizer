@@ -2,10 +2,15 @@
 History
 =======
 
+0.971 (2022-04-12)
+------------------
+
+* Add _split_s for split in a scalar context.  Add _splitdir, _splitpath, _curdir, and _updir from File::Spec.  Add _isa.  Add __contains__ in File_stat.  Add _chdir and _rmdir.
+
 0.970 (2022-04-10)
 ------------------
 
-* 
+* (no library changes)
 
 0.969 (2022-04-05)
 ------------------

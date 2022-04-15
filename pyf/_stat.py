@@ -85,6 +85,8 @@ class File_stat(collections.abc.Sequence):
             return getattr(self, self._item_map[index])
         except KeyError:
             raise IndexError('File_stat index out of range')
+    def __contains__(self, item):
+        return item in self._item_map
     def cando(self, mode, eff):
         return stat_cando(self, mode, eff)
 

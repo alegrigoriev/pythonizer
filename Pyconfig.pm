@@ -9,7 +9,7 @@ package Pyconfig;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $KEY_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS %PYF_OUT_PARAMETERS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER $SHEBANG %OVERLOAD_MAP %CLASS_METHOD_SET);
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $KEY_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS %PYF_OUT_PARAMETERS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER $SHEBANG %OVERLOAD_MAP %CLASS_METHOD_SET $AUTHORS_FILE);
 
 # use Readonly;		# Readonly is not installed by default so skip it!
 
@@ -257,6 +257,8 @@ our $PRETTY_PRINTER = 'black -q -t py38 --fast';
 
 our $SHEBANG = '#!/usr/bin/env python3';
 
+our $AUTHORS_FILE = 'AUTHORS.rst';	# issue s19
+
 # issue s3: implement Math::Complex - depends on use overload, which this table supports:
 our %OVERLOAD_MAP = 	(
 	'='	=> {normal=>'__copy__', unary=>1},
@@ -374,11 +376,19 @@ our %PREDEFINED_PACKAGES = (
 				   {perl=>'catfile', type=>'a:S', python=>'os.path.join'},
 				   {perl=>'rel2abs', type=>'S:S', python=>'os.path.abspath'},
 				   {perl=>'abs2rel', type=>'SS?:S', python=>'os.path.relpath'},
+				   {perl=>'splitpath', type=>'SI?:a of S'},	# issue s51
+				   {perl=>'splitdir', type=>'S:a of S'},	# issue s51
+				   {perl=>'curdir', type=>':S'},	# issue s51
+				   {perl=>'updir', type=>':S'},		# issue s51
 			   	  ],
         'File::Spec::Functions'=> [{perl=>'file_name_is_absolute', type=>'S:I', python=>'os.path.isabs'},
 				   {perl=>'catfile', type=>'a:S', python=>'os.path.join'},
 				   {perl=>'rel2abs', type=>'S:S', python=>'os.path.abspath'},
 				   {perl=>'abs2rel', type=>'SS?:S', python=>'os.path.relpath'},
+				   {perl=>'splitpath', type=>'SI?:a of S'},	# issue s51
+				   {perl=>'splitdir', type=>'S:a of S'},	# issue s51
+				   {perl=>'curdir', type=>':S'},	# issue s51
+				   {perl=>'updir', type=>':S'},		# issue s51
 			   	  ],
 	'Data::Dumper'=> [{perl=>'Dumper', type=>'m:S'}],
 	'Text::Balanced'=> [{perl=>'extract_bracketed', type=>'SS?S?:a', scalar=>'_extract_bracketed_s', scalar_type=>'SS?S?:S', scalar_out_parameter=>1}],	# First parameter to scalar version is "out" parameter
@@ -390,6 +400,17 @@ our %PREDEFINED_PACKAGES = (
 		 {perl=>'abs_path', type=>'S?:S', python=>'_abspath'},
 		 {perl=>'realpath', type=>'S?:S', python=>'_abspath'},
 		 {perl=>'fast_abs_path', type=>'S?:S', python=>'_abspath'},
+	        ],
+	'File::Basename'=> [{perl=>'basename', type=>'S:S'},
+			    {perl=>'dirname', type=>'S:S'},
+			    {perl=>'fileparse', type=>'Sm?:a of S'},
+		    ],
+	'Carp'=>[{perl=>'carp', type=>'a:u'},
+		 {perl=>'confess', type=>'a:u'},
+		 {perl=>'croak', type=>'a:u'},
+		 {perl=>'cluck', type=>'a:u'},
+		 {perl=>'longmess', type=>'a:S'},
+		 {perl=>'shortmess', type=>'a:S'},
 	        ],
 	       );
 
