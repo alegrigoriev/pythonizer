@@ -21,7 +21,7 @@ do
       status=1
       continue
    fi
-   pypy ../../bootstrap/main.py -v0 $flags $f
+   pypy -OOO ../../bootstrap/main.py -v0 $flags $f
    if [ $? -ne 0 ]; then
       echo "$f run with pythonizer FAILED"
       ((failed++))

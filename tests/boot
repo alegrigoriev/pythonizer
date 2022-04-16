@@ -144,7 +144,7 @@ do
       rm -f run1.log
       continue
    fi
-   pypy ../../bootstrap/main.py -v0 $flags $f >>run1.log 2>&1
+   pypy -OOO ../../bootstrap/main.py -v0 $flags $f >>run1.log 2>&1
    if [ $? -ne 0 ]; then
       echo "$f run with pythonizer FAILED" >>run1.log
       ((failed++))
