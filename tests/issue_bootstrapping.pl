@@ -1071,6 +1071,127 @@ if( defined $ValCom[$p1]  && length($ValCom[$p1]) > 1  ){
 }
 assert($c eq '');
 
+# issue do until causes "Use of uninitialized values in concatentation in Perlscan line 2527
+
+use constant {l_mode => 1, u_mode=>2, L_mode=>4, U_mode=>8, F_mode=>16, Q_mode=>32};
+my $result = '';
+my @special_escape_stack = ("0,4,f1", "0,1,f2");
+
+  do {          # only \L \U \F and \Q have corresponding \E, if anything else, keep popping
+      my $stacked = pop @special_escape_stack;
+      ($special_escape_mode, $new_semode, $func) = split /,/, $stacked;
+      $result.=$func;
+  } until($new_semode & (L_mode|U_mode|F_mode|Q_mode));
+assert(@special_escape_stack == 0);
+assert($result eq 'f2f1');
+
+# issue - string with both ' and " generates bad code
+
+$cnt = 0;
+$i = 0;
+$ValPy[$i] = "'t'";
+if(index(q('"), substr($ValPy[$i],0,1)) >= 0) {
+    $cnt++;
+}
+$ValPy[$i] = '"t"';
+if(index(q('"), substr($ValPy[$i],0,1)) >= 0) {
+    $cnt++;
+}
+assert($cnt == 2);
+
+
+# issue: "'''" is NOT the start of a multi-line string (in move_defs_before_refs)
+
+sub escape_triple_singlequotes          # SNOOPYJC
+# We are making a '''...''' string, make sure we escape any ''' in it (rare but possible)!
+{
+    my $string = shift;
+
+    my $local_var = $global_var;
+
+    $string =~ s/'''/''\\'/g;
+    return $string;
+}
+
+# issue - =pod code is causing unterminated string in the output
+
+assert(escape_triple_singlequotes("'''") eq "''\\'");sub sub_before_pod { 1 }
+
+=pod    # issue s48
+sub arg_type_from_pos                           # SNOOPYJC
+# If this token is a function arg, return what arg type it is, else return 'u'
+{
+    my $k = shift;
+
+    my ($i, $arg);
+
+    for($i = $k; $i >= 0; $i--) {
+        if($ValClass[$i] eq '(') {
+           if($i-1 >= 0 && $ValClass[$i-1] eq 'f') {
+              $i--;
+              last;
+           }
+           return 'u';
+        } elsif($ValClass[$i] eq 'f' && $i != $k) {
+            last;
+        } elsif($ValClass[$i] eq ')') {
+            $i = reverse_matching_br($i);
+            return 'u' if($i < 0);
+        # issue s48 } elsif($ValClass[$i] eq '=' && $ValPy[$i] ne ':=') {
+        # issue s48 return 'u';
+        }
+    }
+    return 'u' if($i < 0 || $ValClass[$i] ne 'f');
+    my $fname = $ValPerl[$i];
+    my $pname = $ValPy[$i];
+    if($ValClass[$i+1] eq '(') {
+        my $q = matching_br($i+1);
+        return 'u' if($k > $q);               # not in the parens like f(...)..k..
+        $i++;
+    }
+    # Figure out which arg of the function this is: note some functions the first arg
+    # is not separated from the second arg with spaces
+    if($k == $i+1) {
+        $arg = 0;           # That was easy
+    } else {
+        $arg = 1;
+        my $j = $i+2;
+        $j++ if($j <= $k && $ValClass[$j] eq ',');
+        for( ; $j<=$k; $j++) {
+            last if($k == $j);
+            $arg++ if($ValClass[$j] eq ',');
+            #$j = matching_br($j) if($ValClass[$j] eq '(');
+            $j = &::end_of_variable($j);
+            return 'u' if($j < 0);
+        }
+    }
+    my $ty = arg_type($fname, $pname, $arg);
+    if($::debug > 3) {
+        say STDERR "arg_type_from_pos($k): ($fname, $pname, $arg) = $ty";
+    }
+    return $ty;
+}
+=cut
+sub sub_after_pod { 2 }
+
+assert(sub_before_pod() == 1);
+assert(sub_after_pod() == 2);
+
+# issue - array with scalar(array) as subscript generates incorrect code
+
+#@ValClass = (1,2,3,4,5,6,7,8,9);
+sub append
+{
+   $ValClass[scalar(@ValClass)]=$_[0];
+}
+
+append('0');
+assert(join('', @ValClass) eq '1234567890');
+
+#
+# NOTE: Insert new test cases before here!!
+#
+
 # issue - print of arglist was generating a tuple syntax in the output
 
 sub print_args

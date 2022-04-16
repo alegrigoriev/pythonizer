@@ -992,6 +992,7 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
         $type = 'H';
         $initialized{$CurSub}{$name} = $type if($ValClass[$k-1] eq 't' || !&Perlscan::in_conditional($k));
     } elsif($ValClass[0] eq 't' && ($ValPerl[0] eq 'my' || $ValPerl[0] eq 'local' || $ValPerl[0] eq 'state') &&
+            being_declared_here($k) &&                                                  # issue bootstrap: make sure this isn't on the RHS of the = (if any)
             !exists $initialized{$CurSub}{$name} && !&Perlscan::in_conditional($k)) {   # issue s10
         $initialized{$CurSub}{$name} = (defined $type ? $type : 'u');                   # issue s10
     }
@@ -2488,6 +2489,8 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          # issue stdin while($line=<>){
          while($line=<SYSIN>){  # issue stdin
              # issue 79 last if( $line eq '=cut');
+            chomp($line);
+            $line =~ s/'''/"""/g;             # issue s61: We can't support lines that contain '''
             &$output_line('',$line,1);            # issue 79, issue 45
             if( substr($line,0,4) eq '=cut') {      # issue 79
                 # issue stdin $line = <>;                         # issue 79
@@ -2948,7 +2951,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     open($sysout,'>',$output_file);
     $lno = 0;
     my %moved_lines = ();
-    $multiline_string_sep = '';
+    my $multiline_string_sep = '';
     for my $line (@lines) {
         $lno++;
         next if($line eq '^');          # This means "delete this line"
@@ -2968,20 +2971,51 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
             $start_line = $defs{$func};
             say STDERR "Handling $func on line $start_line" if($::debug >= 5);
             my $moved_def = 0;
+            my $lines_moved = 0;
+            my $already_moved = 0;
+            $multiline_string_sep = '';
             for(my $i=$start_line-1; $i<scalar(@lines); $i++) {
                 if($multiline_string_sep) {
                     unless(exists $moved_lines{$i+1}) {
                         say $sysout $lines[$i];
                         $moved_lines{$i+1} = 1;
+                        $lines_moved++;
+                    } else {
+                        $already_moved++;
                     }
                     $multiline_string_sep = '' if(index($lines[$i], $multiline_string_sep) >= 0);
                     next;
                 } elsif(($lines[$i] =~ /"""/ || $lines[$i] =~ /'''/) && $lines[$i] !~ /^\s*#/) {
-                    $ndx = index($lines[$i], '"""');
-                    $ndx = index($lines[$i], "'''") if $ndx < 0;
-                    $multiline_string_sep = substr($lines[$i],$ndx,3);
-                    # if the string terminates on the same line, then it's not a multiline string
-                    $multiline_string_sep = '' if(index($lines[$i], $multiline_string_sep, $ndx+3) >= 0);
+                    # "'''" and '"""' are NOT the start of a multi-line comment
+                    my $pos = 0;
+                    my $ndx;
+                    while(1) {
+                        my $comment_start = index($lines[$i], ' #', $pos);
+                        $ndx = index($lines[$i], '"', $pos);
+                        $ndx = index($lines[$i], "'", $pos) if $ndx < 0;
+                        last if($ndx < 0 || ($comment_start >=0 && $ndx > $comment_start));
+                        my $quote = substr($lines[$i],$ndx,1);
+                        my $we3 = substr($lines[$i],$ndx,3);
+                        if($we3 ne '"""' && $we3 ne "'''") {        # we have a single or double-quoted string, possibly with the ''' or """ inside
+                            my $found_close = 0;
+                            for(my $j = $ndx+1; $j < length($lines[$i]); $j++) {
+                                if(substr($lines[$i],$j,1) eq $quote && !&Perlscan::is_escaped($lines[$i],$j)) {
+                                    $pos = $j+1;
+                                    $found_close = 1;
+                                    last;
+                                }
+                            }
+                            last if(!$found_close);
+                        } else {        # We found a triple-quote
+
+                            # $ndx = index($lines[$i], '"""');
+                            # $ndx = index($lines[$i], "'''") if $ndx < 0;
+                            $multiline_string_sep = substr($lines[$i],$ndx,3);
+                            # if the string terminates on the same line, then it's not a multiline string
+                            $multiline_string_sep = '' if(index($lines[$i], $multiline_string_sep, $ndx+3) >= 0);
+                            last;
+                        }
+                    }
                 }
                 if($lines[$i] =~ /^\s+/ || $lines[$i] =~ /^def $func\(/ || $lines[$i] =~ /^class $func[(:]/ ||
                         $lines[$i] =~ /^\s*$/ || $lines[$i] =~ /^\s*#/ || $lines[$i] =~ m'^@' ||
@@ -2989,16 +3023,21 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                         $lines[$i] =~ /[.]$func = types[.]MethodType\($func,/ ||     # issue s3
                         $lines[$i] =~ /[.]$func = $func$/) {     # e.g. main.func = func
                         #say STDERR "Found def $func";
-                    next if(exists $moved_lines{$i+1});         # Don't include it twice
+                    if(exists $moved_lines{$i+1}) {         # Don't include it twice
+                        $already_moved++;
+                        next;
+                    }
                     last if($lines[$i] =~ m'^@' and $moved_def);
                     $moved_def = 1 if($lines[$i] =~ /^def $func\(/ || $lines[$i] =~ /^class $func[(:]/);
                     $moved_lines{$i+1} = 1;
                     #say STDERR "writing lines[$i] ($lines[$i])";
+                    $lines_moved++;
                     pep8($sysout, $lines[$i]);
                 } else {
                     last;
                 }
             }
+            say STDERR " moved $lines_moved lines (skipped $already_moved)" if($::debug >= 5);
             # Special case - move all _init_package calls right after it's definition
             if($func eq '_init_package') {
                 for my $ip_lno (@init_package_lnos) {
@@ -3376,6 +3415,39 @@ sub new_anonymous_sub                   # issue s26
         $anonymous_subs_used{$result} = '';
     }
     return $result;
+}
+
+sub being_declared_here                         # issue bootstrap
+# we have a "my" or similar statement, and a pointer to a variable - is this variable being declared here?
+# Returns 0 if it's being used in a subscript or on the RHS of an assignment
+{
+    my $pos = shift;
+    my $split = next_same_level_token('=', 0, $#ValClass);
+
+    return 0 if($split >= 0 && $pos > $split);
+    my $class = $ValClass[$pos];
+    my $limit = $#ValClass;
+    $limit = $split-1 if($split >= 0);
+
+    # We need to find us either at the same level, or within the top-level parens (if any)
+
+    my $st = 0;
+    while($st = next_same_level_token($class, $st, $limit)) {
+        last if($st < 0);
+        return 1 if($st == $pos);       # found us w/o parens!
+        $st++;
+    }
+
+    return 0 if($ValClass[1] ne '(');
+    $limit = matching_br(1)-1;
+    return 0 if($limit < 0);
+    $st = 2;
+    while($st = next_same_level_token($class, $st, $limit)) {
+        last if($st < 0);
+        return 1 if($st == $pos);       # found us inside parens!
+        $st++;
+    }
+    return 0;
 }
 
 1;

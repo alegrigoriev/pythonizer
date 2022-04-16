@@ -2518,11 +2518,12 @@ my ($l,$m);
                $ValPerl[$tno]=$w;
                $ValType[$tno]='P';
             } elsif($class eq 'c' && $Pythonizer::PassNo == &Pythonizer::PASS_1 && ($w eq 'if' || $w eq 'unless') &&          # SNOOPYJC
-                    defined $nesting_last && $nesting_last->{type} eq 'do') {
+                    defined $nesting_last && $nesting_last->{type} eq 'do' &&
+                    $source =~ /^(\w+)(.*?);/) {                # issue s60
                 # We can't do our normal trick to handle STMT if COND; for a do{...} if COND; because 
                 # it's more than one statement, so instead we use another trick and rememeber a regex in the
                 # first pass that we apply to the 'do' statement to change it into an if/unless statement
-                $source =~ /^(\w+)(.*?);/;    # Grab everything up to but not including the ';'
+                # issue s60 $source =~ /^(\w+)(.*?);/;    # Grab everything up to but not including the ';'
                 my $condition_expr = $2;
                 my $condition = $1 . $condition_expr;
                 $condition = $1 . '(' . $condition_expr . ')' if(substr($condition_expr,-1,0) ne ')');
@@ -2850,7 +2851,9 @@ my ($l,$m);
       }elsif( $s eq '$'  ){
          if( substr($source,0,length('$DB::single')) eq '$DB::single' ){
             # special case: $DB::single = 1;
-            $ValPy[$tno]='pdb.set_trace';
+            # issue s62 $ValPy[$tno]='pdb.set_trace';
+            $::Pyf{_set_breakpoint} = 1;                # issue s62
+            $ValPy[$tno]='_set_breakpoint';             # issue s62
             $ValClass[$tno]='f';
             $cut=index($source,';');
             substr($source,0,$cut)='perl_trace()'; # remove non-tranlatable part.
@@ -6916,10 +6919,10 @@ sub handle_import               # issue names
         }
     }
     my $stat = 0;
-    if(! -f $fullfile) {     # Can't find it
-        say STDERR "handle_import($fullfile): file not found" if($::debug);
-        return;
-    }
+    # issue s4/issue bootstrap if(! -f $fullfile) {     # Can't find it
+    # issue s4/issue bootstrap     say STDERR "handle_import($fullfile): file not found" if($::debug);
+    # issue s4/issue bootstrap     return;
+    # issue s4/issue bootstrap }
 
     # issue s4 - do an import of the module to see what names we have to care about.  
     # import_perl_to_python has the side-effect of calling add_package_to_mapped_name,

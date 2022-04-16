@@ -211,10 +211,12 @@ sub handle_pragma_pythonizer
 
     my %flags = (T=>\$::traceback, A=>\$::autodie, m=>\$mFlag, M=>\$MFlag, s=>\$::pythonize_standard_library,
 	    	 n=>\$::trace_run, k=>\$::black, K=>\$KFlag, u=>\$::replace_usage, U=>\$UFlag,
+		 a=>\$::gen_author,	# issue s19
                  S=>\$SFlag, p=>$::import_perllib, P=>\$PFlag, V=>\$VFlag);
     my %options = (traceback=>\$::traceback, autodie=>\$::autodie, implicit=>\$implicit_global_my,
                    pythonize=>\$::pythonize_standard_library, import=>\$::import_perllib, 
 		   trace=>\$::trace_run, black=>\$::black, replace=>\$::replace_usage,
+		   author=>\$::gen_author,	# issue s19
                    autovivification=>\$::autovivification);
 
     my $set_option_from_flag = sub {            # issue bootstrap
@@ -223,6 +225,8 @@ sub handle_pragma_pythonizer
             $::traceback = $val;
         } elsif($flag eq 'A') {
             $::autodie = $val;
+        } elsif($flag eq 'a') {		# issue s19
+            $::gen_author = $val;	# issue s19
         } elsif($flag eq 'm') {
             $mFlag = $val;
         } elsif($flag eq 'M') {
@@ -251,6 +255,7 @@ sub handle_pragma_pythonizer
     };
 
     my %option_flags = (traceback=>'T', autodie=>'A', implicit=>'m', trace=>'n', black=>'k',
+	    	   author=>'a',		# issue s19
                    pythonize=>'s', import=>'p', replace=>'u');
     my %option_no_flags = (implicit=>'M', pythonize=>'S', import=>'P', autovivification=>'V', black=>'K', replace=>'U');
 
