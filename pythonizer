@@ -186,7 +186,8 @@
 # 0.969  2022/04/05  SNOOPYJC  issue s39 - Having multiple statements in map {...} or grep {...} generates bad code, issue s40 - readdir in list context needs to return all of the entries, add readline function, issue s41 - Multi-variable split assignment with a bash style and/or generates syntax error code, issue s43: Multi-index of a function that returns an empty array doesn't work, issue s44 - Bash style and/or with 'next LABEL;' generates incorrect loop break, issue s45 - Turn warning off by default, issue s46 - Non-parenthesized function call with | operator isn't parsed properly, issue s47 - Map of a qw generates bad code syntax, issue s48 - When an array or hash is passed to a function that expects a number, the length needs to be passed instead
 # 0.970  2022/04/10  SNOOPYJC  issue s4: use Config with -m doesn't work, issue s50 - next LABEL inside a do {...} generates incorrect code, causing the do to become an infinite loop, issue s30 - 'return' inside of a loop in a BEGIN block generates incorrect code, issue s49 - next OUTER loop from an inner loop that uses a 'continue' generates syntax error code
 # 0.971  2022/04/12  SNOOPYJC  issue s19: add option to add __author__ etc, issue s51: add more functions to File::Spec, issue s53: pushing something to @_ generates an AttributeError at runtime, issue s54: implement UNIVERSAL::isa, implement File::Path, issue s57: if ref X is used in an expression that compares with HASH, SCALAR, etc then call our refs function and not ref even if a backslash isn't used, issue s55: Converting an array into an array ref using [@arr] shouldn't generate an outer array, issue s56: chdir and rmdir don't return the proper result, issue s58: Referencing a built-in sub with & generates bad code, issue s59: Don't insert _list_of_n if the RHS contains the same # of elements as the LHS, issue s52: 3-arg split generates incorrect code
-# 0.972  2022/04/15  SNOOPYJC  issue s61: Fix bootstrapping issue with =pod code, convert and/or operands to int, don't assume everything on a 'my' statement is initialized esp if it's on the RHS of an =, assignment to array element at length of array generating wrong code after s55 fix, issue s60: if statement following a do, issue s62: DB::single should break if debugger is not active
+# 0.972  2022/04/15  SNOOPYJC  issue s61: Fix bootstrapping issue with =pod code, convert and/or operands to int, don't assume everything on a 'my' statement is initialized esp if it's on the RHS of an =, assignment to array element at length of array generating wrong code after s55 fix, issue s60: if statement following a do, issue s62: DB::single should break not if debugger is not active
+# 0.973  2022/04/16  SNOOPYJC  issue s63: Allow # pragma pythonizer to be interpreted even if -m or -M is passed, issue s64: Implement new # pragma no convert regex for bootstrap, addl fix for issue s28 - escape \x{...} to python \U after we handle \U for upper case, issue s65 - x operator always converts it's left operand to a string
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -238,7 +239,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.972';
+   $VERSION='0.973';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -1849,7 +1850,14 @@ sub operator_type
         return 'S' 
     }
     if(index('HI^>=+*/%-', $cl) >= 0) {
-        return 'S' if($left && $cl eq '*' && $ValPerl[$p] eq 'x');       # x operator is string x integer
+        # issue s65 return 'S' if($left && $cl eq '*' && $ValPerl[$p] eq 'x');       # x operator is string x integer
+        if($left && $cl eq '*' && $ValPerl[$p] eq 'x') {       # issue s65: x operator is string x integer (usually)
+            # issue s65: if the operand is in parens or is a qw// list, then don't convert it to a string
+            if($p != 0 && ($ValClass[$p-1] eq ')' || ($ValClass[$p-1] eq 'q' && $ValPy[$p-1] =~ /\.split\(\)$/))) {
+                return undef;
+            }
+            return 'S' 
+        }
         return 'I' if(!$left && $cl eq '*' && $ValPerl[$p] eq 'x');       # x operator is string x integer
         return 'S' if($cl eq '>' && $ValPerl[$p] =~ /^[a-z]/);  # e.g. ne, eq, le, cmp, ...
         return 'S' if($cl eq '=' && $ValPerl[$p] eq '.=');
@@ -2806,6 +2814,41 @@ sub fix_expression_issues
        }
        $st = $pos+1;
        last if($st > $limit);
+   }
+
+   # issue s65 - x operator with a (number) doesn't generate proper code
+   $st = $start;
+   while(($pos = next_matching_token('*', $st, $limit)) >= 0) {
+       if($ValPerl[$pos] eq 'x' && $pos != 0 && $ValClass[$pos-1] eq ')' && $ValPerl[$pos-1] eq ')') {
+           my $open = reverse_matching_br($pos-1);
+           if($open >= 0) {
+               if(&Pythonizer::expr_type($open, $pos-1, $CurSub) !~ /^a/) {
+                   replace($pos, 'y', 'x', ' for _ in range ');
+                   $end_pos = $limit;
+                   my $add_closing_bracket = 0;
+                   if($open != 0 && $ValClass[$open-1] eq '(') {
+                       $end_pos = matching_br($open-1)-1;
+                   } elsif(!$autovivification) {
+                       insert($open, '(', '(', '[');
+                       $add_closing_bracket = 1;
+                       $pos++;
+                       $end_pos++;
+                       $limit++;
+                   }
+                   $nlet = next_lower_or_equal_precedent_token('*', $pos+1, $end_pos);
+                   $end_pos = $nlet-1 if($nlet >= 0);
+                   if($add_closing_bracket) {
+                       insert($end_pos+1, ')', ')', ']');
+                       $limit++;
+                   }
+                   insert($end_pos+1, ')', ')', ')');
+                   insert($pos+1, '(', '(', '(');
+                   $limit += 2;
+               }
+           }
+       }
+       $st = $pos+1;
+       last if($st > $limit)
    }
    
    # NOTE: Add new updates here, not at the bottom of this function!

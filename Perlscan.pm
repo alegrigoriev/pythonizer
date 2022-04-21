@@ -509,6 +509,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   '_flt'=>'m:F',                                        # issue s3
                   '_map_int'=>'a:a of I', '_map_num'=>'a:a of N', '_map_str'=>'a:a of S',
                   '_assign_global'=>'SSm:m', '_read'=>'HsII?:s',
+                  '_set_breakpoint'=>':u',              # issue s62
                   'exp'=>'F:F', 'log'=>'F:F', 'cos'=>'F:F', 'sin'=>'F:F',       # issue s3
                   '$#'=>'a:I',                                                # issue 119: _last_ndx
                   're'=>'S', 'tr'=>'S',                                         # SNOOPYJC
@@ -4181,7 +4182,7 @@ sub interpolate_strings                                         # issue 39
    local $cut;                  # Save the global version of this!
    $prev = '';
    # issue s28 $quote = perl_hex_escapes_to_python(escape_non_printables($quote,0));                     # SNOOPYJC: Replace \x{ddd...} with python equiv
-   $quote = escape_non_printables($quote,0);            # issue s28: We do the perl_hex_escapes_to_python inside remove_perl_escapes now
+   $quote = escape_non_printables($quote,0, 0);         # issue s28: We do the perl_hex_escapes_to_python inside remove_perl_escapes now
    #
    # decompose all scalar variables, if any, Array and hashes are left "as is"
    #
@@ -5239,6 +5240,7 @@ sub escape_non_printables               # SNOOPYJC: Escape non-printable chars
 {
     my $string = shift;
     my $escape_all = shift;             # if 1, then escape them all
+    my $escape_to_python = (@_ >= 1 ? $_[0] : 1);
 
     my %backslash_map = (10=>'\n', 13=>'\r', 9=>'\t', 12=>'\f', 7=>'\a', 11=>'\v');     # We don't map \b because it means something different in regex's
     if($string =~ /[^[:print:]]/) {                      
@@ -5256,7 +5258,11 @@ sub escape_non_printables               # SNOOPYJC: Escape non-printable chars
                $new .= $ch;
            }
        }
-       $string = perl_hex_escapes_to_python($new);
+       if($escape_to_python) {
+           $string = perl_hex_escapes_to_python($new)
+       } else {
+           $string = $new;
+       }
    }
    return $string;
 }
@@ -5428,7 +5434,12 @@ sub perl_regex_to_python
     #$DB::single = 1;
     my $regex = shift;
 
+    return $regex if(exists $Pass0::line_no_convert_regex{$.});        # issue s64
+
+    # issue s64: Don't convert these 2 regexes from perl to python while bootrapping:
+    # pragma pythonizer no convert regex
     $regex =~ s'\\Z'$'g;
+    # pragma pythonizer no convert regex
     $regex =~ s'\\z'\\Z'g;
     $regex =~ s/\(\?<(\w)/(?P<$1/g;           # Named capture group
     $regex =~ s/\\[gk]\{([A-Za-z_]\w*)\}/(?P=$1)/g;           # Backreference to a named capture group
