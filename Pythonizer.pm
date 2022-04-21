@@ -70,6 +70,7 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $mFlag = 0;          # SNOOPYJC
    $MFlag = 0;          # SNOOPYJC
    %anonymous_subs_used = ();   # issue s26
+   $pass_0_ran = 0;     # issue s63: set to 1 if we ran pass_0
 
 #
 #::prolog --  Decode parameter for the pythonizer. all parameters are exported
@@ -272,6 +273,7 @@ sub prolog
       }
       shift @ARGV;              # SNOOPYJC: Don't read from both the file and STDIN if we hit the end
       $PassNo=PASS_0;
+      $pass_0_ran = 0;          # issue s63
       if(!$mFlag && !$MFlag) {
           my $pass_0_result;
           if($fname =~ /\.pm$/) {
@@ -280,6 +282,7 @@ sub prolog
               &Perlscan::initialize();
               $pass_0_result = pass_0();
               correct_nest(0,0);
+              $pass_0_ran = 1;  # issue s63
           }
           if(defined $pass_0_result) {
               if($pass_0_result) {      # -m
@@ -361,6 +364,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
       }
    }
    my $PriorExprType = undef;                  # SNOOPYJC: used to type the function result
+   my $got_first_line = 0;                      # issue s63
    while(1){
       if( scalar(@Perlscan::BufferValClass)==0 ){
          $line=getline(); # get the first meaningful line, skipping commenets and  POD
@@ -400,6 +404,14 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
       }
       unless(defined($ValClass[0])){
          next;
+      }
+      if((!$pass_0_ran) && $#ValClass >= 3 && $ValClass[0] eq 'i' && $ValPerl[0] eq 'pragma' && $ValPerl[1] eq 'pythonizer') {  # issue s63
+          if($got_first_line == 0 || ($ValPerl[2] eq 'no' && $ValPerl[3] eq 'convert')) {       # issue s64
+             my $uim = &Pass0::handle_pragma_pythonizer();
+             $::implicit_global_my = $uim if(defined $uim);
+          } else {
+             logme('W',"# pragma pythonizer is only supported at start of source file if -m or -M are passed")
+          }
       }
 
       if(!defined $CurPackage && ($ValClass[0] ne 'c' || $ValPerl[0] ne 'package')) {     # SNOOPYJC: Set the default package unless
@@ -674,6 +686,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
           say STDERR "Setting nested_sub_at_level = -1" if($::debug >= 3);
           $::nested_sub_at_level = -1;
       }
+      $got_first_line = 1;      # issue s63
    } # while
 
    # issue s4 &Perlscan::compute_desired_use_require_options();    # issue name
@@ -726,6 +739,10 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        say STDERR Dumper(\%Perlscan::scalar_pos_gen_line);
        print STDERR "line_contains_pos_gen = ";
        say STDERR Dumper(\%Perlscan::line_contains_pos_gen);
+       if(%Pass0::line_no_convert_regex) {           # issue s64
+           print STDERR "line_no_convert_regex = ";
+           say STDERR Dumper(\%Pass0::line_no_convert_regex);
+       }
 =pod    # issue s4 - we don't do this any more
        if(\%UseRequireVars) {
            print STDERR "UseRequireVars = ";
@@ -2440,7 +2457,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
       }elsif(  $line =~ /^\s*(#.*$)/ ){
          # pure comment lines
          my $comm = $1;
-         if($PassNo==PASS_0 && $line =~ /#\s*pragma\s*pythonizer/) {      # SNOOPYJC
+         if(($PassNo==PASS_0 || ($PassNo==PASS_1 && !$pass_0_ran)) && $line =~ /#\s*pragma\s*pythonizer/) {      # SNOOPYJC, issue s63
              if(  substr($line,-1,1) eq "\r" ){
                 chop($line);
              }

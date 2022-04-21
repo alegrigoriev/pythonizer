@@ -19,10 +19,11 @@ require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(pass_0);
+@EXPORT = qw(pass_0 %line_no_convert_regex);
 
 $say_why = 0;
 @implied_options = ();
+%line_no_convert_regex = ();
 
 sub pass_0
 {
@@ -217,6 +218,7 @@ sub handle_pragma_pythonizer
                    pythonize=>\$::pythonize_standard_library, import=>\$::import_perllib, 
 		   trace=>\$::trace_run, black=>\$::black, replace=>\$::replace_usage,
 		   author=>\$::gen_author,	# issue s19
+                   convert=>undef,              # issue s64
                    autovivification=>\$::autovivification);
 
     my $set_option_from_flag = sub {            # issue bootstrap
@@ -257,7 +259,9 @@ sub handle_pragma_pythonizer
     my %option_flags = (traceback=>'T', autodie=>'A', implicit=>'m', trace=>'n', black=>'k',
 	    	   author=>'a',		# issue s19
                    pythonize=>'s', import=>'p', replace=>'u');
-    my %option_no_flags = (implicit=>'M', pythonize=>'S', import=>'P', autovivification=>'V', black=>'K', replace=>'U');
+    my %option_no_flags = (implicit=>'M', pythonize=>'S', import=>'P', autovivification=>'V', black=>'K', replace=>'U',
+    			   convert=>undef,	# issue s64 - use special processing
+		   	  );
 
     # pragma pythonizer -flags -moreflags
     # pragma pythonizer implicit global my, traceback, no import perllib, trace run
@@ -281,15 +285,20 @@ sub handle_pragma_pythonizer
 			    #${$options{$option}} = 0;
                             if(exists $option_no_flags{$option}) {
                                 $flag = $option_no_flags{$option};
-				&$set_option_from_flag($flag, 1);
-                                say STDERR "Using -$flag due to pragma pythonizer no $vp" if($say_why);
-                                push @implied_options, "-$flag";
+                                if(defined $flag) {
+				    &$set_option_from_flag($flag, 1);
+                                    say STDERR "Using -$flag due to pragma pythonizer no $vp" if($say_why);
+                                    push @implied_options, "-$flag";
+                                } else {        # issue s64: special processing
+                                    $line_no_convert_regex{$. + 1} = 1;
+                                    say STDERR "Not converting perl to python regex on line " . ($.+1) . " due to pragma pythonizer" if($say_why)
+                                }
                             }
                         } else {
 			    #${$options{$option}} = 1;
                             if(exists $option_flags{$option}) {
                                 $flag = $option_flags{$option};
-				&$set_option_from_flag($flag, 1);
+                                &$set_option_from_flag($flag, 1);
                                 say STDERR "Using -$flag due to pragma pythonizer $vp" if($say_why);
                                 push @implied_options, "-$flag";
                             }
