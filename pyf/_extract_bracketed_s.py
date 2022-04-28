@@ -38,9 +38,3 @@ def _extract_bracketed_s(text, delimiters='{}()[]<>', prefix_pattern='^\s*'):
             except IndexError:
                 return (text, None)
     return (text, None)
-
-
-
-
-
-

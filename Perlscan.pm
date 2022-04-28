@@ -187,7 +187,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		'chdir'=>'_chdir','chmod'=>'_chmod',	# issue 54
 		'chomp'=>'.rstrip("\n")','chop'=>'[0:-1]','chr'=>'chr',
 		# issue close 'close'=>'.f.close',
-		'close'=>'_close',	# issue close, issue 72
+		'close'=>'_close_',	# issue close, issue 72, issue test coverage
                 'cmp'=>'_cmp',                          # SNOOPYJC
                 'cos'=>'math.cos',                      # issue s3
                 # issue 42 'die'=>'sys.exit', 
@@ -212,6 +212,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'if'=>'if ', 'index'=>'.find',
 		'int'=>'_int',				# issue int
                 'isa'=>'_isa',                          # issue s54
+                'getopt'=>'getopt', 'getopts'=>'getopt',    # issue s67
 		'GetOptions'=>'argparse',		# issue 48
 		'gmtime'=>'_gmtime',    		# issue times
                 'grep'=>'filter', 'goto'=>'goto', 'getcwd'=>'os.getcwd',
@@ -233,7 +234,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'next'=>'continue', 
                 # SNOOPYJC 'no'=>'NoTrans!',
                 'no'=>'import',         # SNOOPYJC: for "no autovivification;";
-                'own'=>'global', 
+                # SNOOPYJC 'own'=>'global', 
                 # SNOOPYJC 'oct'=>'oct', 
                 'oct'=>'int',           # SNOOPYJC: oct is the reverse in python!
                 'ord'=>'ord',
@@ -439,6 +440,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'int'=>'f',		# issue int
                   'isa'=>'f',           # issue s54
                   'for'=>'c', 'foreach'=>'c',
+                  'getopt'=>'f', 'getopts'=>'f',    # issue s67
 		  'GetOptions'=>'f',	# issue 48
                   'goto'=>'k',          # SNOOPYJC
                   'given'=>'c','grep'=>'f',
@@ -456,7 +458,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'our'=>'t',                   # SNOOPYJC
                   # issue 93 'or'=>'0', 
                   'or'=>'o',                    # issue 93
-                  'own'=>'t', 'oct'=>'f', 'ord'=>'f', 'open'=>'f',
+                  # SNOOPYJC 'own'=>'t', 
+                  'oct'=>'f', 'ord'=>'f', 'open'=>'f',
 		  'opendir'=>'f', 'closedir'=>'f', 'readdir'=>'f', 'seekdir'=>'f', 'telldir'=>'f', 'rewinddir'=>'f',	# SNOOPYJC
                   'readline'=>'f',      # issue s40
                   'push'=>'f', 'pop'=>'f', 'print'=>'f', 'package'=>'c',
@@ -527,6 +530,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:m', 'dirname'=>'S:S', 'each'=>'h:a', 'exists'=>'m:I', 
                   'exit'=>'I?:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':m', 'fileno'=>'H:I',
                   'fileparse'=>'Sm?:a of S', 'hex'=>'S:I', 'GetOptions'=>'a:I',
+                  'getopt'=>'a:I', 'getopts'=>'a:I',            # issue s67
                   'glob'=>'S:a of S', 'index'=>'SSI?:I', 'int'=>'s:I', 'grep'=>'Sa:a of S', 'join'=>'Sa:S', 'keys'=>'h:a of S', 
                   'isa'=>'mS:I',                # issue s54
                   'kill'=>'mI:u', 'lc'=>'S:S', 'lstat'=>'m:a of I',
@@ -536,7 +540,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 		  'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:a of S', 'rename'=>'SS:I', 'rmdir'=>'S:I',
                   'readline'=>'H:a of S',    # issue s40
                   'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:m',
-                  'push'=>'aa:I', 'pop'=>'a:s', 'pos'=>'s:I', 'print'=>'H?a:I', 'printf'=>'H?Sa:I', 'quotemeta'=>'S:S', 'rand'=>'F?:F',
+                  'push'=>'aa:I', 'pop'=>'a:s', 'pos'=>'s:I', 'print'=>'H?a:I', 'printf'=>'H?S?a:I', 'quotemeta'=>'S:S', 'rand'=>'F?:F',
                   'rindex'=>'SSI?:I','read'=>'HsII?:I', '.read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
                   '_refs'=>'u:S',               # issue s3
                   'say'=>'H?a:I','scalar'=>'a:I','seek'=>'HII:u', 'shift'=>'a?:s', 'sleep'=>'I:I', 'splice'=>'aI?I?a?:a',
@@ -2011,6 +2015,7 @@ my ($l,$m);
    $ExtractingTokensFromDoubleQuotedTokensEnd = -1;     # SNOOPYJC
    $ExtractingTokensFromDoubleQuotedStringEnd = 0;      # SNOOPYJC
    $ExtractingTokensFromDoubleQuotedStringTnoStart = -1; # SNOOPYJC
+   $ExtractingTokensFromDoubleQuotedStringAdjustBrackets = 0;   # issue test coverage
    $ate_dollar = -1;                                    # issue 50
    my $end_br;                  # issue 43
    
@@ -2019,6 +2024,17 @@ my ($l,$m);
    #}
    while( defined $source && $source ne ''){    # issue s13
       $had_space = (substr($source,0,1) =~ /\s/);   # issue 50
+      if($had_space && $ExtractingTokensFromDoubleQuotedStringEnd > 0) {    # issue test coverage
+          $source =~ /^(\s*)/;
+          my $spaces = length($1);
+          $ExtractingTokensFromDoubleQuotedStringEnd -= $spaces;
+          $ExtractingTokensFromDoubleQuotedTokensEnd -= $spaces;
+          if($ExtractingTokensFromDoubleQuotedTokensEnd == 0) {
+              extract_tokens_from_double_quoted_string('', 0); 
+              $source = substr($source,$spaces+1);              # Eat the leading spaces and the trailing delimiter
+          }
+          say STDERR "ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd, source=$source after removing leading spaces" if($::debug>=5);
+      }
       ($source)=split(' ',$source,1);  # truncate white space on the left (Perl treats ' ' like AWK. )
       last if(!defined $source || $source eq '');             # SNOOPYJC, issue s13
       $s=substr($source,0,1);
@@ -2123,6 +2139,12 @@ my ($l,$m);
             if(index(substr($source,0,$end_br), '(') < 0) {    # issue 43: Don't do this on @{myFunc()}
                substr($source,$end_br,1) = '';          # issue 43
                substr($source,1,1) = '';                # issue 43
+               if($ExtractingTokensFromDoubleQuotedStringAdjustBrackets) {      # issue test coverage
+                   $ExtractingTokensFromDoubleQuotedTokensEnd-=2;   # issue test coverage
+                   $ExtractingTokensFromDoubleQuotedStringEnd-=2;   # issue test coverage
+                   $ExtractingTokensFromDoubleQuotedStringAdjustBrackets = 0;   # issue test coverage
+                   say STDERR "ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd, source=$source after ExtractingTokensFromDoubleQuotedStringAdjustBrackets" if($::debug>=5);
+               }
             }
          }                                              # issue 43
       }
@@ -2193,8 +2215,10 @@ my ($l,$m);
       }elsif( $s eq '{' || ($s eq '^' && $tno==0) ){    # SNOOPYJC
           #say STDERR "got {, tno=$tno, source=$source, ValPerl=@ValPerl";
          # we treat '{' as the beginning of the block if it is the first or the last symbol on the line or is preceeded by ')' -- Aug 7, 2020
-          if( $tno==0 ){
-             if($s eq '{') {    # SNOOPYJC: We swap '{' for '^' the second time around so we know if we need to call enter_block
+          if( $tno==0 && looks_like_anon_hash_def($source)) {   # issue test coverage
+              ;                 # Handle below as normal {
+          } elsif( $tno==0 ){
+             if($s eq '{' ) {    # SNOOPYJC: We swap '{' for '^' the second time around so we know if we need to call enter_block
                 enter_block();                 # issue 94
              } else {
                 $ValClass[$tno]=$ValPerl[$tno]=$ValPy[$tno]='{';
@@ -3046,6 +3070,16 @@ my ($l,$m);
                 $w = substr($w,6);
                 $core = 1;
             }
+            if(substr($w,0,5) eq "Carp'" && $w =~ /carp|confess|croak|cluck/) {    # SNOOPYJC, issue test coverage
+                $w = substr($w,5);
+            } elsif(substr($w,0,6) eq 'Carp::' && $w =~ /carp|confess|croak|cluck/) {      # SNOOPYJC, issue test coverage
+                $w = substr($w,6);
+            }
+            if(substr($w,0,10) eq "UNIVERSAL'" && $w =~ /isa/) {    # issue s54, issue test coverage
+                $w = substr($w,10);
+            } elsif(substr($w,0,11) eq 'UNIVERSAL::' && $w =~ /isa/) {      # issue s54, issue test coverage
+                $w = substr($w,11);
+            }
             if( exists($TokenType{$w}) ){		# issue s58: Handle &Carp::cluck
                $class=$TokenType{$w};
                if($class eq 'f' && !$core && (exists $Pythonizer::UseSub{$w} || exists $Pythonizer::LocalSub{$w})) {     # SNOOPYJC
@@ -3547,7 +3581,7 @@ my $original;
    if($ExtractingTokensFromDoubleQuotedStringEnd > 0) {               # SNOOPYJC
        $ExtractingTokensFromDoubleQuotedTokensEnd -= $cut;
        $ExtractingTokensFromDoubleQuotedStringEnd -= $cut;
-       #say STDERR "finish2: ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd" if($::debug>=5);
+       say STDERR "finish2: ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd, source=$source" if($::debug>=5);
        if($ExtractingTokensFromDoubleQuotedTokensEnd <= 0) {
            $ValClass[$tno] = '"';
            if(defined $source) {
@@ -3557,14 +3591,16 @@ my $original;
                 if($ExtractingTokensFromDoubleQuotedStringEnd <= 0 && $cut != 0) {
                     $tno--;
                     $cut = length($source) if $cut > length($source);   # Don't cut past the end
+                    say STDERR "finish2: recursing" if($::debug>=5);
                     finish();           # Try again as we may read in another line
                 } else {
-                    #say STDERR "finish2: source=$source, cut=$cut";
+                    say STDERR "finish2: source=$source, cut=$cut" if($::debug>=5);
                     substr($source,0,$cut)='';
-                    #say STDERR "finish2: source=$source (after cut)";
+                    say STDERR "finish2: source=$source (after cut)" if($::debug>=5);
                 }
-                #say STDERR "finish2: ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd (after cut)" if($::debug>=5);
+                say STDERR "finish2: ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd (after cut)" if($::debug>=5);
             } else {
+                say STDERR "finish2: no source - calling extract_tokens_from_double_quoted_string('', 0)" if($::debug>=5);
                 $cut = extract_tokens_from_double_quoted_string('', 0);
             }
         }
@@ -4591,6 +4627,14 @@ my  $outer_delim;
             $ValPy[$tno] = "map(_str,itertools.chain.from_iterable($ValPy[$tno].items()))";     # SNOOPYJC
             $end_br -= 2;    # 2 to account for the 2 we ate
             #say STDERR "quote1b=$quote, end_br=$end_br\n";
+        } elsif($end_br > 0 && substr($quote,0,4) eq '@ [%' && substr($quote,4,1) =~ /[\w:]/) {  # issue test coverage: @{ [%hash] }
+            $quote = substr($quote, 3);
+            decode_hash($quote);
+            add_package_name(substr($quote,0,$cut));            # SNOOPYJC
+            # SNOOPYJC $ValPy[$tno] = 'functools.reduce(lambda x,y:x+y,'.$ValPy[$tno].'.items())';
+            $ValPy[$tno] = "map(_str,itertools.chain.from_iterable($ValPy[$tno].items()))";     # SNOOPYJC
+            $end_br -= 3;    # 3 to account for the 2 we ate
+            #say STDERR "quote1b=$quote, end_br=$end_br\n";
          } elsif($end_br > 0 && substr($quote,0,2) eq '@[') {
              $ValPy[$tno] = handle_expr_in_string($quote, 1);        # @{[expr_in_list_context]} 
              $cut = $end_br;
@@ -4902,27 +4946,36 @@ sub extract_tokens_from_double_quoted_string
         my $adjust = 0;
         if(substr($quote,$pos+1,1) eq '{') {    # issue 43: ${...}
             $end_br = matching_curly_br($quote, $pos+1); # issue 43
-            $adjust = 1;
+            # issue test coverage $adjust = 1;
             if(substr($quote,$pos+2,2) eq '\\(') {      # ${\(...)}
                 $sigil = '';
-                $cut = 3;
-                substr($quote,$end_br,1) = '';  # Eat the }
+                # issue test coverage $cut = 3;
+                $cut = $end_br+1;               # issue test coverage
+                # issue test coverage substr($quote,$end_br,1) = '';  # Eat the }
                 $end_br = -1;
+                $ExtractingTokensFromDoubleQuotedStringAdjustBrackets = 1;      # issue test coverage
             } elsif(substr($quote,$pos+2,1) eq '[') {   # @{[...]}
                 $sigil = '';
-                $cut = 2;
-                substr($quote,$end_br,1) = '';
+                # issue test coverage $cut = 2;
+                $cut = $end_br+1;               # issue test coverage
+                # issue test coverage substr($quote,$end_br,1) = '';
                 $end_br = -1;
+                $ExtractingTokensFromDoubleQuotedStringAdjustBrackets = 1;      # issue test coverage
             } elsif(substr($quote,$pos+2,2) eq ' [') {  # @{ [...] }
                 $sigil = '';
-                $cut = 3;
-                substr($quote,$end_br,1) = '';
+                # issue test coverage $cut = 3;
+                $cut = $end_br+1;               # issue test coverage
+                # issue test coverage substr($quote,$end_br,1) = '';
                 $end_br = -1;
+                $ExtractingTokensFromDoubleQuotedStringAdjustBrackets = 1;      # issue test coverage
             } elsif(substr($quote,$pos+2,1) eq '$') {   # @{$...}
                 $sigil = '';
-                $cut = 2;
-                $end_br--;
-                substr($quote,$end_br,1) = '';
+                # issue test coverage $cut = 2;
+                $cut = $end_br+1;               # issue test coverage
+                # issue test coverage $end_br--;
+                $end_br = -1;
+                # issue test coverage substr($quote,$end_br,1) = '';
+                $ExtractingTokensFromDoubleQuotedStringAdjustBrackets = 1;      # issue test coverage
             } else {
                 $adjust = 0;
                 $quote = '$'.substr($quote,2);		# issue 43: eat the '{'. At this point, $end_br points after the '}'
@@ -4930,14 +4983,25 @@ sub extract_tokens_from_double_quoted_string
         }
         if($sigil eq '$') {
             my $s2=substr($quote,1,1);                   # issue ws after sigil
+            my $len_ws = 0;                             # issue test coverage
+            my $orig_quote = $quote;                    # issue test coverage
             if($s2 eq '' || $s2 =~ /\s/) {               # issue ws after sigil
                my $q2 = get_rest_of_variable_name($quote, 1);
-               if($q2 ne $quote && $end_br > 0) {
-                   $end_br -= length($quote) - length($q2);
+               if($q2 ne $quote) {
+                   $len_ws = length($quote) - length($q2);      # issue test coverage
+                   $ExtractingTokensFromDoubleQuotedStringEnd+=$len_ws;   # issue test coverage
+                   say STDERR "putting ExtractingTokensFromDoubleQuotedStringEnd back to $ExtractingTokensFromDoubleQuotedStringEnd" if($::debug >= 5);
+                   if($end_br > 0) {
+                       $end_br -= $len_ws;                          # issue test coverage
+                   }
                }
                $quote = $q2;
             }
             decode_scalar($quote, 1,1);
+            if($len_ws != 0) {                          # issue test coverage
+                $quote = $orig_quote;                   # issue test coverage
+                $cut += $len_ws;                        # issue test coverage
+            }                                           # issue test coverage
             #say STDERR "ValClass[$tno]=$ValClass[$tno], ValPy[$tno]=$ValPy[$tno]";      # TEMP
         } elsif($sigil eq '@') {
             decode_array($quote);
@@ -6087,7 +6151,7 @@ sub escape_keywords		# issue 41
            $id = $ids[$i];
 	   if(exists $PYTHON_RESERVED_SET{$id} || ($id eq $DEFAULT_PACKAGE && ($i != 0 || $id eq $name) && !$is_package_name && !$::implicit_global_my)) {
 	       $id = $id.'_';
-	   } elsif(substr($id,0,1) =~ /\d/) {   # issue ddts
+	   } elsif(substr($id,0,1) =~ /\d/) {   # issue ddts: @1234 => _1234
                $id = '_'.$id;
            }
            push @result, $id;
@@ -6371,6 +6435,8 @@ sub get_rest_of_variable_name   # issue ws after sigil
     my $source = shift;         # contains the sigil followed by optional whitespace and a possible comment
     my $in_string = shift;      # 1 if we are decoding inside a string
 
+    my $orig_source_length = length($source);   # issue test coverage
+
     while(1) {
         return $source if($source =~ /^%\s*\$/);        # Don't mess up mod (%) operator
         $source =~ s/(.)\s*(?!#)/$1/;		# Allow whitespace but not $ # (see end of test_ws_after_sigil.pl for example)
@@ -6392,7 +6458,14 @@ sub get_rest_of_variable_name   # issue ws after sigil
             $source .= $line;
         }
     }
-    say STDERR "get_rest_of_variable_name(".substr($source,0,1).", $in_string), lno=$., source='$source'" if($::debug >= 3);
+    my $new_source_length = length($source);    # issue test coverage
+    if($new_source_length < $orig_source_length) {      # issue test coverage
+        my $diff = $orig_source_length - $new_source_length;
+        $ExtractingTokensFromDoubleQuotedTokensEnd-=$diff;   # issue test coverage
+        $ExtractingTokensFromDoubleQuotedStringEnd-=$diff;   # issue test coverage
+        say STDERR "ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd, source=$source after get_rest_of_variable_name" if($::debug>=5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
+    }
+    say STDERR "get_rest_of_variable_name(".substr($source,0,1).", $in_string), lno=$., source='$source'" if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
     return $source;
 }
 
@@ -6902,7 +6975,7 @@ sub handle_import               # issue names
              push @desired_imports, $ValPerl[$i];
          } elsif($ValClass[$i] eq 'q') {        # qw
             if(index(q('"), substr($ValPy[$i],0,1)) >= 0) {
-                push @desired_imports, unquote_string($ValPy[$i]);
+                push @desired_imports, &::unquote_string($ValPy[$i]);   # test coverage
             } else {
                 push @desired_imports, split(' ', $ValPy[$i]);         # qw(...) on use stmt doesn't generate the split
             }
@@ -7193,6 +7266,20 @@ sub handle_while_magic_function                 # issue s40
      $pos += 2;
      say STDERR "handle_while_magic_function: inserted 'defined' function" if($::debug);
      return $pos;
+}
+
+sub looks_like_anon_hash_def            # issue test coverage: Handle {k=>'v'}
+# Does this '{' look like an anonymous hash definition?
+{
+    my $source = shift;
+
+    return 0 if(length($source) == 1);
+    return 1 if($source =~ /\{\s*\}/);  # empty one
+    return 1 if($source =~ /\{\s*\w+\s*=>/);
+    return 1 if($source =~ /\{\s*'\w+'\s*=>/);
+    return 1 if($source =~ /\{\s*q.\w+.\s*=>/);
+    return 1 if($source =~ /\{\s*qq.\w+.\s*=>/);
+    return 0;
 }
 
 1;

@@ -1,7 +1,7 @@
 
 def _create_all_fh_methods(fh):
     """Create all special methods for OO filehandles"""
-    methods=dict(autoflush=_autoflush,binmode=_binmode, close=_close, eof=_eof, 
+    methods=dict(autoflush=_autoflush,binmode=_binmode, close_=_close_, eof=_eof, 
                  fcntl=_fcntl, format_write=_format_write, getc=_getc,
                  getpos=_getpos, ioctl=_ioctl, input_line_number=_input_line_number, 
                  open=_IOFile_open, print_=_print, printf=_printf, say=_say, setpos=_setpos,

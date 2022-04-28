@@ -13,16 +13,16 @@ def _bless(obj, classname, isa=()):
     if hasattr(obj, 'isHash'):
         if obj.isHash:
             for key, value in obj.items():
-                setattr(result, key, value)
+                result[key] = value
         else:
             for i, value in enumerate(obj):
-                setattr(result, i, value)
+                result[i] = value
     elif isinstance(obj, collections.abc.Mapping):
         for key, value in obj.items():
-            setattr(result, key, value)
+            result[key] = value
     elif isinstance(obj, collections.abc.Iterable) and not isinstance(obj, str):
         for i, value in enumerate(obj):
-            setattr(result, i, value)
+            result[i] = value
     elif WARNING:
         _carp(f"'bless' {classname} not implemented on {type(obj)} type object")
 

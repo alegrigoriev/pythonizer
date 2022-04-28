@@ -2826,7 +2826,9 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         # issue 24 $insertion_point = $lno+1 if($line =~ /^$PERL_ARG_ARRAY = sys.argv/ && !$insertion_point);              # SNOOPYJC
         $insertion_point = $lno+1 if($line =~ /^pass # LAST_HEADER/ && !$insertion_point);          # issue 24
         next if(!$insertion_point);     # Ignore everything above our insertion point
-        if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ) {
+        if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ||
+           $line =~ /^(_[A-Za-z][A-Za-z0-9_]+) = _[A-Za-z][A-Za-z0-9_]/) {  # issue test coverage: handle _ArrayHashClass = _partialclass(_ArrayHash, ArrayHash) as a def
+                                                                            # but don't match _d = _d[0:-1]
             my $i;
             my $func = $1;
             push @unsorted, $func;
@@ -2867,7 +2869,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
             $in_def = undef if($line !~ /^def / && $line !~ /^class / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/ && !$multiline_string_sep);
             #say STDERR "Not in_def on $line" if(!$in_def);
         }
-        if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/) {
+        if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ||
+           $line =~ /^(_[A-Za-z][A-Za-z0-9_]+) = _[A-Za-z][A-Za-z0-9_]/) {          # issue test coverage
             $in_def = $1;
             #say STDERR "in_def $in_def on $line";
         }
@@ -2878,6 +2881,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         my @found = grep { $line =~ /\b$_[(),]/ } @words;  # issue s3: Look for calls of this function and other references
         #say STDERR "found @found in $lno: $line" if(@found);
         foreach $f (@found) {
+            next if $line =~ /^\s+def $f/;      # issue test coverage: Not a ref of __add__ if this is a separate def of __add__ like in a different class
+            next if $line =~ /\bself\.$f/;      # issue test coverage; Not a ref of __str__ if this is a self.__str__ ref - that's a different one!
             if($in_def) {
                 #say STDERR "Adding f_refs{$in_def}{$f} = 1 on $lno: $line";
                 $f_refs{$in_def}{$f} = 1;
@@ -2900,7 +2905,10 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
 
     if(exists $refs{_init_package}) {
         for my $f (@unsorted) {
-            next if($f eq '_init_package');
+            next if($f eq '_init_package');     # Don't make it dependent on itself
+            if(exists($PYF_CALLS{_init_package})) {             # issue test coverage: Don't make it dependent on things it depends on
+                next if(index($PYF_CALLS{_init_package}, $f) >= 0);     # these dependencies happens if is_class and autovivification are both true
+            }
             push @{$dependencies{_init_package}}, $f;
         }
     }
@@ -2973,7 +2981,19 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         $lno++;
         next if($line eq '^');          # This means "delete this line"
         if($lno < $insertion_point) {
+           my $gen_try_fcntl = 0;                       # issue test coverage
+           if((!$::import_perllib) && $line =~ /^import / && ($^O eq 'MSWin32' || $^O eq 'msys') && $line =~ /\bfcntl/) {   # issue test coverage
+                $line =~ s/ fcntl,/ /;
+                $line =~ s/,fcntl//;
+                $gen_try_fcntl = 1;
+           }
            pep8($sysout, $line);
+           if($gen_try_fcntl) {
+               pep8($sysout, 'try:');
+               pep8($sysout, '    import fcntl');
+               pep8($sysout, 'except Exception:');
+               pep8($sysout, '    pass');
+           }
            next
         }
         if($::import_perllib) {
@@ -2985,6 +3005,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         }
         for my $func (@ordered_to_move) {
             next if $func eq '__main__';
+            next if !exists $defs{$func};         # issue code coverage: e.g. class Die is referenced but the definition is not found
             $start_line = $defs{$func};
             say STDERR "Handling $func on line $start_line" if($::debug >= 5);
             my $moved_def = 0;
@@ -3035,6 +3056,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                     }
                 }
                 if($lines[$i] =~ /^\s+/ || $lines[$i] =~ /^def $func\(/ || $lines[$i] =~ /^class $func[(:]/ ||
+                        $lines[$i] =~ /^$func = _/ ||           # issue test coverage
                         $lines[$i] =~ /^\s*$/ || $lines[$i] =~ /^\s*#/ || $lines[$i] =~ m'^@' ||
 			$lines[$i] =~ /^${func}_[\w]+ =/ ||	 # state variable like func_var = init
                         $lines[$i] =~ /[.]$func = types[.]MethodType\($func,/ ||     # issue s3
@@ -3045,7 +3067,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                         next;
                     }
                     last if($lines[$i] =~ m'^@' and $moved_def);
-                    $moved_def = 1 if($lines[$i] =~ /^def $func\(/ || $lines[$i] =~ /^class $func[(:]/);
+                    $moved_def = 1 if($lines[$i] =~ /^def $func\(/ || $lines[$i] =~ /^class $func[(:]/ ||
+                                      $lines[$i] =~ /^$func = _/);      # issue test coverage
                     $moved_lines{$i+1} = 1;
                     #say STDERR "writing lines[$i] ($lines[$i])";
                     $lines_moved++;
@@ -3403,7 +3426,7 @@ sub trash_global_types
         for my $sub (keys %{$VarType{$varname}}) {
             my $type = $VarType{$varname}{$sub};
             my $otype = $type;
-            next if($type =~ /^[ahsmu]$/);
+            next if($type =~ /^[ahsmuHR]$/);     # issue code coverage: added 'HR' as we need to know what's a file handle and a regex
             if($type =~ /^[ahs]/) {     # if it's like "a of S", change to just 'a'
                 $type = common_type($type, substr($type,0,1));
             } else {

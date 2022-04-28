@@ -188,6 +188,7 @@
 # 0.971  2022/04/12  SNOOPYJC  issue s19: add option to add __author__ etc, issue s51: add more functions to File::Spec, issue s53: pushing something to @_ generates an AttributeError at runtime, issue s54: implement UNIVERSAL::isa, implement File::Path, issue s57: if ref X is used in an expression that compares with HASH, SCALAR, etc then call our refs function and not ref even if a backslash isn't used, issue s55: Converting an array into an array ref using [@arr] shouldn't generate an outer array, issue s56: chdir and rmdir don't return the proper result, issue s58: Referencing a built-in sub with & generates bad code, issue s59: Don't insert _list_of_n if the RHS contains the same # of elements as the LHS, issue s52: 3-arg split generates incorrect code
 # 0.972  2022/04/15  SNOOPYJC  issue s61: Fix bootstrapping issue with =pod code, convert and/or operands to int, don't assume everything on a 'my' statement is initialized esp if it's on the RHS of an =, assignment to array element at length of array generating wrong code after s55 fix, issue s60: if statement following a do, issue s62: DB::single should break not if debugger is not active
 # 0.973  2022/04/16  SNOOPYJC  issue s63: Allow # pragma pythonizer to be interpreted even if -m or -M is passed, issue s64: Implement new # pragma no convert regex for bootstrap, addl fix for issue s28 - escape \x{...} to python \U after we handle \U for upper case, issue s65 - x operator always converts it's left operand to a string
+# 0.974  2022/04/21  SNOOPYJC  issue 133: pythonizer doesn't run under Strawberry perl on windows, fix issues uncovered by test coverage, issue s66: give proper error message on non-specified or non-existing input file, issue s67: implement Getopt::Std
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -196,7 +197,7 @@
    use feature 'state';
    use Carp 'verbose';	# SNOOPYJC
    use File::Basename;	# SNOOPYJC
-   use File::Spec::Functions qw(file_name_is_absolute catfile rel2abs);   # SNOOPYJC
+   use File::Spec::Functions qw(file_name_is_absolute catfile rel2abs tmpdir);   # SNOOPYJC, issue 133
    use Data::Dumper;    # SNOOPYJC
    use Storable qw(dclone);     # issue s3
    $SIG{ __DIE__ } = sub { Carp::confess( @_ ) };	# SNOOPYJC
@@ -239,7 +240,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.973';
+   $VERSION='0.974';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -287,7 +288,8 @@ BEGIN {                                                 # SNOOPYJC
    $nested_sub_at_level = -1;                   # issue 78
    $saved_sub_tokens = undef;
 
-   $LOG_DIR='/tmp/'.ucfirst($SCRIPT_NAME);
+   # issue 133 $LOG_DIR='/tmp/'.ucfirst($SCRIPT_NAME);
+   $LOG_DIR=catfile(tmpdir(), ucfirst($SCRIPT_NAME));  # issue 133
    # issue 64    banner($LOG_DIR,$SCRIPT_NAME,"Fuzzy translator of Python to Perl. Version $VERSION",30); # Opens SYSLOG and print STDERRs banner; parameter 4 is log retention period
    # issue 55 prolog(); # sets all options, including breakpoint
    prolog(dirname(__FILE__), $LOG_DIR,$SCRIPT_NAME,"Translator of Python to Perl. Version $VERSION",30); # issue 55, issue 64  # sets all options, including breakpoint
@@ -373,7 +375,7 @@ BEGIN {                                                 # SNOOPYJC
    }
    $Die = "from $PERLLIB import Die" if($import_perllib);
    # NOTE: This import line gets rewritten in Pythonizer.pm!
-   my @headers = ("import sys,os,re,fcntl,math,fileinput,subprocess,collections.abc,argparse,glob,warnings,inspect,functools,itertools,signal,traceback,io,tempfile,atexit,calendar,types,pdb,random,stat,dataclasses,builtins,codecs,struct,$PERLLIB,copy",
+   my @headers = ("import sys,os,re,fcntl,math,fileinput,subprocess,collections.abc,argparse,glob,warnings,inspect,functools,itertools,signal,traceback,io,tempfile,atexit,calendar,types,pdb,random,stat,dataclasses,builtins,codecs,struct,$PERLLIB,copy,getopt",
 	   'import time as tm_py',                              # SNOOPYJC
            "_str = lambda s: '' if s is None else str(s)",      # SNOOPYJC
                  );
@@ -430,6 +432,9 @@ BEGIN {                                                 # SNOOPYJC
            $is_class = ', is_class=True';
            if(exists $SpecialVarsUsed{'@ISA'}) {
               $is_class .= ", isa=$SpecialVarsUsed{'@ISA'}{__main__}";
+           }
+           if($autovivification) {                              # issue test coverage
+               $PYF_CALLS{'_init_package'} = 'ArrayHash,Hash,_ArrayHash,_ArrayHashClass,_partialclass';  # issue test coverage
            }
        }
        $package = escape_keywords($package, 1);
@@ -890,9 +895,9 @@ my ($start,$token_buffer_active);
              if( $ValClass[$i] eq 'i' || $ValClass[$i] eq 's' ){        # issue 10
 	        # issue close gen_chunk($ValPy[$i].'.f.close;');
                 # issue 72 gen_chunk($ValPy[$i].'.close()');	# issue close
-                $Pyf{_close} = 1;
+                $Pyf{_close_} = 1;                              # issue test coverage
                 my $escaped = escape_keywords($ValPy[$i]);      # issue s25
-                gen_chunk('_close', '(', $escaped, ')');	# issue close, issue 72, issue s25
+                gen_chunk('_close_', '(', $escaped, ')');	# issue close, issue 72, issue s25, issue test coverage
                 gen_statement();
              }
          }
@@ -1035,12 +1040,14 @@ my ($start,$token_buffer_active);
                       }elsif($ValPerl[0] eq 'state'){
                          $new_name=$CurSub.'_'.$ValPy[$i];
                          $new_state_var_name{$ValPy[$i]}=$new_name;
-                         gen_chunk($new_name);
+                         # issue test coverage gen_chunk($new_name);
+                         gen_chunk($ValPy[0],$new_name);        # issue test coverage
+                         gen_statement();                       # issue test coverage
                       }else{
                           gen_chunk($ValPy[$i]);
                       }
                    }
-                   gen_chunk(" = $val");
+                   gen_chunk(" = $val") if($ValPerl[0] ne 'state');     # issue test coverage
                 } else {                        # We need to do it one by one
                    for($i=2; $i<$last;$i++){
                       next if ($ValPy[$i] eq ',');
@@ -1051,11 +1058,14 @@ my ($start,$token_buffer_active);
                       if($ValPerl[0] eq 'state'){
                          $new_name=$CurSub.'_'.$ValPy[$i];
                          $new_state_var_name{$ValPy[$i]}=$new_name;
-                         gen_chunk($new_name);
+                         # issue test coverage gen_chunk($new_name);
+                         gen_chunk($ValPy[0],$new_name);        # issue test coverage
                       }else{
                          gen_chunk($ValPy[$i]);
                       }
-                      gen_chunk(" = $val");
+                      if($ValPerl[0] ne 'state') {              # issue test coverage
+                         gen_chunk(" = $val");
+                      }
                       gen_statement();
                    }
                 }
@@ -1327,7 +1337,8 @@ my ($start,$token_buffer_active);
                      $TrStatus=-255;
                      last;
                   }
-                  if( $last_eq+1==@ValClass ){
+                  # issue test coverage if( $last_eq+1==@ValClass ){
+                  if( $last_eq+1==$#ValClass ){          # issue test coverage
 		     # issue 31 gen_statement("$ValPy[$i]=$ValPy[-1].copy"); # last array is the source
                     if($ValPerl[-1] eq '@_' && $CurSub ne '__main__' && !exists $SubAttributes{$CurSub}{modifies_arglist}) {  # SNOOPYJC, issue 41
                         # In this case our args are still a tuple, which has no ".copy()" operation
@@ -1683,6 +1694,7 @@ my ($start,$token_buffer_active);
     }
     while (($key, $value) = each (%Pyf)) {	# SNOOPYJC
         if($value == 1) {
+            next if ! -f "$Pyf_dir/$key.py";            # issue test coverage: for _ArrayHash, _ArrayHashClass, and _partialclass
 	    open(my $fh, '<', "$Pyf_dir/$key.py");
             while($l=<$fh>){
                 chomp $l;
@@ -2038,6 +2050,33 @@ sub get_converter
     $v_type = &Pythonizer::expr_type($var_start, $var_end, $CurSub);
     return undef if($type eq $v_type);
     return undef if($type eq 'N' && $v_type =~ /[IF]/);
+    # issue code coverage: do some constant conversions here:
+    if($var_start == $var_end) {
+       if($ValClass[$var_start] eq 'd') {
+           if($type eq 'I') {
+               $ValPy[$var_start] = int($ValPy[$var_start]);
+               return undef;
+           } elsif($type eq 'F') {
+               if($ValPy[$var_start] !~ /\./ && $ValPy[$var_start] !~ /e/i) {
+                   $ValPy[$var_start] .= '.0';
+                   return undef;
+               }
+           } elsif($type eq 'S') {
+               replace($var_start, '"', $ValPerl[$var_start], "'" . $ValPy[$var_start] . "'");
+               return undef;
+           }
+       } elsif($ValClass[$var_start] eq '"' && substr($ValPy[$var_start],0,1) ne 'f') {
+           if($type eq 'I') {
+               no warnings 'numeric';
+               replace($var_start, 'd', $ValPerl[$var_start], int(0+unquote_string($ValPy[$var_start])));
+               return undef;
+           } elsif($type eq 'F' || $type eq 'N') {
+               no warnings 'numeric';
+               replace($var_start, 'd', $ValPerl[$var_start], 0+unquote_string($ValPy[$var_start]));
+               return undef;
+           }
+       }
+    }
     return $CONVERTER_MAP{$type};
 }
 
@@ -4022,9 +4061,12 @@ my($start,$k,$split,$limit)=@_;         # issue 106
             gen_chunk(')[1]');
           } else {
             gen_chunk('((');
+            my $eq2;                            # issue test coverage
             if($ValClass[$eq+1] eq 'f' && $ValPy[$eq+1] eq $CONVERTER_MAP{S}) {         # issue s8
                 # We could have inserted a _str($v), so leave that out!
                 $k=expression($eq+3, $split-2, 0);
+            } elsif($ValClass[$eq+1] eq '(' && ($eq2 = next_same_level_token('=', $eq+2, $split-2)) != -1) {    # issue test coverage: Case 4 within Case 2
+                $k=expression($eq+2, $eq2-1, 0);        # issue test coverage: new
             } else {
                 $k=expression($eq+1, $split-1, 0);
             }
@@ -4249,6 +4291,7 @@ my($start,$k,$split,$limit)=@_;         # issue 106
                   $k=expression($eq+1, $close-1, 0);            # old
                   return -255 if( $k<0 );
                   gen_chunk('), ');
+                  $eq_ok = 0;                   # Always gen the ')'
               } else {
                   if($eq_ok) {
                      $k=expression($start+1, $eq-1, 0);         # new
@@ -4279,7 +4322,9 @@ my($start,$k,$split,$limit)=@_;         # issue 106
               if($flags =~ /replace/) {
                   $flags =~ s/replace=False,//;
                   $replace = 0;
-              } elsif($ValPy[$start] eq $CONVERTER_MAP{S}) {         # issue s8
+                  gen_chunk('(');               # issue test coverage
+              }
+              if($ValPy[$start] eq $CONVERTER_MAP{S}) {         # issue s8, issue test coverage
                   for(my $i = $start+2; $i < $old0+2; $i++) {   # Spit out the "_assign_global('pkg', 'var'", 
                       gen_chunk($ValPy[$i]);
                   }
@@ -4290,14 +4335,25 @@ my($start,$k,$split,$limit)=@_;         # issue 106
                       gen_chunk($ValPy[$i]);
                   }
               }
-              gen_chunk($ValPy[$split+1]);
+              if($replace) {            # issue test coverage
+                  gen_chunk($ValPy[$split+1]);
+              }
               gen_chunk($ValPy[$start], '(') if $ValPy[$start] eq $CONVERTER_MAP{S};
               $k=expression($old0,$old1,0);
               return -255 if( $k<0 );
               gen_chunk(')') if $ValPy[$start] eq $CONVERTER_MAP{S};
-              gen_chunk(',', $flags) if($flags);
+              if($replace) {
+                 gen_chunk(',', $flags) if($flags);
+              } else {
+                 gen_chunk(')', ',');
+                 gen_chunk($ValPy[$split+1]);
+                 gen_chunk($ValPy[$start], '(') if $ValPy[$start] eq $CONVERTER_MAP{S};
+                 expression($old0,$old1,0);
+                 gen_chunk(')') if $ValPy[$start] eq $CONVERTER_MAP{S};
+                 gen_chunk(',', $flags) if($flags);
+              }
               gen_chunk(')');
-              gen_chunk(')') if($replace);
+              gen_chunk(')');
          }else{
             if($flags =~ /replace/) {
                 $flags =~ s/replace=False,//;
@@ -4553,7 +4609,8 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
       # SNOOPYJC if( $TokenStr eq 'ci' && !$LocalSub{$ValPy[$start]}) {	# issue 18, issue paren: at this point the '()' are gone
       if( $TokenStr eq 'cj') {	# issue 18, issue paren: at this point the '()' are gone, SNOOPYJC
           # while(<SYSIN>)
-          gen_chunk("$ValPy[$start] $DEFAULT_VAR = $ValPy[$start+1]:"); # gen initial keyword     # issue 32
+          # issue test coverage gen_chunk("$ValPy[$start] $DEFAULT_VAR = $ValPy[$start+1]:"); # gen initial keyword     # issue 32
+          gen_chunk("$ValPy[$begin] ($DEFAULT_VAR := $ValPy[$start]):"); # gen initial keyword     # issue 32, issue test coverage
           return($#ValClass);
       } elsif($TokenStr eq 'cqrq' || $TokenStr eq 'cdrq') {             # SNOOPYJC: issue range
           $Pyf{'_range'} = 1;
@@ -4936,6 +4993,7 @@ my $bracketed=0;  # nessesary for the proper call of expression.
     $limit=matching_br($begin+1);
     $start=$begin+2;  # function call with normal pathethis
     if( $ValClass[$limit] eq ')' ){ $end_pos=$limit-1; }
+    say STDERR "function($begin) for =|$TokenStr|= $ValPy[$begin], bracketed=1, start=$start, end_pos=$end_pos, limit=$limit" if($debug >= 5);
   # issue 16 }elsif( ($k=index($TokenStr,'0'))>=1 ){
   # issue s3  }elsif( ($k=index($TokenStr,'0',$begin+1))>=1 ){	# issue 16
   # }elsif( ($k=next_matching_tokens('0o>?:',$begin+1,$limit))>=1 ){	# issue 16, issue 93, issue 59, issue s3
@@ -4960,14 +5018,14 @@ my $bracketed=0;  # nessesary for the proper call of expression.
 # issue s3  }elsif( ($k=index($TokenStr,':',$begin+1))>=1 ){	# issue 16
 # issue s3      $end_pos=$limit=$k-1 if($k-1 < $end_pos); # if we have : that function should end before it
 # issue s3      $bracketed=-1 if($end_pos < $start);              # issue 59
-  }elsif(scalar(@_)<2 && $begin != 0 && $ValClass[$begin-1] eq '(') {	# issue paren, issue 81
+  }elsif($bracketed != 1 && scalar(@_)<2 && $begin != 0 && $ValClass[$begin-1] eq '(') {	# issue paren, issue 81, issue test coverage
     # if the entire function call w/parameters is parenthesized, then the function ends
     # at the next right paren
     $end_pos=$limit=matching_br($begin-1)-1;		# issue paren
     if ($end_pos < $begin) {				# issue paren
        $end_pos=$limit=$#ValClass;			# issue paren
     }							# issue paren
-  }elsif(scalar(@_)<2) {                                # issue 81
+  }elsif($bracketed != 1 && scalar(@_)<2) {             # issue 81, issue test coverage
     $end_pos=$limit=$#ValClass;                         # issue paren: if we have (...f",") - then the ending paren isn't ours!
     if($ValClass[$end_pos] eq ')') {                    # issue paren
         $mb = reverse_matching_br($end_pos);            # issue paren
@@ -5629,13 +5687,14 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
            }
        } else {
            if($ValPy[$start] eq 'sys.stdout') {
-               $ValPy[$start] = 'sys.__stdout__';
+               replace($start, 'd', $ValPerl[$start], 'sys.__stdout__');        # issue test coverage
            }
            if($begin == 0) {
                gen_chunk('sys.stdout', '=');
                $k=expression($start,$end_pos,0);
                return -255 if $k<0;
            } else {
+               $Pyf{_select} = 1;                # issue test coverage
                gen_chunk('_select', '(');
                $k=expression($start,$end_pos,0);
                return -255 if $k<0;
@@ -6115,6 +6174,8 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
         }
    # SNOOPYJC }elsif($perl_name eq 'chop'){
    # SNOOPYJC gen_chunk("$ValPy[$start]=$ValPy[$start]".'[0,-1]');
+   }elsif($perl_name eq 'getopt' || $perl_name eq 'getopts') {
+      getopts_fun($perl_name, $start, $end_pos);
    }elsif($perl_name eq 'GetOptions' && $bracketed==1 && (my $type = GetOptionsHandled($start, $end_pos))) { # issue 48
       GetOptions_fun($type, $start, $end_pos);                  # issue 48
    }elsif($perl_name eq 'binmode') {            # SNOOPYJC
@@ -6495,6 +6556,64 @@ sub need_splat          # SNOOPYJC: Does this function/sub arg need a '*' before
     return 0;
 }
 
+sub getopts_fun                 # issue s67: implement getopt/getopts
+{
+    my $which = shift;          # getopt or getopts
+    my $start = shift;
+    my $end_pos = shift;
+
+    if($ValClass[$start] ne '"' || substr($ValPy[$start],0,1) eq 'f') {
+        logme('S', "$which with non-constant arg is not supported");
+        gen_chunk("$which # FAILTRAN");
+        return;
+    }
+    # Generate the options string for getopt.getopt
+    if($which eq 'getopt') {
+        $options = '';
+        for(my $o = ord('A'); $o <= ord('z'); $o++) {
+            if(index($ValPerl[$start], chr($o)) >= 0) {
+                $options .= chr($o) . ':';
+            } else {
+                $options .= chr($o);
+            }
+            $o = ord('a')-1 if($o eq ord('Z'));
+        }
+    } else {
+        $options = $ValPerl[$start];
+    }
+    # See if we have an options hash or not
+    gen_statement("(${ARG_PARSER}_res, ${ARG_PARSER}_rem) = getopt.getopt(sys.argv[1:], '$options')");
+    if($ValClass[$end_pos] eq 'h') {
+        gen_statement("$ValPy[$end_pos] = {${ARG_PARSER}_res[$INDEX_TEMP][0][1:]: ${ARG_PARSER}_res[$INDEX_TEMP][1] for $INDEX_TEMP in range(len(${ARG_PARSER}_res))}");
+        gen_statement("for $SUBSCRIPT_TEMP in $ValPy[$end_pos]:");
+        correct_nest(1,1);
+        gen_statement("if f'{$SUBSCRIPT_TEMP}:' not in '$options':");
+        correct_nest(1,1);
+        gen_statement("$ValPy[$end_pos]\[$SUBSCRIPT_TEMP] = '1'");
+        correct_nest(-2,-2);
+    } else {
+        gen_statement("${ARG_PARSER}_opts = {${ARG_PARSER}_res[$INDEX_TEMP][0][1:]: ${ARG_PARSER}_res[$INDEX_TEMP][1] for $INDEX_TEMP in range(len(${ARG_PARSER}_res))}");
+        for(my $i = 0; $i < length($options); $i++) {
+            my $c = substr($options,$i,1);
+            next if($c eq ':');
+            if($which eq 'getopt') {
+                # See if this variable is referenced in the program, if not, skip it
+                next if(!exists $Perlscan::NameMap{"opt_$c"} || !exists $Perlscan::NameMap{"opt_$c"}{'$'});
+            }
+            my $var = "opt_$c";
+            if(exists $Perlscan::NameMap{"opt_$c"}{'$'}) {
+                $var = $Perlscan::NameMap{"opt_$c"}{'$'};
+            }
+            if(substr($options,$i+1,1) eq ':') {        # option takes an arg
+               gen_statement("$var = ${ARG_PARSER}_opts\['$c'] if '$c' in ${ARG_PARSER}_opts else None");
+            } else {            # option takes no arg
+               gen_statement("$var = '1' if '$c' in ${ARG_PARSER}_opts else None");
+            }
+        }
+    }
+    gen_statement("sys.argv[1:] = ${ARG_PARSER}_rem");      # issue 24
+}
+
 sub GetOptionsHandled           # issue 48: Can we handle this GetOptions call?
 {
     # We handle 2 types of GetOptions calls.  
@@ -6726,6 +6845,8 @@ my($k,$myline, $target,$open_mode,$handle);
    my $dup = '';                        # SNOOPYJC
    $target = undef;                     # SNOOPYJC
    my $variable_mode = '';
+   my $expr_mode_start = undef;         # issue code coverage
+   my $expr_mode_end;
    $k+=2 if(  $ValPerl[$k+1] eq ',');
    # SNOOPYJC if( $ValClass[$k] eq '"' && ($k+1) <= $#ValClass && $ValClass[$k+1] eq ',' ){
    if( ($k+1) <= $#ValClass && $ValClass[$k+1] eq ',' ){
@@ -6790,6 +6911,11 @@ my($k,$myline, $target,$open_mode,$handle);
    }elsif( $ValClass[$k] eq 'i' && $LocalSub{$ValPy[$k]}) {
       $open_mode=undef;		# issue 26
       $target=escape_keywords($ValPy[$k]).'()';         # SNOOPYJC
+   } elsif(($expr_mode_end = next_same_level_token(',', $k, $end_pos)) >= 0) {        # complex mode expression
+      $open_mode=undef;
+      $expr_mode_start = $k;
+      $k = $expr_mode_end+1;
+      $expr_mode_end--;
    }
    # SNOOPYJC if ($target eq '-' ) {
    # SNOOPYJC    $target='sys.argv[1]';
@@ -6823,7 +6949,9 @@ my($k,$myline, $target,$open_mode,$handle);
       $open_mode = ", $variable_mode" if($variable_mode);
       if($k == $end_pos && $ValClass[$k] eq 'i') {              # one arg open
           replace($k, 's', '$'.$ValPerl[$k], scalar_var_name($ValPy[$k]));
-          $ValPy[$k] = $CurPackage . '.' . $ValPy[$k] unless($implicit_global_my);
+          if(index($ValPy[$k], '.') < 0) {
+              $ValPy[$k] = $CurPackage . '.' . $ValPy[$k] unless($implicit_global_my);
+          }
       }
    } else {
        $open_mode = ", '$open_mode'";
@@ -6847,6 +6975,10 @@ my($k,$myline, $target,$open_mode,$handle);
      } else {                                           # SNOOPYJC
         gen_chunk("($handle:=", "$function", '(');              # SNOOPYJC
         expression($k,$end_pos,0);                      # SNOOPYJC
+        if(defined $expr_mode_start) {                  # issue code coverage
+            gen_chunk(',');
+            expression($expr_mode_start, $expr_mode_end, 0);
+        }
         gen_chunk("$open_mode$encoding$errors))");	# SNOOPYJC
      }
      # issue paren return $k+1 if ($ValClass[$k+1] eq ')');
@@ -6861,6 +6993,10 @@ my($k,$myline, $target,$open_mode,$handle);
       } else {
          gen_chunk("$handle = ", "$function", '(');
          expression($k,$end_pos,0);                      # SNOOPYJC
+         if(defined $expr_mode_start) {                  # issue code coverage
+            gen_chunk(',');
+            expression($expr_mode_start, $expr_mode_end, 0);
+         }
          gen_chunk("$open_mode$encoding$errors, checked=False)");
        }
    }elsif( $mode eq 'c' ){                      # Control statement, like if
@@ -6870,6 +7006,10 @@ my($k,$myline, $target,$open_mode,$handle);
       } else {
          gen_chunk("if not ($handle:=$function(");
          expression($k,$end_pos,0);                      # SNOOPYJC
+         if(defined $expr_mode_start) {                  # issue code coverage
+            gen_chunk(',');
+            expression($expr_mode_start, $expr_mode_end, 0);
+         }
          gen_chunk("$open_mode$encoding$errors)):");
       }
       $Perlscan::PREV_HAD_COLON = 1;
@@ -7088,7 +7228,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
    }
 
    if($ValClass[$begin] eq '(' && $ValPerl[$begin] eq '(' && matching_br($begin) == $begin+1 &&
-       $begin+1 != $#ValClass &&
+       $begin+1 != $#ValClass && $ValClass[$begin+2] ne ':' &&  # issue test coverage: not a () if wantarray else ...
       ($begin == 0 || $ValClass[$begin-1] !~ /[fi]/)) { # SNOOPYJC: goatse, not sub/function empty args, and not at end
        # Goatse is just used to signal list context, e.g. "my $l = () = localtime();" calls localtime and gives 9, not ctime
        $begin = $cur_pos = $begin+2;
@@ -7166,6 +7306,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
          say "Undefined ValClass at pos $cur_pos. Attempting to switch to debug  mode ";
 	 #$DB::single = 1;
       }
+      $end_pos= (($bracketed ==1) ? $limit-1 : $limit); # issue code coverage: if we limited our pos to &&/||/and/or, put it back!
       #
       $pos = next_same_level_tokens('!:o0~,', $cur_pos, $limit); # issue 101, issue 124
       if($pos != -1) {                                          # issue 101
@@ -7183,23 +7324,33 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
             $cur_pos = $match+1;
             next;
          }
-         # generate bracket if mode=1 or recursion level is above zero
-         gen_chunk($ValPy[$cur_pos]) unless($cur_pos == $begin && $mode == -1); # SNOOPYJC
-	 # issue 15 $cur_pos=expression($cur_pos+1,$end_pos,0); # preserve brackets
-         if($match < 0) { $TrStatus=-1; return -255; }
-         # SNOOPYJC: Handle [k=>v, ...] and (k=>v, ...) - needs to generate a list, not a hash (note not {...} brackets)
-         if($ValPy[$cur_pos] ne '{') {
-             for(my $i=$cur_pos+1; $i<$match; $i++) {
-                 if($ValClass[$i] eq 'A') {             # issue 93
-                     $ValPy[$i] = ',';
-                 } elsif($ValClass[$i] eq '(') {        # issue bootstrapping
-                     $i = matching_br($i);
-                     last if $i < 0;
+         if($match == $cur_pos+1 && $ValPy[$cur_pos] eq '(') {   # issue test coverage: handle empty array specified as ()
+            if($autovivification) {
+                $Pyf{Array} = 1;
+                gen_chunk('Array', '(', ')');
+            } else {
+                gen_chunk('[', ']');
+            }
+            $cur_pos+=2;
+         } else {
+             # generate bracket if mode=1 or recursion level is above zero
+             gen_chunk($ValPy[$cur_pos]) unless($cur_pos == $begin && $mode == -1); # SNOOPYJC
+             # issue 15 $cur_pos=expression($cur_pos+1,$end_pos,0); # preserve brackets
+             if($match < 0) { $TrStatus=-1; return -255; }
+             # SNOOPYJC: Handle [k=>v, ...] and (k=>v, ...) - needs to generate a list, not a hash (note not {...} brackets)
+             if($ValPy[$cur_pos] ne '{') {
+                 for(my $i=$cur_pos+1; $i<$match; $i++) {
+                     if($ValClass[$i] eq 'A') {             # issue 93
+                         $ValPy[$i] = ',';
+                     } elsif($ValClass[$i] eq '(') {        # issue bootstrapping
+                         $i = matching_br($i);
+                         last if $i < 0;
+                     }
                  }
              }
+             $cur_pos=expression($cur_pos+1,$match-1,0); # preserve brackets	# issue 15, paren
+             ($cur_pos<0) && return -255;
          }
-         $cur_pos=expression($cur_pos+1,$match-1,0); # preserve brackets	# issue 15, paren
-         ($cur_pos<0) && return -255;
       }elsif(  $ValClass[$cur_pos] eq '<' ){
          gen_chunk('readline()');
          $cur_pos++;
@@ -7289,8 +7440,12 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
                         gen_chunk('*') if(need_splat($cur_pos)); # SNOOPYJC
                         my $comma = next_same_level_token(',', $cur_pos, $end_pos-1);
                         if($comma != -1) {
-                            expression($cur_pos, $comma, 0);
-                            $cur_pos = $comma+1;
+                            if($ValClass[$cur_pos] eq 'f') {    # issue test coverage: this comma could belong to the function
+                                $cur_pos = function($cur_pos);
+                            } else {
+                                expression($cur_pos, $comma, 0);
+                                $cur_pos = $comma+1;
+                            }
                         } else {
                             expression($cur_pos,$end_pos-1,0) if($cur_pos <= $end_pos-1); # call without brackets   # issue paren
                             last;
@@ -7330,7 +7485,11 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
                     $gen_close = 1;
                 }
                 # issue s3 expression($cur_pos+1,$end_pos,1); # preseve brackets
-                expression($cur_pos+1,$end_pos,3); # issue s3: preseve brackets and insert splats
+                if($cur_pos+2 == $end_pos && $ValPerl[$cur_pos+1] eq '(' && $ValPerl[$end_pos] eq ')') {        # issue code coverage: No args
+                    gen_chunk('()');
+                } else {
+                    expression($cur_pos+1,$end_pos,3); # issue s3: preseve brackets and insert splats
+                }
                 gen_chunk(')') if($gen_close);                                          # issue ddts
                 if(exists $SubAttributes{$ValPy[$cur_pos]}{wantarray} && list_or_scalar_context($cur_pos, $limit) == 1) { # issue s3
                     if($Perlscan::PythonCode[-2] eq '(') {              # no args
@@ -7412,9 +7571,9 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
       }elsif($ValClass[$cur_pos] eq 'i' && $cur_pos != 0 && $ValClass[$cur_pos-1] eq 'D' &&
              ($cur_pos+1 > $#ValClass || ($ValClass[$cur_pos+1] ne '(' && $ValClass[$cur_pos+1] ne 'D'))) {  # Method call with no ()
          if(exists $SubAttributes{$ValPy[$cur_pos]}{wantarray} && list_or_scalar_context($cur_pos, $limit) == 1) { # issue s3
-             gen_chunk($ValPy[$cur_pos], '(wantarray=True)');
+             gen_chunk(escape_keywords($ValPy[$cur_pos]), '(wantarray=True)');
          } else {
-             gen_chunk($ValPy[$cur_pos], '()');
+             gen_chunk(escape_keywords($ValPy[$cur_pos]), '()');
          }
          $cur_pos++;
       }elsif($ValClass[$cur_pos] eq 'r') {		# issue range

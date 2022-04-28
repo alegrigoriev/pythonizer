@@ -2,7 +2,7 @@
 def _num(expr):
     """Convert expr to a number
        Ref: https://squareperl.com/en/how-perl-convert-string-to-number"""
-    if not expr:
+    if expr is None:
         return 0
     try:
         return +expr    # Unary plus: The fastest way to test for numeric
@@ -30,6 +30,8 @@ def _num(expr):
             if not (m:=re.match(br'^\s*([+-]?(?:\d+(?:[.]\d*)?(?:[eE][+-]?\d+)?|[.]\d+(?:[eE][+-]?\d+)?))', expr)):
                 break
             expr = m.group(1);
+        elif hasattr(expr, 'isHash') and expr.isHash is None:
+            return 0
         else:
             return expr
     if WARNING:

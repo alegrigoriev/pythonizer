@@ -21,6 +21,9 @@ use v5.10;
    use strict 'subs';
    use feature 'state';
    use open ':std', IN=>':crlf', IO=>':utf8';        # SNOOPYJC
+   use File::Path;		# issue 133
+   use POSIX qw/strftime/;	# issue 133
+   use File::stat;		# issue 133
 
 require Exporter;
 
@@ -55,7 +58,10 @@ my ($script_timestamp,$fqn);
 #  commit each running Version to the repository to central GIT
 #
   return if ($::debug==0);
-  ( ! -d $archive_dir ) && `mkdir -p $archive_dir`;
+  # issue 133 ( ! -d $archive_dir ) && `mkdir -p $archive_dir`;
+  unless( -d $archive_dir ) {		# issue 133
+      make_path($archive_dir);
+  }
   $script_name=substr($0,rindex($0,'/')+1);
   _compare_and_save($archive_dir,$0,$script_name);
   foreach my $script_name (@project) {
@@ -71,17 +77,27 @@ my ($archive_dir,$fqn,$script_name)=@_;
 my $script_delta=1;
   if(  -f "$archive_dir/$script_name"  ){
          if( (-s $fqn ) == (-s "$archive_dir/$script_name")   ){
-            `diff $fqn $archive_dir/$script_name`;
+	    if($^O eq 'MSWin32') {		# issue 133
+                `fc $fqn $archive_dir\\$script_name`;	# issue 133
+	    } else {
+                `diff $fqn $archive_dir/$script_name`;
+    	    }
             $script_delta=( $? == 0 )? 0: 1;
          }
          if( $script_delta ){
-            chomp($script_timestamp=`date -r $archive_dir/$script_name +"%y%m%d_%H%M"`);
-            `mv $archive_dir/$script_name $archive_dir/$script_name.$script_timestamp`;
+	    # issue 133 chomp($script_timestamp=`date -r $archive_dir/$script_name +"%y%m%d_%H%M"`);
+	    # issue 133 `mv $archive_dir/$script_name $archive_dir/$script_name.$script_timestamp`;
+            $script_timestamp=strftime("%y%m%d_%H%M", localtime stat($archive_dir/$script_name)->mtime);	# issue 133
+            rename catfile($archive_dir,$script_name), catfile($archive_dir,$script_name.$script_timestamp);	# issue 133
 
          }
       }
       if( $script_delta ){
-         `cp -p $fqn $archive_dir/$script_name`;
+	 if($^O eq 'MSWin32') {		# issue 133
+             `robocopy $fqn $archive_dir\\$script_name`;	# issue 133
+	 } else {
+             `cp -p $fqn $archive_dir/$script_name`;
+         }
           # `cd $archive_dir && git commit $script_name`; # actual commit
       }
 } #_compare_and_save
@@ -108,11 +124,16 @@ sub abend
 {
 my $message;
 my ($package, $filename, $lineno) = caller;
-      $message="ABEND in module $package. Line $. : $Pythonizer::IntactLine";
+      if(defined $. && defined  $Pythonizer::IntactLine) {	# issue s66
+          $message="ABEND in module $package. Line $. : $Pythonizer::IntactLine";
+      } else {							# issue s66
+          $message="ABEND in module $package.";			# issue s66
+      }								# issue s66
       if( scalar(@_)>0 ){
          $message.="\n$_[0]";
       }
 #  Syslog might not be availble
+      $verbosity = 3;						# issue s66: Tell them what's going on no matter what -v they specify
       out($message);
       exit(-255);
 } # abend
@@ -135,22 +156,37 @@ my $title=$_[2]; # this is an optional argumnet which is print STDERRed as subti
 my $log_retention_period=$_[3];
 
 my ($script_mod_stamp,$day);
-   chomp($script_mod_stamp=`date -r $0 +"%y%m%d_%H%M"`);
+   # issue 133 chomp($script_mod_stamp=`date -r $0 +"%y%m%d_%H%M"`);
+   $script_mod_stamp=strftime("%y%m%d_%H%M", localtime stat($0)->mtime);
 
    if( -d $my_log_dir ){
-      chomp($day=`date '+%d'`);
+      # issue 133 chomp($day=`date '+%d'`);
+      $day =  strftime('%d', localtime());	# issue 133
       if( 1 == $day && $log_retention_period>0 ){
          #Note: in debugging script home dir is your home dir and the last thing you want is to clean it ;-)
-         `find $my_log_dir -name "*.log" -type f -mtime +$log_retention_period -delete`; # monthly cleanup
+	 if($^O eq 'MSWin32') {		# issue 133
+	     require "File::Find::Rule";
+	     my @files = File::Find::Rule->file()->maxdepth(0)->name('*.log')->in($my_log_dir);
+	     for my $f (@files) {
+	         if(-M $f > $log_retention_period) {
+		     unlink $f;
+	         }
+             }
+	 } else {
+             `find $my_log_dir -name "*.log" -type f -mtime +$log_retention_period -delete`; # monthly cleanup
+         }
       }
    }else{
-      `mkdir -p $my_log_dir`;
+      # issue 133 `mkdir -p $my_log_dir`;
+      make_path($my_log_dir);		# issue 133
    }
-my $logstamp=`date +"%y%m%d_%H%M"`; chomp $logstamp;
+# issue 133 my $logstamp=`date +"%y%m%d_%H%M"`; chomp $logstamp;
+my $logstamp=strftime("%y%m%d_%H%M", localtime());	# issue 133
    $logfile="$my_log_dir/$script_name.$logstamp.log";
    open(SYSLOG, ">$logfile") || die("Fatal error: unable to open $logfile\n\n");
    $syslog_opened = 1;		# issue 64
-my $timestamp=`date "+%y/%m/%d %H:%M"`; chomp $timestamp;
+# issue 133 my $timestamp=`date "+%y/%m/%d %H:%M"`; chomp $timestamp;
+my $timestamp=strftime("%y/%m/%d %H:%M", localtime());	# issue 133
    $title="\n\n".uc($script_name).": $title (mtime $script_mod_stamp) Started at $timestamp";
    out($title);
    out("\nLogs are at $logfile. Type -h for help.");
