@@ -1522,7 +1522,7 @@ sub _expr_type           # Attempt to determine the type of the expression
         return func_type($ValPerl[$k], $ValPy[$k]);
     } elsif($k == $e) {      # we have one thing
         if($class eq 'd') {             # Digits
-            if($ValPy[$k] =~ /^(?:0[xbo])?\d+$/) {
+            if($ValPy[$k] =~ /^(?:0[bo])?\d+$/ || $ValPy[$k] =~ /^0x[A-Fa-f0-9]+$/) {   # issue s69
                 return 'I';             # Integer
             }
             return 'F';                 # Float
