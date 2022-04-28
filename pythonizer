@@ -189,6 +189,7 @@
 # 0.972  2022/04/15  SNOOPYJC  issue s61: Fix bootstrapping issue with =pod code, convert and/or operands to int, don't assume everything on a 'my' statement is initialized esp if it's on the RHS of an =, assignment to array element at length of array generating wrong code after s55 fix, issue s60: if statement following a do, issue s62: DB::single should break not if debugger is not active
 # 0.973  2022/04/16  SNOOPYJC  issue s63: Allow # pragma pythonizer to be interpreted even if -m or -M is passed, issue s64: Implement new # pragma no convert regex for bootstrap, addl fix for issue s28 - escape \x{...} to python \U after we handle \U for upper case, issue s65 - x operator always converts it's left operand to a string
 # 0.974  2022/04/21  SNOOPYJC  issue 133: pythonizer doesn't run under Strawberry perl on windows, fix issues uncovered by test coverage, issue s66: give proper error message on non-specified or non-existing input file, issue s67: implement Getopt::Std
+# 0.975  2022/04/28  SNOOPYJC  issue s69: Hex constant in source code generates internal warning message and gets changed to 0
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -240,7 +241,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.974';
+   $VERSION='0.975';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -2057,7 +2058,13 @@ sub get_converter
                $ValPy[$var_start] = int($ValPy[$var_start]);
                return undef;
            } elsif($type eq 'F') {
-               if($ValPy[$var_start] !~ /\./ && $ValPy[$var_start] !~ /e/i) {
+               if($ValPy[$var_start] =~ /^0x/) {                        # issue s69
+                   $ValPy[$var_start] = hex($ValPy[$var_start]) . '.0';
+                   return undef
+               } elsif($ValPy[$var_start] =~ /^0o/) {                   # issue s69
+                   $ValPy[$var_start] = int(0+('0' . substr($ValPy[$var_start],2))) . '.0';
+                   return undef
+               } elsif($ValPy[$var_start] !~ /\./ && $ValPy[$var_start] !~ /e/i) {
                    $ValPy[$var_start] .= '.0';
                    return undef;
                }
