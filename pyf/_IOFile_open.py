@@ -21,9 +21,9 @@ def _IOFile_open(fh, filename, mode=None, perms=None):
             result = _open_dynamic(filename, _open_mode_string(mode), checked=False)
     else:
         encoding = errors = None
-        if hasattr(fd, 'encoding'):
-            encoding = fd.encoding
-            errors = fd.errors
+        if hasattr(fh, 'encoding'):
+            encoding = fh.encoding
+            errors = fh.errors
         result = _open_dynamic(filename,encoding=encoding,errors=errors)
     if not fh.closed:
         fh.close()

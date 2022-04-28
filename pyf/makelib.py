@@ -83,7 +83,7 @@ class Die(Exception):
             seen.add(file)
             under_func = file.replace('.py','')
             func = under_func[1:]
-            if keyword.iskeyword(func) or hasattr(builtins, func):     # e.g. import has to remain _import
+            if keyword.iskeyword(func) or hasattr(builtins, func) or func == 'close':     # e.g. import has to remain _import
                 func += '_'
             with open(file, 'r') as fh:
                 for line in fh:

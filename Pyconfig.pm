@@ -144,7 +144,7 @@ sub state_flag_name		# issue 128
 
 our @PYTHON_KEYWORDS = qw(False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield);
 our @PYTHON_BUILTINS = qw(abs aiter all any anext ascii bin bool breakpoint bytearray bytes callable chr classmethod compile complex delattr dict dir divmod enumerate eval exec filter float format frozenset getattr globals hasattr hash help hex id input int isinstance issubclass iter len list locals map max memoryview min next object oct open ord pow print property range re repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip);
-our @EXTRA_BUILTINS = qw(Array Hash ArrayHash perllib wantarray);
+our @EXTRA_BUILTINS = qw(Array Hash ArrayHash perllib wantarray close);	# issue test coverage: Add "close" to prevent recursive loop calling fh.close()
 our %PYTHON_KEYWORD_SET = map { $_ => 1 } @PYTHON_KEYWORDS;
 our %PYTHON_RESERVED_SET = map { $_ => 1 } (@PYTHON_KEYWORDS, @PYTHON_BUILTINS, @EXTRA_BUILTINS);
 
@@ -155,7 +155,7 @@ our %SIGIL_MAP = ('$'=>'s', '%'=>'h', '@'=>'a', ''=>'H');
 our $MAIN_MODULE = 'sys.modules["__main__"]';	# Note this is changed to $DEFAULT_PACKAGE if the -m option is NOT passed (in Pythonizer.pm)
 
 # List of libraries that pythonizer knows about and handles as built-ins:
-our @BUILTIN_LIBRARIES = qw(strict warnings vars feature autodie utf8 autovivification subs Getopt::Long Time::Local File::Basename Fcntl Carp::Assert Exporter Carp File::stat);
+our @BUILTIN_LIBRARIES = qw(strict warnings vars feature autodie utf8 autovivification subs Getopt::Long Getopt::Std Time::Local File::Basename Fcntl Carp::Assert Exporter Carp File::stat);
 our %BUILTIN_LIBRARY_SET = map { $_ => 1 } @BUILTIN_LIBRARIES;
 
 our $MODULES_DIR = "PyModules"; # Where we copy system modules to run pythonizer on them (for use/require)
@@ -332,7 +332,7 @@ our %CLASS_METHOD_SET = map { $_ => 1 } @CLASS_METHODS;
 
 # Predefined package with function implementation.  The default python name
 # for the function is "_perlName", unless python=>'...' is specified.  In perllib,
-# the '_' is removed.  Specifify the argument and result type with type=>"...". 
+# the '_' is removed.  Specify the argument and result type with type=>"...". 
 # If there is a separate function to call in scalar context, specify it 
 # with scalar=>"...", and the corresponding type with scalar_type=>"..."
 our %PREDEFINED_PACKAGES = (

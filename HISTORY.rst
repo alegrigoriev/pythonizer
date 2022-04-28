@@ -2,6 +2,11 @@
 History
 =======
 
+0.974 (2022-04-21)
+------------------
+
+* _num(blessed object) shouldn't return 0, _bless needs to treat the result as a dict, not an object.  Change method name for IO_File.open to have a trailing underscore to match the name after escape_keywords.  Fix typo "fd" in _IOFile_open to "fh".  perllib.close renamed to have a trailing underscore so that fh.close() doesn't cause infinite recursion.
+
 0.973 (2022-04-16)
 ------------------
 
