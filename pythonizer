@@ -190,6 +190,7 @@
 # 0.973  2022/04/16  SNOOPYJC  issue s63: Allow # pragma pythonizer to be interpreted even if -m or -M is passed, issue s64: Implement new # pragma no convert regex for bootstrap, addl fix for issue s28 - escape \x{...} to python \U after we handle \U for upper case, issue s65 - x operator always converts it's left operand to a string
 # 0.974  2022/04/21  SNOOPYJC  issue 133: pythonizer doesn't run under Strawberry perl on windows, fix issues uncovered by test coverage, issue s66: give proper error message on non-specified or non-existing input file, issue s67: implement Getopt::Std
 # 0.975  2022/04/28  SNOOPYJC  issue s69: Hex constant in source code generates internal warning message and gets changed to 0
+# 0.976  2022/04/28  SNOOPYJC  issue s68: implement strftime, issue s71: Getopt:Std getopt generates wrong code if -M is active, issue s73: Multi-line q/.../ with line that starts with # is NOT a comment line, issue s72: new CGI generates a string instead of a method call, issue s74: Interesting perl module $VERSION calculation line generates wrong code 
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -241,7 +242,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.975';
+   $VERSION='0.976';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -1228,7 +1229,7 @@ my ($start,$token_buffer_active);
                         $need_flatten = 1;
                         last if($elements>1);
                         $i = end_of_function($i);               # issue s24
-                    } elsif($i+2 <= $end_pos && $ValClass[$i] eq 's' && $ValClass[$i+1] eq '~' && $ValClass[$i+2] eq 'q' && substr($ValPy[$i+1],0,1) ne '.') { # see test_regex
+                    } elsif($i+2 <= $end_pos && ($ValClass[$i] eq 's' || $ValClass[$i] eq '"') && $ValClass[$i+1] eq '~' && $ValClass[$i+2] eq 'q' && substr($ValPy[$i+1],0,1) ne '.') { # see test_regex, issue s74
                         $need_flatten = 1;
                         last if($elements>1);
                     }
@@ -2905,6 +2906,12 @@ sub fix_expression_issues
        handle_anonymous_sub_in_expression();
    }
 
+   # issue s74: Handle do in expression
+   # It's always the last thing because we stop lexxing there
+   if($#ValClass != 0 && $ValClass[$#ValClass] eq 'C' && $ValPerl[$#ValClass] eq 'do') {
+       handle_do_in_expression();
+   }
+
    # NOTE: Do NOT add new updates here!
 
 #   goto SKIPITFORNOW;
@@ -3978,7 +3985,7 @@ sub p_insert
     my ($package,$pos,$class,$perl,$py) = @_;
 
     if($pos == scalar @{$package->{class}}) {
-        p_append($package,$pos,$class,$py);
+        p_append($package,$class,$perl,$py);
         return;
     }
     splice(@{$package->{class}},$pos,0,$class);
@@ -3993,7 +4000,7 @@ sub p_insert
 sub p_append
 # Like append but for packaged code
 {
-    my ($package,$pos,$class,$perl,$py) = @_;
+    my ($package,$class,$perl,$py) = @_;
 
     $package->{class}->[scalar(@{$package->{class}})] = $class;
     $package->{perl}->[scalar(@{$package->{perl}})] = $perl;
@@ -4987,6 +4994,9 @@ my $bracketed=0;  # nessesary for the proper call of expression.
       # We replace it with an isinstance check
       gen_chunk('isinstance(', $ValPy[$limit-4], ',', '(int, float))');
       return $limit+1;
+  } elsif(substr($TokenStr, $begin, $limit+1-$begin) eq 'f(s)&d' && $ValPy[$limit] eq '0') {     # SNOOPYJC: Same idiom after issue s74 fix
+      gen_chunk('0 if isinstance(', $ValPy[$begin+2], ',', '(int, float))', 'else', '""');
+      return $limit+1;
   }
   if($ValPerl[$begin] eq '%SIG' && $ValClass[$begin+1] eq '(') {        # issue s3: Fixup %SIG{...} to %SIG(...) function
       $limit=matching_br($begin+1);
@@ -5972,7 +5982,12 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
       #$ValPy[$start] -- format string
       # SNOOPYJC gen_chunk($ValPy[$start],' % ( '); # format string
       # SNOOPYJC $k=expression($start+2,$end_pos,0); # skip initial',' and scan all variables
-      $k = end_of_variable($start);             # SNOOPYJC
+      my $comma=next_same_level_token(',',$start,$end_pos);         # issue s74
+      if($comma != -1) {
+          $k = $comma-1;
+      } else {
+          $k = end_of_variable($start);             # SNOOPYJC
+      }
       $Pyf{_format} = 1;                        # SNOOPYJC
       gen_chunk('_format', '(');                # SNOOPYJC
       $k=expression($start, $k, 0);             # SNOOPYJC
@@ -6608,9 +6623,15 @@ sub getopts_fun                 # issue s67: implement getopt/getopts
                 next if(!exists $Perlscan::NameMap{"opt_$c"} || !exists $Perlscan::NameMap{"opt_$c"}{'$'});
             }
             my $var = "opt_$c";
+            my $perl_name = '$' . $var;                 # issue s71
+
             if(exists $Perlscan::NameMap{"opt_$c"}{'$'}) {
-                $var = $Perlscan::NameMap{"opt_$c"}{'$'};
+               $var = $Perlscan::NameMap{"opt_$c"}{'$'};
             }
+            if(!$::implicit_global_my) {                # issue s71
+                $var = $CurPackage . '.' . $var;        # issue s71
+            }                                           # issue s71
+
             if(substr($options,$i+1,1) eq ':') {        # option takes an arg
                gen_statement("$var = ${ARG_PARSER}_opts\['$c'] if '$c' in ${ARG_PARSER}_opts else None");
             } else {            # option takes no arg
@@ -7517,9 +7538,11 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
          } elsif( ($LocalSub{$ValPy[$cur_pos]} || $ValPerl[$cur_pos] =~ /::/ ||
                  (in_boolean_context($cur_pos) && !$Constants{$ValPy[$cur_pos]} &&
                  substr($ValPerl[$cur_pos],0,1) ne '-') ||           # issue s36 & handle issue 88 (-bareword)
-                 ($cur_pos+1 <= $#ValClass && $ValClass[$cur_pos+1] =~ /[ahsd"]/)       # issue s3: bare followed by sub arg is a sub call
+                 ($cur_pos+1 <= $#ValClass && $ValClass[$cur_pos+1] eq 'i' &&           # issue s72
+                  ($cur_pos+2 > $#ValClass || $ValClass[$cur_pos+2] ne 'D')) ||
+                 ($cur_pos+1 <= $#ValClass && $ValClass[$cur_pos+1] =~ /[ahsd"]/)      # issue s3: bare followed by sub arg is a sub call
              ) && ($cur_pos+1 > $#ValClass || $ValPerl[$cur_pos+1] ne '=>')){		# issue 13: local sub call with no parens, SNOOPYJC: Handle module call with no parens
-            if($cur_pos+1 <= $end_pos && $ValClass[$cur_pos+1] eq 'i' && 
+            if($cur_pos+1 <= $end_pos && $ValClass[$cur_pos+1] eq 'i' &&
                !$LocalSub{$ValPy[$cur_pos+1]} && !$Constants{$ValPy[$cur_pos+1]}) {    # SNOOPYJC: like new Package()
                 gen_chunk(escape_keywords($ValPy[$cur_pos+1],1), '.');
                 gen_chunk(escape_keywords($ValPy[$cur_pos]));				# issue 13, issue 41
@@ -8719,6 +8742,29 @@ sub handle_anonymous_sub_in_expression
     destroy(0, $#ValClass);
     append('i', $subname, $subname);
     # Since we already processed the '{' after the 'sub', adjust the nesting_info at the top of the stack
+    $top = $Perlscan::nesting_stack[-1];
+    $top->{is_sub} = 1;
+    $top->{in_sub} = 1;
+    $top->{cur_sub} = $subname;
+    $top->{type} = 'sub';
+    # Now we go and generate the code for the nested sub
+}
+
+sub handle_do_in_expression             # issue s74
+# We have a list of tokens that stop abruptly with a "do", save those tokens,
+# generate the code for the do as a sub, then continue lexxing and generating the
+# rest of the expression, with the do replaced by a reference to it.
+{
+    my $subname = new_anonymous_sub();
+    $nested_subs{$subname} = "";
+    $saved_sub_tokens = package_tokens();
+    p_replace($saved_sub_tokens, $#ValClass,'i',$subname,$subname);     # Change the 'do' to the subname reference
+    p_append($saved_sub_tokens,'(','(','(');            # insert '()'
+    p_append($saved_sub_tokens,')',')',')');
+    destroy(0, $#ValClass);
+    replace(0,'k','sub','def');
+    append('i', $subname, $subname);
+    # Since we already processed the '{' after the 'do', adjust the nesting_info at the top of the stack
     $top = $Perlscan::nesting_stack[-1];
     $top->{is_sub} = 1;
     $top->{in_sub} = 1;

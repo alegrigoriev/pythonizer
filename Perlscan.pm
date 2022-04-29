@@ -2249,6 +2249,7 @@ my ($l,$m);
                   $ValClass[$tno-1] ne 's' &&                   # SNOOPYJC: $var{'...'\n with } on the next line!
                  ($ValPerl[$tno-1] eq ')' || $source=~/^.\s*#/ || index($source,'}',1) == -1 || 
                   ($tno == 1 && $ValClass[0] eq 'C')||  # SNOOPYJC: do {...} until(...); else {...}; elsif {...}; eval {...};
+                  ($ValClass[$tno-1] eq 'C' && $ValPerl[$tno-1] eq 'do') ||  # issue s74
                   ($tno == 2 && $ValPerl[0] eq 'sub') ||
                   $ValPerl[$tno-1] eq 'sub' ||          # issue 81
                   ($tno == 1 && $ValPerl[0] =~ /BEGIN|END|UNITCHECK|CHECK|INIT/))){	# issue 35, 45
@@ -4150,7 +4151,7 @@ my ($m,$sym);
 	# issue 39: if we get here, we ran out of road - grab the next line and keep going!
         my @tmpBuffer = @BufferValClass;	# SNOOPYJC: Must get a real line even if we're buffering stuff
         @BufferValClass = ();		        # SNOOPYJC
-	$line = Pythonizer::getline();		# issue 39
+	$line = Pythonizer::getline(2);		# issue 39, issue s73: 2 means we're in a string
         @BufferValClass = @tmpBuffer;	        # SNOOPYJC
 	if(!$line) {				# issue 39
 	    logme('S', "Unterminated string starting at line $start_line");		# issue 39

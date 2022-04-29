@@ -1,0 +1,11 @@
+not data";
+
+assert($contains_data eq "\n__DATA__\nnot data");
+
+my $contains_goto = '
+goto LABEL
+not a goto';
+
+assert($contains_goto eq "\ngoto LABEL\nnot a goto");
+
+print "$0 - test passed!\n";

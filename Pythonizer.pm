@@ -680,6 +680,28 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
             say STDERR "updated nesting_info=@{[%{$top}]}";
         }
       }
+      if($#ValClass != 0 && $ValClass[$#ValClass] eq 'C' && $ValPerl[$#ValClass] eq 'do') {     # issue s74
+         my $subname = new_anonymous_sub();
+         $::nested_subs{$subname} = "";
+         $::saved_sub_tokens = &::package_tokens();
+         $::nested_sub_at_level = $Perlscan::nesting_level;
+         &::p_replace($::saved_sub_tokens, $#ValClass,'"',$subname,$subname);     # Change the 'sub' to the subname reference
+         &::p_append($::saved_sub_tokens,'(','(','(');            # insert '()'
+         &::p_append($::saved_sub_tokens,')',')',')');
+         destroy(0, $#ValClass);
+         append('i', $subname, $subname);
+         say STDERR "Creating nested_subs{$subname} for do in expression" if($::debug);
+         # Since we already processed the '{' after the 'sub', adjust the nesting_info at the top of the stack
+         $top = $Perlscan::nesting_stack[-1];
+         $top->{is_sub} = 1;
+         $top->{in_sub} = 1;
+         $top->{cur_sub} = $subname;
+         $top->{type} = 'sub';
+         if($::debug >= 3) {
+            no warnings 'uninitialized';
+            say STDERR "updated nesting_info=@{[%{$top}]}";
+        }
+      }
 
       correct_nest();                           # issue 45
       if($Perlscan::nesting_level < $::nested_sub_at_level) {       # issue 78
@@ -2343,6 +2365,7 @@ sub getline
 #get input line. It has now ability to buffer line, which will be scanned by tokeniser next.
 # issue 45: if you pass in a 0, this means to defer outputting of blank and comment lines, which
 # issue 45: will then be output on the next call.  Pass in a 1 just to do that output.
+# issue s73: Pass a 2 if we're in the middle of a multi-line string and need to NOT ignore blank lines and comment lines
 #
 {
 state @buffer; # buffer to "postponed lines. Used for translation of postfix conditinals among other things.
@@ -2441,7 +2464,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
       }
 
       chomp($line);
-      if(  length($line)==0 || $line=~/^\s*$/ ){
+      if($flag != 2 && (length($line)==0 || $line=~/^\s*$/ )){  # issue s73: check flag
          $IntactLno = $. unless($IntactLine);       # issue s6
          while($IntactEndLno < $.) {         # issue s6
               if($IntactLine) {
@@ -2454,7 +2477,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          $IntactEndLno = $.;    # issue s6
          &$output_line('');             # issue 45: blank line
          next;
-      }elsif(  $line =~ /^\s*(#.*$)/ ){
+      }elsif(  $flag != 2 && $line =~ /^\s*(#.*$)/ ){   # issue s73: check flag
          # pure comment lines
          my $comm = $1;
          if(($PassNo==PASS_0 || ($PassNo==PASS_1 && !$pass_0_ran)) && $line =~ /#\s*pragma\s*pythonizer/) {      # SNOOPYJC, issue s63
@@ -2478,7 +2501,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          $IntactEndLno = $.;    # issue s6
          &$output_line('',$comm);          # issue 45
          next;
-      }elsif(  $line =~ /^__DATA__/ || $line =~ /^__END__/){
+      }elsif(  $flag != 2 && ($line =~ /^__DATA__/ || $line =~ /^__END__/)){    # issue s73: Check flag
          # data block
          # SNOOPYJC return undef if(  $PassNo==0 );
          if(  $PassNo!=PASS_2 ) {            # SNOOPYJC
@@ -2498,7 +2521,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          close SYSDATA;
          return $line;
       # SNOOPYJC }elsif(  substr($line,0,1) eq '=' ){
-      }elsif(  substr($line,0,1) eq '=' && substr($line,1,1) =~ /\w/) {	# SNOOPYJC: Not '==', not '=~', etc
+      }elsif(  $flag != 2 && substr($line,0,1) eq '=' && substr($line,1,1) =~ /\w/) {	# SNOOPYJC: Not '==', not '=~', etc, issue s73: check flag
          # POD block
          # issue 79 output_line('',q['''']);
          &$output_line('',q[''']);                # issue 79, issue 45
@@ -2518,7 +2541,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          }
          # issue 79 output_line('',q['''']) if(  $PassNo);
          &$output_line('',q[''']);      # issue 79, issue 45
-      }elsif( substr($line,0,5) eq 'goto ') {   # SNOOPYJC: strange way to skip some code
+      }elsif( $flag != 2 && substr($line,0,5) eq 'goto ') {   # SNOOPYJC: strange way to skip some code, issue s73: check flag
          $line =~ /goto\s+([A-Za-z0-9_]+)/;
          $label = $1;
          &$output_line('',q[''']);              # issue 45

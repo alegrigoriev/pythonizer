@@ -23,7 +23,7 @@ our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $
 our $TABSIZE = 4;
 our $MAXNESTING = 32;
 our $MAXLINELEN = 188;
-our $MAX_CHUNKS = 1024;		# Limit on gen_chunk
+our $MAX_CHUNKS = 2048;		# Limit on gen_chunk
 our $MAX_DEPTH = 1024;		# Limit on expression recursion depth
 our $DEFAULT_VAR = "_d";
 our $DEFAULT_MATCH = "_m";
@@ -371,6 +371,7 @@ our %PREDEFINED_PACKAGES = (
 			{perl=>'floor', type=>'F:I', python=>'math.floor'},	# issue s3
 			{perl=>'trunc', type=>'F:I', python=>'math.trunc'},	# issue s3
 			{perl=>'round', type=>'F:F', python=>'round'},		# issue s3
+			{perl=>'strftime', type=>'a:S', calls=>'_timelocal'},	# issue s68
 		       ],
         'File::Spec'=> [{perl=>'file_name_is_absolute', type=>'S:I', python=>'os.path.isabs'},
 				   {perl=>'catfile', type=>'a:S', python=>'os.path.join'},
