@@ -232,6 +232,7 @@ eval {
 	        push @overloads, substr($k,1);
 	    }
             next if $k !~ /^[A-Za-z_]/;
+	    next if substr($k,0,2) eq '_<';	# issue s82
             next if $package eq 'main' && exists $PREDEFS{$k};
             #say STDERR "Checking $k";
             local *_tg = $pkh{$k};
