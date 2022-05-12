@@ -191,6 +191,7 @@
 # 0.974  2022/04/21  SNOOPYJC  issue 133: pythonizer doesn't run under Strawberry perl on windows, fix issues uncovered by test coverage, issue s66: give proper error message on non-specified or non-existing input file, issue s67: implement Getopt::Std
 # 0.975  2022/04/28  SNOOPYJC  issue s69: Hex constant in source code generates internal warning message and gets changed to 0
 # 0.976  2022/04/28  SNOOPYJC  issue s68: implement strftime, issue s71: Getopt:Std getopt generates wrong code if -M is active, issue s73: Multi-line q/.../ with line that starts with # is NOT a comment line, issue s72: new CGI generates a string instead of a method call, issue s74: Interesting perl module $VERSION calculation line generates wrong code 
+# 0.977  2022/04/29  SNOOPYJC  issue s82: Pythonizing a file that uses require can generate strange error messages
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -242,7 +243,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.976';
+   $VERSION='0.977';
    $SCRIPT_NAME='pythonizer';
 #
 # options
