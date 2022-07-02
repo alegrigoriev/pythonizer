@@ -1,7 +1,7 @@
 # Issues found while bootstrapping
 use Carp::Assert;
 use feature 'state';
-# pragma pythonizer -M
+# pragma pythonizer -M, no pl_to_py, no replace usage
 
 # Anonymous hashrefs weren't being initialized properly (they were being turned into sets!)
 our %PREDEFINED_PACKAGES = (

@@ -3,6 +3,7 @@
 use Carp::Assert;
 
 my $dir = '.';
+# pragma pythonizer no pl_to_py, no replace usage
 my $file = "issue_67.pl";
 open(FY, $dir.'/'.$file);
 my $line = <FY>;

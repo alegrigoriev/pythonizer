@@ -1,5 +1,5 @@
 # Test statement as expression
-
+# pragma pythonizer no pl_to_py
 use Carp::Assert;
 
 sub testit

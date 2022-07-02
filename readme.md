@@ -1,5 +1,5 @@
 ## Translator from Perl to Python 
-### THIS IS AN ANNOUNCEMENT FOR VERSION 0.977 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
+### THIS IS AN ANNOUNCEMENT FOR VERSION 0.978 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
 
 This readme is for informational purposes only and is not intended to be updated often. 
 
@@ -48,8 +48,10 @@ Currently these user options are supported (pythonizer -h provides a list of opt
     -m -- Make global variables into "my" filescope variables, else they use a separate global namespace
     -M -- Turn off -m
     NOTE: If neither -m nor -M are passed, the pythonizer uses heuristics to make a best guess here.
-    -u -- Replace usage strings of the form "Usage: filename.pl ..." with "Usage: filename.py ..." (default)
+    -u -- Replace usage strings of the form "Usage: filename.pl ..." with "Usage: filename.py ..." and also replace "myScript.pl" with "myScript.py" (default)
     -U -- Turn off -u
+    -y -- Replace ".pl" references to perl scripts as the first path-like word of a string or in a backtick reference to refer to ".py" instead, changing calls to perl scripts to instead call the pythonized version. (default)
+    -Y -- Turn off -y
     -s -- Attempt to run standard library functions thru pythonizer for use/require - not recommended!
     -S -- Turn off -s
     -p -- "import perllib" library instead of including functions inline to emulate perl built-in functions (default)

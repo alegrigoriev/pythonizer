@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 # Ensure we updated the version number in the pythonizer file
 use Carp::Assert;
 

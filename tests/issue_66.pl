@@ -1,5 +1,7 @@
 # issue 66 - diamond operator with glob expression
 use Carp::Assert;
+# issue s87:
+# pragma pythonizer no pl_to_py, no replace usage
 sub THISFILE () {"issue_66.pl"}
 $count = 0;
 while (<*.pl>) {
