@@ -208,15 +208,18 @@ sub handle_pragma_pythonizer
     my $VFlag = undef;
     my $UFlag = undef;
     my $KFlag = undef;
+    my $YFlag = undef;
     my $implicit_global_my = undef;
 
     my %flags = (T=>\$::traceback, A=>\$::autodie, m=>\$mFlag, M=>\$MFlag, s=>\$::pythonize_standard_library,
 	    	 n=>\$::trace_run, k=>\$::black, K=>\$KFlag, u=>\$::replace_usage, U=>\$UFlag,
 		 a=>\$::gen_author,	# issue s19
+		 y=>\$::replace_run, Y=>\$YFlag,	# issue s87
                  S=>\$SFlag, p=>$::import_perllib, P=>\$PFlag, V=>\$VFlag);
     my %options = (traceback=>\$::traceback, autodie=>\$::autodie, implicit=>\$implicit_global_my,
                    pythonize=>\$::pythonize_standard_library, import=>\$::import_perllib, 
 		   trace=>\$::trace_run, black=>\$::black, replace=>\$::replace_usage,
+		   pl_to_py=>\$::replace_run,
 		   author=>\$::gen_author,	# issue s19
                    convert=>undef,              # issue s64
                    autovivification=>\$::autovivification);
@@ -245,6 +248,10 @@ sub handle_pragma_pythonizer
             $::replace_usage = $val;
         } elsif($flag eq 'U') {
             $UFlag = $val;
+        } elsif($flag eq 'y') {		# issue s87
+            $::replace_run = $val;	# issue s87
+        } elsif($flag eq 'Y') {		# issue s87
+            $YFlag = $val;		# issue s87
         } elsif($flag eq 'S') {
             $SFlag = $val;
         } elsif($flag eq 'p') {
@@ -258,8 +265,10 @@ sub handle_pragma_pythonizer
 
     my %option_flags = (traceback=>'T', autodie=>'A', implicit=>'m', trace=>'n', black=>'k',
 	    	   author=>'a',		# issue s19
+		   pl_to_py=>'y',	# issue s87
                    pythonize=>'s', import=>'p', replace=>'u');
     my %option_no_flags = (implicit=>'M', pythonize=>'S', import=>'P', autovivification=>'V', black=>'K', replace=>'U',
+	    		   pl_to_py=>'Y',	# issue s87
     			   convert=>undef,	# issue s64 - use special processing
 		   	  );
 
@@ -312,6 +321,7 @@ sub handle_pragma_pythonizer
     $::import_perllib = 0 if($PFlag);
     $::autovivification = 0 if($VFlag);
     $::replace_usage = 0 if($UFlag);
+    $::replace_run = 0 if($YFlag);	# issue s87
     $::black = 0 if($KFlag);
     return 1 if($mFlag);
     return 0 if($MFlag);

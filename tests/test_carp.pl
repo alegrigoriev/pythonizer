@@ -1,5 +1,6 @@
 # test the carp package
 
+# pragma pythonizer no replace usage, no pl_to_py
 use Carp::Assert;
 use Carp qw(carp confess croak cluck shortmess longmess);
 use Carp;

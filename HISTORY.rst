@@ -2,6 +2,11 @@
 History
 =======
 
+0.978 (2022-05-12)
+------------------
+
+* _system, _run, and _run_s are now able to run perl and python scripts under windows
+
 0.977 (2022-04-29)
 ------------------
 

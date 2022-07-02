@@ -242,7 +242,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'pack'=>'_pack',                # SNOOPYJC
                 'package'=>'package', 'pop'=>'.pop()', 'push'=>'.extend(',
                 'pos'=>'pos',                   # SNOOPYJC
-                'printf'=>'print',
+                # SNOOPYJC 'printf'=>'print',
+                'printf'=>'printf',             # SNOOPYJC: Don't have the same python name for both print and printf so PyFuncType is distinct
                 'quotemeta'=>'_quotemeta',      # SNOOPYJC, issue s28
                 'rename'=>'os.replace',         # SNOOPYJC
                 'say'=>'print','scalar'=>'len', 'shift'=>'.pop(0)', 
@@ -900,12 +901,13 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
     my $class = 'global';
     $class = 'myfile' if(defined $ValType[$tno] && $ValType[$tno] eq "X");
     $class = 'myfile' if($::implicit_global_my);
-    $class = 'myfile' if($ValPerl[$tno] =~ /^\$[ab]$/);  # Sort vars
+    # issue s83 $class = 'myfile' if($ValPerl[$tno] =~ /^\$[ab]$/);  # Sort vars
+    $class = 'myfile' if($name =~ /^\$[ab]$/);  # issue s83: Sort vars
     $TokenStr=join('',@ValClass);
     my $declared_here = 0;
     if($ValClass[0] eq 't' && index($TokenStr,'=') < 0) {           # We are declaring this var
         $class = $ValPerl[0];
-        $class = 'myfile' if($class eq 'my' && !in_sub());
+        # issue s83 $class = 'myfile' if($class eq 'my' && !in_sub());
         $declared_here = 1;
     } elsif($ValClass[0] eq 'c' && $ValClass[1] eq '(' && $ValClass[2] eq 't' && 
             $ValClass[3] =~ /[sahG]/ && $ValPerl[3] eq $ValPerl[$tno]) {      # e.g. for(my $i...; while my(@arr...
@@ -925,6 +927,7 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
         $class = $ValPerl[$tno-1];
         $declared_here = 1;
     }
+    $class = 'myfile' if($class eq 'my' && !in_sub());          # issue s83
     $class = 'myfile' if($class eq 'local' && !@nesting_stack); # 'local' at outer scope is same as 'my'
     if($class eq 'our') {
         if($::implicit_global_my) {
@@ -938,7 +941,8 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
     }
     $last_varclass_lno = $.;
     my $cs = cur_sub();
-    if(!exists $line_varclasses{$last_varclass_lno}{$name} || $class eq 'my' || $class eq 'local') {
+    if(!exists $line_varclasses{$last_varclass_lno}{$name} || $class eq 'my' || $class eq 'local'
+       || ($class eq 'myfile' && $declared_here)) {         # issue s83
         my $cls = $class;
         if(!exists $last_varclass_sub{$name} || $last_varclass_sub{$name} ne $cs) {
             $cls = map_var_class_into_sub($class) if(!$declared_here);
@@ -2333,6 +2337,7 @@ my ($l,$m);
             $ValPy[$tno]="'".escape_non_printables(escape_backslash($ValPerl[$tno], "'"),0)."'"; # only \n \t \r, etc needs to be  escaped
          }
          $ValPy[$tno] = replace_usage($ValPy[$tno]) if($::replace_usage);
+         $ValPy[$tno] = replace_run($ValPy[$tno]) if($::replace_run);   # issue s87
          #say STDERR "Simple String: ValPerl=$ValPerl[$tno], ValPy=$ValPy[$tno]";
       }elsif( $s eq '"'  ){
          $ValClass[$tno]='"';
@@ -2359,11 +2364,13 @@ my ($l,$m);
 	    $ValPy[$tno] .= '""';				# issue 39
          }
          $ValPy[$tno] = replace_usage($ValPy[$tno]) if($::replace_usage);
+         $ValPy[$tno] = replace_run($ValPy[$tno]) if($::replace_run);   # issue s87
          $ValPerl[$tno]=substr($source,1,$cut-2);
       }elsif( $s eq '`'  ){
           $ValClass[$tno]='x';
           $cut=double_quoted_literal('`',1);
-          $ValPy[$tno]=$ValPy[$tno];
+          #$ValPy[$tno]=$ValPy[$tno];
+          $ValPy[$tno] = replace_run($ValPy[$tno]) if($::replace_run);   # issue s87
       }elsif( $s=~/\d/  ){
          # processing of digits should preceed \w ad \w includes digits
 	 # issue 23 if( $source=~/(^\d+(?:[.e]\d+)?)/  ){
@@ -2578,9 +2585,10 @@ my ($l,$m);
 #               $ValPy[$tno] = $ValPerl[$tno] = "$ANONYMOUS_SUB$.";
 #               #$ValType[$tno]='P';
             }elsif ( $class eq 'o' ){	# and/or   # issue 93
-                  $balance=(join('',@ValClass)=~tr/()//);
+                  # issue s77: $balance=(join('',@ValClass)=~tr/()//);
                   # issue 93 if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && join('',@ValClass) !~ /^t?[ahs]=/ ){
-                  if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && bash_style_or_and_fix($cut)){             # issue 93
+                  # issue s77 if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && bash_style_or_and_fix($cut)){             # issue 93
+                  if( parens_are_balanced() && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && bash_style_or_and_fix($cut)){             # issue 93, issue s77
                      # postfix conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020,Oct 12, 2020 --NNB
                      # issue 93 bash_style_or_and_fix($cut);
                      # issue 93 last;
@@ -2615,6 +2623,7 @@ my ($l,$m);
                   $ValPy[$tno]=escape_quotes(escape_non_printables($w,0),2);      # SNOOPYJC
                   $ValClass[$tno]='"';
                   $ValPy[$tno] = replace_usage($ValPy[$tno]) if($::replace_usage);
+                  $ValPy[$tno] = replace_run($ValPy[$tno]) if($::replace_run);   # issue s87
                }elsif( $w eq 'qq' ){
                   # decompose doublke quote populate $ValPy[$tno] as a side effect
                   $cut=double_quoted_literal($delim,length($w)+1); # side affect populates $ValPy[$tno] and $ValPerl[$tno]
@@ -2624,10 +2633,12 @@ my ($l,$m);
 	    	      $ValPy[$tno] .= '""';			# issue 39
 		   }						# issue 39
                    $ValPy[$tno] = replace_usage($ValPy[$tno]) if($::replace_usage);
+                   $ValPy[$tno] = replace_run($ValPy[$tno]) if($::replace_run);   # issue s87
                }elsif( $w eq 'qx' ){
                   #executable, needs interpolation
                   $cut=double_quoted_literal($delim,length($w)+1);
-                  $ValPy[$tno]=$ValPy[$tno];
+                  #$ValPy[$tno]=$ValPy[$tno];
+                  $ValPy[$tno] = replace_run($ValPy[$tno]) if($::replace_run);   # issue s87
                   $ValClass[$tno]='x';
                }elsif( $w eq 'm' || $w eq 'qr' || $w eq 's' ){  # issue bootstrap - change to "||"
                   $source=substr($source,length($w)+1); # cut the word and delimiter
@@ -2910,7 +2921,23 @@ my ($l,$m);
                    $ValPy[$tno] = '*' . $ValPy[$tno];                   # Splat it
                }
                #$ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
-	    }
+	    } elsif($tno != 0 && $ValClass[$tno-1] eq '*' && !$had_space && ($tno-1 == 0 || $ValClass[$tno-2] !~ /[sdfi)]/)) {	# issue s76
+                # issue s76: *$tag = ... - here "$tag" contains the name of the typeglob
+                my $name;
+                if($::implicit_global_my) {
+                    $name = 'globals()';
+                } else {
+                    $name = cur_package() . '.__dict__';
+                }
+                $ValType[$tno-1] = "X";
+                $ValPy[$tno-1] = $name;
+                $TokenStr = join('',@ValClass);             # insert/replace doesn't work w/o $TokenStr
+                # Change it to *{$var}
+                append(')', '}', ']');
+                insert($tno, '(', '{', '[');
+                $tno += 2;
+            }
+
             if( $ValPy[$tno] eq 'SIG' ) {              # issue 81 - implement signals
                $ValClass[$tno] = 'f';
                if($::debug >= 3 && $Pythonizer::PassNo!=&Pythonizer::PASS_0) {
@@ -2991,7 +3018,7 @@ my ($l,$m);
 	       $arg2 = escape_keywords($arg2);		# issue 41
                if( $tno>=2 && $ValClass[$tno-2] =~ /[sd'"q]/  && $ValClass[$tno-1] eq '>'  ){
                   $ValPy[$tno]='len('.$arg2.')'; # scalar context   # issue 41
-                  $ValType[$tno]="X";
+                  # SNOOPYJC: causes $i < @arr to make @arr into 'myfile' instead of 'global':  $ValType[$tno]="X";
                 }else{
                   $ValPy[$tno]=$arg2;            # issue 41
                }
@@ -3197,9 +3224,10 @@ my ($l,$m);
             #next unless($ValPy[$tno]); # =~ does not need to be tranlated to token
             $ValPerl[$tno]=$digram;
             if($ValClass[$tno] eq '0'){		# && or ||
-               $balance=(join('',@ValClass)=~tr/()//);
+               # issue s77 $balance=(join('',@ValClass)=~tr/()//);
                # issue 93 if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && join('',@ValClass) !~ /^t?[ahs]=/ )  # SNOOPYJC
-               if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && bash_style_or_and_fix(3)){  # issue 93
+               # issue s77 if( ( $balance % 2 == 0 ) && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && bash_style_or_and_fix(3)){  # issue 93
+               if( parens_are_balanced() && $ValClass[0] ne 'c' && $ValClass[0] ne 'C' && bash_style_or_and_fix(3)){  # issue 93, issue s77
                   # postfix conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020,Oct 12, 2020 --NNB
                   # issue 93 bash_style_or_and_fix(3);
                   last;
@@ -5364,7 +5392,8 @@ my $result;
 $allowed_escapes = "\n\\'\"abfnrtv01234567xNoc";         # issue s28: \u and \U in perl are not the same as \U in python!  We allow o and c because we remove them at the end in perl_hex_escapes_to_python
 # ref https://docs.python.org/3/library/re.html
 # issue s28 $allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDsSwWZgabfnrtv0123456789xNuU/;
-$allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDsSwWZgabfnrtv0123456789xNoc/;        # issue s28: remove \u and \U
+# issue s81 $allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDsSwWZgabfnrtv0123456789xNoc/;        # issue s28: remove \u and \U
+$allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDsSwWZgabfknrtvz0123456789xNoc/;        # issue s28: remove \u and \U, issue s81 allow \k and \z
 
 sub remove_perl_escapes         # issue bootstrap
 # Remove any escape sequences allowed by perl but not allowed by python, e.g. \[ \{ \$ \@ etc
@@ -5482,10 +5511,11 @@ my $s_rhs = (scalar(@_) > 3 ? $_[3] : 0);       # issue bootstrap: Is this on th
        # issue 111 if( $string =~/^\$\w+/ ){    # SNOOPYJC: We have to interpolate all $vars inside!! e.g. /DC_$year$month/ gen rf"..."
        # issue 111 return substr($string,1); # this case of /$regex/ we return the variable.
        # issue 111 }
-       $string = perl_regex_to_python($string) unless($s_rhs);          # issue 111, issue bootstrap
+       # issue s81 $string = perl_regex_to_python($string) unless($s_rhs);          # issue 111, issue bootstrap
        $ValPy[$tno] = $string;                           # issue 111
        interpolate_strings($string, $original_regex, 0, 0, 1);          # issue 111
        $ValPy[$tno] = escape_re_sub($ValPy[$tno],$delim) if($s_rhs);   # issue bootstrap
+       $ValPy[$tno] = perl_regex_to_python($ValPy[$tno], 1) unless($s_rhs);          # issue 111, issue bootstrap, issue s81
        return 'r'.$ValPy[$tno];                                         # issue 111
    }
    # SNOOPYJC return 'r'.escape_quotes($string);
@@ -5498,6 +5528,7 @@ sub perl_regex_to_python
 {
     #$DB::single = 1;
     my $regex = shift;
+    my $quoted = scalar(@_) ? $_[0] : 0;        # issue s81
 
     return $regex if(exists $Pass0::line_no_convert_regex{$.});        # issue s64
 
@@ -5520,7 +5551,8 @@ sub perl_regex_to_python
     $regex =~ s'\[:graph:\]'\x21-\x7e'g;
     $regex =~ s/\[:lower:\]/a-z/g;
     $regex =~ s'\[:print:\]'\x20-\x7e'g;
-    $regex =~ s'\[:punct:\]'!"\#%&\'()*+,\-.\/:;<=>?\@\[\\\\\]^_\x91{|}~\$'g;
+    # issue s81 $regex =~ s'\[:punct:\]'!"\#%&\'()*+,\-.\/:;<=>?\@\[\\\\\]^_\x91{|}~\$'g;
+    $regex =~ s'\[:punct:\]'!"\#%&\x27()*+,\-.\/:;<=>?\@\[\\\\\]^_\x91{|}~\$'g;         # issue s81: escape the '
     $regex =~ s'\[:space:\]' \t\r\n\x0b\f'g;
     $regex =~ s/\[:upper:\]/A-Z/g;
     $regex =~ s/\[:word:\]/A-Za-z0-9_/g;
@@ -5528,9 +5560,10 @@ sub perl_regex_to_python
     
     # issue bootstrap - escape '{' and '}' unless a legit repeat specifier
     $regex =~ s/^\{/\\{/;
-    $regex =~ s/\|\{/|\\{/g;
-    $regex =~ s/\(\{/(\\{/g;
-    $regex =~ s/\(\?:\{/(?:\\{/g;
+    $regex =~ s/^(['"]{1,3})\{/$1\\{/ if($quoted);              # issue s81
+    $regex =~ s/\|\{/|\\{/g unless $quoted && $regex =~ /^f/;   # issue s81
+    $regex =~ s/\(\{/(\\{/g unless $quoted && $regex =~ /^f/;   # issue s81
+    $regex =~ s/\(\?:\{/(?:\\{/g unless $quoted && $regex =~ /^f/;      # issue s81
 
     if($Pythonizer::PassNo==&Pythonizer::PASS_2) {
         if($regex =~ /(?:(?<=[\\][\\])|(?<![\\]))\\G/) {
@@ -6710,6 +6743,34 @@ sub replace_usage                       # SNOOPYJC
     my $pyname = $fname =~ s/\.pl$/.py/r;
 
     $py =~ s/^(f?(?:'''|"""|'|")Usage:) $fname/$1 $pyname/;
+    # issue s86: Also replace strings that exactly contain the filename and nothing else
+    $py =~ s/^'$fname'$/'$pyname'/;     # issue s86
+    $py =~ s/^"$fname"$/"$pyname"/;     # issue s86
+
+    return $py;
+}
+
+sub replace_run                       # issue s87
+# For the -y flag, replace "any_path.pl -flags" with "any_path.py --flags"
+{
+    my $py = shift;
+
+    if(index($py, '://') >= 0) {        # Don't do this to URLs
+        return $py;
+    }
+    if($ValClass[0] eq 'k' && $ValPerl[0] eq 'require') {       # Don't do this on require statements
+        return $py;
+    }
+
+    my $term = "'";
+    if($py =~ m(^(f?(?:'''|"""|'|")(?:[A-Za-z]:)?)((?:(?:[\\/])?[A-Za-z0-9_.-]*)*)[.]pl\b(.*)$)) {
+        my $prefix = $1;
+        my $path = $2;
+        my $rest = $3;
+        $rest =~ s/ -([A-Za-z][A-Za-z0-9_-]+)/ --$1/g;          # fix up single dash long options
+        $py = $prefix . $path . '.py' . $rest;
+        logme('W', "Replacing $path.pl with $path.py - use -Y if this is incorrect") if $Pythonizer::PassNo==&Pythonizer::PASS_2;
+    }
 
     return $py;
 }

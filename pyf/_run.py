@@ -8,6 +8,17 @@ def _run(*args):
         sp = subprocess.run(args,capture_output=True,text=True,shell=_need_sh(args))
     except FileNotFoundError:   # can happen on windows if shell=False
         sp = subprocess.CompletedProcess(args, 127)
+    except OSError:             # check if we're trying to run a perl or python script on Windows
+        if isinstance(args, str):
+            args = [args]
+        arg_split = args[0].split()[0]
+        if arg_split.endswith('.py'):
+            args = [sys.executable] + args
+        elif arg_split.endswith('.pl'):
+            args = ['perl'] + args
+        else:
+            raise
+        sp = subprocess.run(args,capture_output=True,text=True,shell=_need_sh(args))
     if TRACE_RUN:
         _carp(f'trace run({args}): {repr(sp)}', skip=2)
     CHILD_ERROR = sp.returncode

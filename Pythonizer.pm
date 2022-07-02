@@ -85,7 +85,7 @@ sub prolog
       # SNOOPYJC getopts("AThd:v:r:b:t:l:",\%options);
       @orig_ARGV = @ARGV;                       # SNOOPYJC
       # NOTE: Remember to add new flags to Pass0.PM (# pragma pythonizer), the help with ## at the start of pythonizer, and the readme/documentation!
-      getopts("auUkKnmMAVThsSpPd:v:r:b:B:t:l:R:o:",\%options);     # SNOOPYJC, issue s23, issue s19
+      getopts("yYauUkKnmMAVThsSpPd:v:r:b:B:t:l:R:o:",\%options);     # SNOOPYJC, issue s23, issue s19, issue s87
 #
 # Three standard options -h, -v and -d
 #
@@ -232,7 +232,12 @@ sub prolog
       if( exists $options{'a'} ) {              # issue s19
           $::gen_author = 1;                    # issue s19
       }                                         # issue s19
-
+      if( exists $options{'y'} ) {		# issue s87
+          $::replace_run = 1;
+      }
+      if( exists $options{'Y'} ) {		# issue s87
+          $::replace_run = 0;
+      }
 #
 # Application arguments
 #
@@ -321,14 +326,16 @@ sub prolog
             EVAL_ERROR=>{__main__=>'S'},
 	    "${PERL_SORT_}a"=>{__main__=>'s'},
 	    "${PERL_SORT_}b"=>{__main__=>'s'},
-            'os.environ'=>{__main__=>'h of s'}); # SNOOPYJC: {varname}{sub} = type (a, h, s, I, S, F, N, u, m)
+            # issue s90 'os.environ'=>{__main__=>'h of s'}); # SNOOPYJC: {varname}{sub} = type (a, h, s, I, S, F, N, u, m)
+            'os.environ'=>{__main__=>'h of m'}); # SNOOPYJC: {varname}{sub} = type (a, h, s, I, S, F, N, u, m), issue s90: with a bad key, it could be None
 %NeedsInitializing = ();        # SNOOPYJC: {sub}{varname} = type
 # SNOOPYJC: initialized means it is set before it's being used
 %initialized = (__main__=>{'sys.argv'=>'a of S',
                        'os.name'=>'S',
                        EVAL_ERROR=>'S',
 		       '__dict__'=>'h',
-                       'os.environ'=>'h of s'});       # {sub}{varname} = type
+                       # issue s90 'os.environ'=>'h of s'});       # {sub}{varname} = type
+                       'os.environ'=>'h of m'});       # {sub}{varname} = type, issue s90: with a bad key, it could be None
 
 
 %VarSubMap=(); # issue 108: matrix  var/sub that allows to create list of global for each sub
@@ -441,7 +448,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                   $VarSubMap{$ValPy[$k]}{$CurSubName}='+';
                } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 'shift' || $ValPerl[$k] eq 'pop') &&        # SNOOPYJC
                       ($k == $#ValClass || $ValPerl[$k+1] eq '@_' || $ValClass[$k+1] !~ /[ahfi]/)) {        # SNOOPYJC
-                  $SubAttributes{$CurSubName}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args
+                  # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args
+                  $SubAttributes{&Perlscan::cur_sub()}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args, issue s84
                }
             } # for
          }
@@ -491,7 +499,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
 		   ($ValClass[$k+1] eq '=' ||
 		    ($ValClass[$k+1] eq '~' && $ValClass[$k+2] eq 'f' && $ValPerl[$k+2] =~ /^(?:re|tr)$/))	# issue ddts
 	          ) {
-                    $SubAttributes{$CurSubName}{modifies_arglist} = 1;    # SNOOPYJC: This sub mods it's args
+                    # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;    # SNOOPYJC: This sub mods it's args
+                    $SubAttributes{&Perlscan::cur_sub()}{modifies_arglist} = 1;    # SNOOPYJC: This sub mods it's args, issue s84
                 }
 
                 if($k != 0 && $ValClass[$k-1] eq 't' && $ValPerl[$k-1] eq 'my') {       # SNOOPYJC e.g. for(my $i=...)
@@ -511,10 +520,12 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                 }
               } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 'shift' || $ValPerl[$k] eq 'pop') &&        # SNOOPYJC
                       ($k == $#ValClass || $ValPerl[$k+1] eq '@_' || $ValClass[$k+1] !~ /[ahfi]/)) {       # SNOOPYJC
-                 $SubAttributes{$CurSubName}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args
+		 # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args
+                 $SubAttributes{&Perlscan::cur_sub()}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args, issue s84
               } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 'push' || $ValPerl[$k] eq 'unshift') &&
                       $ValPerl[$k+1] eq '@_') {                         # issue s53
-                 $SubAttributes{$CurSubName}{modifies_arglist} = 1;     # issue s53
+		 # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;     # issue s53
+                 $SubAttributes{&Perlscan::cur_sub()}{modifies_arglist} = 1;     # issue s53, issue s84
               } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 're' && $ValPy[$k] =~ /\b$DEFAULT_VAR\b/) ||
                   ($ValPerl[$k] eq 'tr' && ($k == 0 || $ValClass[$k-1] ne '~'))) {      # issue s8: sets the $DEFAULT_VAR
                   
@@ -1383,8 +1394,10 @@ sub arg_type            # Given the name of a built-in function, and the arg#, r
     my $ft = undef;
     if(exists $PyFuncType{$name}) {
         $ft = $PyFuncType{$name};
+        #say STDERR "PyFuncType{$name} = $ft";           # TEMP
     } elsif(exists $FuncType{$fname}) {
         $ft = $FuncType{$fname};
+        #say STDERR "FuncType{$name} = $ft";             # TEMP
     }
     return 's' if(!defined $ft);
     my $argc = 0;
@@ -1463,11 +1476,11 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
         my $len = (scalar(@olist) >= scalar(@list) ? scalar(@list) : scalar(@olist));
         for(my $i = 0; $i < $len; $i++) {
             if($list[$i] ne $olist[$i]) {
-                if($list[$i] eq 's') {          # Was undef, now defined
-                    return join(' of ', @olist);
-                } elsif($olist[$i] eq 's') {
-                    return join(' of ', @list);
-                }
+                # SNOOPYJC if($list[$i] eq 's') {          # Was undef, now defined
+                # SNOOPYJC     return join(' of ', @olist);
+                # SNOOPYJC } elsif($olist[$i] eq 's') {
+                # SNOOPYJC     return join(' of ', @list);
+                # SNOOPYJC }
                 $list[$i] = 'm';                # mixed type
                 $#list = $i;                    # chop it there
                 return join(' of ', @list);
@@ -2120,12 +2133,20 @@ sub fix_scalar_context                          # issue 37
                 say STDERR "Can't get type of token $i on function in =|$TokenStr|=, ValPy=@ValPy";
             }
             my $arg_type = arg_type($fname, $pname, $arg, 0);   # 0 = don't repeat the last arg if we're past the end
+            #say STDERR "arg_type($fname, $pname, $arg, 0) = $arg_type";         # TEMP
             # Check the next arg too because this array could just be splatted into multiple arguments like for timegm
             my $next_arg_type = 'u';
             $next_arg_type = arg_type($fname, $pname, $arg+1, 0, 1) if defined $arg;
+            #say STDERR "arg_type($fname, $pname, $arg+1, 0, 1) = $next_arg_type" if defined $arg;  # TEMP
             $next_arg_type = '' unless defined($next_arg_type);
             if(defined $arg_type && $arg_type =~ /[sSIFN]/ && $next_arg_type !~ /^[sSIFN]$/) {
-                $did_something |= apply_scalar_context($i);
+                # For printf only (not sprintf), if we are passing an array where the first element is the format,
+                # then don't apply scalar context to that
+                if($fname eq 'printf' && $arg == 1 && $ValClass[$i] eq 'a') {
+                    ;
+                } else {
+                    $did_something |= apply_scalar_context($i);
+                }
             }
         } elsif($i > $in_function_until+1) {
             $last_special_function = -1;        # Don't keep this long past the end of the function call
@@ -2233,6 +2254,7 @@ sub end_of_function                             # issue s3
         $end_pos = $limit;  # issue s48: the function may have a token '0o>' in it so point back to the end
     }
     my $balance = 0;
+    my $pep = -1;		# issue s75
     EOFLOOP:
     for($j = $pos+1; $j <= $end_pos; $j++) {
         if($ValClass[$j] eq '(') {
@@ -2252,7 +2274,7 @@ sub end_of_function                             # issue s3
         }
         $op = ',' if $comma != -1 && $ValClass[$comma] eq ',';  # Now we are in a list
         # issue s48 my $close = next_same_level_token(')', $j, $end_pos);
-        my $ep = (($comma==-1) ? $end_pos : $comma-1);
+        $ep = (($comma==-1) ? $end_pos : $comma-1);
         # issue s48 $ep = $close-1 if($close!=-1 && $close-1 < $ep);
         my $optional = 0;
         my $t = substr($f_type, $t_pos, 1);
@@ -2263,6 +2285,7 @@ sub end_of_function                             # issue s3
             $t = substr($f_type, --$t_pos, 1) if($t eq '?');
             if($t ne 'a') {
                 $j--;
+		$j = $pep unless $pep < 0;		# issue s75
                 last;
             }
         }
@@ -2285,6 +2308,7 @@ sub end_of_function                             # issue s3
             $comma = next_same_level_token(',', $j, $end_pos);
             $ep = (($comma==-1) ? $end_pos : $comma-1);
         }
+	$pep = $ep;			# issue s75
         if($comma < 0 || ($comma >= 0 && $ValClass[$comma] ne ',')) {
             for(my $p = $j+1; $p <= $ep; $p++) {        # see if we need to end earlier than $ep
                 if($ValClass[$p] eq '(') {
