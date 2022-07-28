@@ -2,6 +2,11 @@
 History
 =======
 
+0.979 (2022-07-02)
+------------------
+
+* issue s91 - open with a dynamic single argument that does not contain a mode returns None on error instead of a closed file.  Fix in _open_dynamic.
+
 0.978 (2022-05-12)
 ------------------
 
