@@ -39,6 +39,6 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/snoopyjc/pythonizer',
-    version='0.978',
+    version='0.979',
     zip_safe=False,
 )

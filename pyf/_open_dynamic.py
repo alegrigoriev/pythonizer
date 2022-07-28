@@ -31,6 +31,6 @@ def _open_dynamic(file,mode=None,encoding=None,errors=None,checked=True):
             return _dup(file, mode,encoding=encoding,errors=errors,checked=checked)
         return _open(file, mode,encoding=encoding,errors=errors,checked=checked)
     if pipe:
-        return _open(file, '-|')
-    return _open(file, 'r')
+        return _open(file, '-|',encoding=encoding,errors=errors,checked=checked)
+    return _open(file, 'r',encoding=encoding,errors=errors,checked=checked)
 
