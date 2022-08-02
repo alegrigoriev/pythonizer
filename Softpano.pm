@@ -21,7 +21,7 @@ use v5.10;
    use strict 'subs';
    use feature 'state';
    use open ':std', IN=>':crlf', IO=>':utf8';        # SNOOPYJC
-   use File::Path;		# issue 133
+   use File::Path qw(make_path); # issue 133
    use POSIX qw/strftime/;	# issue 133
    use File::stat;		# issue 133
 
