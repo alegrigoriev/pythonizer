@@ -1001,6 +1001,9 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             #$type = 'm' if($type eq 'u');       # If we don't know the type, can no longer assume anything
             my $op = $ValPerl[$k+1];
             if($op eq '=') {     # e.g. not +=
+                if($name =~ /^\(len\((.*)\)-1\)$/) {            # issue s93: $#myArray = ...
+                    $NeedsInitializing{$CurSub}{$1} = 'a' if(!exists $initialized{$CurSub}{$1});        # issue s93
+                }                                               # issue s93
                 $initialized{$CurSub}{$name} = $type unless(is_referenced($ValClass[$k], $name, $k+2) || &Perlscan::in_conditional($k));
             } elsif($op eq '.=') {
                 $type = 'S';
@@ -1008,10 +1011,16 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             } else {                # +=, -=, *=, /=, |=, &=
                 $type = 'N' unless($type eq 'I' || $type eq 'F');        # numeric
                 $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
+                if($name =~ /^\(len\((.*)\)-1\)$/) {            # issue s93: $#myArray = ...
+                    $NeedsInitializing{$CurSub}{$1} = 'a' if(!exists $initialized{$CurSub}{$1});        # issue s93
+                }                                               # issue s93
             }
         } elsif($ValClass[$k+1] eq '^') {   # ++ or --
             $type = 'I';
             $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
+            if($name =~ /^\(len\((.*)\)-1\)$/) {            # issue s93: $#myArray = ...
+                $NeedsInitializing{$CurSub}{$1} = 'a' if(!exists $initialized{$CurSub}{$1});        # issue s93
+            }                                               # issue s93
         } elsif($ValClass[$k+1] eq '~' && $k+2 <= $#ValClass && $ValClass[$k+2] eq 'f' &&
             ($ValPerl[$k+2] eq 're' || $ValPerl[$k+2] eq 'tr') && index($ValPy[$k+2], 're.R') < 0) {    # issue s8
             # This is a s or tr operation, which both reads and changes the result (into a string)
@@ -1050,6 +1059,11 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
     if(defined $type) {
         $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
         $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
+        if($name =~ /^\(len\((.*)\)-1\)$/) {            # issue s93: $#myArray
+            $NeedsInitializing{$CurSub}{$1} = 'a' if(!exists $initialized{$CurSub}{$1});        # issue s93
+        } elsif($name =~ /^len\((.*)\)$/) {             # issue s93: scalar(@myArray)
+            $NeedsInitializing{$CurSub}{$1} = 'a' if(!exists $initialized{$CurSub}{$1});        # issue s93
+        }                                               # issue s93
     }
     if($class eq 's' && $k+1 <= $#ValClass && $ValClass[$k+1] eq '(' && $ValPerl[$k+1] ne '(') {     # Being subscripted
         $class = (($ValPerl[$k+1] eq '{') ? 'h' : 'a');
@@ -1100,12 +1114,22 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             $type = expr_type($k+2, $#ValClass, $CurSub);
             $type = "$class of $type";
             $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
-        } elsif(substr($ValPy[$k],0,4) eq 'len(') {
-	    $type = 'I';
-        }
+        # issue s93 } elsif(substr($ValPy[$k],0,4) eq 'len(') {
+        } elsif($name =~ /^\(len\((.*)\)-1\)$/) {            # issue s93: $#myArray
+            $NeedsInitializing{$CurSub}{$1} = 'a' if(!exists $initialized{$CurSub}{$1});        # issue s93
+	    $type = 'I';                                # issue s93
+        } elsif($name =~ /^len\((.*)\)$/) {             # issue s93: scalar(@myArray)
+            $NeedsInitializing{$CurSub}{$1} = 'a' if(!exists $initialized{$CurSub}{$1});        # issue s93
+	    $type = 'I';                                # issue s93
+        }                                               # issue s93
+	    # issue s93 $type = 'I';
+        # issue s93 }
         $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
         $VarType{$name}{$CurSub} = $type if(!exists $VarType{$name} || !exists $VarType{$name}{$CurSub});
    } elsif(($typ = expr_type($k, $k, $CurSub)) && $typ ne 's') {
+        if($name =~ /^\(len\((.*)\)-1\)$/) {            # issue s93: $#myArray
+            $NeedsInitializing{$CurSub}{$1} = 'a' if(!exists $initialized{$CurSub}{$1});        # issue s93
+        }
         $NeedsInitializing{$CurSub}{$name} = $typ if(!exists $initialized{$CurSub}{$name});
    } elsif(!defined $type) {                            # Scalar reference - try to find what type it needs to be
         $type = scalar_reference_type($k);
