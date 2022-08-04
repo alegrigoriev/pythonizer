@@ -7322,6 +7322,9 @@ sub handle_while_magic_function                 # issue s40
      }
      my $match = &Pythonizer::matching_br(1);
      return $pos if $match < 0;
+     if($ValClass[2] eq 'f' && $ValPerl[2] eq 'defined') {              # issue s92: Don't insert 'defined' if user already has that in there!
+         return $pos;                                                   # issue s92
+     }                                                                  # issue s92
      insert(2,'(','(','(');
      insert(2,'f','defined',$keyword_tr{defined});
      insert($match+2,')',')',')');

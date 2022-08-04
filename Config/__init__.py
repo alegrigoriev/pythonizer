@@ -2,7 +2,7 @@
 
 __author__ = """Joe Cool"""
 ___email__ = 'snoopyjc@gmail.com'
-__version__ = '0.980'
+__version__ = '0.981'
 
 import perllib
 import subprocess

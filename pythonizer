@@ -197,6 +197,7 @@
 # 0.978  2022/05/12  SNOOPYJC  Fix issue with extra stuff printed in -h, issue s81: Regex \Z( being translated as $( special variable, issue s83: Nested sub at top level generating nonlocal statement instead of global, issue s84: Nested sub that changes its arglist (via shift, etc) doesnt properly copy the arglist to a list, issue s76: Assignment to a typeglob ref of an anonymous function doesnt work, issue s86: If a perl script mentions its own filename, it should be pythonized to the python filename, issue s87: If a perl script executes another perl script via a file path, optionally replace that with the pythonized version, issue s77: push containing a || doesnt work, issue s85: document that single dash long options do not work, issue s88: Anonymous hashes containing a single array generate incorrect code, issue s89: eval containing only close() generates 2 close() calls, issue s75: for(each) loop with multiple list items doesnt work, fix issues in new test_splat.pl, issue s90: Reference to unset %ENV variable gives KeyError in python version
 # 0.979  2022/07/02  SNOOPYJC issue s91: open with a dynamic single argument that does not contain a mode returns None on error instead of a closed file (fix in perllib _open_dynamic) 
 # 0.980  2022/07/28  SNOOPYJC Additional fix for issue 133 - make_path not found if log dir is not present
+# 0.981  2022/08/02  SNOOPYJC issue s92: while(defined(magic function)) generates incorrect code, issue s93: Setting array last index as the only reference doesn't generate code to initialize the array
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -248,7 +249,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.980';
+   $VERSION='0.981';
    $SCRIPT_NAME='pythonizer';
 #
 # options
