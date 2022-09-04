@@ -198,6 +198,7 @@
 # 0.979  2022/07/02  SNOOPYJC issue s91: open with a dynamic single argument that does not contain a mode returns None on error instead of a closed file (fix in perllib _open_dynamic) 
 # 0.980  2022/07/28  SNOOPYJC Additional fix for issue 133 - make_path not found if log dir is not present
 # 0.981  2022/08/02  SNOOPYJC issue s92: while(defined(magic function)) generates incorrect code, issue s93: Setting array last index as the only reference doesn't generate code to initialize the array
+# 0.982  2022/09/02  SNOOPYJC issue s95: local hash generates Array, issue s97: handle slurp mode in do statement, issue s96: TypeError in complex ? : expression
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -249,7 +250,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.981';
+   $VERSION='0.982';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -1901,6 +1902,41 @@ sub operator_type
         return substr($PyFuncType{$ValPy[$p]}, 0, 1) if(!$left);
     } elsif($cl eq 'f' && exists $FuncType{$ValPerl[$p]}) {
         return substr($FuncType{$ValPerl[$p]}, 0, 1) if(!$left);
+    } elsif(!$left && $cl eq ':' && $ValPy[$p] eq 'else') {		# issue s96
+	my $prior = get_prior_operator_from_if_else($p);		# issue s96
+	return undef unless($prior);					# issue s96
+	return operator_type($prior);					# issue s96
+    }
+    return undef;
+}
+
+sub get_prior_operator_from_if_else					# issue s96
+# Given the ':' (else) operator, return the operator before the ':' (if), if any, else return undef
+{
+    my $else = shift;
+
+    my $if = get_if_from_else($else);
+    return undef unless defined($if);
+    return undef if $if == 0;
+    my $start = start_of_expr($if-1);
+    return undef if $start == 0;
+    return $start-1;
+}
+
+sub get_if_from_else							# issue s96
+# Given the ':' (else) operator, return the ':' (if) operator.  This is from a transformed ? : operation
+{
+    my $else = shift;
+
+    for(my $p = $else - 1; $p >= 1; $p--) {
+	$p = start_of_expr($p);
+	if($p-1 > 0 && $ValClass[$p-1] eq ':') {
+	    if($ValPy[$p-1] eq 'else') {
+		$p = get_if_from_else($p-1);
+	    } elsif($ValPy[$p-1] eq 'if') {
+		return $p-1;
+	    }
+        }
     }
     return undef;
 }
@@ -2997,7 +3033,7 @@ sub finish
         }
         if($ValClass[0] eq 'f' && $ValPerl[0] =~ /^(?:close)$/) {       # issue s89
             ;                                                           # issue s89
-        } elsif($generated_code == 0 && index('fds"(-a', $ValClass[0]) >= 0) {   # issue 45
+        } elsif($generated_code == 0 && index('fds"(-aj', $ValClass[0]) >= 0) {   # issue 45, issue s97 - handle <FILE>
             $prev_line =~ s/\s+#.*$//;                          # issue 45: remove comments
             $prev_line =~ s/\s+$//;                             # SNOOPYJC: remove trailing spaces
             $last_c = substr($prev_line,-1,1);                  # issue 45
@@ -3698,7 +3734,7 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
           # We have some sort of empty parens on the RHS.  Generate the correct type of code depending on
           # what type of parens the user entered.
           $k = $split+1;
-          if($ValPerl[$k] eq '{') {             # {} = Empty hashref
+          if($ValPerl[$k] eq '{' || $ValClass[$start] eq 'h') {             # {} = Empty hashref, issue s95: local %h = ();
               if($autovivification) {         # SNOOPYJC
                  $Pyf{Hash} = 1;
                  gen_chunk('Hash', '()');
@@ -8215,6 +8251,31 @@ sub start_of_var
     }
     while($ValClass[$end_pos] eq 'i' && ($end_pos-2 >= 0 && $ValClass[$end_pos-1] eq 'D')) {
         $end_pos -= 2;
+    }
+    return $end_pos;
+}
+
+sub start_of_expr				# issue s96
+# Get the start of this expression
+{
+    my $end_pos = shift;
+
+    while($ValClass[$end_pos] eq ')') {
+        $end_pos = reverse_matching_br($end_pos) - 1;
+        return 0 if($end_pos <= 0);
+    }
+    if($end_pos < $#ValClass && $ValClass[$end_pos+1] eq '(' && 
+	    ($ValClass[$end_pos] eq 'f' || $ValClass[$end_pos] eq 'i' || $ValClass[$end_pos] eq 's')) {
+	return $end_pos;
+    }
+    if($ValClass[$end_pos] eq 'D') {            # $s->[...]
+        return $end_pos-1;
+    }
+    while($ValClass[$end_pos] eq 'i' && ($end_pos-2 >= 0 && $ValClass[$end_pos-1] eq 'D')) {
+        $end_pos -= 2;
+    }
+    if($end_pos < $#ValClass && $ValClass[$end_pos+1] eq '(') {
+	return $end_pos+1;
     }
     return $end_pos;
 }
