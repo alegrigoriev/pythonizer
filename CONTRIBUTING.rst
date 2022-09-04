@@ -70,8 +70,13 @@ Ready to contribute? Here's how to set up `pythonizer` for local development.
 
    Now you can make your changes locally.
 
+4. Install the following perl packages which are required by the tests (only need to do this once)::
+
+    o Carp::Assert
+    o IPC::System::Simple
+
 5. When you're done making changes, check that your changes pass the
-   tests:
+   tests::
 
     $ cd tests
     $ ./run

@@ -1036,6 +1036,11 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
                 } else {
                     $type = 'u';
                 }
+		if($ValClass[$k] eq 'a') {		# issue s95
+		    $type = 'a';			# issue s95
+	        } elsif($ValClass[$k] eq 'h') {		# issue s95
+		    $type = 'h';			# issue s95
+	        }
                 $initialized{$CurSub}{$name} = $type unless(&Perlscan::in_conditional($k));
             }
         }
