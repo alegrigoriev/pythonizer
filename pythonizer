@@ -199,6 +199,7 @@
 # 0.980  2022/07/28  SNOOPYJC Additional fix for issue 133 - make_path not found if log dir is not present
 # 0.981  2022/08/02  SNOOPYJC issue s92: while(defined(magic function)) generates incorrect code, issue s93: Setting array last index as the only reference doesn't generate code to initialize the array
 # 0.982  2022/09/02  SNOOPYJC issue s95: local hash generates Array, issue s97: handle slurp mode in do statement, issue s96: TypeError in complex ? : expression
+# 0.983  2022/09/04  SNOOPYJC Additional fix for issue s87 with variable interpolation
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -250,7 +251,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.982';
+   $VERSION='0.983';
    $SCRIPT_NAME='pythonizer';
 #
 # options
