@@ -994,9 +994,11 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             }
             $type = expr_type($k+2, $lim, $CurSub) if(!defined $type);  # issue s8
             if($class eq 'a' && $type !~ / of /) {
-                $type = "a of ".$type;
+	        # issue s98 $type = "a of ".$type;
+                $type = "a of m";		# issue s98
             } elsif($class eq 'h' && $type !~ / of /) {
-                $type = "h of ".$type;
+	        # issue s98 $type = "h of ".$type;
+                $type = "h of m";		# issue s98
             }
             #$type = 'm' if($type eq 'u');       # If we don't know the type, can no longer assume anything
             my $op = $ValPerl[$k+1];
@@ -1108,11 +1110,11 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
         } else {
             return;             # Just a reference to the array
         }
-        if(defined $rhs_type) {
-            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of $rhs_type");
-        } else {
+	# issue s98 if(defined $rhs_type) {
+	# issue s98     $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of $rhs_type");
+	# issue s98 } else {
             $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of m");
-        }
+        # issue s98 }
    } elsif($class eq 'a' || $class eq 'h') {    # e.g. if(@arr) or if(%hash) or push @arr, ...
        $type = $class;
        if($k-1 >= 0 && $ValClass[$k-1] eq 'f' && ($ValPerl[$k-1] eq 'push' || $ValPerl[$k-1] eq 'unshift') && $k+2 <= $#ValClass) {
