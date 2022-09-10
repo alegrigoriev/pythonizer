@@ -2,6 +2,11 @@
 History
 =======
 
+0.985 (2022-09-08)
+------------------
+
+* issue s99: If you have more formats than items, you get an error in python but not perl - fix in _format_
+
 0.984 (2022-09-08)
 ------------------
 
