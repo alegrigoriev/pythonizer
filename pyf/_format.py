@@ -3,7 +3,7 @@ def _format(fmt, args=None):
     """Like % formatter in python, but auto-converts the args to the proper types"""
     fmt = str(fmt)
     if args is None:
-        return fmt % ()
+        args = []
     if isinstance(args, collections.abc.Iterable) and not isinstance(args, str):
         args = list(args)
     else:
@@ -12,6 +12,8 @@ def _format(fmt, args=None):
     num_fmts = set('diouxXeEfFgG')
     i = 0
     for m in re.finditer(fmt_regex, fmt.replace('%%', '')):
+        if i >= len(args):
+            args.append('')
         if m.group(1) == '*':
             args[i] = _int(args[i])
             i += 1
