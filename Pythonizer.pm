@@ -747,6 +747,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        say STDERR Dumper(\%Perlscan::line_contains_stmt_modifier);
        print STDERR "line_contains_for_loop_with_modified_counter = ";
        say STDERR Dumper(\%Perlscan::line_contains_for_loop_with_modified_counter);
+       print STDERR "line_contains_local_for_loop_counter = ";			# issue s100
+       say STDERR Dumper(\%Perlscan::line_contains_local_for_loop_counter);	# issue s100
        print STDERR "SubAttributes = ";
        say STDERR Dumper(\%SubAttributes);
        if(\%Perlscan::line_substitutions) {
