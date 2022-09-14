@@ -685,6 +685,7 @@ sub TRY_BLOCK_CONTINUE_NEEDED_ONE { 64 } # The 'continue' needed to use a try bl
 $statement_starting_lno = 0;            # issue 116
 %line_contains_stmt_modifier=();        # issue 116
 %line_contains_for_loop_with_modified_counter=();       # SNOOPYJC
+%line_contains_local_for_loop_counter=();   # issue s100
 %line_contains_pos_gen=();      # SNOOPYJC: {lno=>scalar, ...} on any stmt that can generate the pos of this scalar
 %scalar_pos_gen_line=();        # SNOOPYJC: {scalar=>last_lno, ...} - opposite of prev hash
 %line_needs_try_block=();       # issue 94, issue 108: Map from line number to TRY_BLOCK_EXCEPTION|TRY_BLOCK_FINALLY if that line needs a try block
@@ -1219,6 +1220,7 @@ sub enter_block                 # issue 94
     $nesting_info{type} = 'if' if($nesting_info{type} eq '{' && $delayed_block_closure); # issue s44: Here it looks like a {...} but it's really an if from bash_style_or_and_fix
     $nesting_info{loop_ctr} = $nesting_stack[-1]{loop_ctr} if(scalar(@nesting_stack) && exists($nesting_stack[-1]{loop_ctr}));
     if($nesting_info{type} eq 'for') {
+        $TokenStr=join('',@ValClass);               # issue s100
         my $lcx = index($TokenStr,'s=');
         $lcx = index($TokenStr, 's^') if($lcx < 0);     # Loop for $i++ or $i-- if no loop ctr init
         if($lcx > 0) {
@@ -1227,7 +1229,14 @@ sub enter_block                 # issue 94
 	    } else {
                 $nesting_info{loop_ctr} = $ValPerl[$lcx];
             }
-        }
+        } else {                                # issue s100: Handle for(each) loop also
+            $lcx = index($TokenStr, 's');       # issue s100: tokens 'cs' or 'cts'
+            if($lcx > 0) {                      # issue s100: should be always true
+                $nesting_info{loop_ctr} = $ValPerl[$lcx];   # issue s100
+                ##### $ValPy[$lcx] = remap_loop_var($ValPy[$lcx]);    # issue s100
+                $nesting_info{type} = 'foreach'; # issue s100: flag this as a different type of loop
+            }                                   # issue s100
+        }                                       # issue s100
     }
     $nesting_info{lno} = $.;
     $nesting_info{varclasses} = dclone($line_varclasses{$last_block_lno}) if($Pythonizer::PassNo == &Pythonizer::PASS_1);
@@ -1294,7 +1303,14 @@ sub exit_block                  # issue 94
     }
     if($nesting_last->{type} eq 'do') {                                             # issue s35
         $delayed_block_closure = $nesting_last->{delayed_block_closure};            # issue s35: Unstack it
+    } elsif($nesting_last->{type} eq 'foreach' && exists $nesting_last->{loop_ctr}) { # issue s100
+        unmap_loop_var($nesting_last->{loop_ctr});                                  # issue s100
+    } elsif($line_contains_local_for_loop_counter{$nesting_last->{lno}}) {          # issue s100
+        for my $ctr (keys %{$line_contains_local_for_loop_counter{$nesting_last->{lno}}}) {    # issue s100
+            unmap_loop_var('$' . $ctr);                                             # issue s100
+        }                                                                           # issue s100
     }
+
     determine_varclass_keepers($nesting_last->{varclasses}, $nesting_last->{lno}) if($Pythonizer::PassNo == &Pythonizer::PASS_1);
     my $label = '';
     $label = $nesting_last->{label} if(exists $nesting_last->{label});
@@ -2242,6 +2258,9 @@ my ($l,$m);
              # We recognize end of statemt only if previous token eq ')' to avod collision with #h{$s}
              enter_block() if($s eq '{');                 # issue 94
              # SNOOPYJC Pythonizer::getline('{'); # make $tno==0 on the next iteration
+             if( length($source)>1  ){                  # SNOOPYJC
+                Pythonizer::getline(substr($source,1)); # save tail
+             }
              Pythonizer::getline('^'); # SNOOPYJC: make $tno==0 on the next iteration
              popup(); # eliminate '{' as it does not have tno==0
              last;
@@ -6336,6 +6355,12 @@ sub remap_conflicting_names                  # issue 92
         }
 =cut
     }
+    if($sigil eq '$') {                         # issue s100
+        if(for_loop_local_ctr($name)) {         # issue s100
+            $mid = remap_loop_var($name);       # issue s100
+            $ids[-1] = $mid;                    # issue s100
+        }                                       # issue s100
+    }
     if(exists $NameMap{$id} && exists $NameMap{$id}{$sigil} && $NameMap{$id}{$sigil} ne $id) {
         $ids[-1] = $NameMap{$id}{$sigil};
         if(scalar(@ids) > 1 && index($ids[-1],'.') >= 0) {
@@ -6418,6 +6443,94 @@ sub remap_conflicting_names                  # issue 92
     }
     say STDERR "remap_conflicting_names($name,$s,$trailer) = $name (3)" if($::debug >= 5);
     return $name;
+}
+
+sub for_loop_local_ctr      # issue s100
+# is this name the loop counter that needs to be localized within the loop?
+{
+    my $name = shift;
+
+    # Cases to match:
+    # for $name (...)
+    # for my $name (...)
+    # foreach $name (...)
+    # foreach my $name (...)
+    # for(my $name=...; ...; ...)
+    return 0 if $#ValClass < 1;
+    return 0 if $ValClass[0] ne 'c';
+    return 0 if $ValPy[0] ne 'for';
+    if($ValClass[1] eq '(') {
+        return 1 if exists $line_contains_local_for_loop_counter{$.} && exists $line_contains_local_for_loop_counter{$.}{$name};
+        for(my $i = 2; $i < $#ValClass; $i++) {
+            return 0 if($ValClass[$i] eq ';');
+            return 1 if($ValClass[$i] eq 't' && $ValClass[$i+1] eq 's' && $ValPy[$i+1] eq $name && $#ValClass == $i+1);     # for(my $name=...
+        }
+        return 0;
+    } elsif($ValClass[1] eq 't' && $#ValClass >= 2 && $ValClass[2] eq 's' && $ValPy[2] eq $name) { # foreach my $name
+        return 1;
+    } elsif($ValClass[1] eq 's' && $ValPy[1] eq $name) {                        # foreach $name
+        return 1;
+    }
+    return 0;
+}
+
+sub remap_loop_var          # issue s100
+# If necessary, remap the loop var to be loop_var_l so it is distinct from scalars of the same name
+# Returns the new python name, if need be, else returns the original name
+{
+    my $name = shift;
+
+    my $original_name = $name;
+    my $sigil = '$';
+    if(substr($name,-1,1) eq '_') {             # if we have like 'in_' which used to be 'in', then get us 'in'
+        my $without_escape = substr($name,0,length($name)-1);
+        my $esc = escape_keywords($without_escape);
+        $name = $without_escape if($esc eq $name);
+    } elsif(substr($name,-2,2) eq '_v') {       # if we have like 'var_v' which used to be 'var', then get us 'var'
+        $name = substr($name,0,length($name)-2);
+    }
+
+    my $remap = 0;
+    if($Pythonizer::PassNo == &Pythonizer::PASS_1) {
+        if(exists $NameMap{$name} && exists $NameMap{$name}{$sigil}) {  # we have a mapping for the full name already
+            if(!exists $line_contains_local_for_loop_counter{$.} ||
+               (exists $line_contains_local_for_loop_counter{$.} && !exists $line_contains_local_for_loop_counter{$.}{$name})) {     # only do it once
+                $line_contains_local_for_loop_counter{$.}{$name} = 1;
+                $remap = 1;
+            }
+        }
+    } elsif($Pythonizer::PassNo == &Pythonizer::PASS_2) {
+        if(exists $line_contains_local_for_loop_counter{$.} && exists $line_contains_local_for_loop_counter{$.}{$name}) {
+            if($line_contains_local_for_loop_counter{$.}{$name} == 1) {
+                $remap = 1;
+                $line_contains_local_for_loop_counter{$.}{$name} = 2;   # only do it once per name
+            }
+        }
+    }
+    if($remap) {
+        my $mapped = $NameMap{$name}{$sigil};
+        $NameMap{$name}{'!'} = $mapped;             # Save the old name
+        my $loop_name = loop_var_name($name);
+        $NameMap{$name}{$sigil} = $loop_name;
+        say STDERR "remap_loop_var($name) = $loop_name" if($::debug >= 5);
+        return $NameMap{$name}{$sigil};
+    }
+    return $original_name;
+}
+
+sub unmap_loop_var          # issue s100
+# Undo any loop var mapping at the end of the loop
+# arg = perl name of loop var
+{
+    my $perl_name = shift;
+
+    my $sigil = substr($perl_name, 0, 1);
+    my $name = substr($perl_name, 1);
+    if(exists $NameMap{$name} && exists $NameMap{$name}{'!'}) { # We saved the original mapping
+        $NameMap{$name}{$sigil} = $NameMap{$name}{'!'};
+        delete $NameMap{$name}{'!'};
+        say STDERR "unmap_loop_var($name) = $NameMap{$name}{$sigil}" if($::debug >= 5);
+    }
 }
 
 sub parens_are_balanced         # issue 85 - return 1 if the parens are balanced in the token stream
