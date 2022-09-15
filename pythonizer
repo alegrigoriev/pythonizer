@@ -204,6 +204,7 @@
 # 0.985  2022/09/08  SNOOPYJC issue s99: If you have more formats than items, you get an error in python but not perl - fix in _format_
 # 0.986  2022/09/09  SNOOPYJC issue s100: for(each) variable is local to the loop and the value should revert back after the loop, don't lose comment at end of for loop line
 # 0.987  2022/09/14  SNOOPYJC issue s101: missing global for file handle across subs
+# 0.988  2022/09/15  SNOOPYJC issue s102: NoneType has no attribute keys when fetching hash from empty data structure, also implicit return statement is not applying the package name on -M option
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -255,7 +256,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.987';
+   $VERSION='0.988';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -3141,6 +3142,7 @@ sub finish
     }                                                           # issue 45
     if($reparse_with_return) {
         $TrStatus = 0;
+	&Perlscan::clone_line_varclasses();			# issue s102
     } else {
         if( defined($TrStatus) && $TrStatus < 0 ){
            push(@NoTrans,"[$prev_lno]: $orig_prev_line");
@@ -7370,6 +7372,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
            next if($autovivification && in_x_element_call($i));    # issue ddts: _set_element(h.get('key'),...) is not what we want here!
            next if($autovivification && $ValClass[0] eq 'c' && $ValPy[0] eq 'for');     # SNOOPYJC: don't use if autoviv on for loop
            next if($autovivification && same_as_lhs($l));          # issue s3
+	   next if($autovivification && in_keys_or_values($i));	   # issue s102
            if($i == $begin && end_of_variable($i+1) == $l-1 &&     # issue s3: Handle { %hash } or { %$hashref } - copy a hash
               $ValClass[$i+1] ne 'a') {                            # issue s88: this case handled below
                replace($l, 'y', 'copy', '.copy()');
@@ -10413,6 +10416,19 @@ sub same_as_lhs         # issue s3
     return 0 if($ValClass[$posrhs] eq 's' && $ValPerl[$posrhs] eq '$ENV');      # issue s90
 
     return 1;
+}
+
+sub in_keys_or_values		# issue s102
+# Given a pointer to a '(' in a hash reference, return 1 if this is part of a keys or values call
+{
+    my $pos = shift;
+    $pos = start_of_var($pos-1);
+    return 0 if $pos <= 1;
+    return 1 if($ValClass[$pos-1] eq 'f' && ($ValPerl[$pos-1] eq 'keys' || $ValPerl[$pos-1] eq 'values'));
+    return 0 if $ValClass[$pos-1] ne '(';
+    return 0 if $ValClass[$pos-2] ne 'f';
+    return 1 if($ValPerl[$pos-2] eq 'keys' || $ValPerl[$pos-2] eq 'values');
+    return 0;
 }
 
 sub parse_export_tags

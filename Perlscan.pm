@@ -986,6 +986,19 @@ sub propagate_varclass_for_here
     $last_varclass_lno = $.;
 }
 
+sub clone_line_varclasses
+# For insertion of a return statement, just propagate the varclass from the prior line
+{
+    for(my $lno = $. - 1; $lno; $lno--) {
+        if(exists $line_varclasses{$lno}) {
+            $line_varclasses{$.} = dclone($line_varclasses{$lno});
+            say STDERR "clone_line_varclasses: cloning line $. from line $lno" if($::debug);
+            return;
+        }
+    }
+    say STDERR "clone_line_varclasses: didn't find anything to clone from line $." if($::debug);
+}
+
 sub map_var_class_into_sub
 # For a sub, map the class of the incoming (non-arg) variable
 {
