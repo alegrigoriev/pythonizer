@@ -299,7 +299,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                    'until'=>'while not ','untie'=>'NoTrans!',
                    'utime'=>'_utime',   # issue s32
                 'values'=>'.values()',	# SNOOPYJC
-                 'warn'=>'print',
+                # issue s101 'warn'=>'print',
+                 'warn'=>'wprint',      # issue s101: problem with PyFuncType clash - wprint isn't actually called
                  'wait'=>'_wait',       # SNOOPYJC
                  'waitpid'=>'_waitpid',         # SNOOPYJC
                  # issue s3 'wantarray'=>'True',           # SNOOPYJC

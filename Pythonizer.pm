@@ -531,6 +531,12 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                   
                 $VarType{$DEFAULT_VAR}{$CurSubName} = merge_types($DEFAULT_VAR, $CurSubName, 'S');      # issue s8
                 $NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = 'S' if(!exists $initialized{$CurSubName}{$DEFAULT_VAR}); # issue s8
+	      } elsif($ValClass[$k] eq 'f' && arg_type($ValPerl[$k], $ValPy[$k], 0, 0) eq 'H') {	# issue s101: handle file handles across subs
+		my $h = $k+1;
+		$h++ if($ValClass[$h] eq '(');
+		if($ValClass[$h] eq 'i' && index($ValPy[$h],'.') < 0) {	# Do this for bareword file handles, but not STDxx
+               	    $VarSubMap{$ValPy[$h]}{$CurSubName}='+';
+		}
               }
 
           } # for
@@ -1427,10 +1433,10 @@ sub arg_type            # Given the name of a built-in function, and the arg#, r
     my $ft = undef;
     if(exists $PyFuncType{$name}) {
         $ft = $PyFuncType{$name};
-        #say STDERR "PyFuncType{$name} = $ft";           # TEMP
+	#say STDERR "PyFuncType{$name} = $ft";           # TEMP
     } elsif(exists $FuncType{$fname}) {
         $ft = $FuncType{$fname};
-        #say STDERR "FuncType{$name} = $ft";             # TEMP
+	#say STDERR "FuncType{$name} = $ft";             # TEMP
     }
     return 's' if(!defined $ft);
     my $argc = 0;
@@ -1446,7 +1452,7 @@ sub arg_type            # Given the name of a built-in function, and the arg#, r
             }
             return '';
         }
-        if($c eq 'H' && substr($ft,$i+1,1) eq '?') {
+        if($c eq 'H' && substr($ft,$i+1,1) eq '?' && $arg != 0) {	# issue s101
             $i++;
             $argc++;
             next;
