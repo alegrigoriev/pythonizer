@@ -203,6 +203,7 @@
 # 0.984  2022/09/08  SNOOPYJC issue s98: missing type conversion for hash values
 # 0.985  2022/09/08  SNOOPYJC issue s99: If you have more formats than items, you get an error in python but not perl - fix in _format_
 # 0.986  2022/09/09  SNOOPYJC issue s100: for(each) variable is local to the loop and the value should revert back after the loop, don't lose comment at end of for loop line
+# 0.987  2022/09/14  SNOOPYJC issue s101: missing global for file handle across subs
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -254,7 +255,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.986';
+   $VERSION='0.987';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -926,7 +927,8 @@ my ($start,$token_buffer_active);
       }elsif( $ValPerl[0] =~ /^(?:say|print|printf)$/ ){        # SNOOPYJC
           $TrStatus=print3(0);
       }elsif( $ValPerl[0] =~ /^warn$/ ){                        # SNOOPYJC
-          $TrStatus=print3(0,'STDERR'); # in Python3 this is a function
+          # issue s101 $TrStatus=print3(0,'STDERR'); # in Python3 this is a function
+          $TrStatus=print3(0,'sys.stderr'); # in Python3 this is a function, issue s101
       }elsif( $ValClass[0] eq 's' ){
           if( ($TokenStr=~tr/=//) > 1 && $ValClass[-1] eq 'd' && ($ValPerl[-2] eq '+=' || $ValPerl[-2] eq '-=') ){
              # multiple assignment with the last increment like $K=$i+=1 need to be expanded due to bug in Python parser
@@ -2172,7 +2174,7 @@ sub fix_type_issues
     my $opt;
     return if(scalar(@ValClass) == 0 || ($ValClass[0] eq 'k' && $ValPerl[0] eq 'sub'));
     return 0 if($start > $limit);
-    return fix_type_issues($start+1, $limit, $type) if($ValClass[$start] eq 'f' && ($ValPy[$start] eq 'print' || $ValPy[$start] eq 'printf'));  # issue printf
+    return fix_type_issues($start+1, $limit, $type) if($ValClass[$start] eq 'f' && ($ValPy[$start] eq 'print' || $ValPy[$start] eq 'wprint' || $ValPy[$start] eq 'printf'));  # issue printf, issue s101
     for(my $i=$start; $i<=$limit; $i++) {
         $k = $i;
         no warnings 'uninitialized';
@@ -7715,7 +7717,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
          }
          $cur_pos++;
       }elsif($ValClass[$cur_pos] eq '+' && ($cur_pos == 0 || $ValClass[$cur_pos-1] eq '(' ||
-              ($ValClass[$cur_pos-1] eq 'f' && ($ValPy[$cur_pos-1] eq 'print' || $ValPy[$cur_pos-1] eq 'printf')))) {       # issue unary +, issue printf
+              ($ValClass[$cur_pos-1] eq 'f' && ($ValPy[$cur_pos-1] eq 'print' || $ValPy[$cur_pos-1] eq 'wprint' || $ValPy[$cur_pos-1] eq 'printf')))) {       # issue unary +, issue printf, issue s101
           $cur_pos++;                           # skip it
       }elsif($ValClass[$cur_pos] eq 'k' && $ValPerl[$cur_pos] eq 'sub') {               # issue 81: sub in expression
           gen_chunk('lambda *', $PERL_ARG_ARRAY, ':');     # issue 81
