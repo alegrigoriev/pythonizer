@@ -206,6 +206,7 @@
 # 0.987  2022/09/14  SNOOPYJC issue s101: missing global for file handle across subs
 # 0.988  2022/09/15  SNOOPYJC issue s102: NoneType has no attribute keys when fetching hash from empty data structure, also implicit return statement is not applying the package name on -M option
 # 0.989  2022/09/15  SNOOPYJC additional fix for issue s100: use 'local' unless variable is explicitly declared using 'my'
+# 0.990  2022/09/22  SNOOPYJC issue s103: referencing the default variable without setting it causes an error
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -257,7 +258,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.989';
+   $VERSION='0.990';
    $SCRIPT_NAME='pythonizer';
 #
 # options
