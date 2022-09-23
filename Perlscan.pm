@@ -683,6 +683,7 @@ sub TRY_BLOCK_HAS_NEXT     { 8 }         # Has a 'last' stmt for this loop
 sub TRY_BLOCK_HAS_LAST    { 16 }         # Has a 'next' stmt for this loop
 sub TRY_BLOCK_REDO_LOOP   { 32 }         # Needs a nested loop for 'redo'
 sub TRY_BLOCK_CONTINUE_NEEDED_ONE { 64 } # The 'continue' needed to use a try block: issue s49
+sub TRY_BLOCK_FOREACH      { 128 }      # issue s100: used on foreach loop that needs a local var
 $statement_starting_lno = 0;            # issue 116
 %line_contains_stmt_modifier=();        # issue 116
 %line_contains_for_loop_with_modified_counter=();       # SNOOPYJC
@@ -902,7 +903,8 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
     my $name = get_perl_name($ValPerl[$tno], substr($source,$cut,1), ($ate_dollar == $tno  ? '$' : ''));
     my $class = 'global';
     $class = 'myfile' if(defined $ValType[$tno] && $ValType[$tno] eq "X");
-    $class = 'myfile' if($::implicit_global_my);
+    # issue s100 $class = 'myfile' if($::implicit_global_my);   # issue s100
+    $class = 'implicit_myfile' if($::implicit_global_my);   # issue s100
     # issue s83 $class = 'myfile' if($ValPerl[$tno] =~ /^\$[ab]$/);  # Sort vars
     $class = 'myfile' if($name =~ /^\$[ab]$/);  # issue s83: Sort vars
     $TokenStr=join('',@ValClass);
@@ -933,7 +935,8 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
     $class = 'myfile' if($class eq 'local' && !@nesting_stack); # 'local' at outer scope is same as 'my'
     if($class eq 'our') {
         if($::implicit_global_my) {
-            $class = 'myfile' 
+            # issue s100 $class = 'myfile' 
+            $class = 'implicit_myfile'      # issue s100
         } else {
             $class = 'global' 
         }
@@ -944,13 +947,14 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
     $last_varclass_lno = $.;
     my $cs = cur_sub();
     if(!exists $line_varclasses{$last_varclass_lno}{$name} || $class eq 'my' || $class eq 'local'
-       || ($class eq 'myfile' && $declared_here)) {         # issue s83
+       || (($class eq 'myfile' || $class eq 'implicit_myfile') && $declared_here)) {         # issue s83, issue s100
         my $cls = $class;
         if(!exists $last_varclass_sub{$name} || $last_varclass_sub{$name} ne $cs) {
             $cls = map_var_class_into_sub($class) if(!$declared_here);
             $last_varclass_sub{$name} = $cs;
         }
         $line_varclasses{$last_varclass_lno}{$name} = $class;
+        #say STDERR "Setting sub_varclasses{$cs}{$name} = $cls for line $. (1)";
         $sub_varclasses{$cs}{$name} = $cls;
     } elsif(exists $line_varclasses{$last_varclass_lno}{$name}) {
         $class = $line_varclasses{$last_varclass_lno}{$name};
@@ -958,6 +962,7 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
         if(!exists $last_varclass_sub{$name} || $last_varclass_sub{$name} ne $cs) {
             $cls = map_var_class_into_sub($class) if(!$declared_here);
             $last_varclass_sub{$name} = $cs;
+            #say STDERR "Setting sub_varclasses{$cs}{$name} = $cls for line $. (2)";
             $sub_varclasses{$cs}{$name} = $cls;
         }
     }
@@ -1005,7 +1010,8 @@ sub map_var_class_into_sub
     my $cls = shift;
     $cls = 'nonlocal' if($cls eq 'my');
     $cls = 'package' if($cls eq 'global');
-    $cls = 'global' if($cls eq 'myfile');
+    # issue s100 $cls = 'global' if($cls eq 'myfile');
+    $cls = 'global' if($cls eq 'myfile' || $cls eq 'implicit_myfile');  # issue s100
     return $cls;
 }
 
@@ -1534,6 +1540,11 @@ sub needs_try_block                # issue 94, issue 108
 {
     my $at_bottom = shift;
 
+    my $check_foreach = 0;          # issue s100
+    if($at_bottom == -1) {          # issue s100: Called before generating the 'for' loop
+        $check_foreach = 1;
+        $at_bottom = 0;
+    }
     my $top = $nesting_last;
     if(!$at_bottom) {
         return 0 if($nesting_level == 0);
@@ -1543,7 +1554,14 @@ sub needs_try_block                # issue 94, issue 108
         no warnings 'uninitialized';
         print STDERR "needs_try_block($at_bottom), top=@{[%$top]} returns ";
     }
-    if(exists $line_needs_try_block{$top->{lno}} && 
+    if(!$check_foreach && !$at_bottom && exists $line_needs_try_block{$top->{lno}} &&
+        !($line_needs_try_block{$top->{lno}} & TRY_BLOCK_EXCEPTION) &&
+        ($line_needs_try_block{$top->{lno}} & TRY_BLOCK_FOREACH)) { # issue s100
+        ;                                                           # issue s100: We already handled this one on the 'for'
+    } elsif($check_foreach && (!exists $line_needs_try_block{$top->{lno}} ||
+        !($line_needs_try_block{$top->{lno}} & TRY_BLOCK_FOREACH))) { # issue s100
+        ;                                                            # issue s100: Only gen the 'try' before the 'for' if asked for
+    } elsif(exists $line_needs_try_block{$top->{lno}} && 
         ($line_needs_try_block{$top->{lno}} & (TRY_BLOCK_EXCEPTION|TRY_BLOCK_FINALLY))) {
         say STDERR "1" if($::debug >= 4);
         return 1 
@@ -1717,43 +1735,75 @@ sub gen_try_block_finally               # issue 108
 {
     my $top = $nesting_last;
     return if(!($line_needs_try_block{$top->{lno}} & TRY_BLOCK_FINALLY));
+    my $foreach = $line_needs_try_block{$top->{lno}} & TRY_BLOCK_FOREACH;
     gen_statement();
     &Pythonizer::correct_nest(-1,-1);
+    &Pythonizer::correct_nest(-1,-1) if($foreach);
+    &Pythonizer::correct_nest(-1,-1) if($foreach && ($line_needs_try_block{$top->{lno}} & TRY_BLOCK_EXCEPTION));
     gen_statement('finally:');
     &Pythonizer::correct_nest(1,1);
     my $lno = $top->{lno};
     my $code_generated = 0;
-    for my $local (reverse @{$line_locals{$lno}}) {
-        my $sigil = substr($local,0,1);
-        if($sigil eq '*') {         # We appended the ones we need to the name
-            # We have like *id,$%@ - split out each of the "$%@".  We encode a
-            # bare one as '^'.
-            my ($quote, $sigils) = split /,/, $local;
-            my $id = substr($quote,1);
-            $sigils = '' if(!defined $sigils);
-            for(my $i=length($sigils)-1; $i >= 0; $i--) {       # Grab them in reverse order
-                my $sig = substr($sigils,$i,1);
-                $sig = '' if($sig eq '^');
-                $quote = $sig . $id;
-                $pyname = $line_locals_map{$lno}{$quote};
-                gen_statement("$pyname = $LOCALS_STACK.pop()");
+    if(exists $line_locals{$lno}) {                     # issue s100
+        for my $local (reverse @{$line_locals{$lno}}) {
+            my $sigil = substr($local,0,1);
+            if($sigil eq '*') {         # We appended the ones we need to the name
+                # We have like *id,$%@ - split out each of the "$%@".  We encode a
+                # bare one as '^'.
+                my ($quote, $sigils) = split /,/, $local;
+                my $id = substr($quote,1);
+                $sigils = '' if(!defined $sigils);
+                for(my $i=length($sigils)-1; $i >= 0; $i--) {       # Grab them in reverse order
+                    my $sig = substr($sigils,$i,1);
+                    $sig = '' if($sig eq '^');
+                    $quote = $sig . $id;
+                    $pyname = $line_locals_map{$lno}{$quote};
+                    gen_statement("$pyname = $LOCALS_STACK.pop()");
+                    $code_generated = 1;
+                }
+            } else {
+                $pyname = $line_locals_map{$lno}{$local};
+                $pyname = $SpecialVarR2L{$pyname} if(exists $SpecialVarR2L{$pyname});       # Map _nr() to INPUT_LINE_NUMBER etc
+                # For signals, $pyname is like "signal.signal(signal.SIGINT)"
+                if($pyname =~ /^signal\.signal\(/) {
+                    $pyname =~ s/\)/, $LOCALS_STACK.pop())/;
+                    gen_statement($pyname);
+                } else {
+                    gen_statement("$pyname = $LOCALS_STACK.pop()");
+                }
                 $code_generated = 1;
             }
-        } else {
-            $pyname = $line_locals_map{$lno}{$local};
-            $pyname = $SpecialVarR2L{$pyname} if(exists $SpecialVarR2L{$pyname});       # Map _nr() to INPUT_LINE_NUMBER etc
-            # For signals, $pyname is like "signal.signal(signal.SIGINT)"
-            if($pyname =~ /^signal\.signal\(/) {
-                $pyname =~ s/\)/, $LOCALS_STACK.pop())/;
-                gen_statement($pyname);
-            } else {
-                gen_statement("$pyname = $LOCALS_STACK.pop()");
+        }
+    }
+    if($foreach && exists $line_contains_local_for_loop_counter{$lno}) {        # issue s100
+        foreach $name (reverse sort keys %{$line_contains_local_for_loop_counter{$lno}}) {
+            next if($line_contains_local_for_loop_counter{$lno}{$name} ne 'localdone');
+            if(exists $NameMap{$name} && exists $NameMap{$name}{'$'}) {
+                $name = $NameMap{$name}{'$'};
             }
+            $name = escape_keywords($name);
+            gen_statement("$name = $LOCALS_STACK.pop()");
             $code_generated = 1;
         }
     }
     if(!$code_generated) {
         gen_statement('pass');
+    }
+    &Pythonizer::correct_nest(1,1) if($foreach);
+}
+
+sub stack_foreach_var           # issue s100
+{
+    $lno = $.;
+    if(exists $line_contains_local_for_loop_counter{$lno}) {        # issue s100
+        foreach $name (sort keys %{$line_contains_local_for_loop_counter{$lno}}) {
+            next if($line_contains_local_for_loop_counter{$lno}{$name} ne 'localdone');
+            if(exists $NameMap{$name} && exists $NameMap{$name}{'$'}) {
+                $name = $NameMap{$name}{'$'};
+            }
+            $name = escape_keywords($name);
+            gen_statement("$LOCALS_STACK.append($name)");
+        }
     }
 }
 
@@ -6370,8 +6420,9 @@ sub remap_conflicting_names                  # issue 92
 =cut
     }
     if($sigil eq '$') {                         # issue s100
-        if(for_loop_local_ctr($name)) {         # issue s100
-            $mid = remap_loop_var($name);       # issue s100
+        my $ctr_type;                           # issue s100
+        if(($ctr_type = for_loop_local_ctr($name))) {         # issue s100
+            $mid = remap_loop_var($name, $ctr_type);       # issue s100
             $ids[-1] = $mid;                    # issue s100
         }                                       # issue s100
     }
@@ -6474,16 +6525,18 @@ sub for_loop_local_ctr      # issue s100
     return 0 if $ValClass[0] ne 'c';
     return 0 if $ValPy[0] ne 'for';
     if($ValClass[1] eq '(') {
-        return 1 if exists $line_contains_local_for_loop_counter{$.} && exists $line_contains_local_for_loop_counter{$.}{$name};
+        if(exists $line_contains_local_for_loop_counter{$.} && exists $line_contains_local_for_loop_counter{$.}{$name}) {
+            return $line_contains_local_for_loop_counter{$.}{$name};
+        }
         for(my $i = 2; $i < $#ValClass; $i++) {
             return 0 if($ValClass[$i] eq ';');
-            return 1 if($ValClass[$i] eq 't' && $ValClass[$i+1] eq 's' && $ValPy[$i+1] eq $name && $#ValClass == $i+1);     # for(my $name=...
+            return 'my' if($ValClass[$i] eq 't' && $ValClass[$i+1] eq 's' && $ValPy[$i+1] eq $name && $#ValClass == $i+1);     # for(my $name=...
         }
         return 0;
     } elsif($ValClass[1] eq 't' && $#ValClass >= 2 && $ValClass[2] eq 's' && $ValPy[2] eq $name) { # foreach my $name
-        return 1;
+        return 'my';
     } elsif($ValClass[1] eq 's' && $ValPy[1] eq $name) {                        # foreach $name
-        return 1;
+        return 'local';
     }
     return 0;
 }
@@ -6493,6 +6546,7 @@ sub remap_loop_var          # issue s100
 # Returns the new python name, if need be, else returns the original name
 {
     my $name = shift;
+    my $type = shift;           # 'local' or 'my'
 
     my $original_name = $name;
     my $sigil = '$';
@@ -6509,15 +6563,25 @@ sub remap_loop_var          # issue s100
         if(exists $NameMap{$name} && exists $NameMap{$name}{$sigil}) {  # we have a mapping for the full name already
             if(!exists $line_contains_local_for_loop_counter{$.} ||
                (exists $line_contains_local_for_loop_counter{$.} && !exists $line_contains_local_for_loop_counter{$.}{$name})) {     # only do it once
-                $line_contains_local_for_loop_counter{$.}{$name} = 1;
-                $remap = 1;
+                my $pname = $sigil . $name;
+                my $vc = 'unknown';
+                if(exists $line_varclasses{$last_varclass_lno}{$pname}) {
+                    $vc = $line_varclasses{$last_varclass_lno}{$pname};
+                }
+                #say STDERR "For $name with $type on line $., varclass = $vc";
+                $type = 'my' if($type eq 'local' && ($vc eq 'myfile' || $vc eq 'my'));
+                $line_contains_local_for_loop_counter{$.}{$name} = $type;
+                if($type eq 'local') {
+                    $line_needs_try_block{$.} |= TRY_BLOCK_FINALLY|TRY_BLOCK_FOREACH;
+                }
+                $remap = 1 if $type eq 'my';
             }
         }
     } elsif($Pythonizer::PassNo == &Pythonizer::PASS_2) {
         if(exists $line_contains_local_for_loop_counter{$.} && exists $line_contains_local_for_loop_counter{$.}{$name}) {
-            if($line_contains_local_for_loop_counter{$.}{$name} == 1) {
-                $remap = 1;
-                $line_contains_local_for_loop_counter{$.}{$name} = 2;   # only do it once per name
+            if(($type = $line_contains_local_for_loop_counter{$.}{$name}) !~ /done/) {
+                $remap = 1 if $type eq 'my';
+                $line_contains_local_for_loop_counter{$.}{$name} .= 'done';   # only do it once per name
             }
         }
     }
