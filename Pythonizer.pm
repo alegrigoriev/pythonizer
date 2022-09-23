@@ -523,21 +523,31 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
 		 # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args
                  $SubAttributes{&Perlscan::cur_sub()}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args, issue s84
               } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 'push' || $ValPerl[$k] eq 'unshift') &&
-                      $ValPerl[$k+1] eq '@_') {                         # issue s53
+		      $#ValClass >= $k+1 && $ValPerl[$k+1] eq '@_') {                         # issue s53
 		 # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;     # issue s53
                  $SubAttributes{&Perlscan::cur_sub()}{modifies_arglist} = 1;     # issue s53, issue s84
               } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 're' && $ValPy[$k] =~ /\b$DEFAULT_VAR\b/) ||
                   ($ValPerl[$k] eq 'tr' && ($k == 0 || $ValClass[$k-1] ne '~'))) {      # issue s8: sets the $DEFAULT_VAR
                   
                 $VarType{$DEFAULT_VAR}{$CurSubName} = merge_types($DEFAULT_VAR, $CurSubName, 'S');      # issue s8
+      	        $VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
                 $NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = 'S' if(!exists $initialized{$CurSubName}{$DEFAULT_VAR}); # issue s8
-	      } elsif($ValClass[$k] eq 'f' && arg_type($ValPerl[$k], $ValPy[$k], 0, 0) eq 'H') {	# issue s101: handle file handles across subs
+	      } elsif($ValClass[$k] eq 'f' && arg_type($ValPerl[$k], $ValPy[$k], 0, 0) eq 'H' && $#ValClass > $k) {	# issue s101: handle file handles across subs
 		my $h = $k+1;
 		$h++ if($ValClass[$h] eq '(');
 		if($ValClass[$h] eq 'i' && index($ValPy[$h],'.') < 0) {	# Do this for bareword file handles, but not STDxx
                	    $VarSubMap{$ValPy[$h]}{$CurSubName}='+';
 		}
-              }
+              } elsif($ValClass[$k] eq 'f' &&
+		      ((($ValPerl[$k] eq 'chomp' || $ValPerl[$k] eq 'chop' || $ValPerl[$k] eq 'eval' || $ValPerl[$k] eq 'split' || 
+			 $ValPerl[$k] eq 'defined' || $ValPerl[$k] eq 'mkdir' || $ValPerl[$k] eq 'ord' || $ValPerl[$k] eq 'chr' ||
+		 	 $ValPerl[$k] eq 'quotemeta' || $ValPerl[$k] eq 'oct' || $ValPerl[$k] eq 'hex' || $ValPerl[$k] eq 'require' ||
+		 	 $ValPerl[$k] eq 'stat' || $ValPerl[$k] eq 'lstat' || $ValPerl[$k] eq 'reverse') && $#ValClass == $k) ||
+			($ValPerl[$k] eq 'split' && $#ValClass == $k+1) ||
+			(($ValPerl[$k] eq 'print' || $ValPerl[$k] eq 'printf') && ($#ValClass == $k || ($#ValClass == $k+1 && $ValClass[$k+1] eq 'i'))))) {	# issue s103
+		$VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
+	      	$NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = 'S' if(!exists $initialized{$CurSubName}{$DEFAULT_VAR});	# issue s103
+	      }
 
           } # for
           if(scalar(@ValClass) > 0 && $ValClass[0] eq 'k' && $ValPerl[0] eq 'return') {         # SNOOPYJC: return statement
@@ -549,7 +559,11 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                   $typ = expr_type(1, $end, $CurSubName);
               }
               $VarType{$CurSubName}{__main__} = merge_types($CurSubName, '__main__', $typ);
-          }
+          } elsif(($#ValClass >= 2 && ($ValPerl[0] eq 'while' || $ValPerl[0] eq 'until') && $ValClass[1] eq '(' && ($ValClass[2] eq 'j' || $ValClass[2] eq 'g')) ||
+		   $#ValClass >= 2 && $ValPy[0] eq 'for' && $ValClass[1] eq '(' && is_foreach_loop()) {	# issue s103
+	      $VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
+	      $initialized{$CurSubName}{$DEFAULT_VAR} = 'S' unless $NeedsInitializing{$CurSubName}{$DEFAULT_VAR};	# issue s103
+	  }
       } # statements
       # SNOOPYJC: Capture the prior expr type in case of implicit function return (as done by pythonizer::finish())
       # If we determine it's a mixed type ('m'), then stop checking
@@ -1605,7 +1619,14 @@ sub _expr_type           # Attempt to determine the type of the expression
             my $v = substr($ValPerl[$k], 1);
             if(exists $Perlscan::SpecialVarType{$v}) {
                 my $typ = $Perlscan::SpecialVarType{$v};
-                $initialized{$CurSub}{$ValPy[$k]} = $typ;
+		if($ValPy[$k] eq $DEFAULT_VAR && ($#ValClass == $k || $ValPy[$k+1] ne '=')) {	# issue s103
+	      	    $VarSubMap{$DEFAULT_VAR}{$CurSub}='+';		# issue s103
+               	    $NeedsInitializing{$CurSub}{$ValPy[$k]} = $typ unless exists $initialized{$CurSub}{$ValPy[$k]};	# issue s103
+		} elsif($ValPy[$k] eq $DEFAULT_VAR && exists $NeedsInitializing{$CurSub}{$ValPy[$k]}) {	# issue s103
+	      	    $VarSubMap{$DEFAULT_VAR}{$CurSub}='+';		# issue s103
+	        } else {									# issue s103
+                    $initialized{$CurSub}{$ValPy[$k]} = $typ;
+	        }
                 $VarType{$ValPy[$k]}{$CurSub} = $typ;
                 if(exists $SpecialVarR2L{$ValPy[$k]}) { # e.g. _nr() => INPUT_LINE_NUMBER
                     $initialized{$CurSub}{$SpecialVarR2L{$ValPy[$k]}} = $typ;
@@ -3574,6 +3595,14 @@ sub being_declared_here                         # issue bootstrap
         $st++;
     }
     return 0;
+}
+
+sub is_foreach_loop				# issue s103
+{
+    for(my $p = 0; $p <= $#ValClass; $p++) {
+        return 0 if $ValClass[$p] eq ';';
+    }
+    return 1;
 }
 
 1;
