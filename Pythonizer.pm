@@ -529,9 +529,10 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
               } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 're' && $ValPy[$k] =~ /\b$DEFAULT_VAR\b/) ||
                   ($ValPerl[$k] eq 'tr' && ($k == 0 || $ValClass[$k-1] ne '~'))) {      # issue s8: sets the $DEFAULT_VAR
                   
-                $VarType{$DEFAULT_VAR}{$CurSubName} = merge_types($DEFAULT_VAR, $CurSubName, 'S');      # issue s8
+		my $t = merge_types($DEFAULT_VAR, $CurSubName, 'S');			# issue s104
+                $VarType{$DEFAULT_VAR}{$CurSubName} = $t;      # issue s8, issue s104
       	        $VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
-                $NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = 'S' if(!exists $initialized{$CurSubName}{$DEFAULT_VAR}); # issue s8
+                $NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = $t if(!exists $initialized{$CurSubName}{$DEFAULT_VAR}); # issue s8, issue s104
 	      } elsif($ValClass[$k] eq 'f' && arg_type($ValPerl[$k], $ValPy[$k], 0, 0) eq 'H' && $#ValClass > $k) {	# issue s101: handle file handles across subs
 		my $h = $k+1;
 		$h++ if($ValClass[$h] eq '(');
@@ -545,8 +546,12 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
 		 	 $ValPerl[$k] eq 'stat' || $ValPerl[$k] eq 'lstat' || $ValPerl[$k] eq 'reverse') && $#ValClass == $k) ||
 			($ValPerl[$k] eq 'split' && $#ValClass == $k+1) ||
 			(($ValPerl[$k] eq 'print' || $ValPerl[$k] eq 'printf') && ($#ValClass == $k || ($#ValClass == $k+1 && $ValClass[$k+1] eq 'i'))))) {	# issue s103
+		my $t = 'S';					        # issue s104
+		$t = 'm' if $ValPerl[$k] eq 'defined';			# issue s104
+                $t = merge_types($DEFAULT_VAR, $CurSubName, $t);        # issue s104
+                $VarType{$DEFAULT_VAR}{$CurSubName} = $t;      		# issue s104
 		$VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
-	      	$NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = 'S' if(!exists $initialized{$CurSubName}{$DEFAULT_VAR});	# issue s103
+	      	$NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = $t if(!exists $initialized{$CurSubName}{$DEFAULT_VAR});	# issue s103, issue s104
 	      }
 
           } # for
@@ -562,7 +567,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
           } elsif(($#ValClass >= 2 && ($ValPerl[0] eq 'while' || $ValPerl[0] eq 'until') && $ValClass[1] eq '(' && ($ValClass[2] eq 'j' || $ValClass[2] eq 'g')) ||
 		   $#ValClass >= 2 && $ValPy[0] eq 'for' && $ValClass[1] eq '(' && is_foreach_loop()) {	# issue s103
 	      $VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
-	      $initialized{$CurSubName}{$DEFAULT_VAR} = 'S' unless $NeedsInitializing{$CurSubName}{$DEFAULT_VAR};	# issue s103
+              my $t = merge_types($DEFAULT_VAR, $CurSubName, 'm');     # issue s104: it's a string but it could also be undef at EOF
+              $VarType{$DEFAULT_VAR}{$CurSubName} = $t;      		# issue s104
+	      $initialized{$CurSubName}{$DEFAULT_VAR} = $t unless $NeedsInitializing{$CurSubName}{$DEFAULT_VAR};	# issue s103, issue s104
 	  }
       } # statements
       # SNOOPYJC: Capture the prior expr type in case of implicit function return (as done by pythonizer::finish())
