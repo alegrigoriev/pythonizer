@@ -207,6 +207,7 @@
 # 0.988  2022/09/15  SNOOPYJC issue s102: NoneType has no attribute keys when fetching hash from empty data structure, also implicit return statement is not applying the package name on -M option
 # 0.989  2022/09/15  SNOOPYJC additional fix for issue s100: use 'local' unless variable is explicitly declared using 'my'
 # 0.990  2022/09/22  SNOOPYJC issue s103: referencing the default variable without setting it causes an error
+# 0.991  2022/09/23  SNOOPYJC issue s104: Don't assume the default variable is a string
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -258,7 +259,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.990';
+   $VERSION='0.991';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -1474,7 +1475,11 @@ my ($start,$token_buffer_active);
             $TrStatus=left_hand_substr(0);
          }elsif( $ValPerl[0] eq 'chomp' ){
             if( $#ValPerl==0) {
-               gen_chunk(qq[$DEFAULT_VAR=$DEFAULT_VAR.rstrip("\\n")]); # chomp with no argumnets # issue 32
+	       if(default_var_string()) {			# issue s104
+                   gen_chunk(qq[$DEFAULT_VAR=$DEFAULT_VAR.rstrip("\\n")]); # chomp with no argumnets # issue 32
+	       } else {
+                   gen_chunk(qq[$DEFAULT_VAR=$CONVERTER_MAP{S}($DEFAULT_VAR).rstrip("\\n")]); # issue s104
+	       }
             }else{
                function(0,$#ValClass);
             }
@@ -1487,7 +1492,11 @@ my ($start,$token_buffer_active);
              # SNOOPYJC   }
              # SNOOPYJC }else{
              if($#ValPerl==0) {                 # SNOOPYJC
-               gen_chunk("$DEFAULT_VAR = ${DEFAULT_VAR}[0:-1]");          # issue 32
+	       if(default_var_string()) {			# issue s104
+                   gen_chunk("$DEFAULT_VAR = ${DEFAULT_VAR}[0:-1]");          # issue 32
+	       } else {
+                   gen_chunk("$DEFAULT_VAR = $CONVERTER_MAP{S}(${DEFAULT_VAR})[0:-1]");          # issue s104
+	       }
              } else {                           # SNOOPYJC
                function(0,$#ValClass);          # SNOOPYJC
              }                                  # SNOOPYJC
@@ -3369,6 +3378,7 @@ my $end_pos=$#ValClass;                                            # issue 10
    }else{
       $end = ($ValPerl[$begin] eq 'print' || $ValPerl[$begin] eq 'printf') ? ', end=""' : '';      # issue 59
       $def = $DEFAULT_VAR;              # issue printf
+      $def = "$CONVERTER_MAP{S}($def)" unless default_var_string();	# issue s104
       if($ValPerl[$begin] eq 'printf') {
           $def .= ' % ()';
       }
@@ -6244,7 +6254,11 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
        if(substr($py_name,0,1) eq '_' || $py_name eq "$PERLLIB.reverse_scalar") {     # _reverse_scalar - scalar context
            # Optimize some special cases
            if($bracketed==-1) {
-                gen_chunk($DEFAULT_VAR.'[::-1]');
+		if(default_var_string()) {		# issue s104
+                    gen_chunk($DEFAULT_VAR.'[::-1]');
+	        } else {
+                    gen_chunk("$CONVERTER_MAP{S}($DEFAULT_VAR)".'[::-1]');	# issue s104
+	        }
            } elsif($start == $end_pos && $ValClass[$start] =~ /([as])/) {        # a single thing
                if($1 eq 'a') {  # a (array)
                    gen_chunk("''.join($ValPy[$start])[::-1]");
@@ -10657,6 +10671,11 @@ sub is_list                     # issue s75: is this a list of items?
         return 1;
     }
     return 0;
+}
+
+sub default_var_string		# issue s104: Is the default variable a string type?
+{
+    return (exists $VarType{$DEFAULT_VAR}{$CurSub} && $VarType{$DEFAULT_VAR}{$CurSub} eq 'S');
 }
 
 __DATA__
