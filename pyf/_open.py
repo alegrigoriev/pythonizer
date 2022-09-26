@@ -37,6 +37,7 @@ def _open(file,mode,encoding=None,errors=None,checked=True,newline="\n"):
             file = tempfile.gettempdir() + file[4:]
         if 'b' in mode:
             newline = None
+        file = file.rstrip("\n\r")
         return _create_fh_methods(open(file,mode,encoding=encoding,errors=errors,newline=newline))
     except Exception as _e:
         OS_ERROR = str(_e)
