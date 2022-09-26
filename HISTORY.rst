@@ -2,6 +2,11 @@
 History
 =======
 
+0.992 (2022-09-24)
+------------------
+
+* issue s105: newline at end of filename gets stripped by perl - fix in _open_
+
 0.991 (2022-09-23)
 ------------------
 

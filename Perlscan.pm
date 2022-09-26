@@ -6572,6 +6572,11 @@ sub remap_loop_var          # issue s100
                 $type = 'my' if($type eq 'local' && ($vc eq 'myfile' || $vc eq 'my'));
                 $line_contains_local_for_loop_counter{$.}{$name} = $type;
                 if($type eq 'local') {
+                    my $esc = escape_keywords($original_name);                              # issue s106
+                    $esc = $NameMap{$esc}{$sigil} if exists $NameMap{$esc}{$sigil};         # issue s106
+                    if(!exists $Pythonizer::NeedsInitializing{__main__}{$esc}) {            # issue s106
+                         $Pythonizer::NeedsInitializing{__main__}{$esc} = 'm';              # issue s106
+                    }                                                                       # issue s106
                     $line_needs_try_block{$.} |= TRY_BLOCK_FINALLY|TRY_BLOCK_FOREACH;
                 }
                 $remap = 1 if $type eq 'my';

@@ -208,6 +208,7 @@
 # 0.989  2022/09/15  SNOOPYJC additional fix for issue s100: use 'local' unless variable is explicitly declared using 'my'
 # 0.990  2022/09/22  SNOOPYJC issue s103: referencing the default variable without setting it causes an error
 # 0.991  2022/09/23  SNOOPYJC issue s104: Don't assume the default variable is a string
+# 0.992  2022/09/24  SNOOPYJC issue s105: newline at end of filename gets stripped by perl, issue s106: undefined variable on local foreach loop counters
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -259,7 +260,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.991';
+   $VERSION='0.992';
    $SCRIPT_NAME='pythonizer';
 #
 # options
