@@ -4841,6 +4841,7 @@ my  $outer_delim;
              # issue 109 $ind =~ tr/$//d;               # We need to decode_scalar on each one!
              # issue 53 $ind =~ tr/{}/[]/;
              #say STDERR "looking for '{' in $ind";      # TEMP
+             #say STDERR "what follows is " . substr($quote, $ind_cut);  # TEMP
              for(my $i = 0; $i < length($ind); $i++) {	# issue 53: change hash ref {...} to use .get(...) instead
                  my $c = substr($ind,$i,1);                 # issue 109
                  if($c eq '-' && substr($ind,$i+1,1) eq '>') {  # issue refs in strings
@@ -4851,7 +4852,13 @@ my  $outer_delim;
                      $l = matching_curly_br($ind, $i);	# issue 53
                      #say "found '{' in $ind at $i, l=$l";
                      next if($l < 0);			# issue 53
-                     $ind = substr($ind,0,$i).'.get('.substr($ind,$i+1,$l-($i+1)).",'')".substr($ind,$l+1);	# issue 53: splice in the call to get
+                     # Issue s107: only use .get for the last hash key in a chained sequence of key fetches
+                     my $next_ch = substr($quote, $ind_cut, 1);     # issue s107
+                     if($next_ch eq '{') {                          # issue s107
+                         $ind = substr($ind,0,$i).'['.substr($ind,$i+1,$l-($i+1))."]".substr($ind,$l+1);	# issue s107 splice in [...] instead
+                     } else {
+                         $ind = substr($ind,0,$i).'.get('.substr($ind,$i+1,$l-($i+1)).",'')".substr($ind,$l+1);	# issue 53: splice in the call to get
+                     }                                              # issue s107
                      #say "ind=$ind";
                      # issue 109 $i = $l+7;				# issue 53: 7 is length('.get') + length(",''")
                  } elsif($c eq '$') {                       # issue 109: decode special vars in subscripts/hash keys
