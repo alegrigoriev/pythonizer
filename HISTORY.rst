@@ -2,6 +2,11 @@
 History
 =======
 
+0.994 (2022-09-29)
+------------------
+
+* issue s94: add _unlink, don't set OS_ERROR in _exc (used for eval errors)
+
 0.993 (2022-09-26)
 ------------------
 

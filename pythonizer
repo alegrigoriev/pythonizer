@@ -210,6 +210,7 @@
 # 0.991  2022/09/23  SNOOPYJC issue s104: Don't assume the default variable is a string
 # 0.992  2022/09/24  SNOOPYJC issue s105: newline at end of filename gets stripped by perl, issue s106: undefined variable on local foreach loop counters
 # 0.993  2022/09/26  SNOOPYJC issue s107: error referencing missing hash of hashes in a string
+# 0.994  2022/09/29  SNOOPYJC issue s94: unlink or die generates incorrect code, issue s108: for(each) variable is local to the loop and the value should revert back after the loop even if foreach statement is on multiple lines, issue s109: Subref dereference generates syntax error code, issue s110: Scope of 'my' should not be extended below for/while loop
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -261,7 +262,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.993';
+   $VERSION='0.994';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -5537,6 +5538,8 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
    }elsif($perl_name eq 'print' || $perl_name eq 'printf') {
       $TrStatus=print3($begin); # in Python3 this is a function
       if ($TrStatus<0) { return -255; }
+   }elsif($perl_name eq 'unlink' && $bracketed == -1) {         # issue s94
+       gen_chunk($py_name, '(', $DEFAULT_VAR, ')');             # issue s94
    }elsif($perl_name eq 'defined' ) {
       # open used without parantethisi. always has one argument
       $k=$start;
@@ -7469,7 +7472,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
             $cur_pos = $match+1;
             next;
          }
-         if($match == $cur_pos+1 && $ValPy[$cur_pos] eq '(') {   # issue test coverage: handle empty array specified as ()
+         if($match == $cur_pos+1 && $ValPy[$cur_pos] eq '(' && !subref_call($cur_pos-1)) {   # issue test coverage: handle empty array specified as (), issue s109
             if($autovivification) {
                 $Pyf{Array} = 1;
                 gen_chunk('Array', '(', ')');
@@ -10678,6 +10681,16 @@ sub is_list                     # issue s75: is this a list of items?
 sub default_var_string		# issue s104: Is the default variable a string type?
 {
     return (exists $VarType{$DEFAULT_VAR}{$CurSub} && $VarType{$DEFAULT_VAR}{$CurSub} eq 'S');
+}
+
+sub subref_call			# issue s109: Is this a subref call?
+{
+    my $pos = shift;
+    return 0 if $pos < 0;
+    $pos = start_of_var($pos);
+    return 0 if $pos < 0;
+    return 1 if $ValClass[$pos] eq 's';
+    return 0;
 }
 
 __DATA__
