@@ -1063,7 +1063,8 @@ sub get_sub_vars_with_class
     my @result = ();
     return @result unless(exists $sub_varclasses{$sub});
     for my $perl_name (keys %{$sub_varclasses{$sub}}) {
-        if($sub_varclasses{$sub}{$perl_name} eq $class) {
+        if(($sub_varclasses{$sub}{$perl_name} eq $class && (($class ne 'global' || !template_var($perl_name))) ||    # issue s76
+           ($class eq 'nonlocal' && template_var($perl_name)))) {                                                    # issue s76
             my $py = get_py_name($perl_name);
             push @result, $py if(defined $py);
         }
@@ -2260,6 +2261,8 @@ my ($l,$m);
       $ValCom[$tno]='';
       if(index('$@%&*', $s) >= 0 && substr($source,1,1) eq '{' &&
          length($source) >= 4 &&
+         ($ExtractingTokensFromDoubleQuotedStringEnd == 0 ||                # issue s114
+          $ExtractingTokensFromDoubleQuotedStringAdjustBrackets != 0) &&    # issue s114
          index('$@%&*"\'', substr($source,2,1)) < 0) {     # issue 43 - Look for ${...} and delete the brackets
          #-> THIS BREAKS issue 43:  !exists $SPECIAL_VAR{substr($source,2,1)}) {     # issue 43 - Look for ${...} and delete the brackets
                                                         # Don't do this on @{$...}, ${"..."}, etc
@@ -3743,9 +3746,11 @@ my $original;
            $ValClass[$tno] = '"';
            if(defined $source) {
                 my $quote=substr($source,0,$ExtractingTokensFromDoubleQuotedStringEnd);
+                my $p_tno = $tno;                                           # issue s114
                 $cut = extract_tokens_from_double_quoted_string($quote, 0);
                 $ExtractingTokensFromDoubleQuotedStringEnd -= $cut;
-                if($ExtractingTokensFromDoubleQuotedStringEnd <= 0 && $cut != 0) {
+                if($ExtractingTokensFromDoubleQuotedStringEnd <= 0 && $cut != 0 && 
+                    $p_tno == $tno) {                                       # issue s114
                     $tno--;
                     $cut = length($source) if $cut > length($source);   # Don't cut past the end
                     say STDERR "finish2: recursing" if($::debug>=5);
@@ -3754,6 +3759,11 @@ my $original;
                     say STDERR "finish2: source=$source, cut=$cut" if($::debug>=5);
                     substr($source,0,$cut)='';
                     say STDERR "finish2: source=$source (after cut)" if($::debug>=5);
+                    if($p_tno != $tno && $ValClass[$tno-1] ne '"' && $ExtractingTokensFromDoubleQuotedStringEnd <= 0) { # issue s114
+                        $cut = extract_tokens_from_double_quoted_string('', 0);             # issue s114
+                        substr($source,0,$cut)='';                                          # issue s114
+                        say STDERR "finish3: source=$source (after cut)" if($::debug>=5);   # issue s114
+                    }                                                                       # issue s114
                 }
                 say STDERR "finish2: ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd (after cut)" if($::debug>=5);
             } else {
@@ -5141,7 +5151,8 @@ sub extract_tokens_from_double_quoted_string
                 # issue test coverage substr($quote,$end_br,1) = '';
                 $ExtractingTokensFromDoubleQuotedStringAdjustBrackets = 1;      # issue test coverage
             } else {
-                $adjust = 0;
+                # issue s114 $adjust = 0;
+                $adjust = 1;            # issue s114: Account for the '{' we ate
                 $quote = '$'.substr($quote,2);		# issue 43: eat the '{'. At this point, $end_br points after the '}'
             }
         }
@@ -5190,11 +5201,20 @@ sub extract_tokens_from_double_quoted_string
         if($end_br != -1) {
             #$cut++;                     # Point past the extra '}'
             $ExtractingTokensFromDoubleQuotedTokensEnd = $cut-2;
+            $ExtractingTokensFromDoubleQuotedTokensEnd = $cut if $ExtractingTokensFromDoubleQuotedStringAdjustBrackets == 0;    # issue s114
             $cut = $end_br;
         } else {
             $ExtractingTokensFromDoubleQuotedTokensEnd = $cut;
         }
         $ExtractingTokensFromDoubleQuotedStringEnd = length($quote) + $adjust;
+        if($end_br != -1) {         # issue s114
+            $pos = $ExtractingTokensFromDoubleQuotedTokensEnd+2;    # issue s114: point past the '}'
+            $ExtractingTokensFromDoubleQuotedTokensEnd = -1;        # issue s114
+            if( $::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0 ){
+                say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
+            }
+            $tno++;
+        }                                                           # issue s114
         say STDERR " ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd" if($::debug>=5);
         say STDERR "<extract_tokens_from_double_quoted_string($quote) end=$cut, result=$pos" if($::debug>=3);
         return $pos;
@@ -7012,13 +7032,17 @@ sub replace_run                       # issue s87
     if(index($py, '://') >= 0) {        # Don't do this to URLs
         return $py;
     }
-    if($ValClass[0] eq 'k' && $ValPerl[0] eq 'require') {       # Don't do this on require statements
+    if($ValClass[0] eq 'k' && $ValPerl[0] eq 'require') {       # Don't do this on require statements because we need to import the perl code at translation time, and the extension is ignored in perllib.import_
         return $py;
     }
+    if($py eq "'.pl'") {        # issue s112
+        return $py;             # issue s112
+    }                           # issue s112
 
     my $term = "'";
     # if($py =~ m(^(f?(?:'''|"""|'|")(?:[A-Za-z]:)?)((?:(?:[\\/])?[A-Za-z0-9_.-]*)*)[.]pl\b(.*)$)) {
-    if($py =~ m(^(f?(?:'''|"""|'|")(?:[A-Za-z]:)?)((?:(?:[\\/])?(?:[{][^}]+[}])*|[A-Za-z0-9_.-]*)*)[.]pl\b(.*)$)) {
+    # issue bootstrapping if($py =~ m(^(f?(?:'''|"""|'|")(?:[A-Za-z]:)?)((?:(?:[\\/])?(?:[{][^}]+[}])*|[A-Za-z0-9_.-]*)*)[.]pl\b(.*)$)) {
+    if($py =~ m(^(f?(?:'''|""\"|'|")(?:[A-Za-z]:)?)((?:{[^}]+}|[A-Za-z0-9_\\/.-])*)\.pl\b(.*)$)) {   # issue bootstrapping
         my $prefix = $1;
         my $path = $2;
         my $rest = $3;
@@ -7045,6 +7069,7 @@ sub escape_re_sub               # SNOOPYJC
             my $ch2 = substr($str, $i+1, 1);
             if($ch2 eq '' || index("abfntrg0\\", $ch2) >= 0) {
                $result .= $ch;
+               $result .= "\\" if(index("abfntr", $ch2) >= 0 && $delim eq "'");       # issue s115
             } elsif(index('xNuU', $ch2) >= 0 || $delim eq "'") {
                $result .= $ch;
                $result .= "\\";
@@ -7599,6 +7624,16 @@ sub looks_like_anon_hash_def            # issue test coverage: Handle {k=>'v'}
     return 1 if($source =~ /\{\s*'\w+'\s*=>/);
     return 1 if($source =~ /\{\s*q.\w+.\s*=>/);
     return 1 if($source =~ /\{\s*qq.\w+.\s*=>/);
+    return 0;
+}
+
+sub template_var                    # issue s76: Is this perl name being currently used as a function template variable?
+{
+    return 0 if scalar(@nesting_stack) == 0;
+    my $top = $nesting_stack[-1];
+    return 0 if !exists $top->{function_template};
+    my $perl_name = shift;
+    return 1 if $perl_name eq $top->{function_template};
     return 0;
 }
 

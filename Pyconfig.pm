@@ -388,6 +388,7 @@ our %PREDEFINED_PACKAGES = (
 				   {perl=>'splitdir', type=>'S:a of S'},	# issue s51
 				   {perl=>'curdir', type=>':S'},	# issue s51
 				   {perl=>'updir', type=>':S'},		# issue s51
+				   {perl=>'tmpdir', type=>':S', python=>'tempfile.gettempdir'},	# issue 133 bootstrap
 			   	  ],
         'File::Spec::Functions'=> [{perl=>'file_name_is_absolute', type=>'S:I', python=>'os.path.isabs'},
 				   {perl=>'catfile', type=>'a:S', python=>'os.path.join'},
@@ -397,6 +398,7 @@ our %PREDEFINED_PACKAGES = (
 				   {perl=>'splitdir', type=>'S:a of S'},	# issue s51
 				   {perl=>'curdir', type=>':S'},	# issue s51
 				   {perl=>'updir', type=>':S'},		# issue s51
+				   {perl=>'tmpdir', type=>':S', python=>'tempfile.gettempdir'},	# issue 133 bootstrap
 			   	  ],
 	'Data::Dumper'=> [{perl=>'Dumper', type=>'m:S'}],
 	'Text::Balanced'=> [{perl=>'extract_bracketed', type=>'SS?S?:a', scalar=>'_extract_bracketed_s', scalar_type=>'SS?S?:S', scalar_out_parameter=>1}],	# First parameter to scalar version is "out" parameter

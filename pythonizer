@@ -211,6 +211,7 @@
 # 0.992  2022/09/24  SNOOPYJC issue s105: newline at end of filename gets stripped by perl, issue s106: undefined variable on local foreach loop counters
 # 0.993  2022/09/26  SNOOPYJC issue s107: error referencing missing hash of hashes in a string
 # 0.994  2022/09/29  SNOOPYJC issue s94: unlink or die generates incorrect code, issue s108: for(each) variable is local to the loop and the value should revert back after the loop even if foreach statement is on multiple lines, issue s109: Subref dereference generates syntax error code, issue s110: Scope of 'my' should not be extended below for/while loop
+# 1.001  2022/10/01  SNOOPYJC issue s76: function templates don't work properly, issue s111: for loop that counts down to 1 is not translated correctly, issue s112: string containing only '.pl' should not be changed to '.py', issue 133 bootstrap: add tmpdir function, issue s113: invalid code generated for some OO function calls, issue s114: improper interpretation of interpolated string leads to bad code in next sub, issue s115: regex substitution of literal escape chars interprets them instead
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -262,7 +263,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='0.994';
+   $VERSION='1.001';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -768,6 +769,11 @@ my ($start,$token_buffer_active);
              &Perlscan::set_continue_needed_try_block(1, 0);    # issue s49
              gen_implicit_continue();
          }
+         if(exists $Perlscan::nesting_last->{function_template}) {              # issue s76
+             correct_nest(-1,-1);                                               # issue s76
+             gen_chunk('return', $Perlscan::nesting_last->{cur_sub} . "template");      # issue s76
+             gen_statement();                                                   # issue s76
+         }                                                                      # issue s76
          correct_nest(-1); # next line will be de-indented
          if( $we_are_in_sub_body  && $Pythonizer::NextNest ==0  ){
             correct_nest(0,0);
@@ -858,6 +864,14 @@ my ($start,$token_buffer_active);
          gen_statement();
          $LocalSub{$ValPy[1]} = 1;
          $nested_sub_at_level = $Perlscan::nesting_level;
+         $top = $Perlscan::nesting_stack[-1];                        # issue s76
+         if(exists $top->{function_template}) {                      # issue s76
+            correct_nest(1,1);
+            gen_chunk('def',$ValPy[1].'template',"(\*$PERL_ARG_ARRAY):"); # def nametemplate (regular list of arguments)
+            gen_statement();
+            $LocalSub{$ValPy[1].'template'} = 1;
+            $nested_sub_at_level = $Perlscan::nesting_level;
+         }
          say STDERR "Generating $ValPy[1], nested_sub_at_level=$nested_sub_at_level" if($debug>=3);
          if(exists $SubAttributes{$ValPy[1]}{modifies_arglist}) {     # issue s84
             # This sub uses a shift or pop of the arguments, so we have to copy it
@@ -2478,6 +2492,13 @@ sub fix_type_issues
             next;
         } else {
             next;
+        }
+        # issue s113: If this is an OO call, then include that as part of the expression
+        if($k+1 < $#ValClass && $ValClass[$k+1] eq 'D') {               # issue s113
+            $k += 2;
+            if($k+1 < $#ValClass && $ValClass[$k+1] eq '(') {
+                $k = matching_br($k+1);
+            }
         }
         $adjust = insert_converter($start, $limit, $i, $k, $type);
         $total_adjust += $adjust;
@@ -4885,8 +4906,10 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
       # issue parens if ($ValClass[$start+2] eq ';'){
       # issue parens gen_chunk($ValPy[$start+3],' in range(',$ValPy[$start+3]);
       # issue parens $end_pos=$start+2;
+      my $loop_ctr;                             # issue s111
       if ($ValClass[$start+1] eq ';'){		# issue parens
-         my $loop_ctr = $ValPy[$start+2];       # issue for: Handle converter
+         # issue s111 my $loop_ctr = $ValPy[$start+2];       # issue for: Handle converter
+         $loop_ctr = $ValPy[$start+2];       # issue for: Handle converter, issue s111
          if($ValClass[$start+2] eq 'f' && ($loop_ctr eq $CONVERTER_MAP{N} || $loop_ctr eq $CONVERTER_MAP{I})) {
              $ValPy[$start+2] = $CONVERTER_MAP{I};      # Switch it to an integer converter for loop counter
              $loop_ctr = $ValPy[$start+4];
@@ -4899,6 +4922,7 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
          $end_pos=$condition;		# issue for, issue parens
       }else{
 	 # issue parens gen_chunk($ValPy[$start+2]); # index var
+         $loop_ctr = $ValPy[$start+1];                  # issue s111
          gen_chunk($ValPy[$start+1]); # index var
          gen_chunk('in range(');
          $start=index($TokenStr,'=',$start); # find initialization. BTW it can be expression
@@ -4920,13 +4944,19 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
       # Analize loop exit condition
       #
       $start=index($TokenStr,'>',$end_pos); # fron last ;
-      if( $start == -1 ){$TrStatus=-1; return -255; }
+      # issue s111 if( $start == -1 ){$TrStatus=-1; return -255; }
       $inc = '';			# issue foreach
-      if($ValPerl[$start] eq '<=') {	# issue foreach
-         $inc = '+1';			# issue foreach
-      }elsif($ValPerl[$start] eq '>=') { # issue foreach
-         $inc = '-1';			# issue foreach
-      }					# issue foreach
+      if($start == -1 && $ValClass[$end_pos+1] eq 's' && $ValPy[$end_pos+1] eq $loop_ctr) {     # issue s111
+          # This is the case of for($loop_ctr=...; $loop_ctr; ...)
+          $start = $end_pos;                            # issue s111
+          replace($start+1,'d','0','0');                # issue s111
+      } else {
+        if($ValPerl[$start] eq '<=') {	# issue foreach
+            $inc = '+1';			# issue foreach
+        }elsif($ValPerl[$start] eq '>=') { # issue foreach
+            $inc = '-1';			# issue foreach
+        }					# issue foreach
+      }
       $start++;
       # find end of loopexit condition
       $end_pos=next_same_level_token(';',$start,$limit);
@@ -6673,6 +6703,10 @@ sub need_splat          # SNOOPYJC: Does this function/sub arg need a '*' before
         #$Perlscan::SPECIAL_FUNCTION_MAPPINGS{$ValPerl[$k]}{scalar} eq $ValPy[$k]) {
         #return 0;
         #}
+        # issue s113: If this function is part of an OO construct, like stat(...)->mtime, then don't splat it!
+        my $eof = end_of_function($k);                                          # issue s113
+        #say STDERR "=|$TokenStr|= k=$k, eof=$eof, @ValPy";      # TEMP
+        return 0 if $eof > $k && $eof < $#ValClass && $ValClass[$eof+1] eq 'D';   # issue s113
         return 1;
     } elsif($ValClass[$k] eq 's') {     # $val =~ /regex/ is in list context
         $k = end_of_variable($k);
@@ -8881,13 +8915,34 @@ sub handle_anonymous_sub_in_expression
 {
     # issue s26 my $subname = "$ANONYMOUS_SUB$.";
     my $subname = new_anonymous_sub();     # issue s26
-    $nested_subs{$subname} = "\*$PERL_ARG_ARRAY";
+    # issue s76: if this is a function template, then generate an outer def with one argument being
+    # the template variable, and remove the "global" declaration for that variable, then declare an inner
+    # def with the normal arguments, and the template variable defined as nonlocal, and add a "return" 
+    # statement to return this inner def.  Then replace the reference to this sub, with a call of the sub, 
+    # passing the template variable as an argument.
+    # A function template is defined as *$template_var = sub {...}   (is this right???)
+    # The tokens of a function template look like *(s)=k, and ValPy = main.__dict__ [ tag ] = def
+    # (DELETE THIS COMMENT WHEN DONE: see issue_s76a and test_function_templates_a as a reference)
+    $top = $Perlscan::nesting_stack[-1];                        # issue s76
+    if($TokenStr eq '*(s)=k') {                                 # issue s76
+        say STDERR "Potential function template with $ValPerl[2] detected!" if($debug);         # issue s76
+        $nested_subs{$subname} = $ValPy[2];                     # issue s76
+        $top->{function_template} = $ValPerl[2];                # issue s76
+    } else {                                                    # issue s76
+        $nested_subs{$subname} = "\*$PERL_ARG_ARRAY";
+    }
     $saved_sub_tokens = package_tokens();
     p_replace($saved_sub_tokens, $#ValClass,'"',$subname,$subname);     # Change the 'sub' to the subname reference
+    if(exists $top->{function_template}) {                      # issue s76
+        # Make this a call with one argument - our template variable
+        p_append($saved_sub_tokens, '(','(','(');                                    # issue s76
+        p_append($saved_sub_tokens, 's', $top->{function_template}, $nested_subs{$subname}); # issue s76
+        p_append($saved_sub_tokens, ')',')',')');                                    # issue s76
+    }                                                           # issue s76
     destroy(0, $#ValClass);
     append('i', $subname, $subname);
     # Since we already processed the '{' after the 'sub', adjust the nesting_info at the top of the stack
-    $top = $Perlscan::nesting_stack[-1];
+    # issue s76 $top = $Perlscan::nesting_stack[-1];
     $top->{is_sub} = 1;
     $top->{in_sub} = 1;
     $top->{cur_sub} = $subname;

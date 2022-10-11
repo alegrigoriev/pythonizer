@@ -19,7 +19,7 @@ setup(
     author_email='snoopyjc@gmail.com',
     python_requires='>=3.8',
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: Artistic License',
         'Natural Language :: English',
@@ -39,6 +39,6 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/snoopyjc/pythonizer',
-    version='0.994',
+    version='1.001',
     zip_safe=False,
 )
