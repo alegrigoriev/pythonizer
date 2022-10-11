@@ -2,6 +2,7 @@ use Carp::Assert;
 $year = '2021';
 $month = '11';
 $day = '15';
+assert($day eq "$day");	# comment
 $tmdate = "${year}_${month}_${day}";	# Not bare keys!
 assert($tmdate eq "2021_11_15");
 @arr = ('a', 'b', 'c');

@@ -87,7 +87,7 @@ my $script_delta=1;
          if( $script_delta ){
 	    # issue 133 chomp($script_timestamp=`date -r $archive_dir/$script_name +"%y%m%d_%H%M"`);
 	    # issue 133 `mv $archive_dir/$script_name $archive_dir/$script_name.$script_timestamp`;
-            $script_timestamp=strftime("%y%m%d_%H%M", localtime stat($archive_dir/$script_name)->mtime);	# issue 133
+            $script_timestamp=strftime("%y%m%d_%H%M", localtime stat("$archive_dir/$script_name")->mtime);	# issue 133
             rename catfile($archive_dir,$script_name), catfile($archive_dir,$script_name.$script_timestamp);	# issue 133
 
          }

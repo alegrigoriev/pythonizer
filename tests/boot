@@ -114,6 +114,45 @@ if [ "$mflag" != "-m" ]; then
 fi
 
 echo
+echo "Generating subdir files"
+for f in subdir/*.pl
+do
+	if [ $ctrlc -eq 1 ]; then
+	   break
+	fi
+	echo "==================== $f ====================" >run1.log
+	pypy -OOO ../../bootstrap/main.py -v0 $flags $f >>run1.log 2>&1
+	if [ $? -ne 0 ]; then
+	   echo "$f run with pythonizer FAILED" >>run1.log
+	   ((failed++))
+	   status=1
+	   rd
+	   cat run1.log >>run.log
+	   rm -f run1.log
+	   continue
+	fi
+	pyf=${f%.pl}.py
+	python -m py_compile "$pyf" >>run1.log 2>&1
+	if [ $? -ne 0 ]; then
+	   echo "$pyf compile with python FAILED" >>run1.log
+	   ((failed++))
+	   status=1
+	   rd
+	   cat run1.log >>run.log
+	   rm -f run1.log
+	   continue
+	fi
+	cp $pyf $pyf.good
+	gd
+	lines=`cat run1.log | wc -l`
+	if [ $lines -gt 1 ]; then
+	    cat run1.log >>warn.log
+	fi
+	rm run1.log
+	((passed++))
+done;
+
+echo
 echo "Running pythonizer tests"
 for f in *.pl;
 do
