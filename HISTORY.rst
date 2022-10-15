@@ -2,6 +2,11 @@
 History
 =======
 
+1.002 (2022-10-11)
+------------------
+
+* issue s119: Sparse extraction from array doesn't give proper results
+
 1.001 (2022-10-01)
 ------------------
 

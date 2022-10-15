@@ -543,7 +543,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
 		      ((($ValPerl[$k] eq 'chomp' || $ValPerl[$k] eq 'chop' || $ValPerl[$k] eq 'eval' || $ValPerl[$k] eq 'split' || 
 			 $ValPerl[$k] eq 'defined' || $ValPerl[$k] eq 'mkdir' || $ValPerl[$k] eq 'ord' || $ValPerl[$k] eq 'chr' ||
 		 	 $ValPerl[$k] eq 'quotemeta' || $ValPerl[$k] eq 'oct' || $ValPerl[$k] eq 'hex' || $ValPerl[$k] eq 'require' ||
-		 	 $ValPerl[$k] eq 'stat' || $ValPerl[$k] eq 'lstat' || $ValPerl[$k] eq 'reverse') && $#ValClass == $k) ||
+		 	 $ValPerl[$k] eq 'stat' || $ValPerl[$k] eq 'lstat' || $ValPerl[$k] eq 'reverse') && $#ValClass == $k || end_of_function($k) == $k) ||
 			($ValPerl[$k] eq 'split' && $#ValClass == $k+1) ||
 			(($ValPerl[$k] eq 'print' || $ValPerl[$k] eq 'printf') && ($#ValClass == $k || ($#ValClass == $k+1 && $ValClass[$k+1] eq 'i'))))) {	# issue s103
 		my $t = 'S';					        # issue s104
@@ -805,6 +805,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
            print STDERR "line_no_convert_regex = ";
            say STDERR Dumper(\%Pass0::line_no_convert_regex);
        }
+       print STDERR "sub_lines_contain_potential_last_expression = ";	# issue implicit conditional return
+       say STDERR Dumper(\%Perlscan::sub_lines_contain_potential_last_expression); # issue implicit conditional return
 =pod    # issue s4 - we don't do this any more
        if(\%UseRequireVars) {
            print STDERR "UseRequireVars = ";
@@ -1504,6 +1506,7 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
         say STDERR "merge_types($name, $CurSub, $type)";
     }
 
+    my $new_type = $type;		# issue s116
     if(!defined $type) {
         $type = 's';
     }
@@ -1517,12 +1520,15 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
     if($::debug >= 3) {
         say STDERR "merge_types: otype=$otype";
     }
-    if($otype eq 's') {         # scalar - treat like we have no info yet
-        return $type;
-    }
-    if($type eq 's') {
-        return $otype;
-    }
+    # issue s116 if($otype eq 's') {         # scalar - treat like we have no info yet
+    # issue s116 return $type;
+    # issue s116 }
+    # issue s116 if($type eq 's') {
+    # issue s116 return $otype;
+    # issue s116 }
+    if(!defined $new_type) {		# issue s116
+        return $otype;			# issue s116
+    }					# issue s116
     return $type if($type eq $otype);   # Same type
     if(($otype eq 'a' || $otype eq 'h') && $type =~ /$otype of/) {
         return $otype;           # we have more specific info - must stick to the less specific
@@ -1555,11 +1561,14 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
     } elsif($type =~ /[ah] of/) {
         return 'm';                 # mixed type
     } elsif(($otype eq 's') && ($type =~ /[NIFSH]/)) {        # more specific type
-        return $type;
+        # issue s116 return $type;
+        return $otype;		# issue s116: less specific type wins
     } elsif($otype eq 'N' && ($type =~ /[IF]/)) {   # Numeric -> Int or Float
-        return $type;
+        # issue s116 return $type;
+        return $otype;		# issue s116
     } elsif($type eq 'N' && ($otype =~ /[IF]/)) {   # Numeric -> Int or Float
-        return $otype;
+        # issue s116 return $otype;
+        return $type;		# issue s116
     } elsif(($type =~ /[IF]/) && ($otype =~ /[IF]/)) {  # int vs float
         return 'F';             # Float wins
     } elsif($type eq 's') {
@@ -2850,7 +2859,7 @@ sub correct_nest
 #     NOTE: Special case -- if 0,0 is passed both set to zero
 # Each argument checked against the min and max threholds befor processing. If the threshold exceeded the operation ignored.
 {
-    say STDERR "correct_nest(@_)" if($::debug >= 5);
+    say STDERR "correct_nest(@_)" if($::debug >= 5 && $PassNo != PASS_0);
 my $delta;
    if(  scalar(@_)==0 ){
       # if no arguments given  set NextNest equal to CurNest
@@ -3275,6 +3284,8 @@ sub cleanup_imports
     my %global_lnos = ();
     my %referenced_globals = ();
     my $import_as_referenced = 0;
+    my $_bn_lno = 0;			# issue s117
+    my $_bn_referenced = 0;		# issue s117
     my $_str_lno = 0;
     my $_str_referenced = 0;
     my $die_referenced = 0;
@@ -3311,6 +3322,8 @@ sub cleanup_imports
             $loop_control_def_lno = $lno;
         } elsif($line =~ /^class $EVAL_RETURN_EXCEPTION\(/) {
             $eval_return_lno = $lno;
+        } elsif($line =~ /^_bn = lambda/) {		# issue s117
+            $_bn_lno = $lno;				# issue s117
         } elsif($line =~ /^_str = lambda/) {
             $_str_lno = $lno;
         } elsif((@gl = grep { $line =~ /^$_ = / } @globals)) {
@@ -3338,6 +3351,9 @@ sub cleanup_imports
                 #} elsif($line =~ /\bLIST_SEPARATOR\b/) {
                 #$list_sep_referenced = 1;
             }
+            if($line =~ /\b_bn\b/) {	# issue s117
+                $_bn_referenced = 1;	# issue s117
+            }				# issue s117
             if($line =~ /\b_str\b/) {
                 $_str_referenced = 1;
             }
@@ -3374,6 +3390,9 @@ sub cleanup_imports
                 $line_ref->[$die_def_lno+3] = '^';    #     _cluck()
             }
         }
+        if($_bn_lno && !$_bn_referenced) {		# issue s117
+            $line_ref->[$_bn_lno-1] = '^';		# issue s117
+        }						# issue s117
         if($_str_lno && !$_str_referenced) {
             $line_ref->[$_str_lno-1] = '^';
         }

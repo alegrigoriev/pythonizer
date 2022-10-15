@@ -212,6 +212,7 @@
 # 0.993  2022/09/26  SNOOPYJC issue s107: error referencing missing hash of hashes in a string
 # 0.994  2022/09/29  SNOOPYJC issue s94: unlink or die generates incorrect code, issue s108: for(each) variable is local to the loop and the value should revert back after the loop even if foreach statement is on multiple lines, issue s109: Subref dereference generates syntax error code, issue s110: Scope of 'my' should not be extended below for/while loop
 # 1.001  2022/10/01  SNOOPYJC issue s76: function templates don't work properly, issue s111: for loop that counts down to 1 is not translated correctly, issue s112: string containing only '.pl' should not be changed to '.py', issue 133 bootstrap: add tmpdir function, issue s113: invalid code generated for some OO function calls, issue s114: improper interpretation of interpolated string leads to bad code in next sub, issue s115: regex substitution of literal escape chars interprets them instead
+# 1.002  2022/10/11  SNOOPYJC issue s78: sort with complex {...} doesn't work properly, issue s118: Split of the result of a command execution never runs the command, issue s116: Regex substitution raises exception on undef arg, issue s117: Referencing an undefined variable in an interpolated string should give an empty string, not 'None', issue s119: Sparse extraction from array doesn't give proper results
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -263,7 +264,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='1.001';
+   $VERSION='1.002';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -401,6 +402,7 @@ BEGIN {                                                 # SNOOPYJC
    # NOTE: This import line gets rewritten in Pythonizer.pm!
    my @headers = ("import sys,os,re,fcntl,math,fileinput,subprocess,collections.abc,argparse,glob,warnings,inspect,functools,itertools,signal,traceback,io,tempfile,atexit,calendar,types,pdb,random,stat,dataclasses,builtins,codecs,struct,$PERLLIB,copy,getopt",
 	   'import time as tm_py',                              # SNOOPYJC
+           "_bn = lambda s: '' if s is None else s",        # issue s117
            "_str = lambda s: '' if s is None else str(s)",      # SNOOPYJC
                  );
    foreach my $g (keys %GLOBALS) {              # SNOOPYJC
@@ -509,6 +511,17 @@ my ($start,$token_buffer_active);
    $deferred_statement=0;               # issue 58
    $deferred_statement_nesting=0;       # issue 58
    @DeferredValClass=@DeferredValCom=@DeferredValPerl=@DeferredValPy=@DeferredValType=();        # issue 58
+   my %line_needs_added_return = ();	# issue implicit conditional return
+   foreach my $cs ( keys %Perlscan::sub_lines_contain_potential_last_expression ) {	# issue implicit conditional return
+       my $lnos = $Perlscan::sub_lines_contain_potential_last_expression{$cs};
+       foreach my $lno ( split/,/, $lnos ) {
+           $line_needs_added_return{$lno} = 1;
+       }
+   }
+   if($debug >= 5) {						# issue implicit conditional return
+       print STDERR "line_needs_added_return = ";
+       say STDERR Dumper(\%line_needs_added_return);
+   }
    &Perlscan::initialize();             # issue 94
 
    while( defined($line) || scalar(@Perlscan::BufferValClass)>0 || $saved_eval_tokens || $split_multiple_assignment){ # issue 42, isue 115
@@ -3035,6 +3048,7 @@ sub finish
     my $prev_lno = $.;                                          # issue bootstrap
     my $prev_line = $line;                                      # issue 45
     my $orig_prev_line = $prev_line;
+    $prev_line = '' unless defined $prev_line;                  # issue s79
     $line=getline(0) if($deferred_statement < 2 && !defined $split_multiple_assignment); # get new line # issue 58, issue 45, issue 115
     #say STDERR "finish $CurSub generated_code=$generated_code, line=(($line)), prev_line=(($prev_line)), ValPerl=@ValPerl, CurNest=$Pythonizer::CurNest";
     #say STDERR "finish nested_sub_at_level=$nested_sub_at_level, nesting_level=$Perlscan::nesting_level";
@@ -3043,11 +3057,13 @@ sub finish
     if(($CurSub ne '__main__' || scalar(@eval_stack) != 0 || $nested_sub_at_level > 0) && # issue 42, issue 41, issue 78
         defined $line &&                                        # issue 42
         ($line eq '}' || $line =~ m'^}\s*#' || $line eq '};' ||
+        exists $line_needs_added_return{$Perlscan::statement_starting_lno} || # issue implicit conditional return
         (substr($line,0,1) eq '}' && &Perlscan::could_be_anonymous_sub_close()) ||      # issue s26
          $line =~ m'^\s*}\s*$' || $line =~ m'^\s*};\s*$' ||     # SNOOPYJC
          $line =~ m'^\s*};\s*#') &&                                # issue 42
         #$ValPerl[0] ne 'return' && $Pythonizer::CurNest==1) {      # issue 45
         $ValPerl[0] ne 'return' && ($Perlscan::nesting_level==1 ||  # issue 45, SNOOPYJC: Handle sub with try block
+	    exists $line_needs_added_return{$Perlscan::statement_starting_lno} || # issue implicit conditional return
         $Pythonizer::CurNest == $eval_nest+1 ||             # issue s13
         $Perlscan::nesting_level == $nested_sub_at_level)) {    # issue 78
         if($debug >= 5) {                                       # issue 45
@@ -3088,13 +3104,22 @@ sub finish
                 chop $prev_line; chop $prev_line;
                 $last_c = substr($prev_line,-1,1);
             }
+	        if($comment eq '' && ($line ne $orig_prev_line || $prev_lno != $.) && 
+	           exists $line_needs_added_return{$Perlscan::statement_starting_lno}) {	# issue implicit conditional return
+	            say STDERR "finish: calling getline($line) due to line_needs_added_return on line $Perlscan::statement_starting_lno" if($::debug >= 5);
+	            getline($line);					# issue implicit conditional return
+	        } else {						# issue implicit conditional return
+	            say STDERR "finish: calling getline(}".$comment.")" if($::debug >= 5);
+                getline('}'.$comment);                              # issue 45, SNOOPYJC, issue implicit conditional return
+	        }
+
             if($last_c eq ';') {                                # issue 45
                 $line = "return ".$prev_line;                   # issue 45
             } else {                                            # issue 45
                 $line = "return ".$prev_line.';';               # issue 45
             }                                                   # issue 45
             $reparse_with_return = 1;
-            getline('}'.$comment);                              # issue 45, SNOOPYJC
+	    # issue implicit conditional return getline('}'.$comment);                              # issue 45, SNOOPYJC
         } elsif($ValClass[0] eq 'f' || ($ValClass[0] eq 'i' && $LocalSub{$ValPy[0]}) ||         # issue 45
                 ok_to_insert_return()) {                          # issue s3
             # In this case, we generated the code for a function or local sub call - sneak the 'return' in just before it
@@ -3108,9 +3133,11 @@ sub finish
                }                                                # issue 45
             }                                                   # issue s89
             # issue s89 } elsif($ValPerl[0] eq 'undef' && $#ValClass >= 1) { # issue 45: "undef $var;" generates an assignment statement, so handle like that
+            my $rp;                     # issue s79
             if($ValPerl[0] eq 'undef' && $#ValClass >= 1) { # issue 45: "undef $var;" generates an assignment statement, so handle like that, issue s89
-                my $p = index($prev_line,'=');                      # issue 45
-                $line = "return ".substr($prev_line, 0, $p);    # issue 45
+                # issue anon_sub my $p = index($prev_line,'=');                      # issue 45
+                # issue anon_sub $line = "return ".substr($prev_line, 0, $p);    # issue 45
+                $line = "return undef";                         # issue anon_sub
                 $line .=';';                                    # issue 45
                 $reparse_with_return = 1;
                 getline('}'.$comment);                          # issue 45, SNOOPYJC
@@ -3121,6 +3148,19 @@ sub finish
                     $reparse_with_return = 1;
                     getline('}'.$comment);
                 }
+                $return = undef;
+            } elsif($ValPerl[0] eq '_str' && $ValClass[1] eq '(' && ($rp = matching_br(1)+1) <= $#ValClass && $ValClass[$rp] eq '~') { # issue s79
+                my $p = index($prev_line, '=');
+                if($p > 0) {
+                    $line = "return ".substr($prev_line, 0, $p);    # issue 45
+                    $reparse_with_return = 1;
+                    getline('}'.$comment);
+                }
+                $return = undef;                                # issue 45
+            } elsif($ValPerl[0] eq 're') {                  # issue s79
+                $line = 'return $_;';
+                $reparse_with_return = 1;
+                getline('}'.$comment);
                 $return = undef;
             } elsif($Perlscan::PythonCode[0] =~ /^(?:(?:raise )|(?:return ))/) {    # issue 45 
                 $return = undef;                                # issue 45
@@ -3133,6 +3173,7 @@ sub finish
             }                                                   # issue 45
             unshift @Perlscan::PythonCode,$return if($return);  # issue 45
         } elsif($ValClass[0] !~ /[cCk]/ && index($TokenStr,'=') > 0) {               # issue 45
+            my $new_line = $line;                               # issue implicit conditional return
             $prev_line =~ s/^\s*my\s+//;                        # issue 45
             $prev_line =~ s/^\s*own\s+//;                       # issue 45
             $prev_line =~ s/[+*\/\|\&.-]=/=/;                   # issue 45: Remove + from +=, etc
@@ -3169,13 +3210,21 @@ sub finish
             }                                                   # issue 45
             $line .=';';                                        # issue 45
             $reparse_with_return = 1;
-            getline('}'.$comment);                              # issue 45, SNOOPYJC
+	        if($comment eq '' && ($new_line ne $orig_prev_line || $prev_lno != $.) && 
+	           exists $line_needs_added_return{$Perlscan::statement_starting_lno}) {	# issue implicit conditional return
+	            say STDERR "finish: calling getline($new_line) due to line_needs_added_return on line $Perlscan::statement_starting_lno" if($::debug >= 5);
+	            getline($new_line);					# issue implicit conditional return
+	        } else {						# issue implicit conditional return
+	            say STDERR "finish: calling getline(}".$comment.")" if($::debug >= 5);
+                getline('}'.$comment);                              # issue 45, SNOOPYJC, issue implicit conditional return
+	        }
         }                                                       # issue 45
         if($debug >= 5) {                                       # issue 45
             say STDERR "finish: Resetting line to $line";       # issue 45
         }                                                       # issue 45
     }                                                           # issue 45
     if($reparse_with_return) {
+	delete $line_needs_added_return{$Perlscan::statement_starting_lno};	# issue implicit conditional return: only do this once!
         $TrStatus = 0;
 	&Perlscan::clone_line_varclasses();			# issue s102
     } else {
@@ -4358,10 +4407,18 @@ my($start,$k,$split,$limit)=@_;         # issue 106
                 }
             }
             if( substr($ValPy[$split+1],0,1) eq '.' ){
-               gen_chunk($ValPy[$split-1].$ValPy[$split+1]); # a=a.find(string)
+               if(is_string($split-1)) {          # issue s116
+                   gen_chunk($ValPy[$split-1].$ValPy[$split+1]); # a=a.find(string)
+               } else {                            # issue s116
+                   gen_chunk('_str(', $ValPy[$split-1], ')', $ValPy[$split+1]); # a=a.find(string)
+               }
             }else{
 	       # issue 11 gen_chunk("$ValPy[$split+1]$ValPy[$split-1])"); # a=re.sub(rexex,replacement,variable)
-               gen_chunk("$ValPy[$split+1]$ValPy[$split-1],$flags)"); # a=re.sub(rexex,replacement,variable,count=N)	# issue 11
+               if(is_string($split-1)) {          # issue s116
+                  gen_chunk("$ValPy[$split+1]$ValPy[$split-1],$flags)"); # a=re.sub(rexex,replacement,variable,count=N)	# issue 11
+               } else {
+                  gen_chunk("$ValPy[$split+1]_str($ValPy[$split-1]),$flags)"); # a=re.sub(rexex,replacement,_str(variable),count=N)	# issue 11
+               }
             }
           }elsif(($eq = next_same_level_token('=', $start, $split-1)) != -1 || (!$eq_ok && end_of_variable($start)+1 == $split)) {     # Case 2
               # 2. $cnt = $var =~ s/a/b/
@@ -4565,7 +4622,8 @@ sub list_or_scalar_context
     my $at = arg_type_from_pos($start);
     if(defined $at) {
         return 1 if($at eq 'a');
-        return 0 if($at =~ /[sIFNm]/);
+        # issue s118 return 0 if($at =~ /[sIFNmS]/);
+        return 0 if($at =~ /[sIFNmS]/);             # issue s118: add 'S'
     }
     return 1 if(in_sub_call($start));
 
@@ -5522,7 +5580,10 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
                 $add_paren = 1;                 # issue s52
                 gen_chunk("len($arg2.split($arg1");	# issue s52
             } else {
-                gen_chunk("$arg2.split($arg1");	# issue 21
+                # issue s118: Split of the result of a command execution never runs the command
+                expression($end_pos,$end_pos,0);         # issue s118
+                gen_chunk(".split($arg1");	    # issue 21, issue s118
+                # issue s118 gen_chunk("$arg2.split($arg1");	# issue 21
             }
          }else{
             gen_chunk($py_name,"($arg1,$arg2$flags"); # issue 21: this is a regex function
@@ -5981,6 +6042,7 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
        $k=$start;
        gen_chunk($py_name);
        if(!($bracketed == 1 && $ValPerl[$begin+1] eq '{') && 
+           $ValClass[$k] ne '"' &&                                              # issue s78: not with a generated sub
            ($ValClass[$k] ne 'i' || ($k+1 < $#ValClass && $ValClass[$k+1] eq '('))) {        # sub but not sub()
          # Simple case of sort @arr -or- sort (list)
          gen_chunk('(');
@@ -6005,11 +6067,15 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
        } elsif($start+1 == $limit && $ValClass[$limit] eq 'h') {        # sort a hash sorts the keys and values in perl
            # SNOOPYJC  gen_chunk('functools.reduce(lambda x,y:x+y,'.$ValPy[$limit].'.items())')
            gen_chunk('itertools.chain.from_iterable('.$ValPy[$limit].'.items())')
+       } elsif($ValClass[$start] eq '"' && $ValClass[$start+1] eq ',') {                # issue s78
+           $k = expression($start+2, $limit, 0);                                        # issue s78
+           $end_pos = $start;                                                           # issue s78
        } else {
            $k = expression($start+1, $limit, 0);
        }
        gen_chunk(', key=functools.cmp_to_key(lambda a,b:');
-       if($bracketed == 0 && $ValClass[$start] eq 'i' && $LocalSub{$ValPy[$start]}) {
+       if($bracketed == 0 && ($ValClass[$start] eq 'i' && $LocalSub{$ValPy[$start]}) ||
+                             $ValClass[$start] eq '"') {                                # issue s78: a generated sub
           $Pyf{"__sortf"} = 1;		# Need extra function because perl uses global $_ instead of passing an arg
           gen_chunk('__sortf('.escape_keywords($ValPy[$start]).", a, b)");
        } else {
@@ -6017,7 +6083,7 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
            return -255 if $k<0;
        }
        gen_chunk(')');   # Close the functools.cmp_to_key(...
-       gen_chunk(')') if($ValPerl[$limit] ne ')');
+       gen_chunk(')') if($ValPerl[$limit] ne ')' || $ValClass[$start] eq '"');          # issue s78
 
    }elsif( $perl_name eq 'push' ){
       # push LHS, RSH => LSH.append(RSH) -or- LHS.extend(RHS)
@@ -10736,6 +10802,16 @@ sub is_list                     # issue s75: is this a list of items?
 sub default_var_string		# issue s104: Is the default variable a string type?
 {
     return (exists $VarType{$DEFAULT_VAR}{$CurSub} && $VarType{$DEFAULT_VAR}{$CurSub} eq 'S');
+}
+
+sub is_string           # issue s116: Is the variable at this position definitely a string?
+{
+    my $i = shift;
+
+    if(exists $VarType{$ValPy[$i]} && exists $VarType{$ValPy[$i]}{$CurSub}) {
+        return $VarType{$ValPy[$i]}{$CurSub} eq 'S';
+    }
+    return 0;
 }
 
 sub subref_call			# issue s109: Is this a subref call?

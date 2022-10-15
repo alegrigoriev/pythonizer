@@ -703,6 +703,11 @@ $last_varclass_lno = 0;         # SNOOPYJC: Last entry in the above
 %last_varclass_sub=();             # SNOOPYJC: What sub were we in when we set the last %line_varclasses for this name
 $ate_dollar = -1;               # issue 50: if we ate a '$', where was it?
 $add_comma_after_anon_sub_end = 0;      # issue s39: Insert a ',' after the end of the anon sub we added
+$last_expression_lno = 0;	# issue implicit conditional return
+$last_expression_level = -1;    # issue implicit conditional return
+%level_block_lnos = ();       # {level=>0 -or- "lno,..."} issue implicit conditional return
+%sub_lines_contain_potential_last_expression=(); # {'sub_name'=>'lno,...', ...} issue implicit conditional return
+
 sub initialize                  # issue 94
 {
     $nesting_level = 0;
@@ -712,6 +717,9 @@ sub initialize                  # issue 94
     $ate_dollar = -1;
     $nesting_last=undef;            # issue 94: Last thing we popped off the stack
     $add_comma_after_anon_sub_end = 0;  # issue s39
+    $last_expression_lno = 0;	# issue implicit conditional return
+    $last_expression_level = -1;    # issue implicit conditional return
+    %level_block_lnos = ();       # issue implicit conditional return
     if($Pythonizer::PassNo==&Pythonizer::PASS_1) {
         push @UseLib, dirname($Pythonizer::fname);   # SNOOPYJC: Always good to look here!
     }
@@ -944,6 +952,7 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
         }
     }
     if($last_varclass_lno != $. && $last_varclass_lno) {
+	say STDERR "Setting line_varclasses{$.} as a clone of line $last_varclass_lno" if($::debug >= 5);
         $line_varclasses{$.} = dclone($line_varclasses{$last_varclass_lno});
     }
     $last_varclass_lno = $.;
@@ -1236,7 +1245,7 @@ sub enter_block                 # issue 94
     # SNOOPYJC return if($last_block_lno == $. && scalar(@ValPerl) <= 1);       # We see the '{' twice on like if(...) {
     if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
         no warnings;
-        say STDERR "enter_block at line $., prior nesting_level=$nesting_level, ValPerl=@ValPerl";
+        say STDERR "enter_block at line $., prior nesting_level=$nesting_level, Tokenstr |".join('',@ValClass)."|, ValPerl=@ValPerl";
     }
     if($Pythonizer::PassNo == &Pythonizer::PASS_1) {          # Do this in the first pass only
         $last_block_lno = $.;
@@ -1251,6 +1260,13 @@ sub enter_block                 # issue 94
     my %nesting_info = ();
     my $begin = 0;
     $begin++ if(scalar(@ValClass) >= 2 && $ValClass[0] eq 'W');         # with fileinput...
+    # issue s78: if this is like foreach my $k(sort {...}) and we're at the '{' after the sort, then
+    # don't mis-classify this as a loop start bracket
+    if($ValClass[-1] eq 'f' && $ValPerl[-1] =~ /sort|map|grep/) {		# issue s78
+        $begin = $#ValClass;							# issue s78
+    } elsif ($#ValClass != 0 && $ValClass[-2] eq 'f' && $ValPerl[-2] =~ /sort|map|grep/) {	# issue s78
+        $begin = $#ValClass-1;							# issue s78
+    }
     $nesting_info{type} = '';
     $nesting_info{type} = $ValPy[$begin];
     $nesting_info{type} =~ s/:\s*$//;           # Change "else: " to "else"
@@ -1274,6 +1290,8 @@ sub enter_block                 # issue 94
                 $nesting_info{type} = 'foreach'; # issue s100: flag this as a different type of loop
             }                                   # issue s100
         }                                       # issue s100
+    } elsif($nesting_info{type} eq 'if ') {			# issue implicit conditional return
+        delete $level_block_lnos{$nesting_level+1};   # issue implicit conditional return
     }
     $nesting_info{lno} = $.;
     # issue s110 $nesting_info{varclasses} = dclone($line_varclasses{$last_block_lno}) if($Pythonizer::PassNo == &Pythonizer::PASS_1);
@@ -1349,6 +1367,13 @@ sub exit_block                  # issue 94
     if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
         say STDERR "exit_block at line $., prior nesting_level=$nesting_level, nesting_last->{type} is now $nesting_last->{type}";
     }
+    if(exists $level_block_lnos{$nesting_level+1}) {            # issue implicit conditional return
+        # Grab the list of nested conditional return lines and propagate it up to the next level
+        $last_expression_lno = $level_block_lnos{$nesting_level+1};     # issue implicit conditional return
+        delete $level_block_lnos{$nesting_level+1};             # issue implicit conditional return
+    } elsif($nesting_level == cur_sub_level()+1) {              # issue implicit conditional return
+        $last_expression_lno = 0;                               # issue implicit conditional return
+    }
     if($nesting_last->{type} eq 'do') {                                             # issue s35
         $delayed_block_closure = $nesting_last->{delayed_block_closure};            # issue s35: Unstack it
     } elsif($nesting_last->{type} eq 'foreach' && exists $nesting_last->{loop_ctr}) { # issue s100
@@ -1357,6 +1382,34 @@ sub exit_block                  # issue 94
         for my $ctr (keys %{$line_contains_local_for_loop_counter{$nesting_last->{lno}}}) {    # issue s100
             unmap_loop_var('$' . $ctr);                                             # issue s100
         }                                                                           # issue s100
+    } elsif($Pythonizer::PassNo == &Pythonizer::PASS_1 && $nesting_last->{type} eq 'if ') {			# issue implicit conditional return
+	    my $cs = cur_sub();
+	    if(($last_expression_lno =~ /,/ || $last_expression_lno > $nesting_last->{lno}) && $cs ne '__main__') {
+            $level_block_lnos{$nesting_level} = $last_expression_lno;
+        }
+        say STDERR "At end of if on line $. at level $nesting_level, sub_lines_contain_potential_last_expression = $sub_lines_contain_potential_last_expression{$cs}, last_expression_lno = $last_expression_lno, level_block_lnos = " . Dumper(\%level_block_lnos) if($::debug >= 5);
+    } elsif($Pythonizer::PassNo == &Pythonizer::PASS_1 && $nesting_last->{type} eq 'elif ' || $nesting_last->{type} eq 'else') {  # issue implicit conditional return
+	    my $cs = cur_sub();
+	    if(($last_expression_lno =~ /,/ || $last_expression_lno > $nesting_last->{lno}) && $cs ne '__main__') {
+            my $csn = cur_sub_level();
+            if($nesting_level == $csn) {
+               $sub_lines_contain_potential_last_expression{$cs} .= ',' . $last_expression_lno;
+            }
+            $level_block_lnos{$nesting_level} .= ',' . $last_expression_lno;
+        }
+        say STDERR "At end of $nesting_last->{type} on line $. at level $nesting_level, sub_lines_contain_potential_last_expression = $sub_lines_contain_potential_last_expression{$cs}, last_expression_lno = $last_expression_lno, level_block_lnos = " . Dumper(\%level_block_lnos) if($::debug >= 5);
+    } elsif($Pythonizer::PassNo == &Pythonizer::PASS_1 && $nesting_last->{type} =~ /sub|def/) {
+        my $cs = $nesting_last->{cur_sub};
+	    if($last_expression_lno =~ /,/ || $last_expression_lno > $nesting_last->{lno}) {
+            if(exists $level_block_lnos{$nesting_level}) {
+                $level_block_lnos{$nesting_level} .= ',' . $last_expression_lno;
+            } else {
+                $level_block_lnos{$nesting_level} = $last_expression_lno;
+            }
+            $sub_lines_contain_potential_last_expression{$cs} = $level_block_lnos{$nesting_level};
+            delete $level_block_lnos{$nesting_level};
+        }
+        say STDERR "At end of $cs at level $nesting_level, sub_lines_contain_potential_last_expression = $sub_lines_contain_potential_last_expression{$cs}, last_expression_lno = $last_expression_lno, level_block_lnos = " . Dumper(\%level_block_lnos) if($::debug >= 5);
     }
 
     determine_varclass_keepers($nesting_last->{varclasses}, $nesting_last->{lno}) if($Pythonizer::PassNo == &Pythonizer::PASS_1);
@@ -1750,6 +1803,24 @@ sub cur_loop_label                     # issue 94
         return '';
     }
     return '';
+}
+
+sub cur_sub_level                     # issue implicit conditional return
+# Get the nesting level of the current sub, if any
+{
+    for $ndx (reverse 0 .. $#nesting_stack) {
+        next if(!$nesting_stack[$ndx]->{is_sub});
+        return $nesting_stack[$ndx]->{level};
+    }
+    return -1;
+}
+
+sub in_loop                         # issue implicit conditional return
+# return 1 if we're in a loop
+{
+        return 0 if($nesting_level == 0);
+        $top = $nesting_stack[-1];
+        return $top->{in_loop};
 }
 
 sub try_block_exception_name           # issue 94
@@ -2285,6 +2356,11 @@ my ($l,$m);
          #say STDERR "Got }, tno=$tno, source=$source";
          if( $tno==0  ){
               # we recognize it as the end of the block if '}' is the first symbol
+             if($add_comma_after_anon_sub_end && could_be_anonymous_sub_close()) {     # issue s78
+                substr($source,1,0) = ',';
+                say STDERR "source=$source after add_comma_after_anon_sub_end" if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
+                $add_comma_after_anon_sub_end = 0;                              # issue s78
+             }
              if( length($source)>=1 ){
                 exit_block();                 # issue 94
                 Pythonizer::getline(substr($source,1)); # save tail
@@ -2318,9 +2394,11 @@ my ($l,$m);
                 #say STDERR "parens_are_balanced";
                 # issue 45 Pythonizer::getline('}'); # make it a separate statement
                 #exit_block();                 # issue 94
-                substr($source,1,0) = ',' if $add_comma_after_anon_sub_end;     # issue s39
-                say STDERR "source=$source after add_comma_after_anon_sub_end which is $add_comma_after_anon_sub_end" if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
-                $add_comma_after_anon_sub_end = 0;                              # issue s39
+                if($add_comma_after_anon_sub_end && could_be_anonymous_sub_close()) {     # issue s39, issue s78
+                    substr($source,1,0) = ',';
+                    say STDERR "source=$source after add_comma_after_anon_sub_end" if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
+                    $add_comma_after_anon_sub_end = 0;                              # issue s39
+                }
                 Pythonizer::getline($source); # make it a separate statement # issue 45
                 popup(); # kill the last symbol
                 last; # we truncate '}' and will process it as the next line
@@ -2403,12 +2481,14 @@ my ($l,$m);
       	    $ValPerl[$tno]=$ValPy[$tno]=$s;	# issue 50
          } elsif($s eq '{' && $ValClass[$tno-1] eq 'f' && semicolon_in_block($source)) {     # issue s39
              # issue s39: for functions like map with a block of code, if we have multiple statements in that code,
-             # the insert an anonymous sub, which we will pull out during code generation.  For example:
+             # then insert an anonymous sub, which we will pull out during code generation.  For example:
              # input line: @files = map { /\A(.*)\z/s; $1 } readdir $d;
              # gen:        @files = map sub {$_ = $_[0]; /\A(.*)\z/s; $1}, readdir $d;
              $add_comma_after_anon_sub_end = 1;         #                ^ Tells us to add this comma later
              say STDERR "Setting add_comma_after_anon_sub_end = 1" if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
-             substr($source,1,0) = '$_ = $_[0];';       # Grab the default var from the 1st arg
+             if($ValPerl[$tno-1] ne 'sort') {               # issue s78: No need to do this for sort
+                substr($source,1,0) = '$_ = $_[0];';       # Grab the default var from the 1st arg
+             }
              $ValClass[$tno] = 'k';
              $ValPerl[$tno] = 'sub';
              $ValPy[$tno] = 'def';
@@ -3680,6 +3760,36 @@ my ($l,$m);
    }
 
    $TokenStr=join('',@ValClass);
+   my $f = substr($TokenStr,0,1);			    # issue implicit conditional return
+   if($f eq 'C') {					    # issue implicit conditional return
+       ;			# Do nothing on else/elsif
+   } elsif($f =~ /[ck]/) {			            # issue implicit conditional return
+       my $csn = cur_sub_level();
+       if($nesting_level == $csn+1) {
+           my $cs = cur_sub();
+           delete $sub_lines_contain_potential_last_expression{$cs};
+           $last_expression_lno = 0;
+       }
+       $last_expression_lno = 0 if($last_expression_level == $nesting_level || $last_expression_level+1 == $nesting_level);
+   } elsif($TokenStr ne '' && $TokenStr ne '}' && $TokenStr ne '{') { # issue implicit conditional return
+       if(in_loop()) {
+           $last_expression_lno = 0;
+       } else {
+           $last_expression_lno = $statement_starting_lno;
+           $last_expression_level = $nesting_level;
+       }
+       say STDERR "Deleting level_block_lnos{".($nesting_level+1)."} on |$TokenStr|" if($::debug >= 5);
+       delete $level_block_lnos{$nesting_level+1};
+       my $cs = cur_sub();
+       my $csn = cur_sub_level();
+       if($nesting_level == $csn+1) {
+           if($last_expression_lno == 0) {
+               delete $sub_lines_contain_potential_last_expression{$cs};
+           } else {
+               #$sub_lines_contain_potential_last_expression{$cs} = $last_expression_lno;
+           }
+       }
+   }
    if( $::debug>=2 && $Pythonizer::PassNo == &Pythonizer::PASS_2){
       #$num=($Pythonizer::passno) ? sprintf('%4u',$lineno) : sprintf('%4u',$Pythonizer::InLineNo);
       say STDERR "\nLine: " . sprintf('%4u',$.) . " TokenStr: =|",$TokenStr, "|= \@ValPy: ",join(' ',@ValPy);
@@ -4775,8 +4885,14 @@ my  $outer_delim;
             $ls = $PERLLIB . '.' . $ls if($::import_perllib);
             $result.="$ls.join(map(_str,$ValPy[$tno]"; # Note - the parens are closed below by checking if $prev eq '@' again
          } else {
-            $result.=$ValPy[$tno]; # copy string provided by decode_scalar. ValPy[$tno] changes if Perl contained :: like in $::debug
             my $cs = cur_sub();          # issue s3
+            my $et = 'm';
+            $et = $Pythonizer::VarType{$ValPy[$tno]}{$cs} if(exists $Pythonizer::VarType{$ValPy[$tno]} && exists $Pythonizer::VarType{$ValPy[$tno]}{$cs});
+            if($next_c eq '{' || $next_c eq '[' || $et =~ /[SFIR]/) {       # issue s117
+                $result.=$ValPy[$tno]; # copy string provided by decode_scalar. ValPy[$tno] changes if Perl contained :: like in $::debug
+            } else {                                  # issue s117
+                $result.='_bn(' . $ValPy[$tno] . ')'; # issue s117: convert None to '', else grab the value as is
+            }
             if($in_regex && exists $Pythonizer::VarType{$ValPy[$tno]} && 
                 ((exists $Pythonizer::VarType{$ValPy[$tno]}{$cs} &&  $Pythonizer::VarType{$ValPy[$tno]}{$cs} eq 'R') ||
                 (exists $Pythonizer::VarType{$ValPy[$tno]}{__main__} &&  $Pythonizer::VarType{$ValPy[$tno]}{__main__} eq 'R'))) {       # issue s3
@@ -5854,6 +5970,7 @@ sub remove_oddities
     # issue s8: must convert it to a str unless it's a pattern (in case it's like an int or something!)
     if(exists $SpecialVarsUsed{qr}) {
         $line =~ s/\(r?f"\{([\w.]+)\}"/($1 if isinstance($1, re.Pattern) else _str($1)/;
+        $line =~ s/\(r?f"\{_bn\(([\w.]+)\)\}"/($1 if isinstance($1, re.Pattern) else _str($1)/;     # issue s117
     } else {
         $line =~ s/\(r?f"\{([\w.]+)\}"/(_str($1)/;
     }
@@ -7573,6 +7690,7 @@ sub semicolon_in_block          # issue s39
     my $source = shift;
 
     my $end_br = matching_curly_br($source, 0);
+    return 1 if($end_br < 0);                           # issue s78: assume any multi-line block needs to be pulled out
     $end_br = length($source) if $end_br < 0;
     return 1 if(index(substr($source,0,$end_br),';') > 0);
     return 0;
