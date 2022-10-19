@@ -4941,13 +4941,19 @@ my  $outer_delim;
                     $result .= '@'
                 }
                 next;
+            } elsif(substr($quote,$cut,1) eq '[') {         # issue s120: Handle @array[ndx] like they wrote $array[ndx]
+                $sig = '$';
             }
             add_package_name(substr($quote,0,$cut));            # SNOOPYJC
          }
          #does not matter what type of variable this is: regular or special variable
-         my $ls = 'LIST_SEPARATOR';
-         $ls = $PERLLIB . '.' . $ls if($::import_perllib);
-         $result.="$ls.join(map(_str,$ValPy[$tno]))"; # copy string provided by decode_array. ValPy[$tno] changes if Perl contained :: like in $::debug
+         if($sig eq '$') {                                  # issue s120
+             $result.=$ValPy[$tno];                         # issue s120
+         } else {                                           # issue s120
+             my $ls = 'LIST_SEPARATOR';
+             $ls = $PERLLIB . '.' . $ls if($::import_perllib);
+             $result.="$ls.join(map(_str,$ValPy[$tno]))"; # copy string provided by decode_array. ValPy[$tno] changes if Perl contained :: like in $::debug
+         }                                                  # issue s120
       }
 
       $quote=substr($quote,$cut); # cure the nesserary number of symbol determined by decode_scalar.

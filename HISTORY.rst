@@ -2,6 +2,11 @@
 History
 =======
 
+1.003 (2022-10-17)
+------------------
+
+* issue s121: localtime, gmtime, and timelocal shouldn't raise exceptions
+
 1.002 (2022-10-11)
 ------------------
 
