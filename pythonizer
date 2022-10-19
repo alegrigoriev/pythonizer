@@ -213,6 +213,7 @@
 # 0.994  2022/09/29  SNOOPYJC issue s94: unlink or die generates incorrect code, issue s108: for(each) variable is local to the loop and the value should revert back after the loop even if foreach statement is on multiple lines, issue s109: Subref dereference generates syntax error code, issue s110: Scope of 'my' should not be extended below for/while loop
 # 1.001  2022/10/01  SNOOPYJC issue s76: function templates don't work properly, issue s111: for loop that counts down to 1 is not translated correctly, issue s112: string containing only '.pl' should not be changed to '.py', issue 133 bootstrap: add tmpdir function, issue s113: invalid code generated for some OO function calls, issue s114: improper interpretation of interpolated string leads to bad code in next sub, issue s115: regex substitution of literal escape chars interprets them instead
 # 1.002  2022/10/11  SNOOPYJC issue s78: sort with complex {...} doesn't work properly, issue s118: Split of the result of a command execution never runs the command, issue s116: Regex substitution raises exception on undef arg, issue s117: Referencing an undefined variable in an interpolated string should give an empty string, not 'None', issue s119: Sparse extraction from array doesn't give proper results
+# 1.003  2022/10/17  SNOOPYJC
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -264,7 +265,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='1.002';
+   $VERSION='1.003';
    $SCRIPT_NAME='pythonizer';
 #
 # options
