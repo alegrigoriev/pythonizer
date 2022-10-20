@@ -25,7 +25,7 @@ for($i=0; $i < scalar(@tests); $i+=10) {
 
 # Try crazy values and make sure it doesn't crash
 my @d = gmtime(99999999999999999);
-@d = localtime(99999999999999999);
+@d = localtime(9999999999999999);
 my $x = timelocal(@d);
 
 print "$0 - test passed\n";

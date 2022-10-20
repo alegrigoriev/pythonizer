@@ -5018,7 +5018,9 @@ my  $outer_delim;
              # issue 109 $ind =~ tr/$//d;               # We need to decode_scalar on each one!
              # issue 53 $ind =~ tr/{}/[]/;
              #say STDERR "looking for '{' in $ind";      # TEMP
+             #say STDERR "examining $ind on line $.";      # TEMP
              #say STDERR "what follows is " . substr($quote, $ind_cut);  # TEMP
+             my $in_subscript = 0;                  # issue s123
              for(my $i = 0; $i < length($ind); $i++) {	# issue 53: change hash ref {...} to use .get(...) instead
                  my $c = substr($ind,$i,1);                 # issue 109
                  if($c eq '-' && substr($ind,$i+1,1) eq '>') {  # issue refs in strings
@@ -5026,18 +5028,33 @@ my  $outer_delim;
                      $c = substr($ind,$i,1);
                  }
                  if($c eq '{') {		# issue 53
+                     $in_subscript = 0;                         # issue s123
                      $l = matching_curly_br($ind, $i);	# issue 53
                      #say "found '{' in $ind at $i, l=$l";
                      next if($l < 0);			# issue 53
                      # Issue s107: only use .get for the last hash key in a chained sequence of key fetches
                      my $next_ch = substr($quote, $ind_cut, 1);     # issue s107
                      if($next_ch eq '{') {                          # issue s107
-                         $ind = substr($ind,0,$i).'['.substr($ind,$i+1,$l-($i+1))."]".substr($ind,$l+1);	# issue s107 splice in [...] instead
+                         if(substr($ind,$i+1,1) =~ /\d/) {          # issue s123: Hash with integer key
+                            $ind = substr($ind,0,$i)."['".substr($ind,$i+1,$l-($i+1))."']".substr($ind,$l+1);	# issue s123
+                         } else {                                   # issue s123
+                            $ind = substr($ind,0,$i).'['.substr($ind,$i+1,$l-($i+1))."]".substr($ind,$l+1);	# issue s107 splice in [...] instead
+                         }                                          # issue s123
                      } else {
-                         $ind = substr($ind,0,$i).'.get('.substr($ind,$i+1,$l-($i+1)).",'')".substr($ind,$l+1);	# issue 53: splice in the call to get
+                         if(substr($ind,$i+1,1) =~ /\d/) {          # issue s123: Hash with integer key
+                            $ind = substr($ind,0,$i).".get('".substr($ind,$i+1,$l-($i+1))."','')".substr($ind,$l+1);	# issue s123
+                         } else {                                   # issue s123
+                            $ind = substr($ind,0,$i).'.get('.substr($ind,$i+1,$l-($i+1)).",'')".substr($ind,$l+1);	# issue 53: splice in the call to get
+                         }                                          # issue s123
                      }                                              # issue s107
-                     #say "ind=$ind";
-                     # issue 109 $i = $l+7;				# issue 53: 7 is length('.get') + length(",''")
+                 } elsif($c eq '[') {		                        # issue s123
+                     $in_subscript = 1;                             # issue s123
+                     $l = matching_square_br($ind, $i);	            # issue s123
+                     #say "found '[' in $ind at $i, l=$l";
+                     next if($l < 0);			                    # issue s123
+                     if(substr($ind,$i+1,1) eq "'") {               # issue s123: Array with string key
+                        $ind = substr($ind,0,$i).'['.substr($ind,$i+2,$l-($i+3))."]".substr($ind,$l+1);	# issue s123: Strip off the quotes
+                     }                                          # issue s123
                  } elsif($c eq '$') {                       # issue 109: decode special vars in subscripts/hash keys
                      my $var = substr($ind,$i);
                      #say STDERR "var=$var";     # TEMP
@@ -5059,7 +5076,39 @@ my  $outer_delim;
                         decode_scalar($var,0,1);          # Try again
                      }
                      add_package_name(get_perl_name(substr($var,0,$cut), substr($var,$cut,1), $pr));     # SNOOPYJC
-                     substr($ind,$i,$cut) = $ValPy[$tno];   # issue 109
+                     my $index_type = 'm';                  # issue s123
+                     my $cs = cur_sub();                    # issue s123
+                     $index_type = $Pythonizer::VarType{$ValPy[$tno]}{$cs} if(exists $Pythonizer::VarType{$ValPy[$tno]} && exists $Pythonizer::VarType{$ValPy[$tno]}{$cs});
+                     my $expected_type = 'S';               # issue s123
+                     $expected_type = 'I' if($in_subscript);    # issue s123
+                     $converter = $CONVERTER_MAP{$expected_type};        # issue s123
+                     $converter = "$PERLLIB.int_" if($expected_type eq 'I' && $::import_perllib);    # issue s123
+                     my $next_ch = substr($var, $cut, 1);     # issue s123
+                     my $j = $i + $cut;                       # issue s123
+                     if($next_ch eq '-') {                    # issue s123: Assume it's a '->'
+                         $j += 2;                             # issue s123
+                         $next_ch = substr($var, $cut+2, 1);    # issue s123
+                     }
+                     if($next_ch eq '[' || $next_ch eq '{') {   # issue s123
+                        while($next_ch eq '[' || $next_ch eq '{') {     # issue s123
+                            if($next_ch eq '[') {
+                                $l = matching_square_br($ind, $i);	            # issue s123
+                            } else {
+                                $l = matching_curly_br($ind, $i);	            # issue s123
+                            }
+                            last if($l < 0);
+                            $j = $l+1;
+                            $next_ch = substr($ind, $j);
+                        }
+                        substr($ind,$j,0) = ')';                # issue s123
+                        substr($ind,$i,$cut) = "$converter($ValPy[$tno]";   # issue s123
+                        $i += length($converter) + 1;       # issue s123
+                     } elsif($index_type eq $expected_type) {  # issue s123
+                        substr($ind,$i,$cut) = $ValPy[$tno];   # issue 109
+                     } else {                               # issue s123
+                        substr($ind,$i,$cut) = "$converter($ValPy[$tno])";   # issue s123
+                        $i += length($converter) + 2;       # issue s123
+                     }                                      # issue s123
                      $i += (length($ValPy[$tno])-$cut);     # issue 109
                  }
              }						# issue 53

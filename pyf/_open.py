@@ -14,6 +14,10 @@ def _open(file,mode,encoding=None,errors=None,checked=True,newline="\n"):
         (mode, encoding, errors, newline) = _handle_open_pragma(mode, encoding, errors, newline)
     except NameError:
         pass
+    if 'b' not in mode and encoding is None:
+        encoding = 'latin1'
+        if errors is None:
+            errors = 'ignore'
     try:
         if mode == '|-' or mode == '|-b':    # pipe to
             text = True if mode == '|-' else False
