@@ -4,7 +4,7 @@
 
 __author__ = """Joe Cool"""
 ___email__ = 'snoopyjc@gmail.com'
-__version__ = '1.003'
+__version__ = '1.004'
 
 import signal, re, perllib, builtins, os
 
