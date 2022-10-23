@@ -1,7 +1,7 @@
 
 def _file_exists(path):        # -e
     if not path:
-        return False
+        return ''   # False
     if hasattr(path, 'cando'):
-        return True
-    return os.path.exists(path)
+        return 1    # True
+    return 1 if os.path.exists(path) else ''

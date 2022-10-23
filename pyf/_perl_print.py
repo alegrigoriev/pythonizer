@@ -18,12 +18,12 @@ def _perl_print(*args, **kwargs):
         if 'flush' not in kwargs and hasattr(file, '_autoflush'):
             kwargs['flush'] = file._autoflush
         print(*args, **kwargs)
-        return True
+        return 1        # True
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:
             _cluck(f"print failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
-        return False
+        return ''       # False
 

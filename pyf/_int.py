@@ -4,7 +4,7 @@ def _int(expr):
     if not expr:
         return 0
     if isinstance(expr, int):
-        return expr
+        return +expr            # The Unary plus will convert True to 1
     try:
         return int(expr)
     except Exception:

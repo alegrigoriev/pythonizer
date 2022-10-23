@@ -11,6 +11,6 @@ def _rmdir(d):
             _cluck(OS_ERROR,skip=2)
         if AUTODIE:
             raise
-        return 0
+        return ''
 
 

@@ -2,6 +2,11 @@
 History
 =======
 
+1.005 (2022-10-21)
+------------------
+
+* issue s124: perllib functions should return 1 or '', not True/False
+
 1.004 (2022-10-19)
 ------------------
 

@@ -4,7 +4,7 @@ def _printf(fh, fmt, *args):
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
         print(_format(fmt, *args), end='', file=fh)
-        return True
+        return 1        # True
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:
@@ -13,5 +13,5 @@ def _printf(fh, fmt, *args):
             _cluck(f"printf({fmt},...) failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
-        return False
+        return ''       # False
 

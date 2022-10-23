@@ -215,6 +215,7 @@
 # 1.002  2022/10/11  SNOOPYJC issue s78: sort with complex {...} doesn't work properly, issue s118: Split of the result of a command execution never runs the command, issue s116: Regex substitution raises exception on undef arg, issue s117: Referencing an undefined variable in an interpolated string should give an empty string, not 'None', issue s119: Sparse extraction from array doesn't give proper results
 # 1.003  2022/10/17  SNOOPYJC issue s120: Interpolate array reference in double-quoted string with subscript the same way perl does, issue s121: localtime, gmtime, and timelocal shouldn't raise exceptions
 # 1.004  2022/10/19  SNOOPYJC issue s122: IO encoding shouldn't default to UTF-8, issue s123: Integer hash keys are not being converted to string type in interpolated string references
+# 1.005  2022/10/21  SNOOPYJC Additional fix for issue s123 if using -P option, issue s124: Boolean values should print or convert to strings as 1 or '', not True/False, issue s125: \xH doesn't generate proper python code, issue s126: naming variables starting with _ can conflict with pythonizer function names, don't include 'return' in the LHS of <=> or cmp operator
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -266,7 +267,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='1.004';
+   $VERSION='1.005';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -405,6 +406,7 @@ BEGIN {                                                 # SNOOPYJC
    my @headers = ("import sys,os,re,fcntl,math,fileinput,subprocess,collections.abc,argparse,glob,warnings,inspect,functools,itertools,signal,traceback,io,tempfile,atexit,calendar,types,pdb,random,stat,dataclasses,builtins,codecs,struct,$PERLLIB,copy,getopt",
 	   'import time as tm_py',                              # SNOOPYJC
            "_bn = lambda s: '' if s is None else s",        # issue s117
+           "_pb = lambda b: 1 if b else ''",                # issue s124
            "_str = lambda s: '' if s is None else str(s)",      # SNOOPYJC
                  );
    foreach my $g (keys %GLOBALS) {              # SNOOPYJC
@@ -678,6 +680,7 @@ my ($start,$token_buffer_active);
           fix_expression_issues();                      # issue 115: We skip handling assignment in expression on multi-assignment
       }
       fix_global_and_eval_regex();                      # SNOOPYJC
+      fix_boolean_expressions(0, $#ValClass, lc($ValClass[0]) eq 'c');     # issue s124
       #fix_multistmt_bracket_functions();                # issue s39
 
       #
@@ -8290,7 +8293,7 @@ sub handle_cmp_spaceship                    # SNOOPYJC: Handle cmp and <=> opera
     for($a_start=$a_end; $a_start >= $start; $a_start--) {
         if($ValClass[$a_start] eq ')') {
             $a_start = reverse_matching_br($a_start);
-        } elsif(index('&|^o0r:A?=,n(', $ValClass[$a_start]) >= 0) {
+        } elsif(index('k&|^o0r:A?=,n(', $ValClass[$a_start]) >= 0) {
             last;
         }
     }
@@ -10824,6 +10827,121 @@ sub subref_call			# issue s109: Is this a subref call?
     return 0 if $pos < 0;
     return 1 if $ValClass[$pos] eq 's';
     return 0;
+}
+
+sub fix_boolean_expressions     # issue s124
+# Convert boolean expressions that return True or False to instead return 1 or '', where needed
+{
+    my $start = $_[0];
+    my $limit = $_[1];
+    my $skip = $_[2];
+    return 0 if index(substr($TokenStr, $start, $limit+1-$start), '>') == -1;      # No boolean expressions here
+    return 0 if($start == 0 && $limit >= 2 && $ValClass[0] eq 'k' && $ValPerl[0] eq 'use' && $ValPerl[1] eq 'constant');
+    return 0 if($start == 0 && $limit >= 2 && $ValClass[0] eq 'k' && $ValPerl[0] eq 'no' && $ValPerl[1] eq 'if');
+    say STDERR "fix_boolean_expressions($start, $limit, $skip) for |$TokenStr| on line $. ValPerl=@ValPerl" if($debug);
+    my $adjust = 0;
+    my $a = 0;
+
+    for(my $cur = $start; $cur <= $limit; $cur++) {
+        if($ValClass[$cur] eq 's') {
+            while($cur+1 <= $limit && $ValClass[$cur+1] eq '(') {   # Array subscripts or hash keys
+                my $end = matching_br($cur+1);
+                last if $end < 0;
+                $a = fix_boolean_expressions($cur+2, $end-1, $ValPerl[$cur+1] eq '[');   # Recurse but skip if array index
+                $cur = $end + $a;
+                $limit += $a;
+                $adjust += $a;
+            }
+        } elsif($ValClass[$cur] eq 'k' && $ValPerl[$cur] eq 'return') {
+            return fix_boolean_expressions($cur+1, $limit, $skip);
+        } elsif($ValClass[$cur] eq 'C' && $ValPerl[$cur] eq 'eval') {
+            $adjust += fix_boolean_expressions($cur+1, $limit, 1);
+            return $adjust;
+        } elsif($ValClass[$cur] eq '*' && $ValPerl[$cur] eq 'x') {  # replicator
+            if($cur+1 <= $limit && $ValClass[$cur+1] eq '(') {
+                my $end = matching_br($cur+1);
+                next if $end < 0;
+                $a = fix_boolean_expressions($cur+2, $end-1, 1);    # Skip what's in the parens of the  replicator
+                $cur = $end + $a;
+                $limit += $a;
+                $adjust += $a;
+            }
+        } elsif($ValClass[$cur] eq '(' && $ValPerl[$cur] eq '(') {  # Real parens
+            my $end = matching_br($cur);
+            next if $end < 0;
+            my $ocur = $cur;
+            while(1) {
+                my $comma = next_same_level_token(',', $cur+1, $end-1);
+                $comma = $end if $comma < 0;
+                $a = 0;
+                if($cur+1 <= $comma-1) {
+                    my $s = 0;
+                    $s = 1 if($skip && $cur == 1);  # propagate skip if these are the initial brackets on a control stmt
+                    $s = 1 if($skip && $ocur > 0 && $ValClass[$ocur-1] !~ /[fi]/ && $comma == $end);    # propagate skip if internal parens are used on a control stmt and this is not a sub or function call
+                    $s = 1 if($skip && $ocur > 0 && $ValClass[$ocur-1] eq ':' && $comma == $end);   # propagate skip on brackets on ? : operation
+                    $a = fix_boolean_expressions($cur+1, $comma-1, $s);   # Handle each item in a comma separated list
+                }
+                $adjust += $a;
+                $cur = $comma + $a;
+                $end += $a;
+                $limit += $a;
+                last if $comma >= $end;
+            }
+        } elsif($ValClass[$cur] eq '(' && $ValPerl[$cur] eq '{') {  # Brackets like in grep { expr }
+            my $end = matching_br($cur);
+            next if $end < 0;
+            $a = fix_boolean_expressions($cur+1, $end-1, 1);    # Skip insertion on grep/map expr
+            $adjust += $a;
+            $cur = $end + $a;
+            $limit += $a;
+        } elsif($ValClass[$cur] eq '=' && $ValPy[$cur] ne ':=') {
+            $adjust += fix_boolean_expressions($cur+1, $limit, $skip);         # Handle RHS of assignment
+            return $adjust;
+        } elsif($ValClass[$cur] eq  'f' && $cur+1 <= $limit && $ValClass[$cur+1] eq '(' && $ValPy[$cur] =~ /^(?:_int|_num)$/) {
+            my $end = matching_br($cur+1);
+            next if $end < 0;
+            $a = fix_boolean_expressions($cur+2, $end-1, 1);
+            $cur = $end + $a;
+            $adjust += $a;
+            $limit += $a;
+        } elsif($ValClass[$cur] eq ':') {               # Should be the first ':' in a ? : operator
+            my $colon = next_same_level_token(':', $cur+1, $limit-1);
+            next if $colon < 0;
+            $a = fix_boolean_expressions($cur+1, $colon-1, 1);   # Handle the 'if' part with skip on
+            $colon += $a;
+            $a += fix_boolean_expressions($colon+1, $limit, 0);  # Handle the 'else' part
+            $adjust += $a;
+            return $adjust;
+        } elsif($ValClass[$cur] eq ';') {           # Should be a for loop
+            my $semi = next_same_level_token(';', $cur+1, $limit-1);
+            next if $semi < 0;
+            $a = fix_boolean_expressions($cur+1, $semi-1, 1);   # Handle the condition part with skip on
+            $semi += $a;
+            $a += fix_boolean_expressions($semi+1, $limit, 0);  # Handle the rest
+            $adjust += $a;
+            return $adjust;
+        } elsif($ValClass[$cur] eq '>' && !$skip) {             # Case of interest
+            next if($ValPerl[$cur] eq '<=>' || $ValPerl[$cur] eq 'cmp');
+            my $lower = next_lower_or_equal_precedent_token('>', $cur+1, $limit);
+            if($lower > 0) {
+                $a = fix_boolean_expressions($start, $lower-1, 0);
+                $cur = $lower + $a;
+                $start = $cur+1;
+                $limit += $a;
+                $adjust += $a;
+            } else {
+                insert($limit+1,')',')',')');
+                insert($start,'(','(','(');
+                insert($start,'f',$CONVERTER_MAP{B},$CONVERTER_MAP{B});
+                say STDERR "fix_boolean_expressions($start, $limit, $skip): Inserting converter, now |$TokenStr| ValPerl=@ValPerl" if($debug);
+                $limit += 3;
+                $cur += 2;
+                $start += 2;
+                $adjust += 3;
+            }
+        }
+    }
+    return $adjust;
 }
 
 __DATA__

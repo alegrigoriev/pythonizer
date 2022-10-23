@@ -3,33 +3,33 @@ def stat_cando(self, mode, eff):
     """Implementation of File::Stat::stat_cando.  This takes an arrayref containing the return values of stat or lstat as its first argument, and interprets it for you"""
     if os.name == 'nt':
         if (self._mode & mode):
-            return True
-        return False
+            return 1    # True
+        return ''       # False
     uid = os.geteuid() if eff else os.getuid()
     def _ingroup(gid, eff):
         [egid, *supp] = os.getgrouplist(os.geteuid(), os.getegid())
         rgid = os.getgid()
         if gid == (egid if eff else rgid):
-            return True
+            return 1    # True
         if gid in supp:
-            return True
-        return False
+            return 1    # True
+        return ''       # False
     if uid == 0 or (sys.platform == 'cygwin' and _ingroup(544, eff)):    # Root
         if not (mode & 0o111):
-            return True    # Not testing for executable: all file tests are true
+            return 1    # Not testing for executable: all file tests are true
         if (self._mode & 0o111) or stat.S_ISDIR(self._mode):
-            return True
-        return False
+            return 1    # True
+        return ''       # False
     if self._uid == uid:
         if (self._mode & mode):
-            return True
+            return 1    # True
     elif _ingroup(self._gid, eff):
         if (self._mode & (mode >> 3)):
-            return True
+            return 1    # True
     else:
         if (self._mode & (mode >> 6)):
-            return True
-    return False
+            return 1    # True
+    return ''           # False
 
 @dataclasses.dataclass
 class File_stat(collections.abc.Sequence):

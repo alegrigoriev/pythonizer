@@ -13,5 +13,5 @@ def _flock(fd, operation):
             _cluck(f"flock failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
-        return 0
+        return ''
     

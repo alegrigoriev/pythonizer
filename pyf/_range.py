@@ -6,7 +6,7 @@ def _range(var, pat1, flags1, pat2, flags2, key):
     seq = getattr(_range, key)
     if isinstance(seq, str):        # e.g. nnE0
         setattr(_range, key, 0)
-        return False
+        return ''       # False
 
     if seq == 0:                    # Waiting for left to become True
         if isinstance(pat1, str):
@@ -14,7 +14,7 @@ def _range(var, pat1, flags1, pat2, flags2, key):
         else:
             val = bool(pat1)
         if not val:
-            return False
+            return ''       # False
 
     seq += 1                        # once left becomes True, then the seq starts counting, and we check right
     setattr(_range, key, seq)
