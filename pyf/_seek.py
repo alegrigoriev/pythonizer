@@ -4,7 +4,7 @@ def _seek(fh, pos, whence):
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
         return fh.seek(pos, whence)
-        return True
+        return 1        # True
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:

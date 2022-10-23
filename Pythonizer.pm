@@ -1563,14 +1563,18 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
     } elsif(($otype eq 's') && ($type =~ /[NIFSH]/)) {        # more specific type
         # issue s116 return $type;
         return $otype;		# issue s116: less specific type wins
-    } elsif($otype eq 'N' && ($type =~ /[IF]/)) {   # Numeric -> Int or Float
+    } elsif($otype eq 'N' && ($type =~ /[IFB]/)) {   # Numeric -> Int or Float or Boolean issue s124
         # issue s116 return $type;
         return $otype;		# issue s116
-    } elsif($type eq 'N' && ($otype =~ /[IF]/)) {   # Numeric -> Int or Float
+    } elsif($type eq 'N' && ($otype =~ /[IFB]/)) {   # Numeric -> Int or Float or Boolean issue s124
         # issue s116 return $otype;
         return $type;		# issue s116
     } elsif(($type =~ /[IF]/) && ($otype =~ /[IF]/)) {  # int vs float
         return 'F';             # Float wins
+    } elsif(($type =~ /[BI]/) && ($otype =~ /[BI]/)) {  # int vs boolean issue s124
+        return 'I';             # Int wins  issue s124
+    } elsif(($type =~ /[BF]/) && ($otype =~ /[BF]/)) {  # float vs boolean issue s124
+        return 'F';             # Float wins  issue s124
     } elsif($type eq 's') {
         return $type;
     }
@@ -1578,7 +1582,7 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
 }
 
 sub _expr_type           # Attempt to determine the type of the expression
-# a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, S=String, u=undef, f=function, H=FileHandle, ?=Optional, m=mixed
+# a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, S=String, u=undef, f=function, H=FileHandle, ?=Optional, m=mixed, R=regex, B=bool
 {
     my $k = shift;
     my $e = shift;
@@ -1722,11 +1726,12 @@ sub _expr_type           # Attempt to determine the type of the expression
             if($ValClass[$m] eq '.') {
                 return 'S';             # String concat
             } elsif($ValClass[$m] eq '>') {     # could be like < or like lt
-                return 'S' if($ValPerl[$m] =~ /^[a-z][a-z]$/);  # like eq, gt, etc
-                return 'I';     # boolean is an Int in perl
+	        # issue s124 return 'S' if($ValPerl[$m] =~ /^[a-z][a-z]$/);  # like eq, gt, etc
+	        # issue s124 return 'I';     # boolean is an Int in perl
+		return 'B';		# issue s124: Boolean
             } elsif($ValClass[$m] =~ /0o/) {    # or || and &&
-                return common_type(expr_type($k, $m-1, $CurSub),
-                                   expr_type($m+1, $e, $CurSub));
+		return common_type(expr_type($k, $m-1, $CurSub),
+	                           expr_type($m+1, $e, $CurSub));
             } elsif($ValClass[$m] eq '+' || $ValClass[$m] eq '-' || $ValClass[$m] eq '*') {
                 if($k == $m) { # It's a unary - or +
                     return expr_type($m+1, $e, $CurSub);
@@ -2949,9 +2954,10 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         # issue 24 $insertion_point = $lno+1 if($line =~ /^$PERL_ARG_ARRAY = sys.argv/ && !$insertion_point);              # SNOOPYJC
         $insertion_point = $lno+1 if($line =~ /^pass # LAST_HEADER/ && !$insertion_point);          # issue 24
         next if(!$insertion_point);     # Ignore everything above our insertion point
-        if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ||
-           $line =~ /^(_[A-Za-z][A-Za-z0-9_]+) = _[A-Za-z][A-Za-z0-9_]/) {  # issue test coverage: handle _ArrayHashClass = _partialclass(_ArrayHash, ArrayHash) as a def
-                                                                            # but don't match _d = _d[0:-1]
+        # issue s126: if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ||
+        # issue s126:    $line =~ /^(_[A-Za-z][A-Za-z0-9_]+) = _[A-Za-z][A-Za-z0-9_]/) {  # issue test coverage: handle _ArrayHashClass = _partialclass(_ArrayHash, ArrayHash) as a def
+        # issue s126:                                                                    # but don't match _d = _d[0:-1]
+        if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/) {  # issue s126: Don't match _ArrayHashClass = _partialclass(...) as a def so we don't move it
             my $i;
             my $func = $1;
             push @unsorted, $func;
@@ -2986,36 +2992,45 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         $lno++;
         # issue 24 $insertion_point = $lno+1 if($Line =~ /^$PERL_ARG_ARRAY = sys.argv/ && !$insertion_point);              # SNOOPYJC
         $insertion_point = $lno+1 if($Line =~ /^pass # LAST_HEADER/ && !$insertion_point);          # issue 24
-        #say STDERR "$lno: $line";
+        #say STDERR "$lno: $line";	# TEMP
         $line = eat_strings($Line);     # we change variables so eat_strings doesn't modify @lines
         if($in_def) {
-            $in_def = undef if($line !~ /^def / && $line !~ /^class / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/ && !$multiline_string_sep);
-            #say STDERR "Not in_def on $line" if(!$in_def);
+            # issue s126 $in_def = undef if($line !~ /^def / && $line !~ /^class / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/ && !$multiline_string_sep);
+            $in_def = undef if($line !~ /^def / && $line !~ /^class / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/ && !$multiline_string_sep && # issue s126
+                               $line !~ /^_[A-Za-z][A-Za-z0-9_]+ = $in_def\(/);       # issue s126: still in_def on _ArrayHashClass = _partialclass(...)
+            #say STDERR "Not in_def on $line" if(!$in_def);	# TEMP
         }
-        if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ||
-           $line =~ /^(_[A-Za-z][A-Za-z0-9_]+) = _[A-Za-z][A-Za-z0-9_]/) {          # issue test coverage
+        # issue s126 if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ||
+        # issue s126    $line =~ /^(_[A-Za-z][A-Za-z0-9_]+) = _[A-Za-z][A-Za-z0-9_]/) {          # issue test coverage
+        if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/) {  # issue s126: Don't handle _ArrayHashClass = _partialclass(...) as a def
             $in_def = $1;
-            #say STDERR "in_def $in_def on $line";
+            #say STDERR "in_def $in_def on $line";	# TEMP
         }
         ### YES THEY DO!!  next if($in_def);               # Refs inside of defs don't matter
         next if($line =~ /^def / || $line =~ /^class /);
         next if($line =~ /^\s*#/);      # ignore comments
         #my @found = grep { $line =~ /\b$_\(/ } @words;  # Look for calls of this function only
         my @found = grep { $line =~ /\b$_[(),]/ } @words;  # issue s3: Look for calls of this function and other references
-        #say STDERR "found @found in $lno: $line" if(@found);
+        #say STDERR "found @found in $lno: $line" if(@found);	# TEMP
         foreach $f (@found) {
             next if $line =~ /^\s+def $f/;      # issue test coverage: Not a ref of __add__ if this is a separate def of __add__ like in a different class
             next if $line =~ /\bself\.$f/;      # issue test coverage; Not a ref of __str__ if this is a self.__str__ ref - that's a different one!
             if($in_def) {
-                #say STDERR "Adding f_refs{$in_def}{$f} = 1 on $lno: $line";
+	            #say STDERR "Adding f_refs{$in_def}{$f} = 1 on $lno: $line";	# TEMP
                 $f_refs{$in_def}{$f} = 1;
                 #push @{$dependencies{$in_def}}, $f;
+                #say STDERR "Adding $in_def to dependencies{$f} on $lno: $line" if($f ne $in_def);  # TEMP
                 push @{$dependencies{$f}}, $in_def if($f ne $in_def);   # Ignore recursive refs
             }
             if(!defined $refs{$f}) {    # Only put in the first one
+                #say STDERR "Adding refs{$f} = $lno: $line";			# TEMP
                 $refs{$f} = $lno;
                 #push @{$dependencies{main}}, $f;
+                #say STDERR "Adding __main__ to dependencies{$f} on $lno: $line";			# TEMP
                 push @{$dependencies{$f}}, '__main__';
+                if($f eq '_partialclass') {                         # issue s126
+                    push @{$dependencies{$f}}, '_init_package';     # issue s126
+                }                                                   # issue s126
             }
         }
     }
@@ -3180,8 +3195,9 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                 }
                 if($lines[$i] =~ /^\s+/ || $lines[$i] =~ /^def $func\(/ || $lines[$i] =~ /^class $func[(:]/ ||
                         $lines[$i] =~ /^$func = _/ ||           # issue test coverage
+                        $lines[$i] =~ /^_[A-Za-z0-9_]+ = $func\(_/ ||           # issue s126: handle _ArrayHashClass = _partialClass(...)
                         $lines[$i] =~ /^\s*$/ || $lines[$i] =~ /^\s*#/ || $lines[$i] =~ m'^@' ||
-			$lines[$i] =~ /^${func}_[\w]+ =/ ||	 # state variable like func_var = init
+			            $lines[$i] =~ /^${func}_[\w]+ =/ ||	 # state variable like func_var = init
                         $lines[$i] =~ /[.]$func = types[.]MethodType\($func,/ ||     # issue s3
                         $lines[$i] =~ /[.]$func = $func$/) {     # e.g. main.func = func
                         #say STDERR "Found def $func";
@@ -3286,6 +3302,8 @@ sub cleanup_imports
     my $import_as_referenced = 0;
     my $_bn_lno = 0;			# issue s117
     my $_bn_referenced = 0;		# issue s117
+    my $_pb_lno = 0;			# issue s124
+    my $_pb_referenced = 0;		# issue s124
     my $_str_lno = 0;
     my $_str_referenced = 0;
     my $die_referenced = 0;
@@ -3324,6 +3342,8 @@ sub cleanup_imports
             $eval_return_lno = $lno;
         } elsif($line =~ /^_bn = lambda/) {		# issue s117
             $_bn_lno = $lno;				# issue s117
+        } elsif($line =~ /^_pb = lambda/) {		# issue s124
+            $_pb_lno = $lno;				# issue s124
         } elsif($line =~ /^_str = lambda/) {
             $_str_lno = $lno;
         } elsif((@gl = grep { $line =~ /^$_ = / } @globals)) {
@@ -3353,6 +3373,9 @@ sub cleanup_imports
             }
             if($line =~ /\b_bn\b/) {	# issue s117
                 $_bn_referenced = 1;	# issue s117
+            }				# issue s117
+            if($line =~ /\b_pb\b/) {	# issue s124
+                $_pb_referenced = 1;	# issue s124
             }				# issue s117
             if($line =~ /\b_str\b/) {
                 $_str_referenced = 1;
@@ -3392,6 +3415,9 @@ sub cleanup_imports
         }
         if($_bn_lno && !$_bn_referenced) {		# issue s117
             $line_ref->[$_bn_lno-1] = '^';		# issue s117
+        }						# issue s117
+        if($_pb_lno && !$_pb_referenced) {		# issue s124
+            $line_ref->[$_pb_lno-1] = '^';		# issue s124
         }						# issue s117
         if($_str_lno && !$_str_referenced) {
             $line_ref->[$_str_lno-1] = '^';

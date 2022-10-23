@@ -7,7 +7,7 @@ def _truncate(fh, length):
             fh.truncate(length)
         else:
             os.truncate(fh, length)
-        return True
+        return 1    # True
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:

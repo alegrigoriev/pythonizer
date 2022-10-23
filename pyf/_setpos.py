@@ -4,12 +4,12 @@ def _setpos(fh, off):
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
         fh.seek(off, os.SEEK_SET)
-        return True
+        return 1        # True
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:
             _cluck(f"setpos({off}) failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
-        return False
+        return ''       # False
 

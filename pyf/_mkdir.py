@@ -14,4 +14,4 @@ def _mkdir(path, mode=0o777):
                 _cluck(f"mkdir({path}, 0o{mode:o}) failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
-        return 0
+        return ''

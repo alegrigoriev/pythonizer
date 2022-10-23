@@ -25,6 +25,6 @@ def _close_(fh):
             _cluck(OS_ERROR,skip=2)
         if AUTODIE:
             raise
-        return 0
+        return ''
 
 

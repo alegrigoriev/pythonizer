@@ -4,12 +4,12 @@ def _print(fh, *args):
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
         print(*args, end='', file=fh)
-        return True
+        return 1        # True
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:
             _cluck(f"print failed: {OS_ERROR}",skip=2)
         if AUTODIE:
             raise
-        return False
+        return ''       # False
 

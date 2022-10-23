@@ -10,4 +10,4 @@ def _looks_like_text(path):        # -T
     if rtn.returncode:
         return None
     rtn = rtn.stdout
-    return 'text' in rtn
+    return 1 if 'text' in rtn else ''
