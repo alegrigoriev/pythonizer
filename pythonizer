@@ -216,6 +216,7 @@
 # 1.003  2022/10/17  SNOOPYJC issue s120: Interpolate array reference in double-quoted string with subscript the same way perl does, issue s121: localtime, gmtime, and timelocal shouldn't raise exceptions
 # 1.004  2022/10/19  SNOOPYJC issue s122: IO encoding shouldn't default to UTF-8, issue s123: Integer hash keys are not being converted to string type in interpolated string references
 # 1.005  2022/10/21  SNOOPYJC Additional fix for issue s123 if using -P option, issue s124: Boolean values should print or convert to strings as 1 or '', not True/False, issue s125: \xH doesn't generate proper python code, issue s126: naming variables starting with _ can conflict with pythonizer function names, don't include 'return' in the LHS of <=> or cmp operator
+# 1.006  2022/10/23  SNOOPYJC More fixes for issue s79, addl fix for issue s126 when using pythonizer with an old perl
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -267,7 +268,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='1.005';
+   $VERSION='1.006';
    $SCRIPT_NAME='pythonizer';
 #
 # options
