@@ -3909,6 +3909,14 @@ sub bash_style_or_and_fix
 {
 my $split=$_[0];
    return 0 if($Pythonizer::PassNo!=&Pythonizer::PASS_2); # SNOOPYJC
+   my $cs = cur_sub();                                                      # issue s79
+   #say STDERR "bash_style_or_and_fix $cs line $statement_starting_lno $sub_lines_contain_potential_last_expression{$cs}";
+   if(exists $sub_lines_contain_potential_last_expression{$cs}) {     # issue s79: don't split return a || b
+       my @lnos = split /,/, $sub_lines_contain_potential_last_expression{$cs};   # issue s79
+       foreach my $l (@lnos) {                                              # issue s79
+           return 0 if($l == $statement_starting_lno);                      # issue s79
+       }                                                                    # issue s79
+   }                                                                        # issue s79
    # bash-style conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020 --NNB
    $is_or = ($ValPy[-1] =~ /or/);   # issue 12
    $is_low_prec = ($ValPerl[-1] =~ /^[a-z]+$/);         # issue 93: is this low precedence like and/or instead of &&/||
@@ -6517,7 +6525,7 @@ sub escape_keywords     # issue 41
     my $is_package_name = (scalar(@_) >= 2) ? 1 : 0;
     state %Pyf;             # issue s126
 
-    if(scalar(%Pyf) == 0) {                 # issue s126
+    if(!keys %Pyf) {                    # issue s126
         if(!$::import_perllib) {
             my @py_files = glob("$::Pyf_dir/*.py");
             foreach my $py (@py_files) {
@@ -7628,7 +7636,8 @@ sub compute_desired_use_require_options
 # For each lib that we use/require, compute the desired options needed to translate it properly, considering
 # name mapping issues.  The '-R' flag options is what we are computing here.
 {
-    return if(scalar(%UseRequireVars) == 0);    # Don't do anything if we have no vars to take care of
+    #return if(scalar(%UseRequireVars) == 0);    # Don't do anything if we have no vars to take care of
+    return if(!keys %UseRequireVars);       # Don't do anything if we have no vars to take care of
     
     # start by looking at all names in our NameMap, and see which ones have multiple sigils at the "package" level, and add
     # them into another entry to UseRequireVars using '.' as the filename to represent the file being currently processed
