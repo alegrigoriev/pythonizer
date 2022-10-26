@@ -11,6 +11,18 @@ sub makecbbbytes
 
 }
 
+sub make_attuid
+{
+	$rds_hrid = shift;
+       if ($rds_hrid =~/ABNORD/i) { $attuid = 'xx9999' }      
+        elsif (length($rds_hrid) == 0) { $attuid = 'xx9999' } else { $attuid = lc($rds_hrid) };
+	# cause it to insert 3 'return' stmts: return $attuid;
+}
+
+assert(make_attuid('abnord') eq 'xx9999');
+assert(make_attuid('') eq 'xx9999');
+assert(make_attuid('AB1111') eq 'ab1111');
+
 sub writebytefile
 {
 	$key = 'k';
@@ -19,5 +31,9 @@ sub writebytefile
 	assert($classout eq '');
 }
 
-makecbbbytes();
+%bytes = (key=>'value');
+assert(scalar(%bytes) == 1);
+my %b = makecbbbytes();
+assert(scalar(%b) == 0);
+assert(scalar(%bytes) == 1);
 print "$0 - test passed!\n";

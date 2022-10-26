@@ -754,22 +754,56 @@ sub add_package_name
     $sigil = '' if($sigil =~ /\w/);
     if($ValPy[$tno] =~ /^\(len\((.*)\)-1\)$/) {     # for $#arr
         my $id = $1;
-        $id = remap_conflicting_names($id, $sigil, '', 1) if($::remap_global && !$::remap_all && $class eq 'global');
+        # issue s102 $id = remap_conflicting_names(unescape_id($id, $name), $sigil, '', 1) if($::remap_global && !$::remap_all && $class eq 'global');
+        if($::remap_global && !$::remap_all && $class eq 'global') {
+            $id = unescape_id($id, $name);              # issue s102
+            $id = remap_conflicting_names($id, $sigil, '', 1);
+            $id = escape_keywords($id);                 # issue s102
+        }
         $ValPy[$tno] = '(len(' . cur_package() . '.' . $id . ')-1)';
     }elsif($ValPy[$tno] =~ /^len\((.*)\)$/) {       # issue bootstrap: for scalar(@arr)
         my $id = $1;
-        $id = remap_conflicting_names($id, $sigil, '', 1) if($::remap_global && !$::remap_all && $class eq 'global');
+        # issue s102 $id = remap_conflicting_names(unescape_id($id, $name), $sigil, '', 1) if($::remap_global && !$::remap_all && $class eq 'global');
+        if($::remap_global && !$::remap_all && $class eq 'global') {
+            $id = unescape_id($id, $name);              # issue s102
+            $id = remap_conflicting_names($id, $sigil, '', 1);
+            $id = escape_keywords($id);                 # issue s102
+        }
         $ValPy[$tno] = 'len(' . cur_package() . '.' . $id . ')';
     }elsif(substr($ValPy[$tno],0,1) eq '*') {           # issue bootstrap: we splatted this reference
         my $id = substr($ValPy[$tno],1);
-        $id = remap_conflicting_names($id, $sigil, '', 1) if($::remap_global && !$::remap_all && $class eq 'global');
+        # issue s102 $id = remap_conflicting_names(unescape_id($id, $name), $sigil, '', 1) if($::remap_global && !$::remap_all && $class eq 'global');
+        if($::remap_global && !$::remap_all && $class eq 'global') {
+            $id = unescape_id($id, $name);              # issue s102
+            $id = remap_conflicting_names($id, $sigil, '', 1);
+            $id = escape_keywords($id);                 # issue s102
+        }
         $ValPy[$tno] = '*' . cur_package() . '.' . $id;     # Add the package name, moving the splat to the front
     } else {
         my $id = $ValPy[$tno];
-        $id = remap_conflicting_names($id, $sigil, '', 1) if($::remap_global && !$::remap_all && $class eq 'global');
+        # issue s102 $id = remap_conflicting_names(unescape_id($id, $name), $sigil, '', 1) if($::remap_global && !$::remap_all && $class eq 'global');   # issue s102
+        if($::remap_global && !$::remap_all && $class eq 'global') {
+            $id = unescape_id($id, $name);              # issue s102
+            $id = remap_conflicting_names($id, $sigil, '', 1);
+            $id = escape_keywords($id);                 # issue s102
+        }
         $ValPy[$tno] = cur_package() . '.' . $id;         # Add the package name
     }
     say STDERR "Changed $py to $ValPy[$tno] for global" if($::debug >= 5);
+}
+
+sub unescape_id             # issue s102
+# given an escaped name like bytes_, remove the '_'
+# given a mapped name like bytes_v, remove the '_v' too
+{
+    my $id = shift;
+    my $perl_name = shift;
+
+    return $id if substr($perl_name, -1, 1) eq '_';
+    return substr($id, 0, length($id)-1) if substr($id, -1, 1) eq '_';
+    return $id if substr($perl_name, -2, 2) =~ /^_[a-z]$/ && substr($perl_name, -1, 1) eq substr($id, -1, 1);
+    return substr($id, 0, length($id)-2) if substr($id, -2, 2) =~ /^_[a-z]$/;
+    return $id;
 }
 
 sub add_package_name_sub
@@ -950,6 +984,7 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
     }
     $class = 'myfile' if($class eq 'my' && !in_sub());          # issue s83
     $class = 'myfile' if($class eq 'local' && !@nesting_stack); # 'local' at outer scope is same as 'my'
+    $class = 'my' if(scalar(@ValType) > $tno && $ValType[$tno] eq 'X');        # issue s79: Special variable like @_, @INC, @ENV should not be declared "global"
     if($class eq 'our') {
         if($::implicit_global_my) {
             # issue s100 $class = 'myfile' 
@@ -974,6 +1009,7 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
         $line_varclasses{$last_varclass_lno}{$name} = $class;
         #say STDERR "Setting sub_varclasses{$cs}{$name} = $cls for line $. (1)";
         $sub_varclasses{$cs}{$name} = $cls;
+        $Pythonizer::VarSubMap{$ValPy[$tno]}{$cs} = '+' if($cls eq 'global');           # issue s79: If we're in an inner sub, this will propagate the 'global' to the outer one
     } elsif(exists $line_varclasses{$last_varclass_lno}{$name}) {
         $class = $line_varclasses{$last_varclass_lno}{$name};
         my $cls = $class;
@@ -982,6 +1018,7 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
             $last_varclass_sub{$name} = $cs;
             #say STDERR "Setting sub_varclasses{$cs}{$name} = $cls for line $. (2)";
             $sub_varclasses{$cs}{$name} = $cls;
+            $Pythonizer::VarSubMap{$ValPy[$tno]}{$cs} = '+' if($cls eq 'global');       # issue s79: If we're in an inner sub, this will propagate the 'global' to the outer one
         }
     }
     if($statement_starting_lno != $.) {                                         # issue s108: make first line the same as the last line of stmt
@@ -1026,6 +1063,11 @@ sub propagate_varclass_for_here
 sub clone_line_varclasses
 # For insertion of a return statement, just propagate the varclass from the prior line
 {
+    my $force = shift;                              # issue s79: should we force a clone even if we have one defined?
+    if(!$force && exists $line_varclasses{$.}) {    # issue s79
+        say STDERR "clone_line_varclasses: didn't clone line $. as it already has line_varclasses defined" if($::debug);    # issue s79
+        return;                                     # issue s79
+    }                                               # issue s79
     for(my $lno = $. - 1; $lno; $lno--) {
         if(exists $line_varclasses{$lno}) {
             $line_varclasses{$.} = dclone($line_varclasses{$lno});
@@ -1391,13 +1433,15 @@ sub exit_block                  # issue 94
         }                                                                           # issue s100
     } elsif($Pythonizer::PassNo == &Pythonizer::PASS_1 && $nesting_last->{type} eq 'if ') {         # issue implicit conditional return
         my $cs = cur_sub();
-        if(($last_expression_lno =~ /,/ || $last_expression_lno > $nesting_last->{lno}) && $cs ne '__main__') {
+        # issue s79 if(($last_expression_lno =~ /,/ || $last_expression_lno > $nesting_last->{lno}) && $cs ne '__main__') {
+        if(($last_expression_lno =~ /,/ || $last_expression_lno >= $nesting_last->{lno}) && $cs ne '__main__') {    # issue s79
             $level_block_lnos{$nesting_level} = $last_expression_lno;
         }
         say STDERR "At end of if on line $. at level $nesting_level, sub_lines_contain_potential_last_expression = $sub_lines_contain_potential_last_expression{$cs}, last_expression_lno = $last_expression_lno, level_block_lnos = " . Dumper(\%level_block_lnos) if($::debug >= 5);
     } elsif($Pythonizer::PassNo == &Pythonizer::PASS_1 && $nesting_last->{type} eq 'elif ' || $nesting_last->{type} eq 'else') {  # issue implicit conditional return
         my $cs = cur_sub();
-        if(($last_expression_lno =~ /,/ || $last_expression_lno > $nesting_last->{lno}) && $cs ne '__main__') {
+        # issue s79 if(($last_expression_lno =~ /,/ || $last_expression_lno > $nesting_last->{lno}) && $cs ne '__main__') {
+        if(($last_expression_lno =~ /,/ || $last_expression_lno >= $nesting_last->{lno}) && $cs ne '__main__') {    # issue s79
             my $csn = cur_sub_level();
             if($nesting_level == $csn) {
                $sub_lines_contain_potential_last_expression{$cs} .= ',' . $last_expression_lno;
@@ -1407,7 +1451,8 @@ sub exit_block                  # issue 94
         say STDERR "At end of $nesting_last->{type} on line $. at level $nesting_level, sub_lines_contain_potential_last_expression = $sub_lines_contain_potential_last_expression{$cs}, last_expression_lno = $last_expression_lno, level_block_lnos = " . Dumper(\%level_block_lnos) if($::debug >= 5);
     } elsif($Pythonizer::PassNo == &Pythonizer::PASS_1 && $nesting_last->{type} =~ /sub|def/) {
         my $cs = $nesting_last->{cur_sub};
-        if($last_expression_lno =~ /,/ || $last_expression_lno > $nesting_last->{lno}) {
+        # issue s79 if($last_expression_lno =~ /,/ || $last_expression_lno > $nesting_last->{lno}) {
+        if($last_expression_lno =~ /,/ || $last_expression_lno >= $nesting_last->{lno}) {        # issue s79: Handle s/.../.../e all on same line
             if(exists $level_block_lnos{$nesting_level}) {
                 $level_block_lnos{$nesting_level} .= ',' . $last_expression_lno;
             } else {
@@ -1632,7 +1677,7 @@ sub needs_try_block                # issue 94, issue 108
     my $check_foreach = 0;          # issue s100
     if($at_bottom == -1) {          # issue s100: Called before generating the 'for' loop
         $check_foreach = 1;
-        say STDERR "needs_try_block(-1): statement_starting_lno = $statement_starting_lno, lno = $. top->lno = $nesting_stack[-1]->{lno}" if($::debug >= 5);   # TEMP
+        say STDERR "needs_try_block(-1): statement_starting_lno = $statement_starting_lno, lno = $. top->lno = " . (scalar(@nesting_stack) ? $nesting_stack[-1]->{lno} : 'undef') if($::debug >= 5);
         if($statement_starting_lno != $. && exists $line_needs_try_block{$statement_starting_lno}) {    # issue s108
             $line_needs_try_block{$nesting_stack[-1]->{lno}} = $line_needs_try_block{$statement_starting_lno}; # issue s108
         }                                                                                               # issue s108
@@ -3273,7 +3318,7 @@ my ($l,$m);
                 $ValType[$tno]="X";
             } else {
                 $ValPy[$tno] = remap_conflicting_names($ValPy[$tno], '%', '');      # issue 92
-            $ValPy[$tno] = escape_keywords($ValPy[$tno]);
+                $ValPy[$tno] = escape_keywords($ValPy[$tno]);
             }
             if( substr($ValPy[$tno],0,1) eq '.' ){
                $ValCom[$tno]='X';
@@ -3772,12 +3817,14 @@ my ($l,$m);
        ;            # Do nothing on else/elsif
    } elsif($f =~ /[ck]/) {                      # issue implicit conditional return
        my $csn = cur_sub_level();
-       if($nesting_level == $csn+1) {
+       if($nesting_level == $csn+1 && $Pythonizer::PassNo == &Pythonizer::PASS_1) { # issue s79
            my $cs = cur_sub();
            delete $sub_lines_contain_potential_last_expression{$cs};
            $last_expression_lno = 0;
        }
        $last_expression_lno = 0 if($last_expression_level == $nesting_level || $last_expression_level+1 == $nesting_level);
+       say STDERR "Deleting level_block_lnos{".($nesting_level+1)."} on |$TokenStr|" if($::debug >= 5); # issue s79
+       delete $level_block_lnos{$nesting_level+1};                                                      # issue s79
    } elsif($TokenStr ne '' && $TokenStr ne '}' && $TokenStr ne '{') { # issue implicit conditional return
        if(in_loop()) {
            $last_expression_lno = 0;
@@ -3789,11 +3836,17 @@ my ($l,$m);
        delete $level_block_lnos{$nesting_level+1};
        my $cs = cur_sub();
        my $csn = cur_sub_level();
-       if($nesting_level == $csn+1) {
+       if($nesting_level == $csn+1 && $Pythonizer::PassNo == &Pythonizer::PASS_1) { # issue s79
            if($last_expression_lno == 0) {
                delete $sub_lines_contain_potential_last_expression{$cs};
            } else {
                #$sub_lines_contain_potential_last_expression{$cs} = $last_expression_lno;
+           }
+           my $next_t = &Pythonizer::next_same_level_tokens('0oc', 0, $#ValClass);   # issue s79
+           if($next_t < 0 || $ValPy[$next_t] =~ /while|for/) {       # issue s79
+               # issue s79: Don't track this expression as a "last expression" unless it contains a top-level and/or
+               # or contains a trailing if/unless
+               $last_expression_lno = 0;                    # issue s79
            }
        }
    }
@@ -4251,7 +4304,7 @@ my $rc=-1;
               }
            }else{
              $ValPy[$tno] = remap_conflicting_names($ValPy[$tno], '$', $next_c);      # issue 92
-         $ValPy[$tno] = escape_keywords($ValPy[$tno]);  # issue 41
+             $ValPy[$tno] = escape_keywords($ValPy[$tno]);  # issue 41
              $rc=1; # regular variable
            }
       }
