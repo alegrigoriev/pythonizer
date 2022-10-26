@@ -217,6 +217,7 @@
 # 1.004  2022/10/19  SNOOPYJC issue s122: IO encoding shouldn't default to UTF-8, issue s123: Integer hash keys are not being converted to string type in interpolated string references
 # 1.005  2022/10/21  SNOOPYJC Additional fix for issue s123 if using -P option, issue s124: Boolean values should print or convert to strings as 1 or '', not True/False, issue s125: \xH doesn't generate proper python code, issue s126: naming variables starting with _ can conflict with pythonizer function names, don't include 'return' in the LHS of <=> or cmp operator
 # 1.006  2022/10/23  SNOOPYJC More fixes for issue s79, addl fix for issue s126 when using pythonizer with an old perl
+# 1.007  2022/10/24  SNOOPYJC issue s79: Use of uninitialized value $prev_line in rindex at ../pythonizer/pythonizer line, more fixes for issue s102
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -268,7 +269,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='1.006';
+   $VERSION='1.007';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -520,7 +521,8 @@ my ($start,$token_buffer_active);
    foreach my $cs ( keys %Perlscan::sub_lines_contain_potential_last_expression ) {	# issue implicit conditional return
        my $lnos = $Perlscan::sub_lines_contain_potential_last_expression{$cs};
        foreach my $lno ( split/,/, $lnos ) {
-           $line_needs_added_return{$lno} = 1;
+           # issue s79 $line_needs_added_return{$lno} = 1;
+           $line_needs_added_return{$lno}++;            # issue s79: Keep track if there are multiple instances on one line
        }
    }
    if($debug >= 5) {						# issue implicit conditional return
@@ -540,7 +542,7 @@ my ($start,$token_buffer_active);
       # issue 13 $line =~ s/\{([A-Za-z_][A-Za-z0-9_]*)\}/\{\'$1\'\}/g;	# issue 13
       # We do this a better way now: $line =~ s/(?<!\$)\{([A-Za-z_][A-Za-z0-9_]*)\}/\{\'$1\'\}/g;	# issue 13
       if($debug >= 5) {
-        say "Main loop, line=$line, BufferValClass=@Perlscan::BufferValClass, deferred_statement=$deferred_statement, saved_eval_tokens=" . (defined $saved_eval_tokens ? "@{$saved_eval_tokens->{perl}}" : "undef") . (defined $split_multiple_assignment ? ", split_multiple_assignment" :"");
+        say "Main loop, line=$line, BufferValClass=@Perlscan::BufferValClass, deferred_statement=$deferred_statement, saved_eval_tokens=" . (defined $saved_eval_tokens ? "@{$saved_eval_tokens->{perl}}" : "undef") . (defined $split_multiple_assignment ? ", split_multiple_assignment" :"") . ", token_buffer_active=$token_buffer_active";
       }
 
 #
@@ -629,14 +631,26 @@ my ($start,$token_buffer_active);
             @ValPy=('if');                      # issue 94
             &Perlscan::enter_block();           # issue 94
             $token_buffer_active=1;
-         }elsif($token_buffer_active==1){
+         }elsif($token_buffer_active==1 || $token_buffer_active==5){        # issue s79
+            say STDERR "Processing BufferValClass for token_buffer_active=$token_buffer_active" if($debug>=5);
             @ValClass=@Perlscan::BufferValClass;
             $TokenStr=join('',@ValClass);
             @ValCom=@Perlscan::BufferValCom;
             @ValPerl=@Perlscan::BufferValPerl;
             @ValPy=@Perlscan::BufferValPy;
             @ValType=@Perlscan::BufferValType;
-            $token_buffer_active=2;
+            # issue s79 $token_buffer_active=2;
+            $token_buffer_active++;                 # issue s79
+         }elsif($token_buffer_active==4) {          # issue s79: Inside the 'if', process the 'return' we snuck in
+             say STDERR "Tokenizing $line for token_buffer_active=4" if($debug>=5);
+             tokenize($line);
+             @Perlscan::BufferValClass=@ValClass; 
+             @Perlscan::BufferValCom=@ValCom; 
+             @Perlscan::BufferValPerl=@ValPerl; 
+             @Perlscan::BufferValPy=@ValPy; 
+             @Perlscan::BufferValType=@ValType; 
+             @ValClass=@ValCom=@ValPerl=@ValPy=(); @ValType=();
+             $token_buffer_active = 5;
          }else{
             @ValClass=@ValPerl=('}');
             $TokenStr=join('',@ValClass);       # SNOOPYJC
@@ -954,13 +968,18 @@ my ($start,$token_buffer_active);
          correct_nest(0,0);
          gen_chunk($ValPy[0],"    # $ValPerl[0]:"); # SNOOPYJC
       }elsif(  $ValPerl[0] eq 'close' ){
+         my $or_and = next_same_level_tokens('0o', 0, $#ValClass);  # issue s79
          for( my $i=1; $i<@ValPy; $i++ ){
+             last if($i == $or_and);                                # issue s79
              if( $ValClass[$i] eq 'i' || $ValClass[$i] eq 's' ){        # issue 10
 	        # issue close gen_chunk($ValPy[$i].'.f.close;');
                 # issue 72 gen_chunk($ValPy[$i].'.close()');	# issue close
                 $Pyf{_close_} = 1;                              # issue test coverage
                 my $escaped = escape_keywords($ValPy[$i]);      # issue s25
                 gen_chunk('_close_', '(', $escaped, ')');	# issue close, issue 72, issue s25, issue test coverage
+                if($or_and > 0) {                           # issue s79
+                    expression($or_and, $#ValClass, 0);     # issue s79
+                }                                           # issue s79
                 gen_statement();
              }
          }
@@ -3056,6 +3075,7 @@ sub finish
     my $orig_prev_line = $prev_line;
     $prev_line = '' unless defined $prev_line;                  # issue s79
     $line=getline(0) if($deferred_statement < 2 && !defined $split_multiple_assignment); # get new line # issue 58, issue 45, issue 115
+    my $orig_line = $line;                                      # issue s79
     #say STDERR "finish $CurSub generated_code=$generated_code, line=(($line)), prev_line=(($prev_line)), ValPerl=@ValPerl, CurNest=$Pythonizer::CurNest";
     #say STDERR "finish nested_sub_at_level=$nested_sub_at_level, nesting_level=$Perlscan::nesting_level";
     my $reparse_with_return = 0;
@@ -3078,10 +3098,12 @@ sub finish
         my $comment='';                                         # SNOOPYJC
         $comment = $1 if($line =~ m'^\s*}(;)$');                # SNOOPYJC: Don't lose a trailing semicolon
         $comment = $1 if($line =~ m'^\s*}(;?\s*#.*)$');            # SNOOPYJC
-        if(!$comment && &Perlscan::could_be_anonymous_sub_close() && $line ne '}' && $line ne '};') {    # issue s26
+        if(!$comment && (&Perlscan::could_be_anonymous_sub_close() || exists $line_needs_added_return{$Perlscan::statement_starting_lno}) &&    # issue s79
+            $line ne '}' && $line ne '};') {    # issue s26
             # issue s26: if we have like $prev_line = "2}));" and $line = "}));", remove from $prev_line what
-            # we have in $line, but save it (sans the '{') in $comment for the next round.
-            if(rindex($prev_line, $line) != -1) {                       # issue s26
+            # we have in $line, but save it (sans the '}') in $comment for the next round.
+            if(substr($line,0,1) eq '}' &&                          # issue s79
+                rindex($prev_line, $line) != -1) {                       # issue s26
                 $prev_line = substr($prev_line, 0, length($prev_line)-length($line));   # issue s26
                 $comment = substr($line,1);                             # issue s26
                 if($debug >= 5) {
@@ -3220,7 +3242,8 @@ sub finish
 	           exists $line_needs_added_return{$Perlscan::statement_starting_lno}) {	# issue implicit conditional return
 	            say STDERR "finish: calling getline($new_line) due to line_needs_added_return on line $Perlscan::statement_starting_lno" if($::debug >= 5);
 	            getline($new_line);					# issue implicit conditional return
-	        } else {						# issue implicit conditional return
+            } elsif(defined $orig_line && $orig_line =~ /^\s*\}/) {   # issue s79
+
 	            say STDERR "finish: calling getline(}".$comment.")" if($::debug >= 5);
                 getline('}'.$comment);                              # issue 45, SNOOPYJC, issue implicit conditional return
 	        }
@@ -3230,9 +3253,17 @@ sub finish
         }                                                       # issue 45
     }                                                           # issue 45
     if($reparse_with_return) {
-	delete $line_needs_added_return{$Perlscan::statement_starting_lno};	# issue implicit conditional return: only do this once!
+        $token_buffer_active = 4 if($token_buffer_active==2);                       # issue s79: Sneak the 'return' inside the 'if'
+        my $force = 1;                                                              # issue s79
+        if(exists $line_needs_added_return{$Perlscan::statement_starting_lno}) {    # issue s79
+            $force = 0;                                                             # issue s79
+            $line_needs_added_return{$Perlscan::statement_starting_lno}--;          # issue s79: Handle multiple instances
+            if(!$line_needs_added_return{$Perlscan::statement_starting_lno}) {      # issue s79: Delete if we get to 0
+	            delete $line_needs_added_return{$Perlscan::statement_starting_lno};	# issue implicit conditional return: only do this once!
+            }
+        }
         $TrStatus = 0;
-	&Perlscan::clone_line_varclasses();			# issue s102
+	    &Perlscan::clone_line_varclasses($force);			# issue s102, issue s79
     } else {
         if( defined($TrStatus) && $TrStatus < 0 ){
            push(@NoTrans,"[$prev_lno]: $orig_prev_line");
@@ -5049,7 +5080,7 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
       if(&Perlscan::needs_try_block(-1)) {                # issue s101
           gen_statement('try:');
           correct_nest(1,1);
-	  &Perlscan::stack_foreach_var();
+	      &Perlscan::stack_foreach_var();
       }
       gen_chunk($ValPy[$begin]);
       if ($ValClass[$start] eq 's'){
