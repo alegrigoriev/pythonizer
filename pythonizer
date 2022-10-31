@@ -218,6 +218,7 @@
 # 1.005  2022/10/21  SNOOPYJC Additional fix for issue s123 if using -P option, issue s124: Boolean values should print or convert to strings as 1 or '', not True/False, issue s125: \xH doesn't generate proper python code, issue s126: naming variables starting with _ can conflict with pythonizer function names, don't include 'return' in the LHS of <=> or cmp operator
 # 1.006  2022/10/23  SNOOPYJC More fixes for issue s79, addl fix for issue s126 when using pythonizer with an old perl
 # 1.007  2022/10/24  SNOOPYJC issue s79: Use of uninitialized value $prev_line in rindex at ../pythonizer/pythonizer line, more fixes for issue s102
+# 1.008  2022/10/26  SNOOPYJC issue s80: substr outside of string at ../pythonizer line, issue s127: To make the output of repeated pythonizer runs the same, sort globals, imports, and initializations, issue s130: Flatten the RHS of a list assignment, issue s131: Match capture variables are not set on a substitute
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -269,7 +270,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='1.007';
+   $VERSION='1.008';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -438,7 +439,7 @@ BEGIN {                                                 # SNOOPYJC
    if($Perlscan::uses_function_return_exception) {
        push @more_headers, "class $FUNCTION_RETURN_EXCEPTION(Exception):\n    pass";   # SNOOPYJC
    }
-   for my $label (keys %Perlscan::all_labels) {                 # issue 94
+   for my $label (sort keys %Perlscan::all_labels) {                 # issue 94, issue s127
        my $ex_name = label_exception_name($label);
        push @more_headers, "class $ex_name(Exception):\n    pass";
    }
@@ -893,8 +894,20 @@ my ($start,$token_buffer_active);
          $line=getline();
          next;
       }elsif($ValPerl[0] eq 'sub' && $#ValClass >= 1 && exists $nested_subs{$ValPerl[1]}) {        # issue 78
-         gen_chunk('def',$ValPy[1],"($nested_subs{$ValPerl[1]}):"); # def name (special list of arguments)
+         # issue s131 gen_chunk('def',$ValPy[1],"($nested_subs{$ValPerl[1]}):"); # def name (special list of arguments)
+         my $orig_args = $nested_subs{$ValPerl[1]};          # issue s131
+         my $args = $orig_args;
+         if($orig_args eq $DEFAULT_MATCH) {                  # issue s131
+             $args .= '_';                                   # issue s131: add an extra '_'
+         }
+         gen_chunk('def',$ValPy[1],"($args):"); # def name (special list of arguments), issue s131
          gen_statement();
+         if($orig_args eq $DEFAULT_MATCH) {                 # issue s131
+             correct_nest(1,1);                             # issue s131
+             output_line("global $DEFAULT_MATCH");          # issue s131
+             output_line("$DEFAULT_MATCH = ${DEFAULT_MATCH}_");    # issue s131
+             correct_nest(-1,-1);                           # issue s131
+         }                                                  # issue s131
          $LocalSub{$ValPy[1]} = 1;
          $nested_sub_at_level = $Perlscan::nesting_level;
          $top = $Perlscan::nesting_stack[-1];                        # issue s76
@@ -1298,32 +1311,34 @@ my ($start,$token_buffer_active);
              my $need_flatten = 0;                                                  # issue 102
              if( $ValPerl[2] eq '(' && ($end_pos=matching_br(2)) == $#ValClass){    # issue 102
                 # array initialization
-                # issue 102: need to smarten this code up.  First see if what we have needs to be flattened,
-                # if so and it's just one thing, we can avoid doing that.
-                my $elements = 0;
-                for(my $i=3; $i<$end_pos; $i++) {
-                    $elements++;
-                    if($ValClass[$i] =~ /[ah]/) {
-                        $need_flatten = 1;
-                        last if($elements>1);
-                    } elsif($ValClass[$i] eq 'f' && substr(&Pythonizer::func_type($ValPerl[$i], $ValPy[$i]),0,1) eq 'a') {
-                        $need_flatten = 1;
-                        last if($elements>1);
-                        $i = end_of_function($i);               # issue s24
-                    } elsif($i+2 <= $end_pos && ($ValClass[$i] eq 's' || $ValClass[$i] eq '"') && $ValClass[$i+1] eq '~' && $ValClass[$i+2] eq 'q' && substr($ValPy[$i+1],0,1) ne '.') { # see test_regex, issue s74
-                        $need_flatten = 1;
-                        last if($elements>1);
-                    }
-                    my $pos = next_same_level_token(',', $i, $end_pos-1);
-                    $pos = $end_pos if($pos == -1);
-                    $i = $pos;
-                }
-                #say STDERR "need_flatten=$need_flatten, elements=$elements";
-                if($need_flatten && $elements==1) {
-                    destroy($end_pos, 1);
-                    destroy(2,1);
-                    $need_flatten = 0;
-                }
+# issue s130                # issue 102: need to smarten this code up.  First see if what we have needs to be flattened,
+# issue s130                # if so and it's just one thing, we can avoid doing that.
+# issue s130                my $elements = 0;
+# issue s130                for(my $i=3; $i<$end_pos; $i++) {
+# issue s130                    $elements++;
+# issue s130                    if($ValClass[$i] =~ /[ah]/) {
+# issue s130                        $need_flatten = 1;
+# issue s130                        last if($elements>1);
+# issue s130                    } elsif($ValClass[$i] eq 'f' && substr(&Pythonizer::func_type($ValPerl[$i], $ValPy[$i]),0,1) eq 'a') {
+# issue s130                        $need_flatten = 1;
+# issue s130                        last if($elements>1);
+# issue s130                        $i = end_of_function($i);               # issue s24
+# issue s130                    } elsif($i+2 <= $end_pos && ($ValClass[$i] eq 's' || $ValClass[$i] eq '"') && $ValClass[$i+1] eq '~' && $ValClass[$i+2] eq 'q' && substr($ValPy[$i+1],0,1) ne '.') { # see test_regex, issue s74
+# issue s130                        $need_flatten = 1;
+# issue s130                        last if($elements>1);
+# issue s130                    }
+# issue s130                    my $pos = next_same_level_token(',', $i, $end_pos-1);
+# issue s130                    $pos = $end_pos if($pos == -1);
+# issue s130                    $i = $pos;
+# issue s130                }
+# issue s130                #say STDERR "need_flatten=$need_flatten, elements=$elements";
+# issue s130                if($need_flatten && $elements==1) {
+# issue s130                    destroy($end_pos, 1);
+# issue s130                    destroy(2,1);
+# issue s130                    $need_flatten = 0;
+# issue s130                }
+                  
+                flatten_lists(2, 1);           # issue s130
              }
              if( $#ValClass==2 && $ValClass[2] eq 'a'){
                 # Special case array to array copy
@@ -2303,7 +2318,7 @@ sub fix_type_issues
                 my $end_pos = $limit;
                 if($i != 0 && $ValClass[$i-1] eq '(') {         # If the whole thing is in brackets, we know where to stop
                     $end_pos = matching_br($i-1) - 1;
-		    return if $end_pos < 0;
+		            return if $end_pos < 0;
                 }
                 my $j;
                 for($j = $i+1; $j <= $end_pos; $j++) {
@@ -2313,7 +2328,7 @@ sub fix_type_issues
                     $ep = $close-1 if($close!=-1 && $close-1 < $ep);
                     my $optional = 0;
                     my $t = substr($f_type, $t_pos, 1);
-                    $optional = 1 if(substr($f_type, $t_pos+1, 1) eq '?');
+                    $optional = 1 if($t_pos < length($f_type) && substr($f_type, $t_pos+1, 1) eq '?');  # issue s80
                     $t = substr($f_type, ++$t_pos, 1) if($t eq '?');
                     if($t eq ':') {
                         $t = substr($f_type, --$t_pos, 1);
@@ -3782,6 +3797,10 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
       if(defined $number_of_elements) {         # issue 56, SNOOPYJC: Handle goatse
         $Pyf{"_list_of_n"} = 1;		# issue 56
         gen_chunk('_list_of_n', '(');   # issue 56
+        if($ValClass[$split+1] eq '(') {            # issue s130
+            my $adjust = flatten_lists($split+1, 0);   # issue s130
+            $limit += $adjust;                      # issue s130
+        }                                           # issue s130
       }                                 # issue 56
 
       if( $limit - $split == 1 ){
@@ -10053,7 +10072,8 @@ sub filter_exports
     my $exports = shift;        # string sep by ', '
 
     my @result = ();
-    my @arr_exports = split /, /, $exports;
+    # issue s127 my @arr_exports = split /, /, $exports;
+    my @arr_exports = sort(split /, /, $exports);       # issue s127
 
     my $has_var_imports = 0;
     for my $export (@arr_exports) {
@@ -10810,6 +10830,8 @@ sub rhs_has_same_number_of_elements                     # issue s59
             $i = $match;
         } elsif($ValClass[$i] =~ /[ah]/) {      # no arrays or hashes allowed
             return 0;
+        } elsif($ValClass[$i] eq 'f' && substr(&Pythonizer::func_type($ValPerl[$i], $ValPy[$i]),0,1) eq 'a') {  # issue s130 - no array functions allowed
+            return 0;                           # issue s130
         }
     }
     return ($number_of_elements == $commas+1);
@@ -10973,6 +10995,63 @@ sub fix_boolean_expressions     # issue s124
             }
         }
     }
+    return $adjust;
+}
+
+sub flatten_lists                                # issue s130
+# Flatten lists if needed
+# Arg1: Start pos (at the '(' on the RHS)
+# Arg2: True if single element lists should always be stripped of their parens
+# Returns: The # of elements added (or deleted)
+{
+    my $start = $_[0];
+    my $strip_parens = $_[1];
+
+    my $need_flatten = 0;
+    my $elements = 0;
+    my $end_pos = matching_br($start);
+    return 0 if($end_pos < 0);
+    for(my $i=$start+1; $i<$end_pos; $i++) {
+        $elements++;
+        if($ValClass[$i] =~ /[ah]/) {
+            $need_flatten = 1;
+            last if($elements>1);
+        } elsif($ValClass[$i] eq 'f' && substr(&Pythonizer::func_type($ValPerl[$i], $ValPy[$i]),0,1) eq 'a') {
+            $need_flatten = 1;
+            last if($elements>1);
+            $i = end_of_function($i);               # issue s24
+        } elsif($i+2 <= $end_pos && ($ValClass[$i] eq 's' || $ValClass[$i] eq '"') && $ValClass[$i+1] eq '~' && $ValClass[$i+2] eq 'q' && substr($ValPy[$i+1],0,1) ne '.') { # see test_regex, issue s74
+            $need_flatten = 1;
+            last if($elements>1);
+        } elsif($ValClass[$i] eq '(' && $ValPerl[$i] eq '(' && $i != 0 && $ValClass[$i-1] !~ /[if]/) {
+            # Look for another list inside this list, but not in a function or sub call
+            my $e = matching_br($i);
+            my $p = next_same_level_token(',', $i+1, $e-1);
+            if($p != -1) {
+                $need_flatten = 1;
+            } elsif(&Pythonizer::expr_type($i, $e, $CurSub) =~ /^a/) {
+                $need_flatten = 1;
+            }
+        }
+        my $pos = next_same_level_token(',', $i, $end_pos-1);
+        $pos = $end_pos if($pos == -1);
+        $i = $pos;
+    }
+    my $adjust = 0;
+    if($need_flatten && $elements==1 && ($strip_parens || $ValClass[$start+1] =~ /[ahf]/)) {
+        # In the case of (gmtime)[0..5], we can't remove the parens around gmtime or else we generate bad code
+        return 0 if($end_pos+1 < $#ValClass && $ValPerl[$end_pos+1] eq '[');
+        destroy($end_pos, 1);
+        destroy($start,1);
+        $adjust = -2;
+    } elsif($need_flatten && $elements != 1) {
+        $Pyf{'_flatten'} = 1;
+        insert($end_pos, ')', ')', ')');                # add an extra close paren
+        insert($start, '(', '(', '(');                  # and an extra open paren (flatten only takes one arg)
+        insert($start, 'f', '_flatten', '_flatten');
+        $adjust = 3;
+    }
+    say STDERR "flatten_lists: need_flatten=$need_flatten, elements=$elements, |$TokenStr|, @ValPerl" if($::debug && $adjust);
     return $adjust;
 }
 

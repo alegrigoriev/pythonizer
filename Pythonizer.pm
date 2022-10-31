@@ -819,7 +819,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
 =cut
    }
 
-   foreach $varname (keys %VarSubMap ){
+   # issue s127 foreach $varname (keys %VarSubMap ){
+   foreach $varname (sort keys %VarSubMap ){                # issue s127
       next if(  $varname=~/[\(\[]/ );
       # SNOOPYJC next if(  length($varname)==1 );
       next if($varname !~ /^[A-Za-z_][A-Za-z0-9._]*$/);   # SNOOPYJC: has to be a valid python var name or with a package
@@ -839,7 +840,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          if(defined $common_type && exists $VarType{$varname} && exists $VarType{$varname}{__main__} && $common_type ne $VarType{$varname}{__main__} && $::debug>=3) {
                  say STDERR "get_globals: Merging to common type $common_type for global var $varname";
          }
-         foreach $subname (keys %{$VarSubMap{$varname}} ){
+         # issue s127 foreach $subname (keys %{$VarSubMap{$varname}} ){
+         foreach $subname (sort keys %{$VarSubMap{$varname}} ){     # issue s127
             if($var_usage_in_subs>1 || exists $NeedsInitializing{$subname}{$varname}) { # SNOOPYJC
                 next if($varname !~ /^[A-Za-z_][A-Za-z0-9._]*$/);   # Has to be a valid python var name or with a package
                 next if($varname eq 'True' || $varname eq 'False');     # issue s23
@@ -878,8 +880,10 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          }
       # SNOOPYJC }
    }
-   foreach $subname (keys %NeedsInitializing) {         # SNOOPYJC
-       foreach $varname (keys %{$NeedsInitializing{$subname}}) {
+   # issue s127 foreach $subname (keys %NeedsInitializing) {         # SNOOPYJC
+   # issue s127     foreach $varname (keys %{$NeedsInitializing{$subname}}) {
+   foreach $subname (sort keys %NeedsInitializing) {         # SNOOPYJC, issue s127
+       foreach $varname (sort keys %{$NeedsInitializing{$subname}}) {   # issue s127
            # SNOOPYJC: issue bootstrap next if(!exists $VarSubMap{$varname}{$subname});   # if it's not in VarSubMap, then it's a "my" variable, which is handled in pythonizer
 	   next if($varname =~ /__dict__$/);
            next if($varname eq 'True' || $varname eq 'False');     # issue s23
@@ -3395,7 +3399,8 @@ sub cleanup_imports
     if($import_lno) {
         my $size = keys %referenced_imports;
         if($size) {
-            $line_ref->[$import_lno-1] = 'import ' . join(',', keys %referenced_imports);
+            # issue s127 $line_ref->[$import_lno-1] = 'import ' . join(',', keys %referenced_imports);
+            $line_ref->[$import_lno-1] = 'import ' . join(',', sort keys %referenced_imports);  # issue s127
         } else {
             $line_ref->[$import_lno-1] = '^';
         }
