@@ -197,6 +197,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'each'=>'_each',                        # SNOOPYJC
                 'END'=>'_END_',                      # SNOOPYJC
                 'exp'=>'math.exp',                      # issue s3
+                '__expand'=>"$DEFAULT_MATCH.expand",    # issue s131
                 'for'=>'for','foreach'=>'for',          # SNOOPYJC: remove space from each
                 'else'=>'else: ','elsif'=>'elif ',
                 # issue 42 'eval'=>'NoTrans!', 
@@ -432,6 +433,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'do'=>'C',            # SNOOPYJC
                   'each'=>'f',          # SNOOPYJC
                   'else'=>'C', 'elsif'=>'C', 'exists'=>'f', 'exit'=>'f', 'export'=>'f',
+                  '__expand'=>'f',      # issue s131
                   'exp'=>'f',           # issue s3
                   'eval'=>'C',          # issue 42
                   'fc'=>'f',            # SNOOPYJC
@@ -519,6 +521,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   '_map_int'=>'a:a of I', '_map_num'=>'a:a of N', '_map_str'=>'a:a of S',
                   '_assign_global'=>'SSm:m', '_read'=>'HsII?:s',
                   '_set_breakpoint'=>':u',              # issue s62
+                  '__expand'=>'R:S',                    # issue s131
                   'exp'=>'F:F', 'log'=>'F:F', 'cos'=>'F:F', 'sin'=>'F:F',       # issue s3
                   '$#'=>'a:I',                                                # issue 119: _last_ndx
                   're'=>'S', 'tr'=>'S',                                         # SNOOPYJC
@@ -596,6 +599,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
         $PyFuncType{'signal.getsignal'} = 'I:f';
         $PyFuncType{'pdb.set_trace'} = ':I';
         $PyFuncType{'_get_element'} = 'mI:m';           # issue s43
+        $PyFuncType{_flatten} = 'a:a';          # issue s103
 
         for my $d (keys %DASH_X) {
             if($d =~ /[sMAC]/) {            # issue s124
@@ -1120,7 +1124,8 @@ sub get_sub_vars_with_class
 
     my @result = ();
     return @result unless(exists $sub_varclasses{$sub});
-    for my $perl_name (keys %{$sub_varclasses{$sub}}) {
+    # issue s127 for my $perl_name (keys %{$sub_varclasses{$sub}}) {
+    for my $perl_name (sort keys %{$sub_varclasses{$sub}}) {    # issue s127
         if(($sub_varclasses{$sub}{$perl_name} eq $class && (($class ne 'global' || !template_var($perl_name))) ||    # issue s76
            ($class eq 'nonlocal' && template_var($perl_name)))) {                                                    # issue s76
             my $py = get_py_name($perl_name);
@@ -2268,6 +2273,7 @@ my ($l,$m);
    $ExtractingTokensFromDoubleQuotedTokensEnd = -1;     # SNOOPYJC
    $ExtractingTokensFromDoubleQuotedStringEnd = 0;      # SNOOPYJC
    $ExtractingTokensFromDoubleQuotedStringTnoStart = -1; # SNOOPYJC
+   $ExtractingTokensFromDoubleQuotedStringXFlag = 0;    # issue s80
    $ExtractingTokensFromDoubleQuotedStringAdjustBrackets = 0;   # issue test coverage
    $ate_dollar = -1;                                    # issue 50
    my $end_br;                  # issue 43
@@ -2283,7 +2289,7 @@ my ($l,$m);
           $ExtractingTokensFromDoubleQuotedStringEnd -= $spaces;
           $ExtractingTokensFromDoubleQuotedTokensEnd -= $spaces;
           if($ExtractingTokensFromDoubleQuotedTokensEnd == 0) {
-              extract_tokens_from_double_quoted_string('', 0); 
+              extract_tokens_from_double_quoted_string('', 0, 0); 
               $source = substr($source,$spaces+1);              # Eat the leading spaces and the trailing delimiter
           }
           say STDERR "ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd, source=$source after removing leading spaces" if($::debug>=5);
@@ -2570,7 +2576,7 @@ my ($l,$m);
            if( $tno>=1 && ( ($ValClass[$tno-2] eq 'f' && $ValPerl[$tno-2] !~ /^(?:chomp|chop|chr|shift)$/)      # issue 99: not a function that takes no args
                             || $ValPerl[$tno-1] eq 'split') ){
               # in split regex should be plain vanilla -- no re.match is needed.
-              $ValPy[$tno]=put_regex_in_quotes( $ValPerl[$tno], '/', $original_regex); # double quotes neeed to be escaped just in case, issue 111
+              $ValPy[$tno]=put_regex_in_quotes( $ValPerl[$tno], '/', $original_regex, 0); # double quotes neeed to be escaped just in case, issue 111, issue s80 FIXME!
            }else{
               $ValPy[$tno]=perl_match($ValPerl[$tno], '/', $original_regex); # there can be modifiers after the literal., issue 111
            }
@@ -2617,7 +2623,7 @@ my ($l,$m);
         # issue 39 $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno]);
             $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno], $has_squiggle);   # issue 39
             my $quote = substr($ValPy[$tno],3,length($ValPy[$tno])-6);  # issue 39: remove the """ and """
-            interpolate_strings($quote, $quote, 0, 0, 0);     # issue 39
+            interpolate_strings($quote, $quote, 0, 0, 0, 0);     # issue 39, issue s80
             popup();                            # issue 39
             popup() if($has_squiggle);
         $TokenStr=join('',@ValClass);       # issue 39
@@ -2914,13 +2920,13 @@ my ($l,$m);
                   if( ($w eq 'm' || $w eq 'qr') && ($tno>=1 && $ValPerl[$tno-1] eq 'split') ||
                       ($tno>=2 && $ValClass[$tno-1] eq '(' && $ValPerl[$tno-2] eq 'split')) {   # issue s52
                       # in split regex should be  plain vanilla -- no re.match is needed.
-                      ($modifier,undef)=is_regex($arg1); # modifies $source as a side effect
+                      ($modifier,undef)=is_regex($arg1,0); # modifies $source as a side effect, issue s131
                       if( length($modifier) > 1 ){
                         #regex with modifiers
-                         $quoted_regex='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex)."$modifier)";   # issue 111
+                         $quoted_regex='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex, x_flag($modifier))."$modifier)";   # issue 111, issue s80
                       }else{
                         # No modifier
-                        $quoted_regex=put_regex_in_quotes($arg1, $delim, $original_regex);       # issue 111
+                        $quoted_regex=put_regex_in_quotes($arg1, $delim, $original_regex, 0);       # issue 111, issue s80
                       }
                       $ValPy[$tno]=$quoted_regex;
                   } elsif( $w eq 'm' || ($w eq 'qr' &&  $ValClass[$tno-1] eq '~') ){
@@ -2957,30 +2963,56 @@ my ($l,$m);
                      $arg2=remove_escaped_delimiters($delim, $original_regex2);          # issue 51, issue 111
                      $source=substr($source,$cut);
                      $cut=0;
-                     ($modifier,undef)=is_regex($arg2); # modifies $source as a side effect
+                     (undef,$groups_are_present)=is_regex($arg1,1);         # issue s131
+                     ($modifier,undef)=is_regex($arg2,0); # modifies $source as a side effect, issue s131
+                     my $fake_e_flag = 0;                                       # issue s131
+                     if($groups_are_present && index($modifier, 're.E') < 0) {  # issue s131
+                         if($modifier eq 'r' || length($modifier) == 0) {       # issue s131
+                             $modifier = ',re.E';                               # issue s131
+                         } else {                                               # issue s131
+                             $modifier .= '|re.E';                              # issue s131
+                         }                                                      # issue s131
+                         $fake_e_flag = 1;                                      # issue s131
+                     }                                                          # issue s131
                      if( length($modifier) > 1 ){
                         #regex with modifiers
-                         $quoted_regex='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex)."$modifier)";   # issue 111
+                         $quoted_regex='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex, x_flag($modifier))."$modifier)";   # issue 111, issue s80
                      }else{
                         # No modifier
-                        $quoted_regex=put_regex_in_quotes($arg1, $delim, $original_regex);       # issue 111
+                        $quoted_regex=put_regex_in_quotes($arg1, $delim, $original_regex, 0);       # issue 111, issue s80
                      }
                      if( length($modifier)>0 ){
                         #this is regex
                         if( $tno>=1 && $ValClass[$tno-1] eq '~'   ){
                            # explisit s
                             if(index($modifier, 're.E') >= 0) {
-                                $ValPy[$tno]='re.sub('.$quoted_regex.",e'''".$arg2."''',";
+                                if($fake_e_flag) {                                                              # issue s131
+                                    if($delim eq "'") {
+                                        $ValPy[$tno]='re.sub('.$quoted_regex.",e'''__expand(m'".$original_regex2."')''',";    # issue s131
+                                    } else {
+                                        $ValPy[$tno]='re.sub('.$quoted_regex.",e'''__expand(m(".$original_regex2."))''',";    # issue s131
+                                    }
+                                } else {
+                                    $ValPy[$tno]='re.sub('.$quoted_regex.",e'''".$arg2."''',";
+                                }
                             } else {
                                 # $arg2 = escape_re_sub($arg2);                   # issue bootstrap
-                                $ValPy[$tno]='re.sub('.$quoted_regex.','.put_regex_in_quotes($arg2, $delim, $original_regex2, 1).','; #  double quotes neeed to be escaped just in case; issue 111
+                                $ValPy[$tno]='re.sub('.$quoted_regex.','.put_regex_in_quotes($arg2, $delim, $original_regex2, 0, 1).','; #  double quotes neeed to be escaped just in case; issue 111, issue s80
                             }
                         }else{
                             if(index($modifier, 're.E') >= 0) {
-                                $ValPy[$tno]="re.sub($quoted_regex".",e'''".$arg2."''',$DEFAULT_VAR)";
+                                if($fake_e_flag) {                                                                          # issue s131
+                                    if($delim eq "'") {
+                                        $ValPy[$tno]="re.sub($quoted_regex".",e'''__expand(m'".$original_regex2."')''',$DEFAULT_VAR)";    # issue s131
+                                    } else {
+                                        $ValPy[$tno]="re.sub($quoted_regex".",e'''__expand(m(".$original_regex2."))''',$DEFAULT_VAR)";    # issue s131
+                                    }
+                                } else {
+                                    $ValPy[$tno]="re.sub($quoted_regex".",e'''".$arg2."''',$DEFAULT_VAR)";
+                                }
                             } else {
                                 # $arg2 = escape_re_sub($arg2);                   # issue bootstrap
-                                $ValPy[$tno]="re.sub($quoted_regex".','.put_regex_in_quotes($arg2, $delim, $original_regex2, 1).",$CONVERTER_MAP{S}($DEFAULT_VAR))";    # issue 32, issue 78, issue 111, issue s8
+                                $ValPy[$tno]="re.sub($quoted_regex".','.put_regex_in_quotes($arg2, $delim, $original_regex2, 0, 1).",$CONVERTER_MAP{S}($DEFAULT_VAR))";    # issue 32, issue 78, issue 111, issue s8, issue s80
                             }
                         }
                      }else{
@@ -2988,10 +3020,11 @@ my ($l,$m);
                         $ValPy[$tno]='str.replace('.$quoted_regex.','.$quoted_regex.',1)';
                      }
                   } elsif( $w eq 'qr' ) {               # SNOOPYJC: qr in other context
-                     ($modifier,$groups_are_present)=is_regex($arg1);                           # SNOOPYJC
+                     ($modifier,$groups_are_present)=is_regex($arg1,0);                           # SNOOPYJC, issue s131
                      $modifier='' if($modifier eq 'r');                                         # SNOOPYJC
+                     my $x_flag = x_flag($modifier);                     # issue s80
                      ($arg1, $modifier) = build_in_qr_flags($arg1, $modifier);          # issue s3
-                     $ValPy[$tno]='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex).$modifier.')';       # SNOOPYJC, issue 111
+                     $ValPy[$tno]='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex, $x_flag).$modifier.')';       # SNOOPYJC, issue 111
                      my $cs = cur_sub();                # issue bootstrap
                      $SpecialVarsUsed{qr}{$cs} = 1;     # issue bootstrap
                   }else{
@@ -3138,7 +3171,7 @@ my ($l,$m);
             $ValPerl[$tno]=substr($source,0,$cut);
             $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno], $has_squiggle);   # issue 39
             my $quote = substr($ValPy[$tno],3,length($ValPy[$tno])-6);  # issue 39: remove the """ and """
-            interpolate_strings($quote, $quote, 0, 0, 0);     # issue 39
+            interpolate_strings($quote, $quote, 0, 0, 0, 0);     # issue 39, issue s80
         popup();                                                                            # issue 39
         popup() if($has_squiggle);
          } elsif($tno == 1 && $ValClass[0] eq 't') {    # issue ddts: TYPE of my/our etc  (my TYPE VARLIST)
@@ -3823,7 +3856,7 @@ my ($l,$m);
            $last_expression_lno = 0;
        }
        $last_expression_lno = 0 if($last_expression_level == $nesting_level || $last_expression_level+1 == $nesting_level);
-       say STDERR "Deleting level_block_lnos{".($nesting_level+1)."} on |$TokenStr|" if($::debug >= 5); # issue s79
+       say STDERR "Deleting level_block_lnos{".($nesting_level+1)."} on |$TokenStr|" if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0); # issue s79
        delete $level_block_lnos{$nesting_level+1};                                                      # issue s79
    } elsif($TokenStr ne '' && $TokenStr ne '}' && $TokenStr ne '{') { # issue implicit conditional return
        if(in_loop()) {
@@ -3832,7 +3865,7 @@ my ($l,$m);
            $last_expression_lno = $statement_starting_lno;
            $last_expression_level = $nesting_level;
        }
-       say STDERR "Deleting level_block_lnos{".($nesting_level+1)."} on |$TokenStr|" if($::debug >= 5);
+       say STDERR "Deleting level_block_lnos{".($nesting_level+1)."} on |$TokenStr|" if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
        delete $level_block_lnos{$nesting_level+1};
        my $cs = cur_sub();
        my $csn = cur_sub_level();
@@ -3917,7 +3950,7 @@ my $original;
            if(defined $source) {
                 my $quote=substr($source,0,$ExtractingTokensFromDoubleQuotedStringEnd);
                 my $p_tno = $tno;                                           # issue s114
-                $cut = extract_tokens_from_double_quoted_string($quote, 0);
+                $cut = extract_tokens_from_double_quoted_string($quote, 0, 0);      # issue s80
                 $ExtractingTokensFromDoubleQuotedStringEnd -= $cut;
                 if($ExtractingTokensFromDoubleQuotedStringEnd <= 0 && $cut != 0 && 
                     $p_tno == $tno) {                                       # issue s114
@@ -3930,7 +3963,7 @@ my $original;
                     substr($source,0,$cut)='';
                     say STDERR "finish2: source=$source (after cut)" if($::debug>=5);
                     if($p_tno != $tno && $ValClass[$tno-1] ne '"' && $ExtractingTokensFromDoubleQuotedStringEnd <= 0) { # issue s114
-                        $cut = extract_tokens_from_double_quoted_string('', 0);             # issue s114
+                        $cut = extract_tokens_from_double_quoted_string('', 0, 0);          # issue s114, issue s80
                         substr($source,0,$cut)='';                                          # issue s114
                         say STDERR "finish3: source=$source (after cut)" if($::debug>=5);   # issue s114
                     }                                                                       # issue s114
@@ -3938,7 +3971,7 @@ my $original;
                 say STDERR "finish2: ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd (after cut)" if($::debug>=5);
             } else {
                 say STDERR "finish2: no source - calling extract_tokens_from_double_quoted_string('', 0)" if($::debug>=5);
-                $cut = extract_tokens_from_double_quoted_string('', 0);
+                $cut = extract_tokens_from_double_quoted_string('', 0, 0);      # issue s80
             }
         }
     }
@@ -4322,11 +4355,14 @@ sub is_regex
 #if there is modier then return modifier tranlated in re.complile notation (the string length is more then one)
 #if this is regex but there is no modifier return 'r'
 #if this is string and there is no modifier return '';
+# Arg1: regex
+# Arg2: 1 if this is the first part of a s/.../.../ 
 {
 my $myregex=$_[0];
+my $first_s = $_[1];                                # issue s131
 my (@temp,$sym,$prev_sym,$i,$modifier,$meta_no);
    $modifier='r';
-   if( $source=~/^(\w+)/ ){
+   if( !$first_s && $source=~/^(\w+)/ ){            # issue s131
      $source=substr($source,length($1)); # cut modifier
      $modifier='';
      @temp=split(//,$1);
@@ -4345,11 +4381,13 @@ my (@temp,$sym,$prev_sym,$i,$modifier,$meta_no);
    my $cs = cur_sub();          # issue s3
    for( $i=0; $i<@temp; $i++ ){
       $sym=$temp[$i];
-      if( $prev_sym ne '\\' && $sym eq '(' ){
+      if( $prev_sym ne '\\' && $sym eq '(' && !($temp[$i+1] eq '?' && $temp[$i+2] eq ':')){    # issue s131: (?:...) is not capturing
+         say STDERR "is_regex($myregex,$first_s) = ($modifier, 1)" if($::debug >= 5);
          return($modifier,1);
       }elsif($prev_sym eq '$' && substr($myregex,$i) =~ /^(\w+)/ && exists $Pythonizer::VarType{$1} &&  # issue s3 - if this contains a variable ref, and that is a regex var, then assume it has groups
                 ((exists $Pythonizer::VarType{$1}{$cs} &&  $Pythonizer::VarType{$1}{$cs} eq 'R') ||
                 (exists $Pythonizer::VarType{$1}{__main__} &&  $Pythonizer::VarType{$1}{__main__} eq 'R'))) { 
+         say STDERR "is_regex($myregex,$first_s) = ($modifier, 1)" if($::debug >= 5);
          return($modifier,1);           # issue s3
       }elsif( $prev_sym ne '\\' && index('.*+()[]?^$|',$sym)>=-1 ){
         $meta_no++;
@@ -4363,9 +4401,11 @@ my (@temp,$sym,$prev_sym,$i,$modifier,$meta_no);
       #regular expression without groups
       # issue 11 return ('r', 0);
       if ($modifier eq '') { $modifier = 'r'; } # Issue 10
+      say STDERR "is_regex($myregex,$first_s) = ($modifier, 0)" if($::debug >= 5);
       return ($modifier, 0);    # issue 11
    }
    # issue 11 return('',0);
+   say STDERR "is_regex($myregex,$first_s) = ($modifier, 0)" if($::debug >= 5);
    return($modifier,0);     # issue 11
 }
 # Parse regex in case the opeartion is search
@@ -4387,7 +4427,7 @@ my  $groups_are_present;
 #
 # Is this regex or a reguar string used in regex for search
 #
-   ($modifier,$groups_are_present)=is_regex($myregex);          # Returns 'r' for modifier for regex with no flags
+   ($modifier,$groups_are_present)=is_regex($myregex,0);          # Returns 'r' for modifier for regex with no flags, issue s131
    my $cs = cur_sub();
    if((exists $SpecialVarsUsed{'@-'} && exists $SpecialVarsUsed{'@-'}{$cs}) ||
       (exists $SpecialVarsUsed{'@+'} && exists $SpecialVarsUsed{'@-'}{$cs})) {  # SNOOPYJC
@@ -4397,12 +4437,16 @@ my  $groups_are_present;
    if($::debug > 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
        say STDERR "perl_match($myregex, $delim, $original_regex): modifier=$modifier, groups_are_present=$groups_are_present";
    }
+   my $s_rhs = 0;                               # issue s131
+   if($tno>=2 && $ValClass[$tno-1] eq '(' && $ValClass[$tno-2] eq 'f' && $ValPerl[$tno-2] eq '__expand') {  # issue s131
+       $s_rhs = 1;                              # issue s131
+   }                                            # issue s131
    if( length($modifier) > 1 ){
       #regex with modifiers
-      $quoted_regex='re.compile('.put_regex_in_quotes($myregex, $delim, $original_regex).$modifier.')';  # issue 111
+      $quoted_regex='re.compile('.put_regex_in_quotes($myregex, $delim, $original_regex, x_flag($modifier), $s_rhs).$modifier.')';  # issue 111, issue s80, issue s131
    }else{
       # No modifier
-      $quoted_regex=put_regex_in_quotes($myregex, $delim, $original_regex);      # issue 111
+      $quoted_regex=put_regex_in_quotes($myregex, $delim, $original_regex, 0, $s_rhs);      # issue 111, issue s131
    }
    if( length($modifier)>0 ){
       #this is regex
@@ -4415,6 +4459,8 @@ my  $groups_are_present;
          }
       # issue 93 }elsif( $ValClass[$tno-1] eq '0'  ||  $ValClass[$tno-1] eq '(' ){
       # issue 124 }elsif( $tno>=1 && ($ValClass[$tno-1] =~ /[0o]/  ||  $ValClass[$tno-1] eq '(' || $ValClass[$tno-1] eq '=') ){      # issue 93, SNOOPYJC: Handle assignment of regex with default var and groups
+      } elsif($s_rhs) {                         # issue s131
+          return $quoted_regex;                 # issue s131
       } else {          # issue 124
             # this is calse like || /text/ or while(/#/)
          if( $groups_are_present ){
@@ -4527,7 +4573,7 @@ my ($k,$quote,$close_pos,$ind,$result,$prefix);
       $ValPy[$tno]=escape_quotes(escape_non_printables($quote,0),2);
       return $close_pos;
    }
-   return interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, 0);     # issue 39
+   return interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, 0, 0);     # issue 39, issue s80
 }
 
 use constant {l_mode => 1, u_mode=>2, L_mode=>4, U_mode=>8, F_mode=>16, Q_mode=>32};    # issue s28
@@ -4547,6 +4593,7 @@ sub interpolate_strings                                         # issue 39
    my $close_pos = shift;               # First position AFTER the closing quotes
    my $offset = shift;                  # How long the opening is, e.g. 1 for ", 3 for qq/
    my $in_regex = shift;                # 1 if we're in a regex and \$ needs to remain as \$
+   my $x_flag = shift;                  # if in regex, do we have the x flag set?       # issue s80
 # Result = normally $close_pos, but can point earlier in the string if we need to tokenize part of it
 # in order to check for references (in the first pass only).
 #
@@ -4557,7 +4604,7 @@ sub interpolate_strings                                         # issue 39
    my $special_escape_flags = 0;                                # issue s28: | of the current flags
 
    if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
-       say STDERR ">interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex)";
+       say STDERR ">interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex, $x_flag)";
    }
    my ($l, $k, $ind, $result, $pc, $prev);
    local $cut;                  # Save the global version of this!
@@ -4573,7 +4620,7 @@ sub interpolate_strings                                         # issue 39
       # Python equvalence between single and doble quotes alows some flexibility
       $ValPy[$tno]=escape_quotes(remove_perl_escapes($quote,$in_regex),2); # always generate with quotes --same for Python 2 and 3
       if($Pythonizer::PassNo != &Pythonizer::PASS_0) {
-         say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex)=$close_pos, ValPy[$tno]=$ValPy[$tno]" if($::debug >=3);
+         say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex, $x_flag)=$close_pos, ValPy[$tno]=$ValPy[$tno]" if($::debug >=3);
       }
       return $close_pos;
    }
@@ -4581,10 +4628,10 @@ sub interpolate_strings                                         # issue 39
    # so we can mark their references, and add things like initialization.
    # If we're handling a here_is document, or a regex, we don't do this (but we probably should: $close_pos == 0)
    if($Pythonizer::PassNo == &Pythonizer::PASS_1 && $close_pos != 0) {                       # SNOOPYJC
-       my $pos = extract_tokens_from_double_quoted_string($pre_escaped_quote,1)+$offset;
+       my $pos = extract_tokens_from_double_quoted_string($pre_escaped_quote,1,$x_flag)+$offset;    # issue s80
        if($ExtractingTokensFromDoubleQuotedStringEnd > 0) {
           $ExtractingTokensFromDoubleQuotedStringEnd += $offset;
-          say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex)=$pos (begin extract mode)" if($::debug >=3);
+          say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex, $x_flag)=$pos (begin extract mode)" if($::debug >=3);
           return $pos;
        }
     } elsif($Pythonizer::PassNo==&Pythonizer::PASS_1 && $last_varclass_lno != $. && $last_varclass_lno) {
@@ -4600,6 +4647,7 @@ sub interpolate_strings                                         # issue 39
    # This is a parcial implementation of the most common cases
    # Full implementation is possible only in two pass scheme
 my  $outer_delim;
+    $quote = preprocess_regex_x_flag_refs_in_comments($quote) if($x_flag);       # issue s80
     $quote = escape_curly_braces($quote);        # issue 51
     # issue 47 $k=index($quote,'$');                        # issue 51 - recompute in case it moved
     $k = -1;                            # issue 47
@@ -5268,8 +5316,9 @@ my  $outer_delim;
    }
    $result.=$outer_delim;
    #say STDERR "double_quoted_literal: result=$result";
+   $result = postprocess_regex_x_flag_refs_in_comments($result) if($x_flag);       # issue s80
    $ValPy[$tno]=$result;
-   say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex)=$close_pos, ValPy[$tno]=$ValPy[$tno]" if($::debug >=3);
+   say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex, $x_flag)=$close_pos, ValPy[$tno]=$ValPy[$tno]" if($::debug >=3);
    return $close_pos;
 }
 
@@ -5332,9 +5381,14 @@ sub extract_tokens_from_double_quoted_string
 {
     my $quote = shift;
     my $initial = shift;
+    my $x_flag = shift;         # issue s80: is this a regex with the x flag? (only checked if $initial)
 
-    say STDERR ">extract_tokens_from_double_quoted_string($quote,$initial)" if($::debug>=3);
+    say STDERR ">extract_tokens_from_double_quoted_string($quote,$initial,$x_flag)" if($::debug>=3);
     $ExtractingTokensFromDoubleQuotedStringTnoStart = $tno if($initial);
+    $ExtractingTokensFromDoubleQuotedStringXFlag = $x_flag if($initial);        # issue s80
+    if($ExtractingTokensFromDoubleQuotedStringXFlag) {      # issue s80
+        $quote = preprocess_regex_x_flag_refs_in_comments($quote);       # issue s80
+    }
     if(($pos = unescaped_match($quote, qr'[$@]')) >= 0) {
     #if($quote =~ m'[$@]' && !is_escaped($quote, $-[0])) {
         #my $pos = $-[0];
@@ -5580,12 +5634,13 @@ sub remove_escaped_delimiters            # issue 51
          $delim=~tr/{[(</}])>/;         # Swap it!
     }
 
-    for(my $k = index($str, "\\"); $k >= 0; $k = index($str, "\\", $k+1)) {
-        if($k+1 < length($str) && substr($str, $k+1, 1) eq $delim) {
-            substr($str, $k, 1) = '';           # change \' to '
+    my $result = $str;                  # issue s131: Don't change the original
+    for(my $k = index($result, "\\"); $k >= 0; $k = index($result, "\\", $k+1)) {
+        if($k+1 < length($result) && substr($result, $k+1, 1) eq $delim) {
+            substr($result, $k, 1) = '';           # change \' to '
         }
     }
-    return $str;
+    return $result;
 }
 
 sub decode_array                # issue 47
@@ -5897,9 +5952,13 @@ sub put_regex_in_quotes
 my $string=$_[0];
 my $delim=$_[1];        # issue 111
 my $original_regex=$_[2]; # issue 111
-my $s_rhs = (scalar(@_) > 3 ? $_[3] : 0);       # issue bootstrap: Is this on the RHS of a s/// ?
+my $x_flag=$_[3];       # issue s80
+my $s_rhs = (scalar(@_) > 4 ? $_[4] : 0);       # issue bootstrap: Is this on the RHS of a s/// ?
    if($::debug > 4 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
        say STDERR "put_regex_in_quotes($string, $delim, $original_regex)";
+   }
+   if($x_flag == 2) {           # double 'x' flag
+       $string = squash_double_x_flag_regex($string);
    }
    if($delim ne "'") {  # issue 111
        $string =~ s/\$\&/\\g<0>/g;  # issue 11
@@ -5910,7 +5969,7 @@ my $s_rhs = (scalar(@_) > 3 ? $_[3] : 0);       # issue bootstrap: Is this on th
        # issue 111 }
        # issue s81 $string = perl_regex_to_python($string) unless($s_rhs);          # issue 111, issue bootstrap
        $ValPy[$tno] = $string;                           # issue 111
-       interpolate_strings($string, $original_regex, 0, 0, 1);          # issue 111
+       interpolate_strings($string, $original_regex, 0, 0, 1, $x_flag);          # issue 111, issue s80
        $ValPy[$tno] = escape_re_sub($ValPy[$tno],$delim) if($s_rhs);   # issue bootstrap
        $ValPy[$tno] = perl_regex_to_python($ValPy[$tno], 1) unless($s_rhs);          # issue 111, issue bootstrap, issue s81
        return 'r'.$ValPy[$tno];                                         # issue 111
@@ -7775,6 +7834,7 @@ sub build_in_qr_flags           # issue s3
 
     return ($regex, $flags) unless $flags;
 
+    my $x_flag = x_flag($flags);            # issue s80
     $flags =~ s/[|]/,/g;        # change ,re.I|re.S to ,re.I,re.S
     $flags =~ s/re\.//g;        # remove the 're.', so now we have ,I,S
     my @flags = split /,/, $flags;
@@ -7787,6 +7847,8 @@ sub build_in_qr_flags           # issue s3
             logme('W', "Regex flag '$f' is not supported here by python - ignored");
         }
     }
+    return ("(?$mapped_flags:$regex
+)", '') if($x_flag);                    # issue s80
     return ("(?$mapped_flags:$regex)", '');
 }
 
@@ -7897,5 +7959,150 @@ sub template_var                    # issue s76: Is this perl name being current
     return 0;
 }
 
+sub in_x_regex_comment              # issue s80
+# For a regex with the 'x' flag, is the current position in the string part of a comment?
+# Args: string - multi-line regex string to search
+#       pos    - current position to check
+# Result: 1 or 0
+{
+    my $string = $_[0];
+    my $pos = $_[1];
+
+    for(my $p = $pos-1; $p >= 0; $p--) {
+        my $ch = substr($string, $p, 1);
+        return 1 if($ch eq '#' && !is_escaped($string, $p));
+        return 0 if($ch eq ']' && !is_escaped($string, $p));
+        return 0 if($ch eq "\n" && !is_escaped($string, $p));
+    }
+    return 0;
+}
+
+sub x_flag                      # issue s80
+# Return 1 if this regex modifier has an x flag, return 2 if it has 2 x flags
+{
+    my $modifier = $_[0];
+
+    #say STDERR "x_flag($modifier)";
+    return 2 if(index($modifier, 're.X|re.X') >= 0);
+    return 1 if(index($modifier, 're.X') >= 0);
+    return 0;
+}
+
+sub squash_double_x_flag_regex  # issue s80
+# For a double x flag regex, squash out the extra spaces in ranges, because python can't support them like that
+{
+    my $regex = $_[0];
+    my $result = '';
+    my $in_brackets = 0;
+
+    for(my $i = 0; $i < length($regex); $i++) {
+        my $c = substr($regex, $i, 1);
+        if($c eq '\\') {        # Handle escaped char
+            my $nc = substr($regex, $i+1, 1);
+            if($in_brackets && ($nc eq ' ' || $nc eq "\t")) {    # Remove escaped space/tabs in brackets
+                $result .= $nc;
+            } else {
+                $result .= $c . $nc;
+            }
+            $i++;
+            next;
+        } elsif($in_brackets && ($c eq ' ' || $c eq "\t")) {
+            next;           # Skip spaces and tabs in brackets
+        } elsif(!$in_brackets && $c eq '[') {
+            $in_brackets = 1;
+        } elsif($in_brackets && $c eq ']') {
+            $in_brackets = 0;
+        }
+        $result .= $c;
+    }
+    say STDERR "squash_double_x_flag_regex($regex) = $result" if($::debug);
+    return $result;
+}
+
+sub preprocess_regex_x_flag_refs_in_comments        # issue s80
+# For a regex with the x flag in pass 1, remove '$' and '@' references in comments - in PASS_1 just replace them with '?'
+# in PASS_2 we replace them with special chars that we later remove in post processing
+# so we don't match them with variables
+{
+    my $regex = $_[0];
+    my $result = '';
+    my $in_brackets = 0;
+    my $in_comment = 0;
+    my $pc = 0;
+
+    for(my $i = 0; $i < length($regex); $i++) {
+        my $c = substr($regex, $i, 1);
+        if($c eq '\\') {        # Handle escaped char
+            my $nc = substr($regex, $i+1, 1);
+            if($nc eq '#' && $Pythonizer::PassNo==&Pythonizer::PASS_2) {
+                say STDERR "preprocess_regex_x_flag_refs_in_comments - replacing \\#" if($::debug >= 5);
+                $result .= chr(ord('#') + 0x80);
+            } else {
+                $result .= $c . $nc;
+            }
+            $i++;
+            $pc = 0;
+            next;
+        } elsif(!$in_brackets && $c eq '#' && $pc ne '$') {  # start of comment (not $#...)
+            $in_comment = 1;
+        } elsif($in_comment && ($c eq '$' || $c eq '@')) {
+            say STDERR "preprocess_regex_x_flag_refs_in_comments - replacing $c" if($::debug >= 5);
+            if($Pythonizer::PassNo==&Pythonizer::PASS_1) {
+                $c = '?';
+            } else {
+                $c = chr(ord($c) + 0x80);        # Encode the char so we can decode it later
+            }
+        } elsif($in_comment && $c eq "\n") {
+            $in_comment = 0;
+        } elsif(!$in_brackets && $c eq '[') {
+            $in_brackets = 1;
+        } elsif($in_brackets && $c eq ']') {
+            $in_brackets = 0;
+        }
+        $result .= $c;
+        $pc = $c;       # keep track of prior char
+    }
+    return $result;
+}
+
+sub postprocess_regex_x_flag_refs_in_comments        # issue s80
+# For a regex with the x flag in pass 1, restore '$' and '@' references in comments
+# in PASS_2 as we replaced them with special chars that we later remove here
+{
+    my $regex = $_[0];
+    my $result = '';
+    my $in_brackets = 0;
+    my $in_comment = 0;
+    my $pc = 0;
+
+    for(my $i = 0; $i < length($regex); $i++) {
+        my $c = substr($regex, $i, 1);
+        if($c eq '\\') {        # Handle escaped char
+            my $nc = substr($regex, $i+1, 1);
+            $result .= $c . $nc;
+            $i++;
+            $pc = 0;
+            next;
+        } elsif(!$in_brackets && $c eq '#' && $pc ne '$') {  # start of comment (not $#...)
+            $in_comment = 1;
+        } elsif($in_comment && ($c eq chr(ord('$')+0x80) || $c eq chr(ord('@')+0x80))) {
+            $c = chr(ord($c) - 0x80);        # Decode the char
+            say STDERR "postprocess_regex_x_flag_refs_in_comments - restoring $c" if($::debug >= 5);
+        } elsif($c eq chr(ord('#')+0x80)) {
+            $result .= '\\';
+            $c = '#';
+            say STDERR "postprocess_regex_x_flag_refs_in_comments - restoring \\$c" if($::debug >= 5);
+        } elsif($in_comment && $c eq "\n") {
+            $in_comment = 0;
+        } elsif(!$in_brackets && $c eq '[') {
+            $in_brackets = 1;
+        } elsif($in_brackets && $c eq ']') {
+            $in_brackets = 0;
+        }
+        $result .= $c;
+        $pc = $c;       # keep track of prior char
+    }
+    return $result;
+}
 1;
 
