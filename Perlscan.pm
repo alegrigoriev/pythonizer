@@ -64,7 +64,7 @@ use File::Spec::Functions qw(file_name_is_absolute catfile);   # SNOOPYJC
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw(Exporter);
-@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence %SpecialVarsUsed @EndBlocks %SpecialVarR2L get_sub_vars_with_class %FileHandles add_package_to_mapped_name %FuncType %PyFuncType %UseRequireVars %UseRequireOptionsPassed %UseRequireOptionsDesired mapped_name %WHILE_MAGIC_FUNCTIONS);   # issue 41, issue 65, issue 74, issue 92, issue 93, issue 78, issue names, issue s40
+@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence %SpecialVarsUsed @EndBlocks %SpecialVarR2L get_sub_vars_with_class %FileHandles add_package_to_mapped_name %FuncType %PyFuncType %UseRequireVars %UseRequireOptionsPassed %UseRequireOptionsDesired mapped_name %WHILE_MAGIC_FUNCTIONS %UseSwitch);   # issue 41, issue 65, issue 74, issue 92, issue 93, issue 78, issue names, issue s40, issue s129
 #our (@ValClass,  @ValPerl,  @ValPy, $TokenStr); # those are from main::
 
   $VERSION = '0.93';
@@ -77,8 +77,9 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
   %NameMap=();                          # issue 92: Map names to python names
   @EndBlocks=();                        # SNOOPYJC: List of END blocks with their unique names
   %SpecialVarR2L=();                    # SNOOPYJC: Map from special var RHS to LHS
-  %FileHandles = ();            # SNOOPYJC: Set of file handles used in this file
+  %FileHandles = ();                    # SNOOPYJC: Set of file handles used in this file
   @UseLib=();                           # SNOOPYJC: Paths added using "use lib"
+  %UseSwitch=();                        # issue s129: use Switch: set of what's passed on the use statement like __ or fallthrough
   $fullpy = undef;                      # SNOOPYJC: Path to python file of package ref
   %UseRequireVars=();                   # issue names: map from fullpath to setref of perl varnames
   %UseRequireOptionsPassed=();          # issue names: map from fullpath to string of options that were sent to pythonizer
@@ -260,6 +261,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
         'state'=>'global',
                 'rand'=>'_rand',                # SNOOPYJC
                 'read'=>'.read',                # issue 10
+                'readlink'=>'_readlink',        # issue s128
                    'stat'=>'_stat','sysread'=>'.sysread',
                    'substr'=>'_substr','sub'=>'def','STDERR'=>'sys.stderr','STDIN'=>'sys.stdin',        # issue bootstrap
                    # SNOOPYJC 'system'=>'os.system',
@@ -421,6 +423,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
           'basename'=>'f',  # SNOOPYJC
           'binmode'=>'f',   # SNOOPYJC
                   'bless'=>'f',         # SNOOPYJC
+                  'break'=>'k',         # issue s129
                   'caller'=>'f','chdir'=>'f','chomp'=>'f', 'chop'=>'f', 'chmod'=>'f','chr'=>'f','close'=>'f',
                   'continue'=>'C',      # SNOOPYJC
                   'cos'=>'f',           # issue s3
@@ -477,6 +480,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'redo'=>'k',                  # SNOOPYJC
                   'require'=>'k',               # SNOOPYJC
                   'rindex'=>'f','read'=>'f', 
+                  'readlink'=>'f',              # issue s128
                   'rename'=>'f',                # SNOOPYJC
           # issue 61 'return'=>'f', 
           'return'=>'k',        # issue 61
@@ -501,7 +505,9 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'unpack'=>'f',                # SNOOPYJC
                   'use'=>'k',                   # SNOOPYJC
                   'values'=>'f',
-                  'warn'=>'f', 'when'=>'C', 'while'=>'c',
+                  'warn'=>'f', 
+                  'when'=>'c',                  # issue s129
+                  'while'=>'c',
                   'undef'=>'f', 'unless'=>'c', 'unshift'=>'f','until'=>'c','uc'=>'f', 'ucfirst'=>'f',
                   # SNOOPYJC 'use'=>'c',
                   'untie'=>'f',
@@ -551,6 +557,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:m',
                   'push'=>'aa:I', 'pop'=>'a:s', 'pos'=>'s:I', 'print'=>'H?a:I', 'printf'=>'H?S?a:I', 'quotemeta'=>'S:S', 'rand'=>'F?:F',
                   'rindex'=>'SSI?:I','read'=>'HsII?:I', '.read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
+                  'readlink'=>'S:S',            # issue s128
                   '_refs'=>'u:S',               # issue s3
                   'say'=>'H?a:I','scalar'=>'a:I','seek'=>'HII:u', 'shift'=>'a?:s', 'sleep'=>'I:I', 'splice'=>'aI?I?a?:a',
                   'select'=>'H?:H',             # SNOOPYJC
@@ -702,6 +709,7 @@ $statement_starting_lno = 0;            # issue 116
 %line_contains_for_loop_with_modified_counter=();       # SNOOPYJC
 %line_contains_local_for_loop_counter=();   # issue s100
 %line_contains_pos_gen=();      # SNOOPYJC: {lno=>scalar, ...} on any stmt that can generate the pos of this scalar
+%line_contains_for_given=();    # issue s129: Is this 'for' really a 'given'?
 %scalar_pos_gen_line=();        # SNOOPYJC: {scalar=>last_lno, ...} - opposite of prev hash
 %line_needs_try_block=();       # issue 94, issue 108: Map from line number to TRY_BLOCK_EXCEPTION|TRY_BLOCK_FINALLY if that line needs a try block
 %line_locals=();                # issue 108: Map from line number to a list of locals
@@ -1229,6 +1237,29 @@ sub set_loop_ctr_mod        # SNOOPYJC
     }
 }
 
+sub set_for_given        # issue s129
+# Set that this 'for' loop is acting as a 'given'
+{
+    for(my $i = $#nesting_stack; $i >= 0; $i--) {
+        last if $nesting_stack[$i]->{type} eq 'given';
+        if($nesting_stack[$i]->{type} eq 'foreach') {
+            say STDERR "setting line_contains_for_given{$nesting_stack[$i]->{lno}} from when in line $." if($::debug >= 5);
+            $line_contains_for_given{$nesting_stack[$i]->{lno}} = 1;
+            $nesting_stack[$i]->{type} = 'given';
+            $nesting_stack[$i]->{is_loop} = 0;
+            my $in_loop = 0;
+            for(my $j = $i-1; $j >= 0; $j--) {      # recompute in_loop
+                if($nesting_stack[$j]->{in_loop}) {
+                    $in_loop = 1;
+                    last;
+                }
+            }
+            $nesting_stack[$i]->{in_loop} = $in_loop;
+            last;
+        }
+    }
+}
+
 sub is_continue_block
 # Return True if this is a continue block.  Pass "1" if calling at the bottom of the block
 {
@@ -1250,6 +1281,7 @@ sub is_continue_block
 sub track_continue
 # Track a 'continue' statement as soon as we lex it in the first pass
 {
+    return unless defined $nesting_last;            # issue s129
     say STDERR "track_continue setting line_needs_try_block{$nesting_last->{lno}} to EXCEPTION|CONTINUE" if($::debug >= 5);
     my $ex = 0;
     if(exists $line_needs_try_block{$nesting_last->{lno}} &&
@@ -2523,6 +2555,7 @@ my ($l,$m);
                   ($ValClass[$tno-1] eq 'C' && $ValPerl[$tno-1] eq 'do') ||  # issue s74
                   ($tno == 2 && $ValPerl[0] eq 'sub') ||
                   $ValPerl[$tno-1] eq 'sub' ||          # issue 81
+                  ($tno >= 2 && $ValClass[0] eq 'c' && $ValPy[0] eq 'when') ||              # issue s129
                   ($tno == 1 && $ValPerl[0] =~ /BEGIN|END|UNITCHECK|CHECK|INIT/))){ # issue 35, 45
              # $tno>0 this is the case when curvy bracket has comments'
              enter_block() if($s eq '{');                 # issue 94
@@ -2784,7 +2817,16 @@ my ($l,$m);
                 # issue s3 logme('W',"'wantarray' reference in $cs is hard wired to $ValPy[$tno]");
                 $SpecialVarsUsed{'wantarray'}{$cs} = 1;         # issue s3
                 $Pythonizer::SubAttributes{$cs}{wantarray} = 1; # issue s3
-            }                                   # issue 89
+            } elsif($class eq 'c' && $ValPy[$tno] eq 'when') {  # issue s129
+                set_for_given();                                # issue s129: If this 'when' (or 'case') is in a 'for', change the 'for' to a 'given'
+                $source = fixup_case_subs($source, $cut);       # issue s129
+            } elsif($class eq 'c' && $w eq 'switch') {          # issue s129
+                $source = fixup_switch_subs($source, $cut);     # issue s129
+            } elsif($class eq 'c' && $ValPy[$tno] eq 'for' && exists $line_contains_for_given{$.}) {   # issue s129
+                $ValPy[$tno] = 'given';             # issue s129
+                $ValPerl[$tno] = 'given';           # issue s129
+                $w = 'given';                       # issue s129
+            }
             $ValClass[$tno]=$class;
             if( $class eq 'c' && $tno > 0 && $w ne 'assert' && $Pythonizer::PassNo == &Pythonizer::PASS_1 && ($ValClass[0] ne 'C' || $ValPerl[0] ne 'do')){ # issue 116: Control statement, like if and do
                 $line_contains_stmt_modifier{$statement_starting_lno} = 1;      # issue 116: Remember for PASS_2
@@ -3798,6 +3840,8 @@ my ($l,$m);
             handle_use_lib();
         } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'use' && $ValPerl[1] eq 'overload') {     # issue s3
             handle_use_overload();
+        } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'use' && $ValPerl[1] eq 'Switch') {       # issue s129
+            handle_use_Switch();                                                                # issue s129
         } elsif($ValClass[0] eq 'k' && ($ValPerl[0] eq 'use' || $ValPerl[0] eq 'require')) {    # issue names
             handle_use_require(0);                                                              # issue names
         } elsif($#ValClass == 3 && $ValClass[0] eq 't' && $ValClass[1] eq 'a' && $ValPerl[1] eq '@ISA' && $ValClass[2] eq '=' && $ValClass[3] eq 'q' && cur_sub() eq '__main__') { # issue s3
@@ -4444,9 +4488,13 @@ my  $groups_are_present;
    if( length($modifier) > 1 ){
       #regex with modifiers
       $quoted_regex='re.compile('.put_regex_in_quotes($myregex, $delim, $original_regex, x_flag($modifier), $s_rhs).$modifier.')';  # issue 111, issue s80, issue s131
+      return $quoted_regex if($ValClass[0] eq 'c' && $ValPy[0] eq 'when');           # issue s129
    }else{
       # No modifier
       $quoted_regex=put_regex_in_quotes($myregex, $delim, $original_regex, 0, $s_rhs);      # issue 111, issue s131
+      if($ValClass[0] eq 'c' && $ValPy[0] eq 'when') {           # issue s129
+          return "re.compile($quoted_regex)";                    # issue s129
+      }                                                          # issue s129
    }
    if( length($modifier)>0 ){
       #this is regex
@@ -7430,7 +7478,7 @@ sub handle_use_lib
             }
         }
     }
-    say STDERR "For @ValPerl, using @libs (after stripping the '')" if($debug);
+    say STDERR "For @ValPerl, using @libs (after stripping the '')" if($::debug);
     unshift @UseLib, map {&::unquote_string($_)}  @libs;
 }
 
@@ -7443,6 +7491,44 @@ sub handle_use_overload                         # issue s3
             $Pythonizer::SubAttributes{$ValPy[$i]}{overloads} = 1;
         }
     }
+}
+
+sub handle_use_Switch
+# use Switch;
+# use Switch LIST;
+{
+    my $pos = 0;
+    if($Pythonizer::PassNo!=&Pythonizer::PASS_1) {
+        return;
+    }
+    my @sw = ();
+    for(my $i=$pos+2; $i<=$#ValClass; $i++) {
+        if($ValClass[$i] eq '"') {          # Plain String
+            push @sw, $ValPy[$i];
+        } elsif($ValClass[$i] eq 'q') {     # qw(...) or the like
+            if(index(q('"), substr($ValPy[$i],0,1)) >= 0) {
+                push @sw, $ValPy[$i];
+            } else {
+                push @sw, map {'"'.$_.'"'} split(' ', $ValPy[$i]);         # qw(...) on use stmt doesn't generate the split
+            }
+        } elsif($ValClass[$i] eq 'f') {     # Handle dirname($0) only
+            if($ValPerl[$i] eq 'dirname' && $ValPerl[$i+1] eq '$0') {
+                push @sw, '"' . dirname($Pythonizer::fname) . '"';
+                $i++;
+            } elsif($ValPerl[$i] eq 'dirname' && $ValPerl[$i+1] eq '(' && $ValPerl[$i+2] eq '$0') {
+                push @sw, '"' . dirname($Pythonizer::fname) . '"';
+                $i += 3;
+            } else {
+                logme('W', "use lib $ValPerl[$i]() not handled!");
+            }
+        }
+    }
+    say STDERR "For @ValPerl, using @sw (after stripping the '')" if($::debug);
+    %UseSwitch = map {&::unquote_string($_) => 1}  @sw;
+    $TokenType{switch} = $TokenType{given};
+    $TokenType{case} = $TokenType{when};
+    $keyword_tr{switch} = 'given';
+    $keyword_tr{case} = 'when';
 }
 
 sub get_mapped_names_for_package        # SNOOPYJC
@@ -8104,5 +8190,65 @@ sub postprocess_regex_x_flag_refs_in_comments        # issue s80
     }
     return $result;
 }
+
+sub fixup_case_subs             # issue s129
+# Fixup case statement with implicit sub definitions by inserting an explicit "sub" like Switch.pm does
+{
+    my $source = shift;
+    my $pos = shift;
+
+    my $rest = substr($source, $cut);
+    my $result;
+    if(exists $UseSwitch{__} && $rest =~ /^\s*__/) {
+        $rest =~ s/__([^{]*)\{/sub {\$_[0] $1}{/;
+        $result = substr($source,0,$cut) . $rest;
+        say STDERR "fixup_case_subs($source, $cut) = $result" if($::debug);
+        return $result;
+    }
+    return $source unless($rest =~ /^\s*\{/);
+    return $source if($rest =~ /^\s*\{\}/);     # case {} is not a sub
+    return $source if($rest =~ /^\s*\{([^},]*),[^}]*\}/ && # case {1,1} is not a sub
+                      $1 !~ /\b\w+\b/);                 # but case {scalar grep $x, @arr} IS a sub
+    #if($rest =~ /(\s*\{[^}]+\})(\s*\{.*)$/) {
+    #$result = substr($source,0,$cut) . ' (sub' . $1 . ')' . $2;
+    #} else {
+    #$result = substr($source,0,$cut) . ' sub ' . $rest;
+    #}
+    my ($p_open, $p_close);
+    for($p_open=0; $p_open < length($rest); $p_open++) {
+        last if(substr($rest, $p_open, 1) eq '{');
+    }
+    $p_close = matching_curly_br($rest, $p_open);
+    $result = substr($source,0,$cut) . ' (sub' . substr($rest, 0, $p_close+1) . ')' . substr($rest, $p_close+1);
+    say STDERR "fixup_case_subs($source, $cut) = $result" if($::debug);
+    return $result;
+}
+
+sub fixup_switch_subs             # issue s129
+# Fixup switch statement with references to __ to insert a 'sub'
+{
+    my $source = shift;
+    my $pos = shift;
+
+    my $rest = substr($source, $cut);
+    my $result;
+    if(exists $UseSwitch{__} && $rest =~ /^\s*\(\s*__/) {
+        $rest =~ s/__([^{]*)\)/sub {\$_[0] $1})/;
+        $result = substr($source,0,$cut) . $rest;
+        say STDERR "fixup_switch_subs($source, $cut) = $result" if($::debug);
+        return $result;
+    }
+    return $source;
+}
+
+sub in_when                     # issue s129
+# Are we in a when/case?
+{
+    for $ndx (reverse 0 .. $#nesting_stack) {
+        return 1 if $nesting_stack[$ndx]->{type} eq 'when';
+    }
+    return 0;
+}
+
 1;
 

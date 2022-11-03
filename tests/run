@@ -165,8 +165,19 @@ do
       rm -f run1.log
       continue
    fi
+   error_test=0
+   case "$f" in
+   error*) error_test=1;;
+   esac
    ../pythonizer -v0 $flags $f >>run1.log 2>&1
    if [ $? -ne 0 ]; then
+      if [ $error_test -eq 1 ]; then
+          ((passed++))
+          gd
+          grep -v 'test passed' run1.log >>warn.log
+          rm -f run1.log
+          continue
+      fi
       echo "$f run with pythonizer FAILED" >>run1.log
       ((failed++))
       status=1
@@ -174,6 +185,16 @@ do
       cat run1.log >>run.log
       rm -f run1.log
       continue
+   else
+       if [ $error_test -eq 1 ]; then
+           red F
+           echo "Expected pythonizer error on $f not generated!" >>run1.log
+           ((failed++))
+           status=1
+           cat run1.log >>run.log
+           rm -f run1.log
+           continue
+       fi
    fi
    pyf=${f%.pl}.py
    python $pyf >>run1.log 2>&1

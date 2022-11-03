@@ -45,3 +45,11 @@ File
    :maxdepth: 4
 
    File
+
+FindBin
+=======
+
+.. toctree::
+   :maxdepth: 4
+
+   FindBin
