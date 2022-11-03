@@ -191,13 +191,13 @@ eval {
 	my $CurSub = undef;
 	my %wantarrays = ();
 	while(<SRC>) {
+	    if($in_pod) {                                   # issue s128: check this first!
+	        $in_pod = 0 if(substr($_,0,4) eq '=cut');
+		    next;
+	    }
 	    if(substr($_,0,1) eq '=' && substr($_,1,1) =~ /\w/) {	# Skip POD
 	        $in_pod = 1;
-		next;
-	    }
-	    if($in_pod) {
-	        $in_pod = 0 if(substr($_,0,4) eq '=cut');
-		next;
+		    next;
 	    }
 	    next if(/^\s*#/);		# skip comment lines
 	    s/\s+#.*$//;		# eat tail comments

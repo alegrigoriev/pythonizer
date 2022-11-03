@@ -5,7 +5,7 @@ use Carp::Assert;
 sub THISFILE () {"issue_66.pl"}
 $count = 0;
 while (<*.pl>) {
-	assert(/^issue/ or /^test/);
+	assert(/^issue/ or /^test/ or /^error/);
 	$count++;
 	last;
 }
@@ -14,7 +14,7 @@ assert($count);
 my $pat = '*.pl';
 $count = 0;
 while (<$pat >) {		# note the space makes it a glob not a readline
-	assert(/^issue/ or /^test/);
+	assert(/^issue/ or /^test/ or /^error/);
 	$count++;
 	last;
 }
@@ -22,7 +22,7 @@ assert($count);
 
 $count = 0;
 while (<${pat}>) {	# another glob
-	assert(/^issue/ or /^test/);
+	assert(/^issue/ or /^test/ or /^error/);
 	$count++;
 	last;
 }
@@ -31,7 +31,7 @@ assert($count);
 $count = 0;
 %options = (extra=>'.');
 while (<$options{extra}/*.pl>) {	# another glob with a relative path
-	assert(/issue/ or /test/);
+	assert(/issue/ or /test/ or /error/);
 	$count++;
 	last;
 }
@@ -40,7 +40,7 @@ assert($count);
 $count = 0;
 while (<*>) {	# another glob - thru all files
         next if not /\.pl$/;
-	assert(/^issue/ or /^test/);
+	assert(/^issue/ or /^test/ or /^error/);
 	$count++;
 	last;
 }

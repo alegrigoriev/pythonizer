@@ -2,6 +2,11 @@
 History
 =======
 
+1.009 (2022-10-31)
+------------------
+
+* issue s128: Added _readlink, FindBin, issue s129: Added _switch
+
 1.008 (2022-10-26)
 ------------------
 

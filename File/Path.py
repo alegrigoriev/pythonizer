@@ -3,7 +3,7 @@
 """Implementation of perl File::Path package"""
 __author__ = """Joe Cool"""
 __email__ = "snoopyjc@gmail.com"
-__version__ = "1.008"
+__version__ = "1.009"
 import builtins, perllib, os, re
 
 _str = lambda s: "" if s is None else str(s)

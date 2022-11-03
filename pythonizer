@@ -219,6 +219,7 @@
 # 1.006  2022/10/23  SNOOPYJC More fixes for issue s79, addl fix for issue s126 when using pythonizer with an old perl
 # 1.007  2022/10/24  SNOOPYJC issue s79: Use of uninitialized value $prev_line in rindex at ../pythonizer/pythonizer line, more fixes for issue s102
 # 1.008  2022/10/26  SNOOPYJC issue s80: substr outside of string at ../pythonizer line, issue s127: To make the output of repeated pythonizer runs the same, sort globals, imports, and initializations, issue s130: Flatten the RHS of a list assignment, issue s131: Match capture variables are not set on a substitute
+# 1.009  2022/10/31  SNOOPYJC issue s128: Implement FindBin and readlink, fix import for modules that begin with a POD, issue s129: Implement switch/case and given/when, issue s20: Begin to write some error tests
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -266,11 +267,12 @@ BEGIN {                                                 # SNOOPYJC
                  '%UseRequireOptionsPassed',            # issue names
                  '%UseRequireOptionsDesired',           # issue names
                  'mapped_name',                         # issue names
+                 '%UseSwitch',                          # issue s129
                  '@ValType', '$TokenStr');
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='1.008';
+   $VERSION='1.009';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -630,6 +632,9 @@ my ($start,$token_buffer_active);
             @ValClass=@ValPerl=('{');
             $TokenStr=join('',@ValClass);       # SNOOPYJC
             @ValPy=('if');                      # issue 94
+            if(scalar(@Perlscan::nesting_stack) >= 1 && $Perlscan::nesting_stack[-1]->{type} eq 'given') {      # issue s129
+                @ValPy=('when');        # issue s129
+            }                           # issue s129
             &Perlscan::enter_block();           # issue 94
             $token_buffer_active=1;
          }elsif($token_buffer_active==1 || $token_buffer_active==5){        # issue s79
@@ -807,7 +812,12 @@ my ($start,$token_buffer_active);
              correct_nest(-1,-1);                                               # issue s76
              gen_chunk('return', $Perlscan::nesting_last->{cur_sub} . "template");      # issue s76
              gen_statement();                                                   # issue s76
-         }                                                                      # issue s76
+         #} elsif($Perlscan::nesting_last->{type} eq 'given') {          # issue s129
+             #gen_statement('break');                                    # issue s129
+         } elsif($Perlscan::nesting_last->{type} eq 'when' && !exists $UseSwitch{fallthrough} &&
+                 !exists $Perlscan::nesting_last->{fallthrough}) {    # issue s129
+             gen_statement('break');                                    # issue s129
+         }
          correct_nest(-1); # next line will be de-indented
          if( $we_are_in_sub_body  && $Pythonizer::NextNest ==0  ){
             correct_nest(0,0);
@@ -1010,8 +1020,11 @@ my ($start,$token_buffer_active);
           my $reg = next_same_level_token('~', 0, $#ValClass);          # SNOOPYJC
           if($reg != -1 && $ValPerl[$reg] ne '~' && $reg+1 <= $#ValClass && $ValPerl[$reg+1] =~ /re|tr/) {    # SNOOPYJC
               $TrStatus=expression(0, $#ValClass, 0);                   # SNOOPYJC
-          } elsif($CurSub eq '__main__' || scalar(@ValClass) != 1) {  # issue 45: Ignore scalar alone on a line (may be the return value), issue 41
+          # issue s129 } elsif($CurSub eq '__main__' || scalar(@ValClass) != 1) {  # issue 45: Ignore scalar alone on a line (may be the return value), issue 41
+          } elsif(&Perlscan::cur_sub() eq '__main__' || end_of_variable(0) != $#ValClass) {  # issue 45: Ignore scalar alone on a line (may be the return value), issue 41, issue s129
               $TrStatus=assignment(0);
+          } elsif(scalar(@ValClass) > 1) {                          # issue s129: example: sDi(...) which is a OO function call
+              $TrStatus=expression(0, $#ValClass, 0);               # issue s129
           }                                     # issue 45
       }elsif( $ValClass[0] eq 't' ){
          &Perlscan::init_local_typeglobs($CurSub) if($ValPerl[0] eq 'local');          # issue 108
@@ -1537,6 +1550,18 @@ my ($start,$token_buffer_active);
          }elsif( $ValPerl[0] eq 'do' ) {                # SNOOPYJC
              gen_statement("$DO_CONTROL$. = True");     # SNOOPYJC
              gen_chunk("while $DO_CONTROL$.:");         # SNOOPYJC
+         }elsif($ValPy[0] eq 'default') {               # issue s129
+             gen_chunk('if', '1', ':');
+             gen_statement();
+         }elsif($ValPerl[0] eq 'continue') {            # issue s129
+             if(scalar(@Perlscan::nesting_stack)) {     # issue s129
+                $top = $Perlscan::nesting_stack[-1];    # issue s129
+                if($top->{type} eq 'when') {            # issue s129
+                    $top->{fallthrough} = 1;            # issue s129
+                } elsif(&Perlscan::in_when()) {                          # issue s129
+                    logme('S',"Sorry, conditional continue in a case/when is not supported");   # issue s129
+                }                                       # issue s129
+            }
          }
      }elsif( $ValClass[0] eq 'f' ){
          #this is a left hand function like is substr($line,0,1)='' or open or chomp;
@@ -1690,12 +1715,19 @@ my ($start,$token_buffer_active);
          } else {
             if( $#ValClass == 0 ){
                 #say STDOUT "$ValPy[0], we_are_in_sub_body=$we_are_in_sub_body, CurNest=$Pythonizer::CurNest, NextNest=$Pythonizer::NextNest";
-                if(($ValPerl[0] eq 'next' || $ValPerl[0] eq 'last') && &Perlscan::next_last_needs_raise(0)) {
-                    # issue bootstrap my $ex_name = label_exception_name(undef);
-                    my $ex_name = label_exception_name(&Perlscan::cur_loop_label());    # issue bootstrap
-                    gen_chunk("raise $ex_name('$ValPy[0]')");
-                } else {
-                    gen_chunk($ValPy[0]);
+                if($ValPerl[0] eq 'next' && scalar(@Perlscan::nesting_stack) &&
+                   $Perlscan::nesting_stack[-1]->{type} eq 'when') {     # issue s129
+                    $Perlscan::nesting_stack[-1]->{fallthrough} = 1;     # issue s129
+                } elsif($ValPerl[0] eq 'next' && &Perlscan::in_when()) {                          # issue s129
+                    logme('S',"Sorry, conditional next in a case/when is not supported");   # issue s129
+                } else {                                                 # issue s129
+                    if(($ValPerl[0] eq 'next' || $ValPerl[0] eq 'last') && &Perlscan::next_last_needs_raise(0)) {
+                        # issue bootstrap my $ex_name = label_exception_name(undef);
+                        my $ex_name = label_exception_name(&Perlscan::cur_loop_label());    # issue bootstrap
+                        gen_chunk("raise $ex_name('$ValPy[0]')");
+                    } else {
+                        gen_chunk($ValPy[0]);
+                    }
                 }
             }elsif($ValPy[0] eq 'return') {      # issue s9, issue s3
                 gen_chunk($ValPy[0]);
@@ -2257,6 +2289,12 @@ sub fix_type_issues
     return if(scalar(@ValClass) == 0 || ($ValClass[0] eq 'k' && $ValPerl[0] eq 'sub'));
     return 0 if($start > $limit);
     return fix_type_issues($start+1, $limit, $type) if($ValClass[$start] eq 'f' && ($ValPy[$start] eq 'print' || $ValPy[$start] eq 'wprint' || $ValPy[$start] eq 'printf'));  # issue printf, issue s101
+    if(defined $type && $type eq 'I') {                             # issue s129: Handle range in subscript
+        my $r = next_same_level_token('r', $start, $limit);
+        if($r != -1) {
+            return fix_type_issues($start, $r-1, $type) + fix_type_issues($r+1, $limit, $type);
+        }
+    }
     for(my $i=$start; $i<=$limit; $i++) {
         $k = $i;
         no warnings 'uninitialized';
@@ -2478,7 +2516,21 @@ sub fix_type_issues
             #next;
         } elsif($ValClass[$i] eq '(' && $ValPerl[$i] eq '(') {
             $k = matching_br($i);
-	    return if $k < 0;
+	        return $total_adjust if $k < 0;
+            if(&Pythonizer::expr_type($i+1, $k-1, $CurSub) =~ /^a/ && $k+1 < $limit && $ValPerl[$k+1] eq '[') {     # issue s129: Array expression subscript
+                my $m = matching_br($k+1);
+                return $total_adjust if $m < 0;
+                $adjust = fix_type_issues($k+2, $m-1, 'I'); # subscript needs to be int type
+                $m += $adjust;
+                $limit += $adjust;
+                $total_adjust += $adjust;
+                $k = $m;
+                if(defined $type) {
+                    $adjust = insert_converter($start, $limit, $i, $k, $type);      # Convert the whole thing
+                    $total_adjust += $adjust;
+                    return $total_adjust;
+                }
+            }
             if($k+1 < $limit && defined($ot = operator_type($k+1, 1))) {
                 $adjust = fix_type_issues($i, $k, $ot);
                 $k += $adjust;
@@ -2513,8 +2565,19 @@ sub fix_type_issues
         } elsif(($opt = operator_type($i, 0)) && $opt ne $type && $i+1 < $#ValClass && $ValClass[$i+1] eq '(' && $ValPerl[$i+1] eq '(') {
             # Apply the operator right hand type to the parenthesized expression
             $k = matching_br($i+1);
-            return if $k < 0;
-            $adjust = fix_type_issues($i+2, $k-1, $opt);
+            return $total_adjust if $k < 0;
+            if(&Pythonizer::expr_type($i+2, $k-1, $CurSub) =~ /^a/ && $k+1 < $limit && $ValPerl[$k+1] eq '[') {     # issue s129: Array expression subscript
+                my $m = matching_br($k+1);
+                return $total_adjust if $m < 0;
+                $adjust = fix_type_issues($k+2, $m-1, 'I'); # subscript needs to be int type
+                $m += $adjust;
+                $limit += $adjust;
+                $total_adjust += $adjust;
+                $k = $m;
+                $adjust = fix_type_issues($i+1, $k, $opt);
+            } else {
+                $adjust = fix_type_issues($i+2, $k-1, $opt);
+            }
             $k += $adjust;
             $limit += $adjust;
             $total_adjust += $adjust;
@@ -3108,7 +3171,7 @@ sub finish
         $Pythonizer::CurNest == $eval_nest+1 ||             # issue s13
         $Perlscan::nesting_level == $nested_sub_at_level)) {    # issue 78
         if($debug >= 5) {                                       # issue 45
-            say STDERR "finish: prev_line=$prev_line, line=$line, PythonCode=@Perlscan::PythonCode";               # issue 45
+            say STDERR "finish: prev_line=$prev_lno: $prev_line, line=$.: $line, PythonCode=@Perlscan::PythonCode";               # issue 45
         }                                                       # issue 45
         my $comment='';                                         # SNOOPYJC
         $comment = $1 if($line =~ m'^\s*}(;)$');                # SNOOPYJC: Don't lose a trailing semicolon
@@ -3138,7 +3201,8 @@ sub finish
             $prev_line =~ s/\s+#.*$//;                          # issue 45: remove comments
             $prev_line =~ s/\s+$//;                             # SNOOPYJC: remove trailing spaces
             $last_c = substr($prev_line,-1,1);                  # issue 45
-            if($last_c eq '}' && ($ValClass[-1] ne ')' || $prev_lno == $.)) {        # issue 45, issue bootstrap
+            # issue s129 if($last_c eq '}' && ($ValClass[-1] ne ')' || $prev_lno == $.)) {        # issue 45, issue bootstrap
+            if($last_c eq '}' && $ValClass[-1] ne ')') {        # issue 45, issue bootstrap, issue s129: FIXME!
                 chop $prev_line;                                # issue 45
                 $prev_line =~ s/\s+$//;                         # issue 45
                 $last_c = substr($prev_line,-1,1);              # issue 45
@@ -5205,6 +5269,34 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
        $CurPackage = $ValPy[$start];
        $set_initial_package = 1;
        return $#ValClass;
+   }elsif($ValPy[$begin] eq 'given') {              # issue s129
+       my $top = $Perlscan::nesting_stack[-1];
+       my $lno = $top->{lno};
+       my $switch_var = $SWITCH_VAR . $lno;
+       $Pyf{_switch} = 1;
+       gen_chunk($switch_var, '=', '_switch', '(');
+       gen_chunk($DEFAULT_VAR, ':=') if($ValPerl[$begin] eq 'given');   # set _d for given, not switch stmt
+       $k=expression($start,$#ValClass,0);
+       gen_chunk(')');
+       return -255 if ($k<0);
+       gen_statement();
+       #gen_statement('while 1:');
+       gen_statement('for _ in range(1):');
+       return $#ValClass;
+   }elsif($ValPy[$begin] eq 'when') {               # issue s129
+       my $top = $Perlscan::nesting_stack[-1];
+       if($top->{type} ne 'given') {
+           return -255 if(scalar(@Perlscan::nesting_stack) < 2);
+           $top = $Perlscan::nesting_stack[-2];
+           return -255 if($top->{type} ne 'given');
+       }
+       my $lno = $top->{lno};
+       my $switch_var = $SWITCH_VAR . $lno;
+       gen_chunk('if', $switch_var, '(');
+       $k=expression($start,$#ValClass,0);
+       gen_chunk(')', ':');
+       return -255 if ($k<0);
+       return $#ValClass;
    }else{
       $TrStatus=-1; return -255;
    }
@@ -5685,7 +5777,7 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
    }elsif($perl_name eq 'print' || $perl_name eq 'printf') {
       $TrStatus=print3($begin); # in Python3 this is a function
       if ($TrStatus<0) { return -255; }
-   }elsif($perl_name eq 'unlink' && $bracketed == -1) {         # issue s94
+   }elsif(($perl_name eq 'unlink' || $perl_name eq 'readlink') && $bracketed == -1) {         # issue s94, issue s128
        gen_chunk($py_name, '(', $DEFAULT_VAR, ')');             # issue s94
    }elsif($perl_name eq 'defined' ) {
       # open used without parantethisi. always has one argument
@@ -5996,7 +6088,7 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
               ($ValClass[0] eq 'C' && $ValPerl[0] eq 'elsif')) && ($begin == 0 || $ValClass[$begin-1] ne '=')) {
                ;
            } else {
-               if($Perlscan::PythonCode[-1] eq '*') {   # issue 37: if we just generated a splat, eat it
+               if(scalar(@Perlscan::PythonCode) && $Perlscan::PythonCode[-1] eq '*') {   # issue 37: if we just generated a splat, eat it, issue s129
                    $#Perlscan::PythonCode--;
                }
                gen_chunk('len(');	# issue 37
@@ -7600,7 +7692,18 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
       gen_chunk('math.inf');                    # issue s3
       return $limit;                            # issue s3
    }
-
+   my $p;
+   if($ValClass[0] eq 'c' && $ValPy[0] eq 'when' && $ValPy[$begin] eq '[' && 
+      ($p = next_same_level_token('r', $begin+1, $limit-1)) > 0) {           # issue s129: range in case/when stmt
+       gen_chunk('range(');
+       $k=expression($begin+1, $p-1, 0);
+       if($k < 0) { $TrStatus=-1; return -255; }
+       gen_chunk(',');
+       $k=expression($p+1, $limit-1, 0);
+       if($k < 0) { $TrStatus=-1; return -255; }
+       gen_chunk('+1', ')');
+       return $limit+1;
+   }
    $prev_k=-1; # starting position of infinite loop preventor.
    while($cur_pos<=$limit ){
       if( $cur_pos < 0 || $TrStatus<0 ){
@@ -7628,12 +7731,20 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
             $cur_pos = $match+1;
             next;
          }
-         if($match == $cur_pos+1 && $ValPy[$cur_pos] eq '(' && !subref_call($cur_pos-1)) {   # issue test coverage: handle empty array specified as (), issue s109
+         if($match == $cur_pos+1 && ($ValPy[$cur_pos] eq '(' || $ValPerl[$cur_pos] eq '[') && !subref_call($cur_pos-1)) {   # issue test coverage: handle empty array specified as (), issue s109, issue s129
             if($autovivification) {
                 $Pyf{Array} = 1;
                 gen_chunk('Array', '(', ')');
             } else {
                 gen_chunk('[', ']');
+            }
+            $cur_pos+=2;
+        } elsif($match == $cur_pos+1 && $ValPerl[$cur_pos] eq '{' && $ValPy[$cur_pos] eq '[') {   # issue s129: handle empty hash specified as {}
+            if($autovivification) {
+                $Pyf{Hash} = 1;
+                gen_chunk('Hash', '(', ')');
+            } else {
+                gen_chunk('{', '}');
             }
             $cur_pos+=2;
          } else {
@@ -9493,6 +9604,10 @@ sub do_use_require
 #        add_package_to_mapped_name('%Config', 'Config', 'Config');
 #        say STDERR "do_use_require($pos) returns " . ($#ValClass+1) if($debug>=3);
 #        return $#ValClass+1;
+    } elsif($pos+1 <= $#ValClass && $ValClass[$pos+1] eq 'i' && $ValPerl[$pos+1] eq 'Switch') { # issue s129
+        # issue s129: We already handled this in PASS_1 (&Perlscan::handle_use_Switch)
+        say STDERR "do_use_require($pos) returns " . ($#ValClass+1) if($debug>=3);  # issue s129
+        return $#ValClass+1;                                                        # issue s129
     }
    
     # Ok - now for the real ones
