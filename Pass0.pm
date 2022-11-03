@@ -205,7 +205,7 @@ sub handle_pragma_pythonizer
     my $MFlag = undef;
     my $SFlag = undef;
     my $PFlag = undef;
-    my $VFlag = undef;
+    my $NFlag = undef;                      # issue s132
     my $UFlag = undef;
     my $KFlag = undef;
     my $YFlag = undef;
@@ -215,7 +215,7 @@ sub handle_pragma_pythonizer
 	    	 n=>\$::trace_run, k=>\$::black, K=>\$KFlag, u=>\$::replace_usage, U=>\$UFlag,
 		 a=>\$::gen_author,	# issue s19
 		 y=>\$::replace_run, Y=>\$YFlag,	# issue s87
-                 S=>\$SFlag, p=>$::import_perllib, P=>\$PFlag, V=>\$VFlag);
+                 S=>\$SFlag, p=>$::import_perllib, P=>\$PFlag, N=>\$NFlag);     # issue s132
     my %options = (traceback=>\$::traceback, autodie=>\$::autodie, implicit=>\$implicit_global_my,
                    pythonize=>\$::pythonize_standard_library, import=>\$::import_perllib, 
 		   trace=>\$::trace_run, black=>\$::black, replace=>\$::replace_usage,
@@ -258,8 +258,8 @@ sub handle_pragma_pythonizer
             $::import_perllib = $val;
         } elsif($flag eq 'P') {
             $PFlag = $val;
-        } elsif($flag eq 'V') {
-            $VFlag = $val;
+        } elsif($flag eq 'N') {     # issue s132
+            $NFlag = $val;          # issue s132
         }
     };
 
@@ -267,7 +267,7 @@ sub handle_pragma_pythonizer
 	    	   author=>'a',		# issue s19
 		   pl_to_py=>'y',	# issue s87
                    pythonize=>'s', import=>'p', replace=>'u');
-    my %option_no_flags = (implicit=>'M', pythonize=>'S', import=>'P', autovivification=>'V', black=>'K', replace=>'U',
+    my %option_no_flags = (implicit=>'M', pythonize=>'S', import=>'P', autovivification=>'N', black=>'K', replace=>'U', # issue s132
 	    		   pl_to_py=>'Y',	# issue s87
     			   convert=>undef,	# issue s64 - use special processing
 		   	  );
@@ -319,7 +319,7 @@ sub handle_pragma_pythonizer
     }
     $::pythonize_standard_library = 0 if($SFlag);
     $::import_perllib = 0 if($PFlag);
-    $::autovivification = 0 if($VFlag);
+    $::autovivification = 0 if($NFlag);     # issue s132
     $::replace_usage = 0 if($UFlag);
     $::replace_run = 0 if($YFlag);	# issue s87
     $::black = 0 if($KFlag);
