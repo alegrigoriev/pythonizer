@@ -85,7 +85,7 @@ sub prolog
       # SNOOPYJC getopts("AThd:v:r:b:t:l:",\%options);
       @orig_ARGV = @ARGV;                       # SNOOPYJC
       # NOTE: Remember to add new flags to Pass0.PM (# pragma pythonizer), the help with ## at the start of pythonizer, and the readme/documentation!
-      getopts("yYauUkKnmMAVThsSpPd:v:r:b:B:t:l:R:o:",\%options);     # SNOOPYJC, issue s23, issue s19, issue s87
+      getopts("NyYauUkKnmMAVThsSpPd:v:r:b:B:t:l:R:o:",\%options);     # SNOOPYJC, issue s23, issue s19, issue s87, issue s132
 #
 # Three standard options -h, -v and -d
 #
@@ -211,7 +211,11 @@ sub prolog
       if( exists $options{'P'} ) {
           $::import_perllib = 0;
       }
-      if( exists $options{'V'} ) {
+      if( exists $options{'V'} ) {      # issue s132
+          print ucfirst($::SCRIPT_NAME) . " $::VERSION\n";
+          exit(0);
+      }
+      if( exists $options{'N'} ) {
           $::autovivification = 0;
       }
       if( exists $options{'k'} ) {

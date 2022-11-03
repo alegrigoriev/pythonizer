@@ -12,6 +12,7 @@
 ##   pythonizer [options] [file_to_process]
 ##
 ##--- OPTIONS:
+##    -V -- print the version and exit
 ##    -v -- verbosity 0 -minimal (only serious messages) 3 max verbosity (warning, errors and serious); default -v 1
 ##    -h -- this help
 ##    -t -- size of tab in the generated Python code (emulated with spaces). Default is 4
@@ -33,7 +34,7 @@
 ##    -T -- Perform a traceback in the generated code on errors
 ##    -n -- Trace Run: Generate code to trace subprocess.run results - used in qx, `backtick`, open('|'), and system()
 ##    -o dir -- Output directory for .py and .data files, created if need be (defaults to the same location as the input file)
-##    -V -- Imply "no autovivification qw(fetch delete exists store strict);"
+##    -N -- Imply "no autovivification qw(fetch delete exists store strict);"
 ##    -w -- the width of the screen on which you plan to view the protocol of translation. The default is 188.
 ##    -R -- remap comma separated list of variables: variables specified as var or *var will map all variables named 'var', 
 ##          $var will just map scalar to var_v, @var will just map array to var_a, %var will just map hash to var_h,
@@ -220,6 +221,7 @@
 # 1.007  2022/10/24  SNOOPYJC issue s79: Use of uninitialized value $prev_line in rindex at ../pythonizer/pythonizer line, more fixes for issue s102
 # 1.008  2022/10/26  SNOOPYJC issue s80: substr outside of string at ../pythonizer line, issue s127: To make the output of repeated pythonizer runs the same, sort globals, imports, and initializations, issue s130: Flatten the RHS of a list assignment, issue s131: Match capture variables are not set on a substitute
 # 1.009  2022/10/31  SNOOPYJC issue s128: Implement FindBin and readlink, fix import for modules that begin with a POD, issue s129: Implement switch/case and given/when, issue s20: Begin to write some error tests
+# 1.010  2022/11/03  SNOOPYJC issue s133: use lib with FindBin needs to handle at pythonizer time, issue s132: add -V option and change existing -V option to -N
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -272,7 +274,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
 
-   $VERSION='1.009';
+   $VERSION='1.010';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -289,7 +291,7 @@ BEGIN {                                                 # SNOOPYJC
    $implicit_global_my=0;               # SNOOPYJC -m option
    $pythonize_standard_library=0;       # SNOOPYJC -s option
    $import_perllib=1;                   # SNOOPYJC -p option, -P turns it off
-   $autovivification=1;                 # SNOOPYJC -V turns this option off
+   $autovivification=1;                 # SNOOPYJC -N turns this option off
    $replace_usage=1;                    # SNOOPYJC -u/-U option
    $replace_run=1;                      # issue s87 -y/-Y option
    $trace_run=0;			# SNOOPYJC -n option
@@ -9369,10 +9371,16 @@ sub do_use_require
     }
     if($pos+1 <= $#ValClass && $ValClass[$pos+1] eq 'i' && $ValPerl[$pos+1] eq 'lib') {
         # use lib LIST
+        #
+        # NOTE: See also handle_use_lib in Perlscan.pm
+        #
         my @libs = ();
+        my $dir = dirname($Pythonizer::fname);                  # issue s133
         for(my $i=$pos+2; $i<=$#ValClass; $i++) {
             if($ValClass[$i] eq '"') {          # Plain String
-                push @libs, $ValPy[$i];
+                my $lib = $ValPy[$i];                                   # issue s133
+                $lib =~ s/\{_bn\(FindBin\.Bin_v\)\}/$dir/;              # issue s133
+                push @libs, $lib;                                       # issue s133
             } elsif($ValClass[$i] eq 'q') {     # qw(...) or the like
                 if(index(q('"), substr($ValPy[$i],0,1)) >= 0) {
                     push @libs, $ValPy[$i];
@@ -9389,6 +9397,8 @@ sub do_use_require
                 } else {
                     logme('W', "use lib $ValPerl[$i]() not handled!");
                 }
+            } elsif($ValClass[$i] eq 's' && $ValPerl[$i] eq '$FindBin::Bin') {  # issue s133
+                push @libs, ('"' . $dir . '"');                                 # issue s133
             }
         }
         say STDERR "For @ValPerl, using @libs (after stripping the '')" if($debug);

@@ -1,5 +1,7 @@
 #!/bin/sh
 # Run this once plain, and once with '-m' flag, once with -P, and once with -mP
+V=`../pythonizer -V`
+echo "Testing $V"
 echo "Building perllib"
 cd ../pyf
 python makelib.py

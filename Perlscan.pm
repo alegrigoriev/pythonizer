@@ -7457,9 +7457,23 @@ sub handle_use_lib
         return;
     }
     my @libs = ();
+    my $dir = dirname($Pythonizer::fname);                  # issue s133
     for(my $i=$pos+2; $i<=$#ValClass; $i++) {
         if($ValClass[$i] eq '"') {          # Plain String
-            push @libs, $ValPy[$i];
+            my $lib = $ValPy[$i];                                   # issue s133
+            if($lib eq 'f""""""' && $i+1 <= $#ValClass && $ValPerl[$i+1] eq '$FindBin::Bin') {    # issue s133
+                # In PASS_1, "..." are expanded, so handle FindBin here
+                $lib = '"' . $dir;                                  # issue s133
+                $i++;                                               # issue s133
+                if($i+1 <= $#ValClass && $ValClass[$i+1] eq '"') {  # issue s133
+                    $lib .= &::unquote_string($ValPy[$i+1]);        # issue s133
+                    $i++;                                           # issue s133
+                }                                                   # issue s133
+                $lib .= '"';                                        # issue s133
+            } else {                                                # issue s133
+                $lib =~ s/\{_bn\(FindBin\.Bin_v\)\}/$dir/;          # issue s133
+            }                                                       # issue s133
+            push @libs, $lib;                                       # issue s133
         } elsif($ValClass[$i] eq 'q') {     # qw(...) or the like
             if(index(q('"), substr($ValPy[$i],0,1)) >= 0) {
                 push @libs, $ValPy[$i];
@@ -7476,6 +7490,8 @@ sub handle_use_lib
             } else {
                 logme('W', "use lib $ValPerl[$i]() not handled!");
             }
+        } elsif($ValClass[$i] eq 's' && $ValPerl[$i] eq '$FindBin::Bin') {  # issue s133
+            push @libs, ('"' . $dir . '"');                                 # issue s133
         }
     }
     say STDERR "For @ValPerl, using @libs (after stripping the '')" if($::debug);
