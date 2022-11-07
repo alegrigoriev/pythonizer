@@ -710,6 +710,7 @@ $statement_starting_lno = 0;            # issue 116
 %line_contains_local_for_loop_counter=();   # issue s100
 %line_contains_pos_gen=();      # SNOOPYJC: {lno=>scalar, ...} on any stmt that can generate the pos of this scalar
 %line_contains_for_given=();    # issue s129: Is this 'for' really a 'given'?
+%line_contained_array_conversion=();    # issue s137
 %scalar_pos_gen_line=();        # SNOOPYJC: {scalar=>last_lno, ...} - opposite of prev hash
 %line_needs_try_block=();       # issue 94, issue 108: Map from line number to TRY_BLOCK_EXCEPTION|TRY_BLOCK_FINALLY if that line needs a try block
 %line_locals=();                # issue 108: Map from line number to a list of locals
@@ -1386,7 +1387,7 @@ sub enter_block                 # issue 94
     $nesting_info{is_loop} = ($begin <= $#ValClass && (($ValPy[$begin] eq '{' && $nesting_info{type} ne 'if') ||        # issue s44
                                                        $ValPerl[$begin] eq 'for' || 
                                                        $ValPerl[$begin] eq 'foreach' || $ValPerl[$begin] eq 'continue' ||
-                                                       $ValPerl[$begin] eq 'do' ||                      # issue s50
+                                                       # issue s137 $ValPerl[$begin] eq 'do' ||                      # issue s50
                                                        $ValPerl[$begin] eq 'while' || $ValPerl[$begin] eq 'until'));
     $nesting_info{is_cond} = ($begin <= $#ValClass && ($ValPerl[$begin] eq 'if' || $ValPerl[$begin] eq 'unless' ||
                                                        $nesting_info{type} eq 'if' ||           # issue s44
@@ -1535,9 +1536,10 @@ sub last_next_propagates        # issue 94
         return 1 if($nesting_level == 0);
         $top = $nesting_stack[-1];
         if($top->{in_loop}) {      # If this is NOT a stmt level last/next, we need the exception for it
+            my $exc = ($pos == 0) ? 0 : TRY_BLOCK_EXCEPTION;
+            $exc = TRY_BLOCK_EXCEPTION if in_local_do();            # issue s137
             for $ndx (reverse 0 .. $#nesting_stack) {
                 if($nesting_stack[$ndx]->{is_loop}) {
-                    my $exc = ($pos == 0) ? 0 : TRY_BLOCK_EXCEPTION;
                     if($exc) {
                         $nesting_stack[$ndx]->{needs_try_block} = 1;
                         say STDERR "last_next_propagates: setting line_needs_try_block{$nesting_stack[$ndx]->{lno}} from last/next at line $." if($::debug >= 5);
@@ -1851,6 +1853,20 @@ sub cur_loop_ndx                     # SNOOPYJC
     return -1;
 }
 
+sub in_local_do                     # issue s137
+# Is this statement in a do{...} (not counting a do surrounding this loop)
+# The issue here is that last/next statements inside a 'do' generate code like 'break'
+# that operates on the 'do', because we generate a loop for a 'do', and this is not
+# what we want to happen - the last/next needs to operate on the enclosing loop like perl does.
+{
+    for $ndx (reverse 0 .. $#nesting_stack) {
+        return 1 if($nesting_stack[$ndx]->{type} eq 'do');
+        return 1 if(exists $nesting_stack[$ndx]->{was_do});
+        return 0 if($nesting_stack[$ndx]->{is_loop});   # Don't look outside of a loop
+    }
+    return 0;
+}
+
 sub loop_ndx_with_label                     # SNOOPYJC
 # Get the index of the current loop block, if any
 {
@@ -2019,6 +2035,7 @@ sub next_last_needs_raise               # issue 94
     return 1 if($nesting_level == 0);           # Generate an exception instead of a syntax error
     my $top = $nesting_stack[-1];
     return 1 if(!$top->{in_loop});
+    return 1 if(in_local_do());                       # issue s137
     my $ndx = cur_loop_ndx();
     my $is_next = ($ValPerl[$pos] eq 'next');
     return 1 if(exists $line_needs_try_block{$nesting_stack[$ndx]->{lno}} && $is_next &&
@@ -2441,6 +2458,21 @@ my ($l,$m);
             }
          }                                              # issue 43
       }
+      if((($tno!=0 && $ValClass[$tno-1] eq 'f' && $ValPerl[$tno-1] eq 'split') ||
+         ($tno-2>= 0 && $ValClass[$tno-1] eq '(' && $ValClass[$tno-2] eq 'f' && $ValPerl[$tno-2] eq 'split')) &&
+         ($s eq '"' || $s eq "'")) { # issue s138
+           $cut=single_quoted_literal($s,1);        # issue s138
+           my $str = substr($source, 0, $cut);      # issue s138
+           if($s eq '"') {                      # issue s138
+               $str = remove_perl_escapes($str, 0); # issue s138
+               substr($source, 0, $cut) = $str; # issue s138
+           }                                    # issue s138
+           if($str !~ $NON_REGEX_CHARS) {       # issue s138
+               substr($source, 0, 0) = 'm';     # issue s138
+               $s = 'm';                        # issue s138
+           }                                    # issue s138
+      }                                         # issue s138
+
       if( $s eq '}' ){
          # we treat '}' as a separate "dummy" statement -- eauvant to ';' plus change of nest -- Aug 7, 2020
          #say STDERR "Got }, tno=$tno, source=$source";
@@ -3244,7 +3276,7 @@ my ($l,$m);
                 $source = get_rest_of_variable_name($source, 0);
             }
             decode_scalar($source,1);
-        if($tno!=0 &&                               # issue 50, issue 92
+            if($tno!=0 &&                               # issue 50, issue 92
                (($ValClass[$tno-1] eq 's' && $ValPerl[$tno-1] eq '$') || # issue 50
                 $ValClass[$tno-1] eq '@' || 
                 ($ValClass[$tno-1] eq '%' && !$had_space))) {   # issue 50
@@ -3253,11 +3285,12 @@ my ($l,$m);
                $TokenStr = join('',@ValClass);             # issue 50: replace doesn't work w/o $TokenStr
                replace($tno-1, $ValClass[$tno], $ValPerl[$tno], $ValPy[$tno]);  # issue 50
                popup();                         # issue 50
-           $tno--;              # issue 50 - no need to change hashref to hash or arrayref to array in python
+               $tno--;              # issue 50 - no need to change hashref to hash or arrayref to array in python
                $ate_dollar = $tno;              # issue 50: remember where we did this
                if($was eq '@' && &Pythonizer::in_sub_call($tno)) {      # issue bootstrap
                    $ValPy[$tno] = '*' . $ValPy[$tno];                   # Splat it
                }
+               $line_contained_array_conversion{$statement_starting_lno} = 1 if $ValPy[0] eq 'for' && $was eq '@';  # issue s137
                #$ValPerl[$tno]=$ValPy[$tno]=$s; # issue 50
         } elsif($tno != 0 && $ValClass[$tno-1] eq '*' && !$had_space && ($tno-1 == 0 || $ValClass[$tno-2] !~ /[sdfi)]/)) {  # issue s76
                 # issue s76: *$tag = ... - here "$tag" contains the name of the typeglob
@@ -3731,7 +3764,7 @@ my ($l,$m);
                    #$tno++;                                     # issue 66
                    #$ValPy[$tno]=qq{next(with fileinput.input("<$1>",openhook=lambda _,__:$1), None)};        # issue 66: Allows for $.
                }
-            }elsif($tno > 0 && index("(.=", $ValClass[$tno-1]) >= 0 && $source =~ /^<[^>]+>/) {    # issue 66 <glob>
+            }elsif($tno > 0 && (index("(.=", $ValClass[$tno-1]) >= 0 || bracketed_function_end($tno-1)) && $source =~ /^<[^>]+>/) {    # issue 66 <glob>, issue s135
                 $ValClass[$tno] = 'g';
                 $cut=double_quoted_literal('<',1);
                 $ValPy[$tno] = $keyword_tr{glob}.'('.join('",f"', split ' ', $ValPy[$tno]).')';
@@ -4063,8 +4096,11 @@ my $split=$_[0];
    if($::debug >= 3) {
        say STDERR "bash_style_or_and_fix($split) is_or=$is_or, source=$source, is_low_prec=$is_low_prec";
    }
-   if($split > $#ValClass) {              # issue ddts: no code before the || (was an eval)
-       say STDERR "bash_style_or_and_fix($split) returning 0 - split is past the end!" if($::debug>=3);
+   # $split is a position in $source, not an index in @ValClass!!
+   # issue s137 if($split > $#ValClass) {              # issue ddts: no code before the || (was an eval)
+   if(@ValClass == 1) {     # issue s137, issue ddts: no code before the || (was an eval)
+       # issue s137 say STDERR "bash_style_or_and_fix($split) returning 0 - split is past the end!" if($::debug>=3);
+       say STDERR "bash_style_or_and_fix($split) returning 0 - nothing before the or/and!" if($::debug>=3);
        return 0;
    }
 
@@ -8264,6 +8300,19 @@ sub in_when                     # issue s129
         return 1 if $nesting_stack[$ndx]->{type} eq 'when';
     }
     return 0;
+}
+
+sub bracketed_function_end      # issue s134
+# Is this the end of a bracketed function, like 'grep'?
+{
+    my $pos = shift;            # position of the end of the function brackets, before the array
+
+    return 0 if($ValClass[$pos] ne ')');
+    return 0 if($ValPerl[$pos] ne '}');
+    my $sbr = &Pythonizer::reverse_matching_br($pos);
+    return 0 if($sbr <= 0);
+    return 0 if($ValClass[$sbr-1] ne 'f');
+    return 1;
 }
 
 1;

@@ -739,6 +739,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          $top->{in_sub} = 1;
          $top->{cur_sub} = $subname;
          $top->{type} = 'sub';
+         $top->{was_do} = 1;                        # issue s137
          if($::debug >= 3) {
             no warnings 'uninitialized';
             say STDERR "updated nesting_info=@{[%{$top}]}";
