@@ -18,16 +18,30 @@ do
    -*) flags="$flags $f"
        continue;;
    esac
-   f=${f}.pl
+   pyopt=
+   if [ -e ${f}.pl ]; then
+       f=${f}.pl
+       pyf=${f%.pl}.py
+   elif [ -e ${f}.pm ]; then
+       f=${f}.pm
+       pyf=${f%.pm}.py
+       pyopt=-m py_compile
+   else
+       f=${f}.pln
+       pyf=${f%.pln}.py
+   fi
    echo "==================== $f ===================="
    ((tests++))
-   perl $f
-   if [ $? -ne 0 ]; then
-      echo "$f run with perl FAILED - skipping next steps"
-      ((failed++))
-      status=1
-      continue
-   fi
+   case "$f" in
+   *.pln)   echo "Skip run with perl for $f";;
+   *) perl $f
+      if [ $? -ne 0 ]; then
+         echo "$f run with perl FAILED - skipping next steps"
+         ((failed++))
+         status=1
+         continue
+      fi;;
+   esac
    ${prefix}../pythonizer -v0 $flags $f
    if [ $? -ne 0 ]; then
       echo "$f run with pythonizer FAILED"
@@ -35,8 +49,7 @@ do
       status=1
       continue
    fi
-   pyf=${f%.pl}.py
-   python $pyf
+   python $pyopt $pyf
    if [ $? -ne 0 ]; then
       echo "$pyf run with python FAILED"
       ((failed++))

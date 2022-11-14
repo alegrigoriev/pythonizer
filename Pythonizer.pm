@@ -500,9 +500,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
              if(  $ValClass[$k]=~/[sah]/ ){
                 check_ref($CurSubName, $k);                  # SNOOPYJC
                 if($ValClass[$k] eq 's' && $ValPerl[$k] eq '$_' && $k+1 <= $#ValClass && 
-		   ($ValClass[$k+1] eq '=' ||
-		    ($ValClass[$k+1] eq '~' && $ValClass[$k+2] eq 'f' && $ValPerl[$k+2] =~ /^(?:re|tr)$/))	# issue ddts
-	          ) {
+		           ($ValClass[$k+1] eq '=' ||
+		           ($ValClass[$k+1] eq '~' && $ValClass[$k+2] eq 'f' && $ValPerl[$k+2] =~ /^(?:re|tr)$/))	# issue ddts
+	            ) {
                     # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;    # SNOOPYJC: This sub mods it's args
                     $SubAttributes{&Perlscan::cur_sub()}{modifies_arglist} = 1;    # SNOOPYJC: This sub mods it's args, issue s84
                 }
@@ -533,30 +533,30 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
               } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 're' && $ValPy[$k] =~ /\b$DEFAULT_VAR\b/) ||
                   ($ValPerl[$k] eq 'tr' && ($k == 0 || $ValClass[$k-1] ne '~'))) {      # issue s8: sets the $DEFAULT_VAR
                   
-		my $t = merge_types($DEFAULT_VAR, $CurSubName, 'S');			# issue s104
+		        my $t = merge_types($DEFAULT_VAR, $CurSubName, 'S');			# issue s104
                 $VarType{$DEFAULT_VAR}{$CurSubName} = $t;      # issue s8, issue s104
       	        $VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
                 $NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = $t if(!exists $initialized{$CurSubName}{$DEFAULT_VAR}); # issue s8, issue s104
-	      } elsif($ValClass[$k] eq 'f' && arg_type($ValPerl[$k], $ValPy[$k], 0, 0) eq 'H' && $#ValClass > $k) {	# issue s101: handle file handles across subs
-		my $h = $k+1;
-		$h++ if($ValClass[$h] eq '(');
-		if($ValClass[$h] eq 'i' && index($ValPy[$h],'.') < 0) {	# Do this for bareword file handles, but not STDxx
-               	    $VarSubMap{$ValPy[$h]}{$CurSubName}='+';
-		}
+	          } elsif($ValClass[$k] eq 'f' && arg_type($ValPerl[$k], $ValPy[$k], 0, 0) eq 'H' && $#ValClass > $k) {	# issue s101: handle file handles across subs
+		        my $h = $k+1;
+		        $h++ if($ValClass[$h] eq '(');
+		        if($ValClass[$h] eq 'i' && index($ValPy[$h],'.') < 0) {	# Do this for bareword file handles, but not STDxx
+               	            $VarSubMap{$ValPy[$h]}{$CurSubName}='+';
+		        }
               } elsif($ValClass[$k] eq 'f' &&
-		      ((($ValPerl[$k] eq 'chomp' || $ValPerl[$k] eq 'chop' || $ValPerl[$k] eq 'eval' || $ValPerl[$k] eq 'split' || 
-			 $ValPerl[$k] eq 'defined' || $ValPerl[$k] eq 'mkdir' || $ValPerl[$k] eq 'ord' || $ValPerl[$k] eq 'chr' ||
-		 	 $ValPerl[$k] eq 'quotemeta' || $ValPerl[$k] eq 'oct' || $ValPerl[$k] eq 'hex' || $ValPerl[$k] eq 'require' ||
-		 	 $ValPerl[$k] eq 'stat' || $ValPerl[$k] eq 'lstat' || $ValPerl[$k] eq 'reverse') && $#ValClass == $k || end_of_function($k) == $k) ||
-			($ValPerl[$k] eq 'split' && $#ValClass == $k+1) ||
-			(($ValPerl[$k] eq 'print' || $ValPerl[$k] eq 'printf') && ($#ValClass == $k || ($#ValClass == $k+1 && $ValClass[$k+1] eq 'i'))))) {	# issue s103
-		my $t = 'S';					        # issue s104
-		$t = 'm' if $ValPerl[$k] eq 'defined';			# issue s104
+		        ((($ValPerl[$k] eq 'chomp' || $ValPerl[$k] eq 'chop' || $ValPerl[$k] eq 'eval' || $ValPerl[$k] eq 'split' || 
+			     $ValPerl[$k] eq 'defined' || $ValPerl[$k] eq 'mkdir' || $ValPerl[$k] eq 'ord' || $ValPerl[$k] eq 'chr' ||
+		 	     $ValPerl[$k] eq 'quotemeta' || $ValPerl[$k] eq 'oct' || $ValPerl[$k] eq 'hex' || $ValPerl[$k] eq 'require' ||
+		 	     $ValPerl[$k] eq 'stat' || $ValPerl[$k] eq 'lstat' || $ValPerl[$k] eq 'reverse') && $#ValClass == $k || end_of_function($k) == $k) ||
+			    ($ValPerl[$k] eq 'split' && $#ValClass == $k+1) ||
+			    (($ValPerl[$k] eq 'print' || $ValPerl[$k] eq 'printf') && ($#ValClass == $k || ($#ValClass == $k+1 && $ValClass[$k+1] eq 'i'))))) {	# issue s103
+		        my $t = 'S';					        # issue s104
+		        $t = 'm' if $ValPerl[$k] eq 'defined';			# issue s104
                 $t = merge_types($DEFAULT_VAR, $CurSubName, $t);        # issue s104
                 $VarType{$DEFAULT_VAR}{$CurSubName} = $t;      		# issue s104
-		$VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
-	      	$NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = $t if(!exists $initialized{$CurSubName}{$DEFAULT_VAR});	# issue s103, issue s104
-	      }
+		        $VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
+	      	    $NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = $t if(!exists $initialized{$CurSubName}{$DEFAULT_VAR});	# issue s103, issue s104
+	          }
 
           } # for
           if(scalar(@ValClass) > 0 && $ValClass[0] eq 'k' && $ValPerl[0] eq 'return') {         # SNOOPYJC: return statement
@@ -901,9 +901,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                my $vn = substr($varname, $dx+1);
                my $ig = '_init_global';
                $ig = "$PERLLIB.init_global" if($::import_perllib);
-	       if(exists $Packages{$packname}) {	# Only init if the named package is defined here
+	           if(exists $Packages{$packname}) {	# Only init if the named package is defined here
                	   $InitVar{$subname} .= "\n$varname = $ig('$packname', '$vn', " .init_val($NeedsInitializing{$subname}{$varname}) . ')';
-	       }
+	           }
            }
         }
     }
@@ -966,6 +966,11 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
     $class = $ValClass[$k];
     if($::debug >= 3) {
         say STDERR "check_ref($CurSub, $name) at $k";
+    }
+
+    if(exists $Perlscan::sub_varclasses{$CurSub}{$ValPerl[$k]} && $Perlscan::sub_varclasses{$CurSub}{$ValPerl[$k]} eq 'local') {    # issue s144
+        # issue s144: 'local' variables aren't really local
+        $CurSub = '__main__' 
     }
 
     # Record if we are modifying the loop counter
@@ -1078,11 +1083,11 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
                 } else {
                     $type = 'u';
                 }
-		if($ValClass[$k] eq 'a') {		# issue s95
-		    $type = 'a';			# issue s95
-	        } elsif($ValClass[$k] eq 'h') {		# issue s95
-		    $type = 'h';			# issue s95
-	        }
+		        if($ValClass[$k] eq 'a') {		# issue s95
+		            $type = 'a';			# issue s95
+	            } elsif($ValClass[$k] eq 'h') {		# issue s95
+		            $type = 'h';			# issue s95
+	            }
                 $initialized{$CurSub}{$name} = $type unless(&Perlscan::in_conditional($k));
             }
         }
@@ -1147,27 +1152,46 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             } elsif(index(')x*/%+-.HI>&|0r?:,Ao"', $ValClass[$p]) >= 0) {
                 return;         # Just a reference to the array
             }
+        } elsif($k-1 >= 0 && $ValClass[$k-1] eq 'f' && ($ValPerl[$k-1] eq 'chop' || $ValPerl[$k-1] eq 'chomp')) {   # issue s148
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of S");
+        } elsif($k-2 >= 0 && $ValClass[$k-1] eq '(' && $ValClass[$k-2] eq 'f' && ($ValPerl[$k-2] eq 'chop' || $ValPerl[$k-2] eq 'chomp')) { # issue s148
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of S");
         } else {
             return;             # Just a reference to the array
         }
-	# issue s98 if(defined $rhs_type) {
-	# issue s98     $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of $rhs_type");
-	# issue s98 } else {
-            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of m");
+	    # issue s98 if(defined $rhs_type) {
+	    # issue s98     $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of $rhs_type");
+	    # issue s98 } else {
+        $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of m");
         # issue s98 }
+   } elsif($class eq 's' && $k-1 >= 0 && $ValClass[$k-1] eq 'f' && ($ValPerl[$k-1] eq 'chop' || $ValPerl[$k-1] eq 'chomp')) {       # issue s148
+        $VarType{$name}{$CurSub} = merge_types($name, $CurSub, 'S');
+   } elsif($class eq 's' && $k-2 >= 0 && $ValClass[$k-1] eq '(' && $ValClass[$k-2] eq 'f' && ($ValPerl[$k-2] eq 'chop' || $ValPerl[$k-2] eq 'chomp')) { # issue s148
+        $VarType{$name}{$CurSub} = merge_types($name, $CurSub, 'S');
    } elsif($class eq 'a' || $class eq 'h') {    # e.g. if(@arr) or if(%hash) or push @arr, ...
        $type = $class;
        if($k-1 >= 0 && $ValClass[$k-1] eq 'f' && ($ValPerl[$k-1] eq 'push' || $ValPerl[$k-1] eq 'unshift') && $k+2 <= $#ValClass) {
             $type = expr_type($k+2, $#ValClass, $CurSub);
             $type = "$class of $type";
             $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
+        } elsif($k-2 >= 0 && $ValClass[$k-1] eq '(' && $ValClass[$k-2] eq 'f' && ($ValPerl[$k-2] eq 'push' || $ValPerl[$k-2] eq 'unshift') && $k+2 <= $#ValClass) {
+            my $match = matching_br($k-1);
+            $type = expr_type($k+2, $match-1, $CurSub);
+            $type = "$class of $type";
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
+        } elsif($k-1 >= 0 && $ValClass[$k-1] eq 'f' && ($ValPerl[$k-1] eq 'chop' || $ValPerl[$k-1] eq 'chomp')) {       # issue s148
+            $type = "$class of S";
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
+        } elsif($k-2 >= 0 && $ValClass[$k-1] eq '(' && $ValClass[$k-2] eq 'f' && ($ValPerl[$k-2] eq 'chop' || $ValPerl[$k-2] eq 'chomp')) { # issue s148
+            $type = "$class of S";
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
         # issue s93 } elsif(substr($ValPy[$k],0,4) eq 'len(') {
         } elsif($name =~ /^\(len\((.*)\)-1\)$/) {            # issue s93: $#myArray
             $NeedsInitializing{$CurSub}{$1} = 'a' if(!exists $initialized{$CurSub}{$1});        # issue s93
-	    $type = 'I';                                # issue s93
+	        $type = 'I';                                # issue s93
         } elsif($name =~ /^len\((.*)\)$/) {             # issue s93: scalar(@myArray)
             $NeedsInitializing{$CurSub}{$1} = 'a' if(!exists $initialized{$CurSub}{$1});        # issue s93
-	    $type = 'I';                                # issue s93
+	        $type = 'I';                                # issue s93
         }                                               # issue s93
 	    # issue s93 $type = 'I';
         # issue s93 }

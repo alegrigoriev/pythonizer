@@ -1,0 +1,52 @@
+# issue s140: $* doesn't work
+# NOTE: Perl no longer supports $* so we skip running this with perl
+# by naming this '.pln' and the file extension gets checked in the 'run' script
+use v5.6;
+use Carp::Assert;
+
+# PrintVariables
+# Nicely formats variables in an associative array passed as a parameter
+# And returns the HTML string.
+sub PrintVariables {
+  local (%in) = @_;
+  local ($old, $out, $output);
+  $old = $*;  $* =1;
+  $output .=  "\n<dl compact>\n";
+  foreach $key (sort keys(%in)) {
+    foreach (split("\0", $in{$key})) {
+      ($out = $_) =~ s/\n/<br>\n/g;
+      $output .=  "<dt><b>$key</b>\n <dd><i>$out</i><br>\n";
+    }
+  }
+  $output .=  "</dl>\n";
+  $* = $old;
+
+  return $output;
+}
+
+my %input=(k1=>"v1\n", k2=>'v2');
+
+my $output = PrintVariables(%input);
+
+my $correct = "
+<dl compact>
+<dt><b>k1</b>
+ <dd><i>v1<br>
+</i><br>
+<dt><b>k2</b>
+ <dd><i>v2</i><br>
+</dl>
+";
+
+assert($output eq $correct);
+
+my $v = "a\nb";
+if($v =~ /(^.*$)/) {
+    assert($1 eq 'a');
+}
+$* = 1;
+if($v =~ /(^.*$)/i) {
+    assert($1 eq $v);
+}
+
+print "$0 - test passed\n";

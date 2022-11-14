@@ -59,6 +59,14 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
                 return value
             return None
 
+    def remove(self, x):
+        if self.isHash:
+            raise TypeError('Not an ARRAY reference')
+        for ndx in range(len(self)):
+            if self[ndx] == x:
+                return self.pop(ndx)
+        raise ValueError(f"remove({x}): not found in Array")
+
     def __getitem__(self, index):
         if self.isHash:
             try:

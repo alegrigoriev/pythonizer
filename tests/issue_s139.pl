@@ -1,4 +1,4 @@
-# issue s139: Error translating switch statement
+# issue s139: Multiple '}' on the same line not being recognized as block close
 # from nv_rename.pl
 use Switch;
 use Carp::Assert;
