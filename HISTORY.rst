@@ -2,10 +2,15 @@
 History
 =======
 
+1.012 (2022-11-07)
+------------------
+
+* Issue s142: add Array.remove(item), issue s150: add _preprocess_arguments, _postprocess_arguments
+
 1.011 (2022-11-03)
 ------------------
 
-*  Issue s135: Add _filter_map
+* Issue s135: Add _filter_map
 
 1.010 (2022-11-03)
 ------------------

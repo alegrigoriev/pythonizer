@@ -138,7 +138,7 @@ done;
 
 echo
 echo "Running pythonizer tests"
-for f in *.pl;
+for f in *.pl *.pln;
 do
    if [ $ctrlc -eq 1 ]; then
       break
@@ -157,16 +157,19 @@ do
    fi
    echo "==================== $f ====================" >run1.log
    ((tests++))
-   perl $f >>run1.log 2>&1
-   if [ $? -ne 0 ]; then
-      echo "$f run with perl FAILED - skipping next steps" >>run1.log
-      ((failed++))
-      status=1
-      red E
-      cat run1.log >>run.log
-      rm -f run1.log
-      continue
-   fi
+   case "$f" in
+   *.pln) echo "$f - test passed" >>run1.log;;
+   *) perl $f >>run1.log 2>&1
+      if [ $? -ne 0 ]; then
+         echo "$f run with perl FAILED - skipping next steps" >>run1.log
+         ((failed++))
+         status=1
+         red E
+         cat run1.log >>run.log
+         rm -f run1.log
+         continue
+      fi;;
+   esac
    error_test=0
    case "$f" in
    error*) error_test=1;;
@@ -198,7 +201,10 @@ do
            continue
        fi
    fi
-   pyf=${f%.pl}.py
+   case "$f" in
+   *.pln) pyf=${f%.pln}.py;;
+   *.pl)  pyf=${f%.pl}.py;;
+   esac
    python $pyf >>run1.log 2>&1
    if [ $? -ne 0 ]; then
       echo "$pyf run with python FAILED" >>run1.log
