@@ -1,5 +1,5 @@
 ## Translator from Perl to Python 
-### THIS IS AN ANNOUNCEMENT FOR VERSION 1.012 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
+### THIS IS AN ANNOUNCEMENT FOR VERSION 1.013 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
 
 This readme is for informational purposes only and is not intended to be updated often. 
 
@@ -98,6 +98,10 @@ If __DATA__ or __END__ are used a separate file with  the extension  .data (/pat
 
 
 ### HISTORY 
+
+November 11, 2022: Version 1.013 was uploaded.  IO encoding no longer defaults to UTF-8, boolean values including perllib function results now properly convert to 1 or '' in strings, the Pythonizer output of globals, imports, and initializations are now sorted to make the output of repeated pythonizer runs the same, add FindBin and readlink, implement switch/case and given/when, -V option prints version and exist, old -V option is now -N, $\* is now handled, options to Getopt::Long can now be passed as -option or --option, tie of hash or array is now implemented.  BEGIN blocks are now executed first no matter where they appear in the perl code. INIT/CHECK/UNITCHECK blocks are also properly supported. # pragma pythonizer now supports the verbose option.
+
+October 1, 2022: Version 1.001 was uploaded.  First production release.  It adds support for -oOutputDir option, does a much better job at inserting 'return' statements, adds readline, warnings are now disabled by default, -a option to add __author__ etc, more File::Spec functions implemented, UNIVERSAL::isa and File::Path added, allow Pythonizer to run under Strawberry Perl, add Getopt::Std, improve test coverage, add strftime, replace references to other perl scripts with python references (with -Y option to turn it off), allow global file handles, scope of 'my' is now obeyed in for(each) loops and all foreach counters are now localized, add tmpdir.
 
 Mar 31, 2022: Version 0.966 was uploaded.  It adds support for OO perl including the bless keyword and the ref function not used with '\'.  The 'wantarray' keyword is now supported using a keyword argument, and the select and kill functions are now implemented.  The Math::Complex library is now included, which is an automatically translated and fully tested version of the perl package.  Math functions ceil, floor, trunc, round, exp, log, sin, cos along with File::Spec functions file_name_is_absolute, catfile, rel2abs, abs2rel have been added.
 

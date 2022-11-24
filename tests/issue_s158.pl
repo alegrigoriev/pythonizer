@@ -13,4 +13,11 @@ false()
 assert($errors == 1);
 assert($bad == 1);
 
+$bad = 0;
+
+false() or bad(), $errors++;
+
+assert($errors == 2);
+assert($bad == 1);
+
 print "$0 - test passed!\n";

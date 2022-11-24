@@ -24,7 +24,7 @@ use v5.10.1;
 use warnings;
 use strict 'subs';
 use feature 'state';
-use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType %token_precedence %SPECIAL_FUNCTION_MAPPINGS destroy insert append replace %FuncType %PyFuncType %UseRequireVars %UseRequireOptionsPassed %UseRequireOptionsDesired);  # SNOOPYJC
+use Perlscan qw(tokenize $TokenStr @ValClass @ValPerl @ValPy @ValType %token_precedence %SPECIAL_FUNCTION_MAPPINGS destroy insert append replace %FuncType %PyFuncType %UseRequireVars %UseRequireOptionsPassed %UseRequireOptionsDesired special_code_block_name);  # SNOOPYJC
 use Softpano qw(abend logme out getopts standard_options);
 use Pyconfig;				# issue 32
 use Pass0 qw(pass_0);   # SNOOPYJC
@@ -37,7 +37,7 @@ require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub); # SNOOPYJC
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub save_nest restore_nest); # SNOOPYJC
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $IntactLno = 0;           # issue s6
    $IntactEndLno = 0;        # issue s6
@@ -440,7 +440,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
             last if( $ValClass[$i] eq '=' );
             if( $ValClass[$i] =~/[sah]/ ){
                check_ref($CurSubName, $i);              # SNOOPYJC
-               $DeclaredVarH{$ValPy[$i]}=1; # this hash is need only for particular sub
+               # issue s155 $DeclaredVarH{$ValPy[$i]}=1; # this hash is need only for particular sub
+               $DeclaredVarH{$ValPy[$i]}=1 # this hash is need only for particular sub
+                  unless(special_code_block_name($CurSubName));     # issue s155: 'my' is like 'myfile' in BEGIN, etc subs
             }
          }
          if( $i<$#ValClass ){
@@ -463,15 +465,15 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
           $::nested_sub_at_level = $Perlscan::nesting_level;
       }elsif(  $ValPerl[0] eq 'sub' && $#ValClass >= 1) {         # SNOOPYJC: handle sub xxx() (with parens)
          $CurSubName=$ValPy[1];
-	 $initialized{$CurSubName}{$PERL_ARG_ARRAY} = 'a';	  # SNOOPYJC
+	     $initialized{$CurSubName}{$PERL_ARG_ARRAY} = 'a';	  # SNOOPYJC
          $LocalSub{$CurSubName}=1;
          $LocalSub{"$CurPackage.$CurSubName"}=1;                # issue s3
          %DeclaredVarH=(); # this is the list of my varible for given sub; does not needed for any other sub
-	 $we_are_in_sub_body=1;			# issue 45
+	     $we_are_in_sub_body=1;			# issue 45
          if($::debug > 3) {
              say STDERR "get_globals: switching to '$CurSubName' at line $.";
          }
-         correct_nest(0,0);                             # issue 45
+         # issue s155: can have sub nested in BEGIN: correct_nest(0,0);                             # issue 45
       } elsif($ValClass[0] eq 'c' && $ValPerl[0] eq 'package' && $#ValClass >= 1) {     # SNOOPYJC: Keep track of packages
           $Packages{$ValPy[1]} = 1;              # SNOOPYJC
           push @Packages, $ValPy[1];             # SNOOPYJC
@@ -501,7 +503,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                 check_ref($CurSubName, $k);                  # SNOOPYJC
                 if($ValClass[$k] eq 's' && $ValPerl[$k] eq '$_' && $k+1 <= $#ValClass && 
 		           ($ValClass[$k+1] eq '=' ||
-		           ($ValClass[$k+1] eq '~' && $ValClass[$k+2] eq 'f' && $ValPerl[$k+2] =~ /^(?:re|tr)$/))	# issue ddts
+                   # issue s151 ($ValClass[$k+1] eq '~' && $ValClass[$k+2] eq 'f' && $ValPerl[$k+2] =~ /^(?:re|tr)$/))	# issue ddts
+		           ($ValClass[$k+1] eq 'p' && $ValClass[$k+2] eq 'f' && $ValPerl[$k+2] =~ /^(?:re|tr)$/))	# issue ddts, issue s151
 	            ) {
                     # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;    # SNOOPYJC: This sub mods it's args
                     $SubAttributes{&Perlscan::cur_sub()}{modifies_arglist} = 1;    # SNOOPYJC: This sub mods it's args, issue s84
@@ -530,8 +533,10 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
 		      $#ValClass >= $k+1 && $ValPerl[$k+1] eq '@_') {                         # issue s53
 		 # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;     # issue s53
                  $SubAttributes{&Perlscan::cur_sub()}{modifies_arglist} = 1;     # issue s53, issue s84
-              } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 're' && $ValPy[$k] =~ /\b$DEFAULT_VAR\b/) ||
-                  ($ValPerl[$k] eq 'tr' && ($k == 0 || $ValClass[$k-1] ne '~'))) {      # issue s8: sets the $DEFAULT_VAR
+              } elsif((($ValClass[$k] eq 'q' && $ValPy[$k] =~ /\b$DEFAULT_VAR\b/)) ||                # issue s151
+                  ($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 're' && $ValPy[$k] =~ /\b$DEFAULT_VAR\b/) ||
+                  # issue s151 ($ValPerl[$k] eq 'tr' && ($k == 0 || $ValClass[$k-1] ne '~'))) {      # issue s8: sets the $DEFAULT_VAR
+                  ($ValPerl[$k] eq 'tr' && ($k == 0 || $ValClass[$k-1] ne 'p')))) {      # issue s8: sets the $DEFAULT_VAR, issue s151
                   
 		        my $t = merge_types($DEFAULT_VAR, $CurSubName, 'S');			# issue s104
                 $VarType{$DEFAULT_VAR}{$CurSubName} = $t;      # issue s8, issue s104
@@ -1016,7 +1021,8 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             my $lim = $#ValClass;
             if($k-1 >= 0 && $ValClass[$k-1] eq '(') {   # parens around assignment - stop at the )
                 $lim = matching_br($k-1)-1;
-                if($lim+3 <= $#ValClass && $ValClass[$lim+2] eq '~' && $ValClass[$lim+3] eq 'f' &&
+                # issue s151 if($lim+3 <= $#ValClass && $ValClass[$lim+2] eq '~' && $ValClass[$lim+3] eq 'f' &&
+                if($lim+3 <= $#ValClass && $ValClass[$lim+2] eq 'p' && $ValClass[$lim+3] eq 'f' &&  # issue s151
                     ($ValPerl[$lim+3] eq 're' || $ValPerl[$lim+3] eq 'tr')) {
                     # issue s8: ($my_c = $my_a) =~ s/3/1/; where $k is pointing at $my_c - 
                     # here $my_c is set to be the string result of the substitution or
@@ -1068,7 +1074,8 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             if($name =~ /^\(len\((.*)\)-1\)$/) {            # issue s93: $#myArray = ...
                 $NeedsInitializing{$CurSub}{$1} = 'a' if(!exists $initialized{$CurSub}{$1});        # issue s93
             }                                               # issue s93
-        } elsif($ValClass[$k+1] eq '~' && $k+2 <= $#ValClass && $ValClass[$k+2] eq 'f' &&
+        # issue s151 } elsif($ValClass[$k+1] eq '~' && $k+2 <= $#ValClass && $ValClass[$k+2] eq 'f' &&
+        } elsif($ValClass[$k+1] eq 'p' && $k+2 <= $#ValClass && $ValClass[$k+2] eq 'f' &&   # issue s151
             ($ValPerl[$k+2] eq 're' || $ValPerl[$k+2] eq 'tr') && index($ValPy[$k+2], 're.R') < 0) {    # issue s8
             # This is a s or tr operation, which both reads and changes the result (into a string)
             $type = 'S';
@@ -1081,7 +1088,7 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
                 if($rhs_type =~ /^a of (.*)$/) {            # like a of S
                     $type = $1;
                 } else {
-                    $type = 'u';
+                    $type = 'm';
                 }
 		        if($ValClass[$k] eq 'a') {		# issue s95
 		            $type = 'a';			# issue s95
@@ -1147,7 +1154,8 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
                     # value before setting it.  Test case in test_regex.pl with main.chars
                     $rhs_type = 'I';
                 }
-            } elsif($ValClass[$p] eq '~') {
+            # issue s151 } elsif($ValClass[$p] eq '~') {
+            } elsif($ValClass[$p] eq 'p') {     # issue s151
                 $rhs_type = 'S';
             } elsif(index(')x*/%+-.HI>&|0r?:,Ao"', $ValClass[$p]) >= 0) {
                 return;         # Just a reference to the array
@@ -1632,7 +1640,7 @@ sub _expr_type           # Attempt to determine the type of the expression
             }
         }
     }
-    if($class eq 'f') {         # built-in function call
+    if($class eq 'f' && end_of_function($k) >= $e) {         # built-in function call, issue s151
         if($k+1 <= $#ValClass) {
             if($ValPerl[$k] =~ /sort/) {
                 if($ValPerl[$k+1] eq '{') {
@@ -1754,16 +1762,21 @@ sub _expr_type           # Attempt to determine the type of the expression
         }
         return 'S';             # will be changed to a string
     } elsif($class ne '(') {            # Non-parenthesized expression
-        my $m = next_same_level_tokens('>+-*/%0o.?:r', $k, $#ValClass);
+        my $s = $k;                     # issue s151
+        $s = end_of_function($k)+1 if $class eq 'f';    # issue s151
+        # issue s151 my $m = next_same_level_tokens('>+-*/%0o.?:r', $k, $#ValClass);
+        my $m = next_same_level_tokens('>+-*/%0o.?:r', $s, $#ValClass);     # issue s151
         if($m != -1 && $m <= $e) {
             if($ValClass[$m] eq '.') {
                 return 'S';             # String concat
             } elsif($ValClass[$m] eq '>') {     # could be like < or like lt
-	        # issue s124 return 'S' if($ValPerl[$m] =~ /^[a-z][a-z]$/);  # like eq, gt, etc
-	        # issue s124 return 'I';     # boolean is an Int in perl
-		return 'B';		# issue s124: Boolean
-            } elsif($ValClass[$m] =~ /0o/) {    # or || and &&
-		return common_type(expr_type($k, $m-1, $CurSub),
+	            # issue s124 return 'S' if($ValPerl[$m] =~ /^[a-z][a-z]$/);  # like eq, gt, etc
+	            # issue s124 return 'I';     # boolean is an Int in perl
+                # issue s151 return 'B';		# issue s124: Boolean
+	            return 'I';     # issue s151: boolean is an Int in python (until we convert it with _pb)
+            # issue s152 } elsif($ValClass[$m] =~ /0o/) {    # or || and &&
+            } elsif($ValClass[$m] =~ /[0o]/) {    # or || and &&, issue s152
+		        return common_type(expr_type($k, $m-1, $CurSub),
 	                           expr_type($m+1, $e, $CurSub));
             } elsif($ValClass[$m] eq '+' || $ValClass[$m] eq '-' || $ValClass[$m] eq '*') {
                 if($k == $m) { # It's a unary - or +
@@ -1805,7 +1818,8 @@ sub _expr_type           # Attempt to determine the type of the expression
                 }
                 return $typ if($typ);
             }
-        } elsif($class eq 's' && $k+2 <= $#ValClass && $ValClass[$k+1] eq '~' &&        # Pattern match
+        # issue s151 } elsif($class eq 's' && $k+2 <= $#ValClass && $ValClass[$k+1] eq '~' &&        # Pattern match
+        } elsif($class eq 's' && $k+2 <= $#ValClass && $ValClass[$k+1] eq 'p' &&        # Pattern match, issue s151
                 $ValClass[$k+2] eq 'q' && capturing_pattern($ValPerl[$k+2])) {
                 return 'a of S';
         } elsif($class eq '"' && $k+2 <= $#ValClass && $ValClass[$k+1] eq 'A') {
@@ -1851,6 +1865,10 @@ sub _expr_type           # Attempt to determine the type of the expression
                 }
             }
             return "a of $t";
+        } elsif($ValPerl[$k] eq '[' && next_same_level_token('y', $k+1, $ma-1) != -1) { # issue s154: get proper type of [... y ...] expression
+            return 'a of m';
+        } elsif($ValPerl[$k] eq '{' && next_same_level_token('y', $k+1, $ma-1) != -1) {
+            return 'h of m';
         } else {        # Not a list, just a parenthesized expression
             return expr_type($k+1, $ma-1, $CurSub);           # Just get the type of the expression in the (...)
         }
@@ -2340,9 +2358,19 @@ sub end_of_function                             # issue s3
     my ($j, $k, $limit);
     my $end_pos = $#ValClass;
     $limit = $#ValClass;                # issue s48
-    $k = next_matching_tokens('0o>',$pos+1,$end_pos);  # stop at next and/or/comparison
-    $end_pos = $k-1 if($k != -1);
-    return $end_pos unless defined $f_type;     # this is a guess
+    # issue s151: Move this code up from below as the and/or/comparison was messing up $limit!
+    my $t_pos = 0;
+    if(($ValPerl[$pos] eq 'grep' || $ValPerl[$pos] eq 'map' || $ValPerl[$pos] eq 'sort') && $ValPerl[$pos+1] eq '{') {
+        # this is like grep { function } @array - skip right to the array
+        my $close = matching_br($pos+1);
+        $pos = $close;
+        $t_pos++;
+        # issue s151 $end_pos = $limit;  # issue s48: the function may have a token '0o>' in it so point back to the end
+    } else {            # issue s151
+        $k = next_matching_tokens('0o>',$pos+1,$end_pos);  # stop at next and/or/comparison
+        $end_pos = $k-1 if($k != -1);
+        return $end_pos unless defined $f_type;     # this is a guess
+    }
     # if the entire function call w/parameters is parenthesized, then the function ends
     # at the next right paren
     if($pos != 0 && $ValClass[$pos-1] eq '(') {
@@ -2359,14 +2387,14 @@ sub end_of_function                             # issue s3
         $limit = $end_pos = $colon-1 if($colon > 0);
     }
     my $op = 'F';
-    my $t_pos = 0;
-    if(($ValPerl[$pos] eq 'grep' || $ValPerl[$pos] eq 'map' || $ValPerl[$pos] eq 'sort') && $ValPerl[$pos+1] eq '{') {
-        # this is like grep { function } @array - skip right to the array
-        my $close = matching_br($pos+1);
-        $pos = $close;
-        $t_pos++;
-        $end_pos = $limit;  # issue s48: the function may have a token '0o>' in it so point back to the end
-    }
+# issue s151     my $t_pos = 0;
+# issue s151     if(($ValPerl[$pos] eq 'grep' || $ValPerl[$pos] eq 'map' || $ValPerl[$pos] eq 'sort') && $ValPerl[$pos+1] eq '{') {
+# issue s151         # this is like grep { function } @array - skip right to the array
+# issue s151         my $close = matching_br($pos+1);
+# issue s151         $pos = $close;
+# issue s151         $t_pos++;
+# issue s151         $end_pos = $limit;  # issue s48: the function may have a token '0o>' in it so point back to the end
+# issue s151     }
     my $balance = 0;
     my $pep = -1;		# issue s75
     EOFLOOP:
@@ -2395,7 +2423,7 @@ sub end_of_function                             # issue s3
         $optional = 1 if(substr($f_type, $t_pos+1, 1) eq '?');
         $t = substr($f_type, ++$t_pos, 1) if($t eq '?');
         if($t eq ':') {
-            $t = substr($f_type, --$t_pos, 1);
+            $t = substr($f_type, --$t_pos, 1) if($t_pos > 0);   # issue s151
             $t = substr($f_type, --$t_pos, 1) if($t eq '?');
             if($t ne 'a') {
                 $j--;
@@ -2411,7 +2439,8 @@ sub end_of_function                             # issue s3
         } elsif($optional && 
             ($j == 0 || $ValClass[$j-1] ne ',') &&              # issue s52
             # issue s52 index("^*~/%+-.HI>&|0or?:=,A", $ValClass[$j]) >= 0) {
-            index("^*~/%.HI>&|0or?:=,A", $ValClass[$j]) >= 0) {  # issue s52: Eliminated unary ops here
+            # issue s151 index("^*~/%.HI>&|0or?:=,A", $ValClass[$j]) >= 0) {  # issue s52: Eliminated unary ops here
+            index("^*p/%.HI>&|0or?:=,A", $ValClass[$j]) >= 0) {  # issue s52: Eliminated unary ops here, issue s151
             $j--;
             last;
         } elsif(!$optional && $comma != -1 && $ValClass[$comma] ne ',' &&
@@ -2422,7 +2451,7 @@ sub end_of_function                             # issue s3
             $comma = next_same_level_token(',', $j, $end_pos);
             $ep = (($comma==-1) ? $end_pos : $comma-1);
         }
-	$pep = $ep;			# issue s75
+	    $pep = $ep;			# issue s75
         if($comma < 0 || ($comma >= 0 && $ValClass[$comma] ne ',')) {
             for(my $p = $j+1; $p <= $ep; $p++) {        # see if we need to end earlier than $ep
                 if($ValClass[$p] eq '(') {
@@ -2682,19 +2711,21 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
       }elsif( $flag != 2 && substr($line,0,5) eq 'goto ') {   # SNOOPYJC: strange way to skip some code, issue s73: check flag
          $line =~ /goto\s+([A-Za-z0-9_]+)/;
          $label = $1;
-         &$output_line('',q[''']);              # issue 45
-         &$output_line('',$line,1);             # issue 45
-         # issue stdin while($line=<>){
-         while($line=<SYSIN>){          # issue stdin
-            &$output_line('', $line,1);         # issue 45
-            if( $line =~ /^$label:/ ) {
-                # issue stdin $line = <>; 
-                $line = <SYSIN>;        # issue stdin
-                chomp($line);                   # SNOOPYJC
-                last;
-            }
+         if(!exists $Perlscan::all_labels{$label}) {        # issue error_goto
+             &$output_line('',q[''']);              # issue 45
+             &$output_line('',$line,1);             # issue 45
+             # issue stdin while($line=<>){
+             while($line=<SYSIN>){          # issue stdin
+                &$output_line('', $line,1);         # issue 45
+                if( $line =~ /^$label:/ ) {
+                    # issue stdin $line = <>; 
+                    $line = <SYSIN>;        # issue stdin
+                    chomp($line);                   # SNOOPYJC
+                    last;
+                }
+             }
+             &$output_line('',q[''']);              # issue 45
          }
-         &$output_line('',q[''']);              # issue 45
       }
 
       return $line if(!defined $line);          # issue 79 - gives lots of errors below if we hit EOF
@@ -2939,6 +2970,20 @@ my $delta;
    }
 }
 
+sub save_nest       # issue s155
+{
+    say STDERR "save_nest() = [$CurNest, $NextNest]" if($::debug);
+    return [$CurNest, $NextNest];
+}
+
+sub restore_nest    # issue s155
+{
+    my $saved = $_[0];
+    $CurNest = $saved->[0];
+    $NextNest = $saved->[1];
+    say STDERR "restore_nest([$CurNest, $NextNest])" if($::debug);
+}
+
 # based on https://www.geeksforgeeks.org/topological-sorting/
 sub toposort_util
 {
@@ -2969,6 +3014,7 @@ sub toposort
 sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in the output file
 {
     close SYSOUT;
+    #return; # TEMP
     open(SYSOUT,'<',$output_file);
     # Pass 1 - find all the defs
     my %defs = ();
@@ -3232,6 +3278,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                         $lines[$i] =~ /^\s*$/ || $lines[$i] =~ /^\s*#/ || $lines[$i] =~ m'^@' ||
 			            $lines[$i] =~ /^${func}_[\w]+ =/ ||	 # state variable like func_var = init
                         $lines[$i] =~ /[.]$func = types[.]MethodType\($func,/ ||     # issue s3
+                        $lines[$i] =~ /[.]$func = lambda \*_args: $func\(/ ||     # issue s154
                         $lines[$i] =~ /[.]$func = $func$/) {     # e.g. main.func = func
                         #say STDERR "Found def $func";
                     if(exists $moved_lines{$i+1}) {         # Don't include it twice

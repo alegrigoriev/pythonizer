@@ -36,3 +36,4 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
                 setattr(builtins, package_name, namespace)
         parent = namespace
         parent_name = package_name
+    return namespace

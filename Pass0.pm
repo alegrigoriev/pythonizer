@@ -39,6 +39,7 @@ sub pass_0
     my %ConstantVars = ();
 
     $say_why = (&Softpano::get_verbosity() >= 1);
+    $extra_info = (&Softpano::get_verbosity() >= 3);
 
     while(1) {
         $line = &Pythonizer::getline();
@@ -65,7 +66,7 @@ sub pass_0
         } else {
             $lines_in_subs++;
         }
-        if($#ValClass >= 3 && $ValClass[0] eq 'i' && $ValPerl[0] eq 'pragma' && $ValPerl[1] eq 'pythonizer') {
+        if($#ValClass >= 2 && $ValClass[0] eq 'i' && $ValPerl[0] eq 'pragma' && $ValPerl[1] eq 'pythonizer') {
             my $uim = handle_pragma_pythonizer();
             $use_implicit_my = $uim if(defined $uim);
         } elsif($ValClass[0] eq 'c' && $ValPerl[0] eq 'package') {
@@ -173,7 +174,11 @@ sub pass_0
         say STDERR "Using -m due to looks_like_script (GetOptions/ARGV)" if($say_why);
     }
     if($say_why and !defined $use_implicit_my) {
-        say STDERR "Using -M: heuristics are indeterminate (lines in main: $lines_in_main, lines in subs: $lines_in_subs, global init lines: $global_init_lines)";
+        if($extra_info) {
+            say STDERR "Using -M: heuristics are indeterminate (lines in main: $lines_in_main, lines in subs: $lines_in_subs, global init lines: $global_init_lines)";
+        } else {
+            say STDERR "Using -M: heuristics are indeterminate";
+        }
     }
     return $use_implicit_my;
 }
@@ -209,18 +214,25 @@ sub handle_pragma_pythonizer
     my $UFlag = undef;
     my $KFlag = undef;
     my $YFlag = undef;
+    my $v0Flag = undef;
+    my $v1Flag = undef;
+    my $v2Flag = undef;
+    my $v3Flag = undef;
     my $implicit_global_my = undef;
 
     my %flags = (T=>\$::traceback, A=>\$::autodie, m=>\$mFlag, M=>\$MFlag, s=>\$::pythonize_standard_library,
-	    	 n=>\$::trace_run, k=>\$::black, K=>\$KFlag, u=>\$::replace_usage, U=>\$UFlag,
-		 a=>\$::gen_author,	# issue s19
-		 y=>\$::replace_run, Y=>\$YFlag,	# issue s87
+	    	     n=>\$::trace_run, k=>\$::black, K=>\$KFlag, u=>\$::replace_usage, U=>\$UFlag,
+                 a=>\$::gen_author,	# issue s19
+                 y=>\$::replace_run, Y=>\$YFlag,	# issue s87
+                 v0=>\$v0Flag, v1=>\$v1Flag, v2=>\$v2Flag, v3=>\$v3Flag,
                  S=>\$SFlag, p=>$::import_perllib, P=>\$PFlag, N=>\$NFlag);     # issue s132
     my %options = (traceback=>\$::traceback, autodie=>\$::autodie, implicit=>\$implicit_global_my,
                    pythonize=>\$::pythonize_standard_library, import=>\$::import_perllib, 
-		   trace=>\$::trace_run, black=>\$::black, replace=>\$::replace_usage,
-		   pl_to_py=>\$::replace_run,
-		   author=>\$::gen_author,	# issue s19
+		           trace=>\$::trace_run, black=>\$::black, replace=>\$::replace_usage,
+		           pl_to_py=>\$::replace_run,
+		           author=>\$::gen_author,	# issue s19
+                   verbose=>\$v2Flag,
+                   verbosity=>\$v2Flag,
                    convert=>undef,              # issue s64
                    autovivification=>\$::autovivification);
 
@@ -260,15 +272,25 @@ sub handle_pragma_pythonizer
             $PFlag = $val;
         } elsif($flag eq 'N') {     # issue s132
             $NFlag = $val;          # issue s132
+        } elsif($flag eq 'v0') {
+            $v0Flag = $val;
+        } elsif($flag eq 'v1') {
+            $v1Flag = $val;
+        } elsif($flag eq 'v2') {
+            $v2Flag = $val;
+        } elsif($flag eq 'v3') {
+            $v3Flag = $val;
         }
     };
 
     my %option_flags = (traceback=>'T', autodie=>'A', implicit=>'m', trace=>'n', black=>'k',
-	    	   author=>'a',		# issue s19
-		   pl_to_py=>'y',	# issue s87
+	    	       author=>'a',		# issue s19
+                   pl_to_py=>'y',	# issue s87
+                   verbose=>'v2', verbosity=>'v2',
                    pythonize=>'s', import=>'p', replace=>'u');
     my %option_no_flags = (implicit=>'M', pythonize=>'S', import=>'P', autovivification=>'N', black=>'K', replace=>'U', # issue s132
 	    		   pl_to_py=>'Y',	# issue s87
+                   verbose=>'v0', verbosity=>'v0',
     			   convert=>undef,	# issue s64 - use special processing
 		   	  );
 
@@ -323,6 +345,10 @@ sub handle_pragma_pythonizer
     $::replace_usage = 0 if($UFlag);
     $::replace_run = 0 if($YFlag);	# issue s87
     $::black = 0 if($KFlag);
+    &Softpano::set_verbosity(0) if($v0Flag);
+    &Softpano::set_verbosity(1) if($v1Flag);
+    &Softpano::set_verbosity(2) if($v2Flag);
+    &Softpano::set_verbosity(3) if($v3Flag);
     return 1 if($mFlag);
     return 0 if($MFlag);
     return $implicit_global_my if(defined $implicit_global_my);

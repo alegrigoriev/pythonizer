@@ -3,9 +3,13 @@ def _truncate(fh, length):
     """Implementation of perl $fh->truncate method"""
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
+        if hasattr(fh, 'flush'):
+            fh.flush()
         if hasattr(fh, 'truncate'):
             fh.truncate(length)
         else:
+            if hasattr(fh, 'fileno'):
+                fh = fh.fileno()
             os.truncate(fh, length)
         return 1    # True
     except Exception as _e:

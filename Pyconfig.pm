@@ -9,7 +9,7 @@ package Pyconfig;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name loop_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $KEY_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS %PYF_OUT_PARAMETERS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER $SHEBANG %OVERLOAD_MAP %CLASS_METHOD_SET $AUTHORS_FILE $SWITCH_VAR $SWITCH_LABEL $NON_REGEX_CHARS %STATEMENT_FUNCTIONS);
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name loop_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $KEY_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS %PYF_OUT_PARAMETERS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER $SHEBANG %OVERLOAD_MAP %CLASS_METHOD_SET $AUTHORS_FILE $SWITCH_VAR $SWITCH_LABEL $NON_REGEX_CHARS %STATEMENT_FUNCTIONS %TIE_MAP %TIE_CONSTRUCTORS);
 
 # use Readonly;		# Readonly is not installed by default so skip it!
 
@@ -190,7 +190,7 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
 		_unpack=>'_pack', _assign_sparse=>'_int',
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
 our %PYF_OUT_PARAMETERS=();			# Functions with out parameters - which parameter (counting from 1) is "out"?
-our %STATEMENT_FUNCTIONS=(getopts=>1, GetOptions=>1);    # issue s150: These functions generate statements and must be pulled out of expressions/conditions
+our %STATEMENT_FUNCTIONS=(getopts=>1, GetOptions=>1, chop=>1, chomp=>1);    # issue s150: These functions generate statements and must be pulled out of expressions/conditions, issue s167: Add chop/chomp
 our %STAT_SUB=('File::stat'=>'_fstat');                 # Substitution for stat if they use File::stat
 our %LSTAT_SUB=('File::stat'=>'_flstat');                 # Substitution for stat if they use File::stat
 
@@ -339,7 +339,21 @@ our %OVERLOAD_MAP = 	(
 	#'fallback'=> {normal=>'_fallback'},	# not handled
 	);
 
-our @CLASS_METHODS = qw/new make/;	# These names will become class methods
+# issue s154: Implement tie
+our %TIE_CONSTRUCTORS = (a=>'TIEARRAY', h=>'TIEHASH');
+our %TIE_MAP = (FETCH=>'__getitem__',
+                STORE=>'__setitem__',
+                CLEAR=>'clear',
+                DELETE=>'__delitem__',
+                EXISTS=>'__contains__',
+                SCALAR=>'__len__',
+                FETCHSIZE=>'__len__',
+                DESTROY=>'__del__',
+                UNTIE=>'__untie__',
+                PUSH=>'append',
+               );
+
+our @CLASS_METHODS = qw/new make TIEHASH TIEARRAY/;	# These names will become class methods, issue s154
 our %CLASS_METHOD_SET = map { $_ => 1 } @CLASS_METHODS;
 
 # Predefined package with function implementation.  The default python name

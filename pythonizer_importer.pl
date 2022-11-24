@@ -167,7 +167,16 @@ sub _gen_tags
 
 	my $result = '(';
 	for my $key (keys %tags) {
-		$result .= "$key => [qw/";
+        my $nkey = $key;                    # issue s164
+        if(substr($key,0,1) eq ':') {       # issue s164
+            $nkey = substr($key,1);         # issue s164
+        }
+        # issue s164 $result .= "$key => [qw/";
+        if($nkey =~ /^[A-Za-z_][A-Za-z0-9_]*$/) {   # issue s164
+            $result .= "$nkey => [qw/";         # issue s164
+        } else {                                # issue s164
+            $result .= "'$nkey' => [qw/";       # issue s164
+        }                                       # issue s164
 		$value = $tags{$key};
 		$result .= "@$value";
 		$result .= '/], ';
@@ -269,6 +278,7 @@ eval {
 	#say STDERR "expand_extras: package=$package, version=$version, export=@export, export_ok=@export_ok, export_tags=@{[%export_tags]}" if($debug);
 };
 if($@) {
-	say '$@=' . "\"Failed: $@\";";
+    chomp($@);
+	say '$errors=' . "\"Failed: $@\";";
 	exit(1);
 }

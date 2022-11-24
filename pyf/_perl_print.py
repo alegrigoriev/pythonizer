@@ -1,7 +1,11 @@
 
 def _perl_print(*args, **kwargs):
-    """Replacement for perl built-in print function when used in an expression,
-    where it must return True if successful"""
+    """Replacement for perl built-in print/say/warn functions.
+    Note that by default this acts like 'say' in that it appends a newline.
+    To prevent the newline, pass the end='' keyword argument.  To write
+    to a different file, pass the file=... keyword argument.  To flush the output
+    after writing, pass flush=True.  To replace the OUTPUT_FIELD_SEPARATOR, pass sep='...'.
+    It returns 1 if successful"""
     global OS_ERROR, TRACEBACK, AUTODIE
     try:
         file = sys.stdout

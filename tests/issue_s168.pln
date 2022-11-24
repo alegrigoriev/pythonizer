@@ -1,0 +1,30 @@
+# issue s168 - Calls to undefined subroutines without parens should not be generated as strings
+# ZOIB from netdb/cgi-bin/cbb/exec_summary2-1.cgi
+# debug_print from ./cdn/components/feed/src/feedSFtpGet.pl
+use Carp::Assert;
+
+my $py = ($0 =~ /\.py$/);
+if($py) {
+    use lib ".";
+    require "issue_s168_subs.pm";
+}
+
+$date = '1';
+
+sub numerically {       # from the original code - not used
+   $b <=> $a;
+}
+ZOIB
+
+$cmd = "cmd".$date;
+assert($cmd eq 'cmd1');
+
+assert($zoib eq 'cmd1');
+
+$tfile = 'tmp.tmp';
+
+debug_print $tfile . " does not exist";
+
+assert($debug_print eq 'tmp.tmp does not exist');
+
+print "$0 - test passed!\n";

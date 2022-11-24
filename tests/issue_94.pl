@@ -51,6 +51,13 @@ for $i (0..10) {
 assert($j == 0);
 assert($v1 == 1);
 
+for $i (0..10) {
+    $j = $i;
+    subr() if($j == 1);
+}
+assert($j == 1);
+assert($v1 == 1);
+
 outer: for $i (0..10) {
     $ii = $i;
     inner: for $j (0..10) {

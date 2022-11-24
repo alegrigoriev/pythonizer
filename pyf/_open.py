@@ -18,6 +18,7 @@ def _open(file,mode,encoding=None,errors=None,checked=True,newline="\n"):
         encoding = 'latin1'
         if errors is None:
             errors = 'ignore'
+    file = str(file)                # handle numeric filename
     try:
         if mode == '|-' or mode == '|-b':    # pipe to
             text = True if mode == '|-' else False
