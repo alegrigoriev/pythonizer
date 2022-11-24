@@ -5,7 +5,7 @@ def _system(*args):
     if len(args) == 1:
         args = args[0]
     try:
-        sp = subprocess.run(args,capture_output=True,text=True,shell=_need_sh(args))
+        sp = subprocess.run(args,text=True,stdin=sys.stdin,stdout=sys.stdout,stderr=sys.stderr,shell=_need_sh(args))
     except FileNotFoundError:   # can happen on windows if shell=False
         sp = subprocess.CompletedProcess(args, 127)
     except OSError:             # check if we're trying to run a perl or python script on Windows
@@ -18,7 +18,7 @@ def _system(*args):
             args = ['perl'] + args
         else:
             raise
-        sp = subprocess.run(args,capture_output=True,text=True,shell=_need_sh(args))
+        sp = subprocess.run(args,text=True,stdin=sys.stdin,stdout=sys.stdout,stderr=sys.stderr,shell=_need_sh(args))
     if TRACE_RUN:
         _carp(f'trace system({args}): {repr(sp)}', skip=2)
     CHILD_ERROR = sp.returncode

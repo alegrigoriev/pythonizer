@@ -8,9 +8,10 @@ my $vendor = 'cisco';
 if($tmp = ~/^spgw_\w/) {
     $cfgDir = "$neoRoot/$date/$vendor/spgw";
 }
+assert($tmp != 0);
 my $x = ($tmp = ~/^spgw_\w/);
-#print "$x\n";
-assert($x > 0);
+assert($x != 0);
+assert($tmp == $x);
 
 assert($cfgDir eq './today/cisco/spgw');
 

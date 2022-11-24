@@ -1,0 +1,7 @@
+# Error test for getopts: non-constant arg not supported
+
+use Getopt::Std;
+%options = ();
+$opts = 'fD';
+getopts($opts, \%options);
+getopts("$opts", \%options);

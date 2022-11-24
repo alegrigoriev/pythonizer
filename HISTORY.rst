@@ -2,6 +2,11 @@
 History
 =======
 
+1.013 (2022-11-14)
+------------------
+
+* Issue s152: have _import return 1 on success, issue s154: support tie, untie, tied, issue s166: update _open_dynamic, _dup to handle <&= and >&=, and _open to convert ints to string filenames, _system should not use capture_output
+
 1.012 (2022-11-07)
 ------------------
 

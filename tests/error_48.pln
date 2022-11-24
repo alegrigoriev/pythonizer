@@ -1,0 +1,6 @@
+# error test for GetOptions cases not handled
+use Getopt::Long;
+
+GetOptions ("define=s" => \%defines);
+GetOptions ("define=s%" => \$defines);
+GetOptions (\%hash, "define=s%");

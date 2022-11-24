@@ -33,7 +33,7 @@ def _import(globals, path, module=None, fromlist=None, version=None):
     # globals[module] = mod
 
     if fromlist is None:
-        return                  # use X ();
+        return 1                 # use X ();
 
     if not isinstance(fromlist, (list, tuple)):
         fromlist = [fromlist]
@@ -110,3 +110,4 @@ def _import(globals, path, module=None, fromlist=None, version=None):
                     namespace = builtins[pkg]
                     setattr(namespace, imp, getattr(mod, imp))
 
+    return 1

@@ -29,7 +29,7 @@ require Exporter;
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(autocommit abend banner logme summary out getopts standard_options);
+@EXPORT = qw(autocommit abend banner logme summary out getopts standard_options get_verbosity set_verbosity);
 $VERSION = '1.10';
 state ($verbosity, $msg_cutlevel2, @ermessage_db, @ercounter); # remember they are statically scoped
   $verbosity=2;         # SNOOPYJC
@@ -38,6 +38,11 @@ sub get_verbosity	# SNOOPYJC
 {
 	#say STDERR "verbosity=$verbosity";
 	return $verbosity;
+}
+
+sub set_verbosity   # SNOOPYJC
+{
+    $verbosity = $_[0];
 }
 
 $syslog_opened = 0;	# issue 64

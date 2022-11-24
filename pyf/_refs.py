@@ -12,4 +12,8 @@ def _refs(r):
         if r.isHash:
             return 'HASH'
         return 'ARRAY'
+    elif hasattr(r, 'TIEARRAY'):
+        return 'ARRAY'
+    elif hasattr(r, 'TIEHASH'):
+        return 'HASH'
     return ''
