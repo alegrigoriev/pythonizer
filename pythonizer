@@ -225,6 +225,7 @@
 # 1.011  2022/11/03  SNOOPYJC issue s135: grep expression with substitute and/or angle brackets glob does not work, issue s136: for loop with ++ctr at the end generates bad code, issue s137: default variable regex in && expression doesn't work and foreach scalar generates bad code and last in do generates bad code, issue s138: Split on '\|' doesn't work properly
 # 1.012  2022/11/07  SNOOPYJC issue s140: $* doesn't work, issue s141: Naming a sub 'main' fails to pythonize properly, issue s142: Autovivification doesn't work on @ARGV, also fix range assignment for @ARGV, issue s143: Complex hash assignment with regex substitute generates incorrect code, issue s144: my statement with a comma-separated list of initializations generates bad code, issue s145: complex nested hash/array initialization fails translation, issue s146: for loop that starts by incrementing the loop counter is not handled, issue s147: multiple do{...} until(...) with nested trailing 'if' does not translate properly, issue s148: chomp/chop on an array element or hash value fails to translate, issue s149: multi-line q string with blank lines doesn't translate properly, issue s150: GetOptions or die generates bad code, other fixes to GetOptions to handle -option and check for invalid options, issue s139: Multiple '}' on the same line not being recognized as block close
 # 1.013  2022/11/14  SNOOPYJC issue s151: = ~ with extra space generates syntax error code, issue s152: missing ';' on require should execute next line if it starts with an '&' operator, issue s153: grep ! /pattern/ generates bad code, issue s155: nested BEGIN block generates bad code, issue s156: => in if statement generates bad code, issue s157: Multi-array assignment generates bad code, issue s158: ++ in comma expression in or clause generates bad code, issue s159: grep regex generates bad code, issue s160: Assignment to @hash{@keys} generates bad code, issue s154: implement tie, issue s162: file size operation can generate incorrect code, issue s163: Simple sort generating bad code, issue s164: Passing a -pragma on a use statement is not translated correctly, issue s165: Bogus pattern match operation generates TypeError in python, issue s168: Calls to undefined subroutines without parens should not be generated as strings, issue s166: open(COPY, '>&HANDLE') does not generate proper code, issue s167: 1 while chomp; generates incorrect code, issue s169: Bogus reference to scalar warnings on array and hash references, also add # pragma pythonizer verbose, issue s170: break outside of a given block should raise an exception, not generate a syntax error, issue s171: Deleting multiple hash entries using an array undef generates bad code, generate warning messages for missing use/require modules, issue s172: Use of both variable and variable_a causes initialized error in pythonizer, add more error tests and fix error on % in GetOptions and fix version check on use/require
+# 1.014  2022/11/24  SNOOPYJC issue s173: File::Path functions need an empty array passed for the error => $err parameter
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -282,7 +283,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub save_nest restore_nest); # SNOOPYJC
 
-   $VERSION='1.013';
+   $VERSION='1.014';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -4235,7 +4236,7 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
 	      } else {									# issue 13: bare word - treat as string
 	        gen_chunk("'".$ValPy[$limit]."'");					# issue 13
 	      }
-         }elsif(defined $number_of_elements && $ValClass[$limit] eq 'h') {      # SNOOPYJC: "($k, $v) = %h;" tested in issue 115
+         }elsif(defined $number_of_elements && ($ValClass[$limit] eq 'h' || is_hash($limit))) {      # SNOOPYJC: "($k, $v) = %h;" tested in issue 115, issue s173
             gen_chunk('list(*');            # Splat it
             gen_chunk($ValPy[$limit]); # that includes diamond operator <> and <HANDLE> Aug 10,2020
             gen_chunk('.items())');
@@ -12252,6 +12253,16 @@ sub handle_open_dup             # issue s166
     &Perlscan::add_package_name_fh($end_pos+1);
     insert($end_pos+1, ',', ',', ',');
     return 2;
+}
+
+sub is_hash                   # issue s175: Is this a hash?  This type can be set if it's referenced as %$href somewhere
+{
+    my $i = $_[0];
+
+    if(exists $VarType{$ValPy[$i]} && exists $VarType{$ValPy[$i]}{$CurSub}) {
+        return $VarType{$ValPy[$i]}{$CurSub} =~ /^h/;
+    }
+    return 0;
 }
 
 __DATA__

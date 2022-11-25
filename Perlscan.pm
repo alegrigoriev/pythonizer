@@ -3377,6 +3377,12 @@ my ($l,$m);
                popup();                         # issue 50
                $tno--;              # issue 50 - no need to change hashref to hash or arrayref to array in python
                $ate_dollar = $tno;              # issue 50: remember where we did this
+               # issue s173: Set the type of the variable appropriately
+               my $cs = cur_sub();          # issue s173
+               my $type;                    # issue s173
+               $type = 'a' if $was eq '@';  # issue s173
+               $type = 'h' if $was eq '%';  # issue s173
+               $Pythonizer::VarType{$ValPy[$tno]}{$cs} = $type if(defined $type);   # issue s173
                if($was eq '@' && &Pythonizer::in_sub_call($tno)) {      # issue bootstrap
                    $ValPy[$tno] = '*' . $ValPy[$tno];                   # Splat it
                }
@@ -3397,7 +3403,7 @@ my ($l,$m);
                 append(')', '}', ']');
                 insert($tno, '(', '{', '[');
                 $tno += 2;
-            } elsif($tno != 0 && $ValClass[$tno-1] eq '\\' && $Pythonizer::PassNo==&Pythonizer::PASS_2 && !inGetOptions()) {       # issue s169
+            } elsif($tno != 0 && $ValClass[$tno-1] eq '\\' && $Pythonizer::PassNo==&Pythonizer::PASS_2 && !nonScalarRef() && !inGetOptions()) { # issue s169, issue s173
                 logme("W", "Reference to scalar $ValPerl[$tno] replaced with scalar value");
             }
 
@@ -8501,6 +8507,17 @@ sub inGetOptions            # issue s169
     for(my $i = 0; $i <= $#ValClass; $i++) {
         return 1 if $ValClass[$i] eq 'f' && $ValPerl[$i] eq 'GetOptions';
     }
+    return 0;
+}
+
+sub nonScalarRef            # issue s173
+# is this a non-scalar reference, e.g. to an arrayref or hashref which is later referred to via @$var or %$var?
+{
+    my $sub = cur_sub();
+    my $typ = 's';
+    $typ = $Pythonizer::VarType{$ValPy[$tno]}{$sub} if(exists $Pythonizer::VarType{$ValPy[$tno]}{$sub});
+    return 0 if(substr($source,$cut) =~ /\s*->/);   # Reference to an array element or hash key - assume it's a scalar
+    return 1 if $typ =~ /^[ah]/;        # This type is set in pass 1 on the @$var or %$var reference
     return 0;
 }
 

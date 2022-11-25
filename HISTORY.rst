@@ -2,6 +2,11 @@
 History
 =======
 
+1.014 (2022-11-24)
+------------------
+
+* Issue s173: Fix File::Path to not reallocate the 'error' or 'result' arrays
+
 1.013 (2022-11-14)
 ------------------
 

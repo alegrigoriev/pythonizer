@@ -53,6 +53,10 @@ my ($x1, $x2, $x3, $x4, $x5, $x6, $x7) = ('a', (sort @a), %hash, 'b');
 assert($x1 eq 'a' && $x2 eq 'a' && $x3 eq 'b' && $x4 eq 'c' &&
        $x5 eq 'k1' && $x6 eq 'v1' && $x7 eq 'b');
 
+($v1, $v2) = %hash;
+assert($v1 eq 'k1');
+assert($v2 eq 'v1');
+
 # from dcUtil.pl:
 my ($cSec, $cMin, $cHour, $cDay, $cMon, $cYear) =  (gmtime)[0..5];
 assert($cSec < 60 && $cMin < 60 && $cHour < 24 && $cDay <= 31 && $cMon <= 12 && $cYear >= (2022-1900) &&

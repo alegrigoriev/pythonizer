@@ -3,7 +3,7 @@
 """Implementation of perl File::Path package"""
 __author__ = """Joe Cool"""
 __email__ = "snoopyjc@gmail.com"
-__version__ = "1.013"
+__version__ = "1.014"
 import builtins, perllib, os, re
 
 _str = lambda s: "" if s is None else str(s)
@@ -73,7 +73,8 @@ def _error(*_args):
     message = _args.pop(0) if _args else None
     object_ = _args.pop(0) if _args else None
 
-    if arg.get("error"):
+    #if arg.get("error"):
+    if "error" in arg:
         if object_ is None:
             object_ = ""
 
@@ -318,7 +319,8 @@ def _rmtree(*_args):
                         perllib.perl_print(f"rmdir {root}")
 
                     if perllib.rmdir(_str(root)):
-                        if data.get("result"):
+                        #if data.get("result"):
+                        if "result" in data:
                             data["result"].append(root)
 
                         count += 1
@@ -366,7 +368,8 @@ def _rmtree(*_args):
 
                 while True:
                     if os.unlink(root):
-                        if data.get("result"):
+                        #if data.get("result"):
+                        if "result" in data:
                             data["result"].append(root)
                     else:
                         _error(data, "cannot unlink file", canon)
@@ -441,10 +444,12 @@ def rmtree(*_args):
             )
 
         if "error" in data:
-            data["error"] = perllib.Array()
+            #data["error"] = perllib.Array()
+            data["error"].clear()
 
         if "result" in data:
-            data["result"] = perllib.Array()
+            #data["result"] = perllib.Array()
+            data["result"].clear()
 
         # Wouldn't it make sense to do some validation on @_ before assigning
         # to $paths here?
@@ -611,7 +616,8 @@ def _mkpath(*_args):
 
             if not perllib.is_dir(path):
                 perllib.OS_ERROR = save_bang
-                if data.get("error"):
+                #if data.get("error"):
+                if "error" in data:
                     data["error"].append({path: e})
                 else:
                     perllib.croak(f"mkdir {path}: {e}")
@@ -691,7 +697,8 @@ def mkpath(*_args):
             data["mode"] = int("777", 8)
 
         if "error" in data:
-            data["error"] = perllib.Array()
+            #data["error"] = perllib.Array()
+            data["error"].clear()
 
         if not win32_implausible_args:
             if "user" in data:
