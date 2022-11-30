@@ -45,3 +45,10 @@ assert($res->[1] eq 'bar/rat');
 assert(! -d 'foo/bar' && ! -d 'bar/rat');
 
 print "$0 - test passed!\n";
+
+END {
+    eval {rmdir 'foo/bar'};
+    eval {rmdir 'foo'};
+    eval {rmdir 'bar/rat'};
+    eval {rmdir 'bar'};
+}

@@ -1,25 +1,25 @@
 bump.yaml:
-  ^(.*)(1.014)(.*)$: replace
+  ^(.*)(1.015)(.*)$: replace
 pythonizer:
-  '^(# )(1.014)(  )(\d\d\d\d\/\d\d\/\d\d)(  SNOOPYJC)': append
-  ^(.*\$VERSION=')(1.014)(';): replace
+  '^(# )(1.015)(  )(\d\d\d\d\/\d\d\/\d\d)(  SNOOPYJC)': append
+  ^(.*\$VERSION=')(1.015)(';): replace
 setup.py:
-  ^(.*version=')(1.014)(',): replace
+  ^(.*version=')(1.015)(',): replace
 user_guide.html:
-  ^(.*Version )(1.014)( \()([A-Z][a-z][a-z] \d*, \d\d\d\d)(\).*)$: replace
+  ^(.*Version )(1.015)( \()([A-Z][a-z][a-z] \d*, \d\d\d\d)(\).*)$: replace
 HISTORY.rst:
-  ^(1.014)( \()(\d\d\d\d-\d\d-\d\d)(\))$: history
+  ^(1.015)( \()(\d\d\d\d-\d\d-\d\d)(\))$: history
 readme.md:
-  ^(###.*)(1.014)(.*)$: replace
+  ^(###.*)(1.015)(.*)$: replace
 charnames/__init__.py:
-  ^(__version__ =.')(1.014)(')$: replace
+  ^(__version__ =.')(1.015)(')$: replace
 Config/__init__.py:
-  ^(__version__ =.')(1.014)(')$: replace
+  ^(__version__ =.')(1.015)(')$: replace
 Math/Complex.py:
-  ^(__version__ =.')(1.014)(')$: replace
+  ^(__version__ =.')(1.015)(')$: replace
 Sys/Hostname.py:
-  ^(__version__ =.')(1.014)(')$: replace
+  ^(__version__ =.')(1.015)(')$: replace
 File/Path.py:
-  ^(__version__ =.")(1.014)(")$: replace
+  ^(__version__ =.")(1.015)(")$: replace
 FindBin/__init__.py:
-  ^(__version__ =.')(1.014)(')$: replace
+  ^(__version__ =.')(1.015)(')$: replace

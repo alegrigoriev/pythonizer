@@ -1,0 +1,2 @@
+# Error test - Tied Array must have POP/SHIFT and/or DELETE to implement pop operations
+sub TIEARRAY { }

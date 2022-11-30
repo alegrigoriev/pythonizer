@@ -14,6 +14,8 @@ def _isa(self, classname):
         return 1 if 'ARRAY' == classname else ''
     elif classname == 'IO::Handle':
         return 1 if isinstance(self, io.IOBase) else ''
+    elif classname == 'UNIVERSAL':
+        return 1
     classname = classname.replace("'", '.').replace('::', '.')
     if hasattr(builtins, classname):
         the_class = getattr(builtins, classname)
