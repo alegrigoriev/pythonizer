@@ -561,6 +561,11 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                 $VarType{$DEFAULT_VAR}{$CurSubName} = $t;      		# issue s104
 		        $VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
 	      	    $NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = $t if(!exists $initialized{$CurSubName}{$DEFAULT_VAR});	# issue s103, issue s104
+              } 
+              if($ValClass[$k] eq 'f' && $we_are_in_sub_body && $#ValClass != $k && exists $PYF_OUT_PARAMETERS{$ValPy[$k]} &&
+                  function_modifies_sub_arg($k)) {              # issue s183
+                 $SubAttributes{&Perlscan::cur_sub()}{modifies_arglist} = 1;     # issue s183: function modifies argument
+                 logme('W', "Sub arg modified by this $ValPerl[$k] call will not change the argument passed in python");
 	          }
 
           } # for
@@ -1099,7 +1104,7 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             }
         }
     }
-    if(($k == 1 || ($k == 2 && $ValClass[1] eq 't')) && $ValClass[0] eq 'c' && $ValPy[0] eq 'for') {  # Var in a foreach loop is initialized
+    if(($k == 1 || ($k == 2 && $ValClass[1] eq 't')) && $ValClass[0] eq 'c' && $ValPy[0] eq 'for' && $k+1 <= $#ValClass) {  # Var in a foreach loop is initialized, issue s177: Handle foreach @_;
         $type = expr_type($k+1, $#ValClass, $CurSub);
         $type = 's' if($type eq 'a' || $type eq 'h');           # We don't know a of what?
         $type =~ s/^a of //;
@@ -3736,6 +3741,34 @@ sub is_foreach_loop				# issue s103
         return 0 if $ValClass[$p] eq ';';
     }
     return 1;
+}
+
+sub function_modifies_sub_arg       # issue s183
+# For a function that has an out parameter, is the out parameter part of a sub arg list?
+# (if so, we have to copy the arglist from a tuple to a list)
+{
+    my $pos = shift;        # Point to the 'f'
+
+    my $limit = end_of_function($pos);
+
+    my $which_arg = $PYF_OUT_PARAMETERS{$ValPy[$pos]};
+    for(my $k = $pos+1; $k <= $limit; $k++) {
+        if(($ValClass[$k] eq 's' && $ValPerl[$k] eq '$_' && $ValPy[$k] =~ /\[\d+\]$/) ||
+           ($ValClass[$k] eq 'a' && $ValPerl[$k] eq '@_')) {
+           my ($prl, $py, $arg) = arg_from_pos($k);
+           if($arg+1 == $which_arg) {            # arg_from_pos counts from 0
+               say STDERR "function_modifies_sub_arg(@ValPerl[$pos..$limit]) = 1" if($::debug);
+               return 1;
+           }
+        }
+        if($ValClass[$k] eq 'f') {
+            $k = end_of_function($k);
+        } elsif($ValClass[$k] ne '(') {
+            $k = &::end_of_variable($k);
+        }
+    }
+    say STDERR "function_modifies_sub_arg(@ValPerl[$pos..$limit]) = 0" if($::debug);
+    return 0;
 }
 
 1;

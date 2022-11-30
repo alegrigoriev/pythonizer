@@ -61,6 +61,7 @@ try_local();
 
 # CORE'xxx Carp'xxx UNIVERSAL'xxx
 assert(&CORE'abs(-1) == 1);
+assert(&UNIVERSAL::isa(\$i, 'SCALAR'));
 assert(&UNIVERSAL'isa(\$i, 'SCALAR'));
 if(0) {
 	&Carp'cluck('Test Failed');
@@ -268,6 +269,18 @@ sub returnFH
 my $status = returnFH();
 assert($status);
 $line = <$fh>;
+assert(substr($line,0,1) eq '#');
+close($fh);
+
+sub returnFHH
+{
+    open(FH, '<', "$0");
+    assert(defined FH);
+    open(FILE, '<', "$0");
+}
+$status = returnFHH();
+assert($status);
+$line = <FILE>;
 assert(substr($line,0,1) eq '#');
 close($fh);
 

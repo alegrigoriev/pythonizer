@@ -27,7 +27,7 @@ def _binmode(fh,mode='b',encoding=None,errors=None,newline=None):
             result.filename = fh.filename
             result._name = fh._name
         if hasattr(fh, 'say'):        # from IO::File
-            return _create_all_fh_methods(fh)
+            return _create_all_fh_methods(result)
         return result
     except Exception as _e:
         OS_ERROR = str(_e)

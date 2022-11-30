@@ -2,6 +2,11 @@
 History
 =======
 
+1.015 (2022-11-26)
+------------------
+
+* Issue s176: Add _fetch_perl_global and _store_perl_global, Issue s180: add _can for $obj->can('method'), fix error in _confess and _croak if TRACEBACK is false and the pythonizer -P option is used, then Die doesn't have a suppress_traceback keyword parameter, issue s177: Add _caller_s for scalar context caller function, have _read and _sysread already return a str, never bytes, issue s183: add _openhandle function
+
 1.014 (2022-11-24)
 ------------------
 

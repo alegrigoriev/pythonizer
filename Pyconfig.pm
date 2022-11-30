@@ -9,9 +9,9 @@ package Pyconfig;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name loop_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $KEY_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS %PYF_OUT_PARAMETERS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER $SHEBANG %OVERLOAD_MAP %CLASS_METHOD_SET $AUTHORS_FILE $SWITCH_VAR $SWITCH_LABEL $NON_REGEX_CHARS %STATEMENT_FUNCTIONS %TIE_MAP %TIE_CONSTRUCTORS);
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name loop_var_name generic_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $KEY_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS %PYF_OUT_PARAMETERS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER $SHEBANG %OVERLOAD_MAP %CLASS_METHOD_SET $AUTHORS_FILE $SWITCH_VAR $SWITCH_LABEL $NON_REGEX_CHARS %STATEMENT_FUNCTIONS %TIE_MAP %TIE_CONSTRUCTORS);
 
-# use Readonly;		# Readonly is not installed by default so skip it!
+# use Readonly;                # Readonly is not installed by default so skip it!
 
 #Readonly our $DEFAULT_VAR => "default_var";
 #Readonly our $DEFAULT_MATCH => "default_match";
@@ -23,8 +23,8 @@ our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $
 our $TABSIZE = 4;
 our $MAXNESTING = 32;
 our $MAXLINELEN = 188;
-our $MAX_CHUNKS = 2048;		# Limit on gen_chunk
-our $MAX_DEPTH = 1024;		# Limit on expression recursion depth
+our $MAX_CHUNKS = 2048;                # Limit on gen_chunk
+our $MAX_DEPTH = 1024;                # Limit on expression recursion depth
 our $DEFAULT_VAR = "_d";
 our $DEFAULT_MATCH = "_m";
 our $GLOB_LIST = "_g";
@@ -33,7 +33,7 @@ our $PERL_SORT_ = "";
 our $ARG_PARSER = "_parser";
 our $ELSIF_TEMP = "_e";                         # issue 58: used to capture complicated assignment in elsif, for and while loops
 our $INDEX_TEMP = "_i";                         # SNOOPYJC: Used as a loop index for int temp expressions only
-our $KEY_TEMP = "_k";				# SNOOPYJC: Used as a loop index for hash keys
+our $KEY_TEMP = "_k";                                # SNOOPYJC: Used as a loop index for hash keys
 our $SUBSCRIPT_TEMP = "_s";                     # Used to capture complicated expressions in subscripts for arrays that need type conversion involved in ++/-- or +=/-= etc
 our $DIAMOND = "_dia";                          # issue 66: for the <> operator
 our $EVAL_RESULT = "_eval_result";              # issue 42
@@ -50,7 +50,7 @@ our $IMPORT_PATH_TEMP = "_p";           # SNOOPYJC
 our $IMPORT_MODULE_TEMP = "_m";         # SNOOPYJC
 our $FUNCTION_RETURN_EXCEPTION="FunctionReturn";  # SNOOPYJC
 our $DEFAULT_PACKAGE='main';            # SNOOPYJC: Default package name
-our $PERLLIB='perllib';			# SNOOPYJC: our library name
+our $PERLLIB='perllib';                        # SNOOPYJC: our library name
 #
 # Put contants here that need to be recognized literally and translated to python references.
 #
@@ -80,27 +80,27 @@ our %GLOBALS = ($SCRIPT_START=>'tm_py.time()',
                 INPUT_LINE_NUMBER=>0,
                 INPUT_RECORD_SEPARATOR=>'"\n"',
                 OS_ERROR=>"''", 
-		EVAL_ERROR=>"''",
+                EVAL_ERROR=>"''",
                 OUTPUT_AUTOFLUSH=>0,
-		INPUT_LAYERS=>"''",
-		OUTPUT_LAYERS=>"''",
-		OUTPUT_FIELD_SEPARATOR=>"''",
-		OUTPUT_RECORD_SEPARATOR=>"''",
+                INPUT_LAYERS=>"''",
+                OUTPUT_LAYERS=>"''",
+                OUTPUT_FIELD_SEPARATOR=>"''",
+                OUTPUT_RECORD_SEPARATOR=>"''",
                 $SUBPROCESS_RC=>0, 
-		# issue s45 WARNING=>1,
-		WARNING=>0,		# issue s45
+                # issue s45 WARNING=>1,
+                WARNING=>0,                # issue s45
                 AUTODIE=>0, 
                 TRACEBACK=>0, 
-		TRACE_RUN=>0,
+                TRACE_RUN=>0,
                 $LOCALS_STACK=>'[]',            # issue 108
                 _OPEN_MODE_MAP=>$open_mode_map, 
                 _DUP_MAP=>$dup_map);
 our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_LINE_NUMBER=>'I', 
-		    INPUT_RECORD_SEPARATOR=>'m', OS_ERROR=>'S', EVAL_ERROR=>'S', OUTPUT_AUTOFLUSH=>'I', 
-		    INPUT_LAYERS=>'S', OUTPUT_LAYERS=>'S', OUTPUT_FIELD_SEPARATOR=>'S', OUTPUT_RECORD_SEPARATOR=>'S',
-		    $SUBPROCESS_RC=>'I', WARNING=>'I', _OPEN_MODE_MAP=>'h of S', _DUP_MAP=>'h of I',
+                    INPUT_RECORD_SEPARATOR=>'m', OS_ERROR=>'S', EVAL_ERROR=>'S', OUTPUT_AUTOFLUSH=>'I', 
+                    INPUT_LAYERS=>'S', OUTPUT_LAYERS=>'S', OUTPUT_FIELD_SEPARATOR=>'S', OUTPUT_RECORD_SEPARATOR=>'S',
+                    $SUBPROCESS_RC=>'I', WARNING=>'I', _OPEN_MODE_MAP=>'h of S', _DUP_MAP=>'h of I',
                     $LOCALS_STACK=>'h of S',            # issue 108
-		    TRACE_RUN=>'I', AUTODIE=>'I', TRACEBACK=>'I');
+                    TRACE_RUN=>'I', AUTODIE=>'I', TRACEBACK=>'I');
 
 sub hash_var_name                       # issue 92
 # Given the name of a %hash, return the python name for it.  Only used if there is a name conflict.
@@ -130,6 +130,15 @@ sub loop_var_name                      # issue s100
     my $name = shift;
     return "${name}_l";
 }
+sub generic_var_name                    # issue s176
+# Given a sigil, return the suffix of the python name for it.
+{
+    my $sigil = shift;
+    return hash_var_name('') if $sigil eq '%';
+    return array_var_name('') if $sigil eq '@';
+    return scalar_var_name('') if $sigil eq '$';
+    return '';
+}
 
 sub label_exception_name                # issue 94
 # Given the name of a label (or undef), generate an exception we can raise to break out of that label block
@@ -140,7 +149,7 @@ sub label_exception_name                # issue 94
     return "LoopControl_$label";
 }
 
-sub state_flag_name		# issue 128
+sub state_flag_name                # issue 128
 # Given the long name of a state variable, return the name to use for the flag we
 # set to only allow it to be initialized once
 {
@@ -153,17 +162,20 @@ sub state_flag_name		# issue 128
 
 our @PYTHON_KEYWORDS = qw(False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield);
 our @PYTHON_BUILTINS = qw(abs aiter all any anext ascii bin bool breakpoint bytearray bytes callable chr classmethod compile complex delattr dict dir divmod enumerate eval exec filter float format frozenset getattr globals hasattr hash help hex id input int isinstance issubclass iter len list locals map max memoryview min next object oct open ord pow print property range re repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip);
-our @EXTRA_BUILTINS = qw(Array Hash ArrayHash perllib wantarray close);	# issue test coverage: Add "close" to prevent recursive loop calling fh.close()
+our @EXTRA_BUILTINS = qw(Array Hash ArrayHash perllib wantarray close);        # issue test coverage: Add "close" to prevent recursive loop calling fh.close()
 our %PYTHON_KEYWORD_SET = map { $_ => 1 } @PYTHON_KEYWORDS;
 our %PYTHON_RESERVED_SET = map { $_ => 1 } (@PYTHON_KEYWORDS, @PYTHON_BUILTINS, @EXTRA_BUILTINS);
 
+my $python_reserved_set = '{' . (join(',', map { "'" . $_ . "'" } keys %PYTHON_RESERVED_SET)) . '}';   # issue s176
+$GLOBALS{_PYTHONIZER_KEYWORDS} = $python_reserved_set;                                      # issue s176
+
 our $NON_REGEX_CHARS = qr(^[A-Za-z0-9_!"%',/:;<=>@`\\ ]*$);       # issue s138: these chars are OK in a split string pattern, else we need to use a regex
 
-our %CONVERTER_MAP = (I=>'_int', N=>'_num', F=>'_flt', S=>'_str', 'a of I'=>'_map_int', 'a of N'=>'_map_num', 'a of S'=>'_map_str', B=>'_pb');	# issue s124
+our %CONVERTER_MAP = (I=>'_int', N=>'_num', F=>'_flt', S=>'_str', 'a of I'=>'_map_int', 'a of N'=>'_map_num', 'a of S'=>'_map_str', B=>'_pb');        # issue s124
 our %AUTOVIVIFICATION_CONVERTER_MAP = (a=>'Array', h=>'Hash');
 our %SIGIL_MAP = ('$'=>'s', '%'=>'h', '@'=>'a', ''=>'H');
 
-our $MAIN_MODULE = 'sys.modules["__main__"]';	# Note this is changed to $DEFAULT_PACKAGE if the -m option is NOT passed (in Pythonizer.pm)
+our $MAIN_MODULE = 'sys.modules["__main__"]';        # Note this is changed to $DEFAULT_PACKAGE if the -m option is NOT passed (in Pythonizer.pm)
 
 # List of libraries that pythonizer knows about and handles as built-ins:
 our @BUILTIN_LIBRARIES = qw(strict warnings vars feature autodie utf8 autovivification subs Getopt::Long Getopt::Std Time::Local File::Basename Fcntl Carp::Assert Exporter Carp File::stat);
@@ -175,21 +187,22 @@ our $SUBPROCESS_OPTIONS="-M -v0"; # Options to pythonizer for when we run on use
 
 our $PERL_VERSION=5.034;
 our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longmess', 
-		_format=>'_int,_num', _run=>'_carp,_cluck,_longmess,_shortmess,_need_sh',
+                _format=>'_int,_num', _run=>'_carp,_cluck,_longmess,_shortmess,_need_sh',
                 _lstat=>'_stat', _looks_like_binary=>'_looks_like_text,_carp,_longmess,_shortmess',
-		Array=>'ArrayHash', Hash=>'ArrayHash',
-		_bless=>'_carp,_init_package',
-		_add_element=>'_num', _subtract_element=>'_num', _open=>'_need_sh',
-		_close=>'_carp,_longmess,_shortmess', _run_s=>'_carp,_cluck,_longmess,_shortmess,_need_sh', _looks_like_text=>'_carp,_longmess,_shortmess',
-		_get_creation_age_days=>'_cluck,_longmess',
-		_get_access_age_days=>'_cluck,_longmess',
-		_get_mod_age_days=>'_cluck,_longmess',
-		_map_int=>'_int,_flatten', _map_num=>'_num,_flatten', _map_str=>'_flatten',
-		_system=>'_carp,_cluck,_longmess,_shortmess,_need_sh',
-		_kill=>'_carp,_cluck',
-		_unpack=>'_pack', _assign_sparse=>'_int',
+                Array=>'ArrayHash', Hash=>'ArrayHash',
+                _bless=>'_carp,_init_package',
+                _add_element=>'_num', _subtract_element=>'_num', _open=>'_need_sh',
+                _close=>'_carp,_longmess,_shortmess', _run_s=>'_carp,_cluck,_longmess,_shortmess,_need_sh', _looks_like_text=>'_carp,_longmess,_shortmess',
+                _get_creation_age_days=>'_cluck,_longmess',
+                _get_access_age_days=>'_cluck,_longmess',
+                _get_mod_age_days=>'_cluck,_longmess',
+                _map_int=>'_int,_flatten', _map_num=>'_num,_flatten', _map_str=>'_flatten',
+                _system=>'_carp,_cluck,_longmess,_shortmess,_need_sh',
+                _kill=>'_carp,_cluck',
+                _unpack=>'_pack', _assign_sparse=>'_int',
+                _can=>'_isa',
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
-our %PYF_OUT_PARAMETERS=();			# Functions with out parameters - which parameter (counting from 1) is "out"?
+our %PYF_OUT_PARAMETERS=();                        # Functions with out parameters - which parameter (counting from 1) is "out"?
 our %STATEMENT_FUNCTIONS=(getopts=>1, GetOptions=>1, chop=>1, chomp=>1);    # issue s150: These functions generate statements and must be pulled out of expressions/conditions, issue s167: Add chop/chomp
 our %STAT_SUB=('File::stat'=>'_fstat');                 # Substitution for stat if they use File::stat
 our %LSTAT_SUB=('File::stat'=>'_flstat');                 # Substitution for stat if they use File::stat
@@ -269,75 +282,75 @@ our $PRETTY_PRINTER = 'black -q -t py38 --fast';
 
 our $SHEBANG = '#!/usr/bin/env python3';
 
-our $AUTHORS_FILE = 'AUTHORS.rst';	# issue s19
+our $AUTHORS_FILE = 'AUTHORS.rst';        # issue s19
 
 # issue s3: implement Math::Complex - depends on use overload, which this table supports:
-our %OVERLOAD_MAP = 	(
-	'='	=> {normal=>'__copy__', unary=>1},
-	'.='	=> {normal=>'__iadd__', assign=>1},
-	'.'	=> {normal=>'__add__', reversed=>'__radd__'},
-	'+='	=> {normal=>'__iadd__', assign=>1},
-	'+'	=> {normal=>'__add__', reversed=>'__radd__'},
-	'-='	=> {normal=>'__isub__', assign=>1},
-	'-'	=> {normal=>'__sub__', reversed=>'__rsub__'},
-	'*='	=> {normal=>'__imul__', assign=>1},
-	'*'	=> {normal=>'__mul__', reversed=>'__rmul__'},
-	'/='	=> {normal=>'__itruediv__', assign=>1},
-	'/'	=> {normal=>'__truediv__', reversed=>'__rtruediv__'},
-	'%='	=> {normal=>'__imod__', assign=>1},
-	'%'	=> {normal=>'__mod__', reversed=>'__rmod__'},
-	'**='	=> {normal=>'__ipow__', modulo=>1, assign=>1},
-	'**'	=> {normal=>'__pow__', reversed=>'__rpow__', modulo=>1},
-	'=='	=> {normal=>'__eq__'},
-	'!='	=> {normal=>'__ne__'},
-	'<='	=> {normal=>'__le__'},
-	'>='	=> {normal=>'__ge__'},
-	'<'	=> {normal=>'__lt__'},
-	'>'	=> {normal=>'__gt__'},
-	'eq'	=> {normal=>'__eq__'},
-	'ne'	=> {normal=>'__ne__'},
-	'le'	=> {normal=>'__le__'},
-	'ge'	=> {normal=>'__ge__'},
-	'lt'	=> {normal=>'__lt__'},
-	'gt'	=> {normal=>'__gt__'},
-	'<=>'	=> {normal=>'__spaceship__', reversed=>'__rspaceship__'},
-	'cmp'	=> {normal=>'__cmp__', reversed=>'__rcmp__'},
-	'<<='	=> {normal=>'__ilshift__', assign=>1},
-	'<<'	=> {normal=>'__lshift__', reversed=>'__rlshift__'},
-	'>>='	=> {normal=>'__irshift__', assign=>1},
-	'>>'	=> {normal=>'__rshift__', reversed=>'__rrshift__'},
-	'&='	=> {normal=>'__iand__', assign=>1},
-	'&'	=> {normal=>'__and__', reversed=>'__rand__'},
-	'|='	=> {normal=>'__ior__', assign=>1},
-	'|'	=> {normal=>'__or__', reversed=>'__ror__'},
-	'^='	=> {normal=>'__ixor__', assign=>1},
-	'^'	=> {normal=>'__xor__', reversed=>'__rxor__'},
-	'neg'	=> {normal=>'__neg__', unary=>1},
-	'<>'	=> {normal=>'__iter__', unary=>1},
-	#'-X'	=> {normal=>'_is_file', unary=>1}, # not handled
-	#'!'	=> {normal=>'_not', unary=>1},	# not handled
-	#'++'	=> {normal=>'_incr', unary=>1},	# not handled
-	#'--'	=> {normal=>'_decr', unary=>1},	# not handled
-	'~'	=> {normal=>'__invert__', unary=>1},
-	'abs'	=> {normal=>'__abs__', unary=>1},
-	'bool'	=> {normal=>'__bool__', unary=>1},
-	'sqrt'	=> {normal=>'sqrt', unary=>1},
-	'exp'	=> {normal=>'exp', unary=>1},
-	'log'	=> {normal=>'log', unary=>1},
-	'sin'	=> {normal=>'sin', unary=>1},
-	'cos'	=> {normal=>'cos', unary=>1},
-	'atan2'	=> {normal=>'__atan2__', reversed=>'__ratan2__'},
-	#'int'	=> {normal=>'_int', unary=>1},	# not handled
+our %OVERLOAD_MAP =         (
+        '='        => {normal=>'__copy__', unary=>1},
+        '.='        => {normal=>'__iadd__', assign=>1},
+        '.'        => {normal=>'__add__', reversed=>'__radd__'},
+        '+='        => {normal=>'__iadd__', assign=>1},
+        '+'        => {normal=>'__add__', reversed=>'__radd__'},
+        '-='        => {normal=>'__isub__', assign=>1},
+        '-'        => {normal=>'__sub__', reversed=>'__rsub__'},
+        '*='        => {normal=>'__imul__', assign=>1},
+        '*'        => {normal=>'__mul__', reversed=>'__rmul__'},
+        '/='        => {normal=>'__itruediv__', assign=>1},
+        '/'        => {normal=>'__truediv__', reversed=>'__rtruediv__'},
+        '%='        => {normal=>'__imod__', assign=>1},
+        '%'        => {normal=>'__mod__', reversed=>'__rmod__'},
+        '**='        => {normal=>'__ipow__', modulo=>1, assign=>1},
+        '**'        => {normal=>'__pow__', reversed=>'__rpow__', modulo=>1},
+        '=='        => {normal=>'__eq__'},
+        '!='        => {normal=>'__ne__'},
+        '<='        => {normal=>'__le__'},
+        '>='        => {normal=>'__ge__'},
+        '<'        => {normal=>'__lt__'},
+        '>'        => {normal=>'__gt__'},
+        'eq'        => {normal=>'__eq__'},
+        'ne'        => {normal=>'__ne__'},
+        'le'        => {normal=>'__le__'},
+        'ge'        => {normal=>'__ge__'},
+        'lt'        => {normal=>'__lt__'},
+        'gt'        => {normal=>'__gt__'},
+        '<=>'        => {normal=>'__spaceship__', reversed=>'__rspaceship__'},
+        'cmp'        => {normal=>'__cmp__', reversed=>'__rcmp__'},
+        '<<='        => {normal=>'__ilshift__', assign=>1},
+        '<<'        => {normal=>'__lshift__', reversed=>'__rlshift__'},
+        '>>='        => {normal=>'__irshift__', assign=>1},
+        '>>'        => {normal=>'__rshift__', reversed=>'__rrshift__'},
+        '&='        => {normal=>'__iand__', assign=>1},
+        '&'        => {normal=>'__and__', reversed=>'__rand__'},
+        '|='        => {normal=>'__ior__', assign=>1},
+        '|'        => {normal=>'__or__', reversed=>'__ror__'},
+        '^='        => {normal=>'__ixor__', assign=>1},
+        '^'        => {normal=>'__xor__', reversed=>'__rxor__'},
+        'neg'        => {normal=>'__neg__', unary=>1},
+        '<>'        => {normal=>'__iter__', unary=>1},
+        #'-X'        => {normal=>'_is_file', unary=>1}, # not handled
+        #'!'        => {normal=>'_not', unary=>1},        # not handled
+        #'++'        => {normal=>'_incr', unary=>1},        # not handled
+        #'--'        => {normal=>'_decr', unary=>1},        # not handled
+        '~'        => {normal=>'__invert__', unary=>1},
+        'abs'        => {normal=>'__abs__', unary=>1},
+        'bool'        => {normal=>'__bool__', unary=>1},
+        'sqrt'        => {normal=>'sqrt', unary=>1},
+        'exp'        => {normal=>'exp', unary=>1},
+        'log'        => {normal=>'log', unary=>1},
+        'sin'        => {normal=>'sin', unary=>1},
+        'cos'        => {normal=>'cos', unary=>1},
+        'atan2'        => {normal=>'__atan2__', reversed=>'__ratan2__'},
+        #'int'        => {normal=>'_int', unary=>1},        # not handled
         '""'    => {normal=>'__str__', unary=>1, converter=>$CONVERTER_MAP{S}},
-	'${}'	=> {normal=>'_scalar', unary=>1},
-	'@{}'	=> {normal=>'_array', unary=>1},
-	'%{}'	=> {normal=>'_hash', unary=>1},
-	'*{}'	=> {normal=>'_typeglob', unary=>1},
-	'0+'	=> {normal=>'_num', unary=>1},
-	#'qr'	=> {normal=>'_qr', unary=>1},		# not handled
-	#'nomethod'=> {normal=>'_nomethod'},	# not handled
-	#'fallback'=> {normal=>'_fallback'},	# not handled
-	);
+        '${}'        => {normal=>'_scalar', unary=>1},
+        '@{}'        => {normal=>'_array', unary=>1},
+        '%{}'        => {normal=>'_hash', unary=>1},
+        '*{}'        => {normal=>'_typeglob', unary=>1},
+        '0+'        => {normal=>'_num', unary=>1},
+        #'qr'        => {normal=>'_qr', unary=>1},                # not handled
+        #'nomethod'=> {normal=>'_nomethod'},        # not handled
+        #'fallback'=> {normal=>'_fallback'},        # not handled
+        );
 
 # issue s154: Implement tie
 our %TIE_CONSTRUCTORS = (a=>'TIEARRAY', h=>'TIEHASH');
@@ -353,7 +366,7 @@ our %TIE_MAP = (FETCH=>'__getitem__',
                 PUSH=>'append',
                );
 
-our @CLASS_METHODS = qw/new make TIEHASH TIEARRAY/;	# These names will become class methods, issue s154
+our @CLASS_METHODS = qw/new make TIEHASH TIEARRAY/;        # These names will become class methods, issue s154
 our %CLASS_METHOD_SET = map { $_ => 1 } @CLASS_METHODS;
 
 # Predefined package with function implementation.  The default python name
@@ -362,86 +375,88 @@ our %CLASS_METHOD_SET = map { $_ => 1 } @CLASS_METHODS;
 # If there is a separate function to call in scalar context, specify it 
 # with scalar=>"...", and the corresponding type with scalar_type=>"..."
 our %PREDEFINED_PACKAGES = (
-	'File::Temp'=> [{perl=>'tempfile', type=>'a?:a', python=>'_tempfile_', 
-			 scalar=>"_tempfile_s", scalar_type=>'a?:S', calls=>"_fileparse", scalar_calls=>"_tempfile_"},
-			{perl=>'tempdir', type=>'a?:a', calls=>"_fileparse"},
-			{perl=>'new', type=>'a?:H', python=>'_tempfile_s', calls=>"_fileparse,_tempfile_"},
-			#this is a method only: {perl=>'filename', type=>'H:S'},
-			{perl=>'newdir', type=>'a?:S', python=>'_tempdir'},
-			{perl=>'mkstemp', type=>'S:a', calls=>"_fileparse"},
-			{perl=>'mkstemps', type=>'SS:a', calls=>"_fileparse"},
-			{perl=>'mktemp', type=>'S:S', calls=>"_fileparse"},
-			{perl=>'mkdtemp', type=>'S:S', calls=>"_fileparse"},
-			{perl=>'tmpnam', type=>':a', scalar=>"_tmpnam_s", scalar_type=>':S'},
-			{perl=>'tmpfile', type=>':H'},
-			{perl=>'tempnam', type=>'SS:S'},
-		       ],
+        'File::Temp'=> [{perl=>'tempfile', type=>'a?:a', python=>'_tempfile_', 
+                         scalar=>"_tempfile_s", scalar_type=>'a?:S', calls=>"_fileparse", scalar_calls=>"_tempfile_"},
+                        {perl=>'tempdir', type=>'a?:a', calls=>"_fileparse"},
+                        {perl=>'new', type=>'a?:H', python=>'_tempfile_s', calls=>"_fileparse,_tempfile_"},
+                        #this is a method only: {perl=>'filename', type=>'H:S'},
+                        {perl=>'newdir', type=>'a?:S', python=>'_tempdir'},
+                        {perl=>'mkstemp', type=>'S:a', calls=>"_fileparse"},
+                        {perl=>'mkstemps', type=>'SS:a', calls=>"_fileparse"},
+                        {perl=>'mktemp', type=>'S:S', calls=>"_fileparse"},
+                        {perl=>'mkdtemp', type=>'S:S', calls=>"_fileparse"},
+                        {perl=>'tmpnam', type=>':a', scalar=>"_tmpnam_s", scalar_type=>':S'},
+                        {perl=>'tmpfile', type=>':H'},
+                        {perl=>'tempnam', type=>'SS:S'},
+                       ],
         'FileHandle'=>   [{perl=>'new', type=>'SI:H', python=>'_IOFile', 
-			 calls=>'_open,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
-			{perl=>'new_from_fd', type=>'II:H', python=>"_IOFile_from_fd", 
-		         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
-			{perl=>'new_tmpfile', type=>':H', python=>"_IOFile_tmpfile", 
-		         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
-		       ],
+                         calls=>'_open,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+                        {perl=>'new_from_fd', type=>'II:H', python=>"_IOFile_from_fd", 
+                         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+                        {perl=>'new_tmpfile', type=>':H', python=>"_IOFile_tmpfile", 
+                         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+                       ],
         'IO::File'=>   [{perl=>'new', type=>'SI:H', python=>'_IOFile', 
-			 calls=>'_open,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
-			{perl=>'new_from_fd', type=>'II:H', python=>"_IOFile_from_fd", 
-		         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
-			{perl=>'new_tmpfile', type=>':H', python=>"_IOFile_tmpfile", 
-		         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
-		       ],
+                         calls=>'_open,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+                        {perl=>'new_from_fd', type=>'II:H', python=>"_IOFile_from_fd", 
+                         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+                        {perl=>'new_tmpfile', type=>':H', python=>"_IOFile_tmpfile", 
+                         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+                       ],
         'IO::Handle'=> [],
-	'POSIX'=>      [{perl=>'tmpnam', type=>':a', scalar=>'_tmpnam_s', scalar_type=>':S'},
-			{perl=>'tmpfile', type=>':H'},
-			{perl=>'ceil', type=>'F:I', python=>'math.ceil'},	# issue s3
-			{perl=>'floor', type=>'F:I', python=>'math.floor'},	# issue s3
-			{perl=>'trunc', type=>'F:I', python=>'math.trunc'},	# issue s3
-			{perl=>'round', type=>'F:F', python=>'round'},		# issue s3
-			{perl=>'strftime', type=>'a:S', calls=>'_timelocal'},	# issue s68
-		       ],
+        'POSIX'=>      [{perl=>'tmpnam', type=>':a', scalar=>'_tmpnam_s', scalar_type=>':S'},
+                        {perl=>'tmpfile', type=>':H'},
+                        {perl=>'ceil', type=>'F:I', python=>'math.ceil'},        # issue s3
+                        {perl=>'floor', type=>'F:I', python=>'math.floor'},        # issue s3
+                        {perl=>'trunc', type=>'F:I', python=>'math.trunc'},        # issue s3
+                        {perl=>'round', type=>'F:F', python=>'round'},                # issue s3
+                        {perl=>'strftime', type=>'a:S', calls=>'_timelocal'},        # issue s68
+                       ],
         'File::Spec'=> [{perl=>'file_name_is_absolute', type=>'S:I', python=>'os.path.isabs'},
-				   {perl=>'catfile', type=>'a:S', python=>'os.path.join'},
-				   {perl=>'rel2abs', type=>'S:S', python=>'os.path.abspath'},
-				   {perl=>'abs2rel', type=>'SS?:S', python=>'os.path.relpath'},
-				   {perl=>'splitpath', type=>'SI?:a of S'},	# issue s51
-				   {perl=>'splitdir', type=>'S:a of S'},	# issue s51
-				   {perl=>'curdir', type=>':S'},	# issue s51
-				   {perl=>'updir', type=>':S'},		# issue s51
-				   {perl=>'tmpdir', type=>':S', python=>'tempfile.gettempdir'},	# issue 133 bootstrap
-			   	  ],
+                                   {perl=>'catfile', type=>'a:S', python=>'os.path.join'},
+                                   {perl=>'rel2abs', type=>'S:S', python=>'os.path.abspath'},
+                                   {perl=>'abs2rel', type=>'SS?:S', python=>'os.path.relpath'},
+                                   {perl=>'splitpath', type=>'SI?:a of S'},        # issue s51
+                                   {perl=>'splitdir', type=>'S:a of S'},        # issue s51
+                                   {perl=>'curdir', type=>':S'},        # issue s51
+                                   {perl=>'updir', type=>':S'},                # issue s51
+                                   {perl=>'tmpdir', type=>':S', python=>'tempfile.gettempdir'},        # issue 133 bootstrap
+                                     ],
         'File::Spec::Functions'=> [{perl=>'file_name_is_absolute', type=>'S:I', python=>'os.path.isabs'},
-				   {perl=>'catfile', type=>'a:S', python=>'os.path.join'},
-				   {perl=>'rel2abs', type=>'S:S', python=>'os.path.abspath'},
-				   {perl=>'abs2rel', type=>'SS?:S', python=>'os.path.relpath'},
-				   {perl=>'splitpath', type=>'SI?:a of S'},	# issue s51
-				   {perl=>'splitdir', type=>'S:a of S'},	# issue s51
-				   {perl=>'curdir', type=>':S'},	# issue s51
-				   {perl=>'updir', type=>':S'},		# issue s51
-				   {perl=>'tmpdir', type=>':S', python=>'tempfile.gettempdir'},	# issue 133 bootstrap
-			   	  ],
-	'Data::Dumper'=> [{perl=>'Dumper', type=>'m:S'}],
-	'Text::Balanced'=> [{perl=>'extract_bracketed', type=>'SS?S?:a', scalar=>'_extract_bracketed_s', scalar_type=>'SS?S?:S', scalar_out_parameter=>1}],	# First parameter to scalar version is "out" parameter
-	'Storable'=> [{perl=>'dclone', type=>'m:m', python=>'copy.deepcopy'}],
-	'Cwd'=> [{perl=>'getcwd', type=>':S', python=>'os.getcwd'},
-		 {perl=>'cwd', type=>':S', python=>'os.getcwd'},
-		 {perl=>'fastcwd', type=>':S', python=>'os.getcwd'},
-		 {perl=>'fastgetcwd', type=>':S', python=>'os.getcwd'},
-		 {perl=>'abs_path', type=>'S?:S', python=>'_abspath'},
-		 {perl=>'realpath', type=>'S?:S', python=>'_abspath'},
-		 {perl=>'fast_abs_path', type=>'S?:S', python=>'_abspath'},
-	        ],
-	'File::Basename'=> [{perl=>'basename', type=>'S:S'},
-			    {perl=>'dirname', type=>'S:S'},
-			    {perl=>'fileparse', type=>'Sm?:a of S'},
-		    ],
-	'Carp'=>[{perl=>'carp', type=>'a:u'},
-		 {perl=>'confess', type=>'a:u'},
-		 {perl=>'croak', type=>'a:u'},
-		 {perl=>'cluck', type=>'a:u'},
-		 {perl=>'longmess', type=>'a:S'},
-		 {perl=>'shortmess', type=>'a:S'},
-	        ],
-	       );
+                                   {perl=>'catfile', type=>'a:S', python=>'os.path.join'},
+                                   {perl=>'rel2abs', type=>'S:S', python=>'os.path.abspath'},
+                                   {perl=>'abs2rel', type=>'SS?:S', python=>'os.path.relpath'},
+                                   {perl=>'splitpath', type=>'SI?:a of S'},        # issue s51
+                                   {perl=>'splitdir', type=>'S:a of S'},        # issue s51
+                                   {perl=>'curdir', type=>':S'},        # issue s51
+                                   {perl=>'updir', type=>':S'},                # issue s51
+                                   {perl=>'tmpdir', type=>':S', python=>'tempfile.gettempdir'},        # issue 133 bootstrap
+                                     ],
+        'Data::Dumper'=> [{perl=>'Dumper', type=>'m:S'}],
+        'Text::Balanced'=> [{perl=>'extract_bracketed', type=>'SS?S?:a', scalar=>'_extract_bracketed_s', scalar_type=>'SS?S?:S', scalar_out_parameter=>1}],        # First parameter to scalar version is "out" parameter
+        'Storable'=> [{perl=>'dclone', type=>'m:m', python=>'copy.deepcopy'}],
+        'Cwd'=> [{perl=>'getcwd', type=>':S', python=>'os.getcwd'},
+                 {perl=>'cwd', type=>':S', python=>'os.getcwd'},
+                 {perl=>'fastcwd', type=>':S', python=>'os.getcwd'},
+                 {perl=>'fastgetcwd', type=>':S', python=>'os.getcwd'},
+                 {perl=>'abs_path', type=>'S?:S', python=>'_abspath'},
+                 {perl=>'realpath', type=>'S?:S', python=>'_abspath'},
+                 {perl=>'fast_abs_path', type=>'S?:S', python=>'_abspath'},
+                ],
+        'File::Basename'=> [{perl=>'basename', type=>'S:S'},
+                            {perl=>'dirname', type=>'S:S'},
+                            {perl=>'fileparse', type=>'Sm?:a of S'},
+                    ],
+        'Carp'=>[{perl=>'carp', type=>'a:u'},
+                 {perl=>'confess', type=>'a:u'},
+                 {perl=>'croak', type=>'a:u'},
+                 {perl=>'cluck', type=>'a:u'},
+                 {perl=>'longmess', type=>'a:S'},
+                 {perl=>'shortmess', type=>'a:S'},
+                ],
+        'Scalar::Util'=>[{perl=>'openhandle', type=>'H:H'},         # issue s183
+                        ],
+               );
 
 
 1;

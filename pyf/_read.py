@@ -8,6 +8,8 @@ def _read(fh, var, length, offset=0, need_len=False):
         var = ''
     try:
         s = fh.read(length)
+        if isinstance(s, bytes):
+            s = str(s, encoding='latin1', errors='ignore')
     except Exception as _e:
         OS_ERROR = str(_e)
         if TRACEBACK:
@@ -23,20 +25,12 @@ def _read(fh, var, length, offset=0, need_len=False):
     if offset < 0:
         offset += lv
     if offset:
-        if isinstance(s, str):
-            if isinstance(var, bytes):
-                var = var.decode()
-            if need_len:
-                return (var[:offset] + ('\0' * (offset-lv)) + s, ls)
-            else:
-                return var[:offset] + ('\0' * (offset-lv)) + s
+        if isinstance(var, bytes):
+            var = var.decode(encoding='latin1',  errors='ignore')
+        if need_len:
+            return (var[:offset] + ('\0' * (offset-lv)) + s, ls)
         else:
-            if isinstance(var, str):
-                var = var.encode()
-            if need_len:
-                return (var[:offset] + (b'\0' * (offset-lv)) + s, ls)
-            else:
-                return var[:offset] + (b'\0' * (offset-lv)) + s
+            return var[:offset] + ('\0' * (offset-lv)) + s
     if need_len:
         return (s, ls)
     return s

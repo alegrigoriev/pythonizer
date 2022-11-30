@@ -1,0 +1,4 @@
+# error - EOF in here string
+my $str = <<END
+line 1
+line 2

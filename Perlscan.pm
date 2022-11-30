@@ -154,6 +154,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'split'=>{list=>'_split', scalar=>'_split_s'},          # issue s52
                 'readdir'=>{list=>'_readdirs', scalar=>'_readdir'},     # issue s40
                 'readline'=>{list=>'.readlines()', scalar=>'_readline_full'},  # issue s40
+                'caller'=>{list=>'_caller', scalar=>'_caller_s'},       # issue s177
                 );
 
    %SPECIAL_FUNCTION_TYPES=('tm_py.ctime'=>'I?:S', '_cgtime'=>'I?:S', '_splice_s'=>'aI?I?a?:s',
@@ -164,6 +165,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                             '_reverse_scalar'=>'a:S', 
                             # issue s153 'filter_s'=>'Sa:I', 
                             'filter_s'=>'sa:I',         # issue s153
+                            'caller_s'=>'I?:m',         # issue s177
                             'map_s'=>'fa:I');
 
    # issue s40:
@@ -266,9 +268,9 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'seek'=>'_seek',                # SNOOPYJC
         # issue 34 'sort'=>'sort', 
                 'sleep'=>'tm_py.sleep',         # SNOOPYJC
-        'sqrt'=>'math.sqrt',        # SNOOPYJC
-        'sort'=>'sorted',       # issue 34
-        'state'=>'global',
+                'sqrt'=>'math.sqrt',        # SNOOPYJC
+                'sort'=>'sorted',       # issue 34
+                'state'=>'global',
                 'rand'=>'_rand',                # SNOOPYJC
                 'read'=>'.read',                # issue 10
                 'readlink'=>'_readlink',        # issue s128
@@ -277,8 +279,9 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                    # SNOOPYJC 'system'=>'os.system',
                    'system'=>'_system',         # SNOOPYJC
                    'sprintf'=>'_sprintf',
-           'STDOUT'=>'sys.stdout',  # issue 10
-                   'sysseek'=>'perl_sysseek',
+                   'STDOUT'=>'sys.stdout',  # issue 10
+                   # SNOOPYJC 'sysseek'=>'perl_sysseek',
+                   'sysseek'=>'_sysseek',       # SNOOPYJC
                    'STDERR'=>'sys.stderr','STDIN'=>'sys.stdin', '__LINE__' =>'sys._getframe().f_lineno',
                    '__FILE__'=>'__file__',      # SNOOPYJC
                    '__SUB__'=>'_sub',           # SNOOPYJC
@@ -551,6 +554,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   # issue s154 'bless'=>'mS?:m',                      # SNOOPYJC
                   'bless'=>'mm?:m',                      # SNOOPYJC, issue s154: bless function will take a class or instance, not just str
                   'caller'=>'I?:a',
+                  'can'=>'mS:m',                # issue s180
                   'carp'=>'a:u', 'confess'=>'a:u', 'croak'=>'a:u', 'cluck'=>'a:u',   # SNOOPYJC
                   'longmess'=>'a:S', 'shortmess'=>'a:S',                             # SNOOPYJC
                   'chdir'=>'S:I',
@@ -635,6 +639,16 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
         $PYF_OUT_PARAMETERS{_chomp_with_result} = 1;    # issue s167
         $PYF_OUT_PARAMETERS{_chop_with_result} = 1;    # issue s167
         $PYF_OUT_PARAMETERS{_chop_without_result} = 1;    # issue s167
+        $PyFuncType{_fetch_perl_global} = 'S:m';    # issue s176
+        $PyFuncType{_store_perl_global} = 'Smm?:m';    # issue s176
+        $PYF_OUT_PARAMETERS{_binmode} = 1;          # issue s183
+        $PYF_OUT_PARAMETERS{_dup} = 1;              # issue s183
+        $PYF_OUT_PARAMETERS{open} = 1;              # issue s183
+        $PYF_OUT_PARAMETERS{_open} = 1;             # issue s183
+        $PYF_OUT_PARAMETERS{'.read'} = 2;           # issue s183
+        $PYF_OUT_PARAMETERS{'.sysread'} = 2;        # issue s183
+        $PYF_OUT_PARAMETERS{'.rstrip("\n")'} = 1;   # issue s183: chomp
+        $PYF_OUT_PARAMETERS{'[0:-1]'} = 1;          # isseu s183: chop
 
         for my $d (keys %DASH_X) {
             if($d =~ /[sMAC]/) {            # issue s124
@@ -1197,7 +1211,7 @@ sub get_py_name
     }
     return undef unless(exists $NameMap{$name});
     return undef unless(exists $NameMap{$name}{$sigil});
-    return $NameMap{$name}{$sigil};
+    return escape_keywords($NameMap{$name}{$sigil});        # issue s176
 }
 
 sub def_label                   # issue 94
@@ -2895,6 +2909,9 @@ my ($l,$m);
                 $ValPy[$tno] = $w;
             } elsif($class eq '"' && $w eq '__PACKAGE__') {             # issue s3
                 $ValPy[$tno] = "'" . escape_keywords(cur_package(), 1) . "'";
+            } elsif($class eq 'f' && $core) {           # issue s178: Remove the "CORE." prefix
+                $ValPy[$tno] = $ValPerl[$tno] = $w;     # issue s178
+                $ValPy[$tno]=$keyword_tr{$w} if exists $keyword_tr{$w}; # issue s178
             }
             if($tno != 0 && (($ValPerl[$tno-1] eq '{' && $source =~ /^[a-z0-9]+}/) ||   # issue 89: keyword in a hash like $hash{delete} or $hash{q}
                 (index('{(,', $ValPerl[$tno-1])>=0 && $source =~ /^[a-z0-9]+\s*=>/))) {  # issue 89: keyword in hash def like (qw=>14, use=>15)
@@ -2979,7 +2996,7 @@ my ($l,$m);
                }
                $ValPerl[$tno]=$w;
                $ValType[$tno]='P';
-            } elsif($class eq 'c' && $Pythonizer::PassNo == &Pythonizer::PASS_1 && ($w eq 'if' || $w eq 'unless') &&          # SNOOPYJC
+            } elsif($class eq 'c' && $Pythonizer::PassNo == &Pythonizer::PASS_1 && ($w eq 'if' || $w eq 'unless' || $w eq 'for' || $w eq 'foreach' || $w eq 'when' || $w eq 'case') &&    # SNOOPYJC, issue s182: also handle for/foreach/when/case
                     defined $nesting_last && $nesting_last->{type} eq 'do' &&
                     $tno == 0 &&                                # issue s147: Make sure this 'if' is the first thing
                     $source =~ /^(\w+)(.*?);/) {                # issue s60
@@ -3403,7 +3420,7 @@ my ($l,$m);
                 append(')', '}', ']');
                 insert($tno, '(', '{', '[');
                 $tno += 2;
-            } elsif($tno != 0 && $ValClass[$tno-1] eq '\\' && $Pythonizer::PassNo==&Pythonizer::PASS_2 && !nonScalarRef() && !inGetOptions()) { # issue s169, issue s173
+            } elsif($tno != 0 && $ValClass[$tno-1] eq '\\' && $Pythonizer::PassNo==&Pythonizer::PASS_2 && !nonScalarRef() && !inRefOkFunction()) { # issue s169, issue s173
                 logme("W", "Reference to scalar $ValPerl[$tno] replaced with scalar value");
             }
 
@@ -3535,6 +3552,12 @@ my ($l,$m);
                my $cs = cur_sub();
                $SpecialVarsUsed{'%ENV'}{$cs} = 1;                # SNOOPYJC
             }
+         } elsif(substr($source,1,2) eq '::') {           # issue s176: This is %:: which is a main symbol table reference
+             $cut = 1;
+             $ValClass[$tno] = 'h';  # hash
+             $ValPerl[$tno] = '%main';
+             $ValPy[$tno] = 'builtins.main';
+             $ValType[$tno] = "X";
          } elsif(substr($source,1,1) eq '=') {            # SNOOPYJC: handle %=
              $ValClass[$tno] = '=';
              $ValPy[$tno] = $ValPerl[$tno] = '%=';
@@ -4330,7 +4353,7 @@ my $rc=-1;
       $ValType[$tno]="X";
       my $vn = substr($source,0,2);                     # SNOOPYJC
       my $svar = $vn;                                   # SNOOPYJC
-      my $nxc = substr($source,2,1);                    # SNOOPYJC
+      my $nxc = length($source) >= 2 ? substr($source,2,1) : '';                    # SNOOPYJC
       $svar = '@' . substr($svar,1) if($nxc eq '[');    # SNOOPYJC
       $svar = '%' . substr($svar,1) if($nxc eq '{');    # SNOOPYJC
       if($svar eq '%+') {          # issue s16
@@ -4403,6 +4426,20 @@ my $rc=-1;
           $cut=length($&);                          # SNOOPYJC
       }
   # SNOOPYJC }elsif( $source=~/^.(\w*(\:\:\w+)*)/ ){
+  }elsif(substr($source,1,3) eq '::{') {            # issue s176: $::{key} is a reference to the package symbol table
+      $cut=1;
+      if($::implicit_global_my) {
+          $cut = 3;                 # Cut out the '.__dict__' coming up
+          $name = 'globals()';
+      } else {
+          $name = 'builtins.main';
+      }
+      $ValType[$tno] = "X";
+      $ValPy[$tno] = $name;
+      if($update) {
+          $ValPerl[$tno] = '$';
+      }
+      $rc = 1;
   }elsif( $source=~/^.(\w*((?:(?:\:\:)|\')\w+)*)/ ){    # SNOOPYJC: old perl uses ' for ::
       $cut=length($1)+1;
       $name=$1;
@@ -4443,6 +4480,12 @@ my $rc=-1;
             $name = remap_conflicting_names($name, '$', $next_c);      # issue names
             $name = escape_keywords($name);                            # issue names
             $ValPy[$tno]=$name;
+            $rc=1 #regular var
+         } elsif(substr($source,$cut,3) eq '::{') {        # issue s176: Symbol Table reference coming up next!
+            $name=~tr/:/./s;            # SNOOPYJC
+            $name = escape_keywords($name); 
+            $ValPy[$tno] = 'builtins.' . $name;
+            $ValType[$tno]="X";
             $rc=1 #regular var
          }else{
             # SNOOPYJC substr($name,$k,2)='.';
@@ -4516,6 +4559,11 @@ my $rc=-1;
             $ValPy[$tno] = remap_conflicting_names($ValPy[$tno], '$', $next_c);      # issue 92
             $rc=1 #regular var
          }
+     } elsif(substr($source,$cut,3) eq '::{') {        # issue s176: Symbol Table reference coming up next!
+            $name = escape_keywords($name); 
+            $ValPy[$tno] = 'builtins.' . $name;
+            $ValType[$tno]="X";
+            $rc=1 #regular var
       }else{
         # this is a "regular" name with the length greater then one
         # $cut points to the next symbol after the scanned part of the scapar
@@ -4525,10 +4573,10 @@ my $rc=-1;
               $ValType[$tno]="X";
               $ValPy[$tno]='os.environ';
               $SpecialVarsUsed{'%ENV'}{$cs} = 1;                       # SNOOPYJC
-       }elsif( $1 eq 'INC' ) {                # SNOOPYJC
+           }elsif( $1 eq 'INC' ) {                # SNOOPYJC
               $ValType[$tno]="X";
               $SpecialVarsUsed{'@INC'}{$cs} = 1;                       # SNOOPYJC
-          $ValPy[$tno]='sys.path';
+              $ValPy[$tno]='sys.path';
            }elsif( $1 eq 'ARGV'  ){
               $ValType[$tno]="X";
               if($cut < length($source) && substr($source,$cut,1) eq '[') {    # $ARGV[...] is a reference to @ARGV
@@ -6065,7 +6113,7 @@ $allowed_escapes = "\n\\'\"abfnrtv01234567xNoc";         # issue s28: \u and \U 
 # ref https://docs.python.org/3/library/re.html
 # issue s28 $allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDsSwWZgabfnrtv0123456789xNuU/;
 # issue s81 $allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDsSwWZgabfnrtv0123456789xNoc/;        # issue s28: remove \u and \U
-$allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDsSwWZgabfknrtvz0123456789xNoc/;        # issue s28: remove \u and \U, issue s81 allow \k and \z
+$allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDGsSwWZgabfknrtvz0123456789xNoc/;        # issue s28: remove \u and \U, issue s81 allow \k and \z
 
 sub remove_perl_escapes         # issue bootstrap
 # Remove any escape sequences allowed by perl but not allowed by python, e.g. \[ \{ \$ \@ etc
@@ -8501,11 +8549,15 @@ sub ampersand_is_sub_sigil      # issue s152
     return 1;
 }
 
-sub inGetOptions            # issue s169
-# Return 1 if we are in a GetOptions call
+sub inRefOkFunction            # issue s169
+# Return 1 if we are in a function call where references to scalars are ok, like in a GetOptions call
 {
     for(my $i = 0; $i <= $#ValClass; $i++) {
-        return 1 if $ValClass[$i] eq 'f' && $ValPerl[$i] eq 'GetOptions';
+        if($ValClass[$i] eq 'f') {
+            if($ValPerl[$i] =~ /^(?:GetOptions|ref|isa|UNIVERSAL'isa|UNIVERSAL::isa|Dumper)$/) {
+                return 1;
+            }
+        }
     }
     return 0;
 }
