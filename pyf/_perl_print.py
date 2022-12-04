@@ -21,7 +21,23 @@ def _perl_print(*args, **kwargs):
             kwargs['end'] = "\n" + OUTPUT_RECORD_SEPARATOR
         if 'flush' not in kwargs and hasattr(file, '_autoflush'):
             kwargs['flush'] = file._autoflush
-        print(*args, **kwargs)
+        try:
+            print(*args, **kwargs)
+        except TypeError as _t:
+            if 'bytes-like' in str(_t):
+                for k in ('sep', 'end'):
+                    if k in kwargs:
+                        kwargs[k] = bytes(kwargs[k], encoding="latin1", errors="ignore")
+                for i in range(len(args)):
+                    a = args[i]
+                    file.write(bytes(a, encoding="latin1", errors="ignore"))
+                    if i == len(args)-1:
+                        if 'end' in kwargs:
+                            file.write(kwargs['end'])
+                    elif 'sep' in kwargs:
+                        file.write(kwargs['sep'])
+                if 'flush' in kwargs and kwargs['flush'] and hasattr(file, 'flush'):
+                    file.flush()
         return 1        # True
     except Exception as _e:
         OS_ERROR = str(_e)

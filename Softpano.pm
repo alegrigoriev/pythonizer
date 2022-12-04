@@ -24,6 +24,7 @@ use v5.10;
    use File::Path qw(make_path); # issue 133
    use POSIX qw/strftime/;	# issue 133
    use File::stat;		# issue 133
+   use Carp;
 
 require Exporter;
 
@@ -139,8 +140,9 @@ my ($package, $filename, $lineno) = caller;
       }
 #  Syslog might not be availble
       $verbosity = 3;						# issue s66: Tell them what's going on no matter what -v they specify
-      out($message);
-      exit(-255);
+      #out($message);
+      #exit(-255);
+      Carp::confess($message);
 } # abend
 
 #

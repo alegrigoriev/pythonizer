@@ -26,6 +26,10 @@ def _binmode(fh,mode='b',encoding=None,errors=None,newline=None):
         if hasattr(fh, 'filename') and hasattr(fh, '_name'):   # from tempfile
             result.filename = fh.filename
             result._name = fh._name
+        if hasattr(fh, '_autoflush'):
+            result._autoflush = fh._autoflush
+        if hasattr(fh, 'autoflush'):
+            result.autoflush = types.MethodType(_autoflush, result)
         if hasattr(fh, 'say'):        # from IO::File
             return _create_all_fh_methods(result)
         return result

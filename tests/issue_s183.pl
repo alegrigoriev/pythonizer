@@ -92,7 +92,24 @@ sub returnBadFH
 $status = returnBadFH();
 assert(!$status);
 
-print "$0 - test passed!\n";
+# Test _perl_print sep and end options on binary files
+# Note: autoflush is tested in test_autoflush
+$fh = do_open($fh, '>', 'tmp.tmp') or die "Cannot create tmp.tmp";
+do_binmode($fh);
+$, = ', ';      # OUTPUT_FIELD_SEPARATOR
+$\ = "\n";      # OUTPUT_RECORD_SEPARATOR
+print $fh 'abc', 'def', 'ghi';
+print $fh 'x', 'y';
+close($fh);
+
+open($fh, '<tmp.tmp') or die 'Cannot open tmp.tmp';
+@arr = <$fh>;
+assert(scalar(@arr) == 2);
+assert($arr[0] eq "abc, def, ghi\n");
+assert($arr[1] eq "x, y\n");
+close($fh);
+
+print "$0 - test passed!";  # No \n because of $\
 
 END {
     unless($debug) {

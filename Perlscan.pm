@@ -648,7 +648,10 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
         $PYF_OUT_PARAMETERS{'.read'} = 2;           # issue s183
         $PYF_OUT_PARAMETERS{'.sysread'} = 2;        # issue s183
         $PYF_OUT_PARAMETERS{'.rstrip("\n")'} = 1;   # issue s183: chomp
-        $PYF_OUT_PARAMETERS{'[0:-1]'} = 1;          # isseu s183: chop
+        $PYF_OUT_PARAMETERS{'[0:-1]'} = 1;          # issue s183: chop
+        $PyFuncType{_store_out_parameter} = 'aImm?:m';   # issue s184
+        $PyFuncType{_fetch_out_parameter} = 'I:m';   # issue s184
+        $PyFuncType{_init_out_parameters} = 'aa:';   # issue s184
 
         for my $d (keys %DASH_X) {
             if($d =~ /[sMAC]/) {            # issue s124
