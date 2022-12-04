@@ -1,6 +1,6 @@
 
 def _translate_element(base, index, table, replace=True, complement=False, delete=False, squash=False):
-    """Perform a tr translate on a global, and also count the # of matches"""
+    """Perform a tr translate on an array element, and also count the # of matches"""
     result = []
     ctr = 0;
     var = _str(base[index])

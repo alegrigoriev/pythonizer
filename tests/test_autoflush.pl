@@ -18,6 +18,14 @@ open(FH, '<tmp.tmp');
 $line = <FH>;
 assert($line eq "Here is some output more");
 close(FH);
+
+# Try it with binmode
+binmode(STDOUT);
+print " and more in binary";
+open(FH, '<tmp.tmp');
+$line = <FH>;
+assert($line eq "Here is some output more and more in binary");
+close(FH);
 close(STDOUT);
 $| = 0;
 

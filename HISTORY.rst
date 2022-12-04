@@ -2,6 +2,11 @@
 History
 =======
 
+1.016 (2022-11-30)
+------------------
+
+* Issue s184: Add _init_out_parameters, _store_out_parameter, and _fetch_out_parameter for supporting output parameters on functions and methods. Issue s183: Allow _perl_print to write to binary files to support binmode, fix autoflush with binmode
+
 1.015 (2022-11-26)
 ------------------
 
