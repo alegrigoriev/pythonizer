@@ -228,6 +228,7 @@
 # 1.014  2022/11/24  SNOOPYJC issue s173: File::Path functions need an empty array passed for the error => $err parameter
 # 1.015  2022/11/26  SNOOPYJC issue s174: The .. (range) operator should be supported in initializations, issue s175: tie should be allowed to take a bareword package name, issue s180: Implement can method for packages and blessed classes, issue s176: References to variables with variable names including a package name are not properly translated, issue s177: The import function should be called in the translation of use statements, issue s178: Reference to CORE::print is not translated properly, issue s179: Conditional eval/getops/substitute with e flag generates bad code, issue s20: added remaining error tests, issue s182: do statement with for(each) statement modifier generates bad code, issue s183: Calling binmode on a sub argument generates bad code, add openhandle function
 # 1.016  2022/11/30  SNOOPYJC issue s184: Implement subs with scalar out parameters, issue s183: Allow _perl_print to write to binary files to support binmode, fix autoflush with binmode, some pattern references were incorrectly being marked as to requiring the default varible ($_ or _d in Python) when they didn't actually reference it
+# 1.017  2022/12/04  SNOOPYJC issue s186: Eliminate bogus warnings when calling external subs in package main, issue s187: use MODULE (); should not call the import method, issue s188: Handle \*main::STDIN and \*STDIN as alternates to STDIN
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -285,7 +286,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub save_nest restore_nest); # SNOOPYJC
 
-   $VERSION='1.016';
+   $VERSION='1.017';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -2244,6 +2245,8 @@ sub insert_converter
     return 0 if($k < $i);
     $t_left = $t_right = undef;
     #no warnings 'uninitialized';
+    return 0 if($i != 0 && $ValClass[$i-1] eq '\\');        # issue s188: Don't convert a reference
+    return 0 if($ValClass[$i] eq '\\');                     # issue s188:   "
     if($i-1 >= $start) {
         $t_left = operator_type($i-1, 0);
         #say STDERR "operator_type($i-1) = $t_left";     # TEMP
@@ -8825,7 +8828,9 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
          $end_pos=( $pos>-1 )? $pos-1 : (($bracketed ==1) ? $limit-1 : $limit);      # issue 13: limit scan to next && or ||, issue 99
          if($cur_pos == 0 && ($#ValClass == 0 || index('f"sahd!~-+', $ValClass[$cur_pos+1]) != -1) && !exists $LocalSub{$ValPy[$cur_pos]}) { # issue s168
              $LocalSub{$ValPy[$cur_pos]} = 4;       # issue s168: we know this is a sub, just not where it came from
-             logme('W', "Could not locate definition of sub $ValPy[$cur_pos]");
+             if($implicit_global_my || !exists $LocalSub{'main'.'.'.$ValPy[$cur_pos]}) {    # issue s186
+                logme('W', "Could not locate definition of sub $ValPy[$cur_pos]");
+             }                                                                              # issue s186
          }                                          # issue s168
              
          # issue s151 if($pos>-1 && $ValClass[$pos] eq '~' && $ValPerl[$pos] ne '~') {    # issue 99, SNOOPYJC: Handle '~' operator
@@ -10916,7 +10921,9 @@ sub do_use_require
             }
             gen_variable_import_post($exports);
         }
-        if($ValPerl[$pos] eq 'use' && $has_import_sub) {        # issue s177
+        if($ValPerl[$pos] eq 'use' && $has_import_sub &&
+            !($ValClass[-1] eq ')' && $ValClass[-2] eq '(')      # issue s187: if we have like use Module ();, then we DON'T call import!
+        ) {        # issue s177
             gen_chunk(',') unless $pos == 0;
             if($pos == 0 && $has_import_sub == 1) {             # 1 means it may or may not be there (2 means it's definitely there)
                 gen_statement("if hasattr($ValPy[$pos+1], 'import_'):");
@@ -11684,6 +11691,15 @@ sub expand_extras
                 $SubAttributes{$w}{out_parameters} = $out_parameters{$w};    # issue s184
             }
         }                                           # issue s184
+        if(!defined $package || $package eq 'main') {    # issue s186: Mark any defined subs as part of the main package so we don't generate warnings when calling them
+            foreach my $perl_name (@global_vars) {
+                my $sig = substr($perl_name,0,1);
+                if($sig eq '&') {
+                    my $py_name = escape_keywords(substr($perl_name,1));
+                    $LocalSub{'main'.'.'.$py_name} = 2;            # Imported
+                }
+            }
+        }
     }
     @result = keys %actual_imports;
     for my $perl_name (@result) {
