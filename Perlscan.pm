@@ -3490,11 +3490,11 @@ my ($l,$m);
                $ValPy[$tno]="$PERL_ARG_ARRAY";  # issue 32
                $ValType[$tno]="X";
                $SpecialVarsUsed{'@_'}{$cs} = 1;                       # SNOOPYJC
-            }elsif( $arg1 eq 'INC'  ){      # SNOOPYJC
+            }elsif( $arg1 eq 'INC' || $arg1 eq '::INC' || $arg1 eq 'main::INC'  ){      # SNOOPYJC, issue s188
                   $ValPy[$tno]='sys.path';
                   $ValType[$tno]="X";
                   $SpecialVarsUsed{'@INC'}{$cs} = 1;                       # SNOOPYJC
-            }elsif( $arg1 eq 'ARGV'  ){
+            }elsif( $arg1 eq 'ARGV' || $arg1 eq '::ARGV' || $arg1 eq 'main::ARGV' ){    # issue s188
             # issue 49 $ValPy[$tno]='sys.argv';
                   $ValPy[$tno]='sys.argv[1:]';  # issue 49
                   $ValType[$tno]="X";
@@ -3537,6 +3537,7 @@ my ($l,$m);
             $ValClass[$tno]='h'; #hash
             $ValPerl[$tno]=substr($source,0,1).$1;      # SNOOPYJC
             $ValPy[$tno]=$1;
+            $ValPy[$tno] = 'ENV' if($ValPy[$tno] eq 'main::ENV' || $1 eq '::ENV');  # issue s188
             $ValPy[$tno]=~tr/:/./s;
             $ValPy[$tno]=~tr/'/./s;             # SNOOPYJC
             if(substr($source,$cut,2) eq '::') {        # SNOOPYJC: Symbol Table reference coming up next!
@@ -3661,7 +3662,12 @@ my ($l,$m);
             $ValPy[$tno]=$1;
             $ValPy[$tno]=~tr/:/./s;
             $ValPy[$tno]=~tr/'/./s;             # SNOOPYJC
-        $ValPy[$tno] = escape_keywords($ValPy[$tno]);
+            $ValPy[$tno] = escape_keywords($ValPy[$tno]);
+
+            # issue s188: Handle a few special cases:
+            if($1 =~ /^(?:(?:main)?::)?(STD(?:IN|OUT|ERR))$/) {        # issue s188: Match like *STDIN *::STDIN *main::STDIN
+                $ValPy[$tno] = $keyword_tr{$1};     # Note - this $1 is from the new match!
+            }
             if( substr($ValPy[$tno],0,1) eq '.' ){
                $ValCom[$tno]='X';
                $ValPy[$tno]="$MAIN_MODULE$ValPy[$tno]";
@@ -3851,7 +3857,7 @@ my ($l,$m);
                        # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
                        # issue 66 $ValPy[$tno]='sys.stdin().readline()';
                        my $rl = select_readline();                      # issue 66
-                       $ValPy[$tno]="$rl(sys.stdin())";                 # issue 66: support $/
+                       $ValPy[$tno]="$rl(sys.stdin)";                 # issue 66: support $/, issue s188: Remove the extra ()
                        # $ValPy[$tno]="next(with fileinput.input('-'), None)";        # issue 66: Allows for $.
                    }else{
                        # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
@@ -4404,10 +4410,10 @@ my $rc=-1;
           if( $update ){
              $ValPerl[$tno]=substr($source,0,2).$1; # SNOOPYJC
           }
-          if( $1 eq 'ARGV'  ){                      # SNOOPYJC: Generate proper code for $#ARGV
+          if( $1 eq 'ARGV' || $1 eq '::ARGV' || $1 eq 'main::ARGV'  ){     # SNOOPYJC: Generate proper code for $#ARGV, issue s188
               $ValType[$tno]="X";                   # issue 14
               $ValPy[$tno] ='(len(sys.argv)-2)';    # SNOOPYJC
-          } elsif( $1 eq 'INC'  ){                  # SNOOPYJC
+          } elsif( $1 eq 'INC' || $1 eq '::INC' || $1 eq 'main::INC' ){                  # SNOOPYJC, issue s188
               $ValType[$tno]="X";
               $ValPy[$tno] ='(len(sys.path)-1)';
           } elsif($1 eq '_') {                      # issue 107
@@ -4453,6 +4459,8 @@ my $rc=-1;
               $name = cur_package() . '.__dict__';
           }
           $ValType[$tno] = "X";
+      } elsif($name =~ /^(?:main)?::(ENV|ARGV|INC)$/) {            # issue s188
+          $name = $1;       # Note: This $1 is from this new match
       }
       $ValPy[$tno]=$name;
 
@@ -4572,15 +4580,15 @@ my $rc=-1;
         # $cut points to the next symbol after the scanned part of the scapar
            # check for Perl system variables
            my $cs = cur_sub();
-           if( $1 eq 'ENV'  ){
+           if( $name eq 'ENV'  ){       # issue s188
               $ValType[$tno]="X";
               $ValPy[$tno]='os.environ';
               $SpecialVarsUsed{'%ENV'}{$cs} = 1;                       # SNOOPYJC
-           }elsif( $1 eq 'INC' ) {                # SNOOPYJC
+           }elsif( $name eq 'INC' ) {                # SNOOPYJC        # issue s188
               $ValType[$tno]="X";
               $SpecialVarsUsed{'@INC'}{$cs} = 1;                       # SNOOPYJC
               $ValPy[$tno]='sys.path';
-           }elsif( $1 eq 'ARGV'  ){
+           }elsif( $name eq 'ARGV'  ){     # issue s188
               $ValType[$tno]="X";
               if($cut < length($source) && substr($source,$cut,1) eq '[') {    # $ARGV[...] is a reference to @ARGV
                   $SpecialVarsUsed{'@ARGV'}{$cs} = 1;                       # SNOOPYJC
@@ -5926,12 +5934,12 @@ sub decode_array                # issue 47
         if( $arg1 eq '_' ){
            $ValPy[$tno]="$PERL_ARG_ARRAY";  # issue 32
            #$ValType[$tno]="X";
-        }elsif( $arg1 eq 'INC'  ){      # SNOOPYJC
+        }elsif( $arg1 eq 'INC' || $arg1 eq '::INC' || $arg1 eq 'main::INC'  ){      # SNOOPYJC, issue s188
               $ValPy[$tno]='sys.path';
               my $cs = cur_sub();
               $SpecialVarsUsed{'@INC'}{$cs} = 1;                       # SNOOPYJC
               #$ValType[$tno]="X";
-        }elsif( $arg1 eq 'ARGV'  ){
+        }elsif( $arg1 eq 'ARGV' || $arg1 eq '::ARGV' || $arg1 eq 'main::ARGV' ){    # issue s188
                 # issue 49 $ValPy[$tno]='sys.argv';
               $ValPy[$tno]='sys.argv[1:]';  # issue 49
               my $cs = cur_sub();
@@ -5970,6 +5978,7 @@ sub decode_hash                 # issue 47
         #$ValClass[$tno]='h'; #hash
         #$ValPerl[$tno]=$1;
         $ValPy[$tno]=$1;
+        $ValPy[$tno] = 'ENV' if($ValPy[$tno] eq 'main::ENV' || $1 eq '::ENV');  # issue s188
         $ValPy[$tno]=~tr/:/./s;
         $ValPy[$tno]=~tr/'/./s;
         if( substr($ValPy[$tno],0,1) eq '.' ){

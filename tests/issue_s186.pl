@@ -4,5 +4,5 @@
 use lib '.';
 use issue_s186m;
 
-debug_print "$0 - test passed!\n";
+debug_print "$0 - test passed!";
 
