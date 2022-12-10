@@ -129,7 +129,6 @@ BEGIN {
 use Pyconfig;
 
 my $fullfile = shift;
-my $debug = 0;
 
 # issue bootstrap: we could be sent a relative path because the python version
 # doesn't know the proper perl @INC, so check and make it absolute
@@ -224,7 +223,7 @@ eval {
             '(?:\\$_\\[(?<I>\\d+)\\]\\s*=[^~])',
             '(?:\\$_\\[(?<I>\\d+)\\]\\s*=~\\s*s\\b)',
             '(?:\\$_\\[(?<I>\\d+)\\]\\s*=~\\s*tr\\b)',
-            '(?:\\$_\\[(?<I>\\d+)\]\\s*=~\\s*y\\b)',
+            '(?:\\$_\\[(?<I>\\d+)\\]\\s*=~\\s*y\\b)',
             '(?:\\+\\+\\$_\\[(?<I>\\d+)\\])',
             '(?:--\\$_\\[(?<I>\\d+)\\])',
             '(?:\\$_\\[(?<I>\\d+)\\]\\+\\+)',
@@ -244,7 +243,55 @@ eval {
             '(?:\\bchop\\s*\\(\\s*\\$_\\[)',
             '(?:\\bchomp\\s*\\(\\s*\\$_\\[)'
         );                                  # issue s184
+        my @reference_prop_patterns = (
+            '(?:\\$\\{\\$_\\[(?<I>\\d+)\\]\\}\\s*=[^~])',
+            '(?:\\$\\{\\$_\\[(?<I>\\d+)\\]\\}\\s*=~\\s*s\\b)',
+            '(?:\\$\\{\\$_\\[(?<I>\\d+)\\]\\}\\s*=~\\s*tr\\b)',
+            '(?:\\$\\{\\$_\\[(?<I>\\d+)\\]\\}\\s*=~\\s*y\\b)',
+            '(?:\\+\\+\\$\\{\\$_\\[(?<I>\\d+)\\]\\})',
+            '(?:--\\$\\{\\$_\\[(?<I>\\d+)\\]\\})',
+            '(?:\\$\\{\\$_\\[(?<I>\\d+)\\]\\}\\+\\+)',
+            '(?:\\$\\{\\$_\\[(?<I>\\d+)\\]\\}--)',
+            '(?:\\bopen\\s*\\(\\s*\\$\\{\\$_\\[(?<I>\\d+)\\]\\})',
+            '(?:\\bbinmode\\s*\\(\\s*\\$\\{\\$_\\[(?<I>\\d+)\\]\\})',
+            '(?:\\bread\\s*\\([^,]+,\\s*\\$\\{\\$_\\[(?<I>\\d+)\\]\\}\\s*,)',
+            '(?:\\bchop\\s*\\(\\s*\\$\\{\\$_\\[(?<I>\\d+)\\]\\})',
+            '(?:\\bchomp\\s*\\(\\s*\\$\\{\\$_\\[(?<I>\\d+)\\]\\})',
+        );                                  # issue s185
+        my @reference_copy_patterns = (
+            '(?:\\$\\{(?<V>\\$\w+)\\}\\s*=[^~])',
+            '(?:\\$\\{(?<V>\\$\\w+)\\}\\s*=~\\s*s\\b)',
+            '(?:\\$\\{(?<V>\\$\\w+)\\}\\s*=~\\s*tr\\b)',
+            '(?:\\$\\{(?<V>\\$\\w+)\\}\\s*=~\\s*y\\b)',
+            '(?:\\+\\+\\$\\{(?<V>\\$\\w+)\\})',
+            '(?:--\\$\\{(?<V>\\$\\w+)\\})',
+            '(?:\\$\\{(?<V>\\$\\w+)\\}\\+\\+)',
+            '(?:\\$\\{(?<V>\\$\\w+)\\}--)',
+            '(?:\\bopen\\s*\\(\\s*\\$\\{(?<V>\\$\\w+)\\})',
+            '(?:\\bbinmode\\s*\\(\\s*\\$\\{(?<V>\\$\\w+)\\})',
+            '(?:\\bread\\s*\\([^,]+,\\s*\\$\\{(?<V>\\$\\w+)\\}\\s*,)',
+            '(?:\\bchop\\s*\\(\\s*\\$\\{(?<V>\\$\\w+)\\})',
+            '(?:\\bchomp\\s*\\(\\s*\\$\\{(?<V>\\$\\w+)\\]\\})',
+            '(?:\\$(?<V>\\$\w+)\\s*=[^~])',
+            '(?:\\$(?<V>\\$\\w+)\\s*=~\\s*s\\b)',
+            '(?:\\$(?<V>\\$\\w+)\\s*=~\\s*tr\\b)',
+            '(?:\\$(?<V>\\$\\w+)\\s*=~\\s*y\\b)',
+            '(?:\\+\\+\\$(?<V>\\$\\w+))',
+            '(?:--\\$(?<V>\\$\\w+))',
+            '(?:\\$(?<V>\\$\\w+)\\+\\+)',
+            '(?:\\$(?<V>\\$\\w+)--)',
+            '(?:\\bopen\\s*\\(\\s*\\$(?<V>\\$\\w+))',
+            '(?:\\bbinmode\\s*\\(\\s*\\$(?<V>\\$\\w+))',
+            '(?:\\bread\\s*\\([^,]+,\\s*\\$(?<V>\\$\\w+)\\s*,)',
+            '(?:\\bchop\\s*\\(\\s*\\$(?<V>\\$\\w+))',
+            '(?:\\bchomp\\s*\\(\\s*\\$(?<V>\\$\\w+))',
+        );                                  # issue s185
+        my %arg_copies = ();                # issue s185
         my $last_p = '';
+        my $rpat = join('|', @reference_prop_patterns);
+        say STDERR "rpat = $rpat" if $debug;
+        my $cpat = join('|', @reference_copy_patterns);
+        say STDERR "cpat = $cpat" if $debug;
         while(<SRC>) {
             if($in_pod) {                                   # issue s128: check this first!
                 $in_pod = 0 if(substr($_,0,4) eq '=cut');
@@ -265,20 +312,38 @@ eval {
             } elsif(/\bsub\s+(\w+)/) {
                 $CurSub = $1;
                 $CurShift = 0;              # issue s184
+                %arg_copies = ();           # issue s185
             } elsif(/\bwantarray\b/) {
                 $wantarrays{$CurSub} = 1 if defined $CurSub;
             } elsif($CurSub) {              # issue s184: Keep track of out parameters for each sub
-                $CurShift++ if(/\bshift;/ || m'\bshift\(@_\)');
+                if(m'^\s*my\s+(\$[A-Za-z_][A-Za-z0-9_]*)\s*=\s*shift\s*(?:\(?(?:@_)?\)?)\s*;') {      # Defining an arg copy
+                    $arg_copies{$1} = $CurShift;
+                    print STDERR "arg_copies{$1} = $CurShift in $CurSub on $_" if $debug;
+                } elsif(m'^\s*my\s*\(([^)]*)\)\s*=\s*@_\s*;') {                 # Defining multiple arg copies
+                    my @copies = split /,\s*/, $1;
+                    for(my $i = 0; $i < @copies; $i++) {
+                        $arg_copies{$copies[$i]} = $CurShift + $i;
+                        print STDERR "arg_copies{$copies[$1]} = $CurShift + $i in $CurSub on $_" if $debug;
+                    }
+                } elsif(m'^\s*my\s+(\$[A-Za-z_][A-Za-z0-9_]*)\s*=\s*\$_\[(\d+)\]\s*;') {      # Defining an arg copy
+                    $arg_copies{$1} = $CurShift + $2;
+                    print STDERR "arg_copies{$1} = $CurShift + $2 in $CurSub on $_" if $debug;
+                } elsif(m'[^$](\$[A-Za-z_][A-Za-z0-9_]*)\s*=[^~]') {             # Removes an arg copy
+                    delete $arg_copies{$1};
+                    print STDERR "delete arg_copies{$1} in $CurSub on $_" if $debug;
+                }
+                $CurShift++ if(/\bshift;/ || m'\bshift\(@_\)' || m'\bshift\s+@_' || m'\bshift\(\)');
                 my $pat = join('|', @specific_prop_patterns);
                 my $vpat = join('|', @var_prop_patterns);
-                if($debug && $pat ne  $last_p) {
-                    say STDERR $pat;
-                    say STDERR $vpat;
+                if($debug && $pat ne $last_p) {
+                    say STDERR "pat = $pat";
+                    say STDERR "vpat = $vpat";
                     $last_p = $pat;
                 }
+
                 if(m/$pat/) {
                     my $I = $+{I};
-                    say STDERR "Matched pat with [$I]: $_" if($debug);
+                    print STDERR "Matched pat with [$I]: $_" if($debug);
                     my $key = $I+$CurShift;
                     if(exists $out_parameters{$CurSub} && !exists $out_parameters{$CurSub}->{var}) {
                         $out_parameters{$CurSub}->{$key} = 1;
@@ -303,6 +368,27 @@ eval {
                     $var_p .= '\\$_\\[)';
                     push @specific_prop_patterns, $spec_p;
                     push @var_prop_patterns, $var_p;
+                } elsif(m/$cpat/) {
+                    my $V = $+{V};
+                    next if !exists $arg_copies{$V};
+                    my $key = $arg_copies{$V};
+                    print STDERR "Matched reference copy pat with [$V] (copy of $key): $_" if($debug);
+                    $key .= 'r';
+                    if(exists $out_parameters{$CurSub} && !exists $out_parameters{$CurSub}->{var}) {
+                        $out_parameters{$CurSub}->{$key} = 1;
+                    } else {
+                        %{$out_parameters{$CurSub}} = ($key=>1);
+                    }
+                } elsif(m/$rpat/) {
+                    my $I = $+{I};
+                    print STDERR "Matched reference pat with [$I]: $_" if($debug);
+                    my $key = $I+$CurShift;
+                    $key .= 'r';
+                    if(exists $out_parameters{$CurSub} && !exists $out_parameters{$CurSub}->{var}) {
+                        $out_parameters{$CurSub}->{$key} = 1;
+                    } else {
+                        %{$out_parameters{$CurSub}} = ($key=>1);
+                    }
                 } elsif(m/$vpat/) {         # varargs
                     say STDERR "Matched vpat: $_" if($debug);
                     %{$out_parameters{$CurSub}} = (var=>1);

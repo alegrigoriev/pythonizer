@@ -16,8 +16,8 @@ assert(&s176::mysub1() == 1);
 $field = 1;
 assert(${'field'} == 1);
 my $f = 'field';
-assert(${$f} == 1);
-${$f} = 2;
+assert(${"$f"} == 1);   # was ${$f} but we use that for reference out parameters now
+${"$f"} = 2;
 assert($field == 2);
 
 $first = 'a';

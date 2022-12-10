@@ -2,10 +2,15 @@
 History
 =======
 
+1.018 (2022-12-05)
+------------------
+
+* Issue s184: Add _fetch_out_parameters for array/hash out parameters, fix _isa for Array or Hash type, Issue s198: add _list_of_at_least_n
+
 1.017 (2022-12-04)
 ------------------
 
-* 
+* Issue s185: Prepped _store_out_parameter to take None for arglist
 
 1.016 (2022-11-30)
 ------------------

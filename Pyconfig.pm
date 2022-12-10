@@ -9,7 +9,7 @@ package Pyconfig;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name loop_var_name generic_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $KEY_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS %PYF_OUT_PARAMETERS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER $SHEBANG %OVERLOAD_MAP %CLASS_METHOD_SET $AUTHORS_FILE $SWITCH_VAR $SWITCH_LABEL $NON_REGEX_CHARS %STATEMENT_FUNCTIONS %TIE_MAP %TIE_CONSTRUCTORS);
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name loop_var_name generic_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $KEY_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS %PYF_OUT_PARAMETERS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER $SHEBANG %OVERLOAD_MAP %CLASS_METHOD_SET $AUTHORS_FILE $SWITCH_VAR $SWITCH_LABEL $NON_REGEX_CHARS %STATEMENT_FUNCTIONS %TIE_MAP %TIE_CONSTRUCTORS %PYTHON_PACKAGES_SET);
 
 # use Readonly;                # Readonly is not installed by default so skip it!
 
@@ -162,9 +162,12 @@ sub state_flag_name                # issue 128
 
 our @PYTHON_KEYWORDS = qw(False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield);
 our @PYTHON_BUILTINS = qw(abs aiter all any anext ascii bin bool breakpoint bytearray bytes callable chr classmethod compile complex delattr dict dir divmod enumerate eval exec filter float format frozenset getattr globals hasattr hash help hex id input int isinstance issubclass iter len list locals map max memoryview min next object oct open ord pow print property range re repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip);
+our @PYTHON_PACKAGES = qw(sys os re fcntl math fileinput subprocess collections.abc argparse glob warnings inspect functools itertools signal traceback io tempfile atexit calendar types pdb random stat dataclasses builtins codecs struct $PERLLIB copy getopt tm_py);     # issue s200: Don't mess up our imports
+push @PYTHON_BUILTINS, @PYTHON_PACKAGES;
 our @EXTRA_BUILTINS = qw(Array Hash ArrayHash perllib wantarray close);        # issue test coverage: Add "close" to prevent recursive loop calling fh.close()
 our %PYTHON_KEYWORD_SET = map { $_ => 1 } @PYTHON_KEYWORDS;
 our %PYTHON_RESERVED_SET = map { $_ => 1 } (@PYTHON_KEYWORDS, @PYTHON_BUILTINS, @EXTRA_BUILTINS);
+our %PYTHON_PACKAGES_SET = map { $_ => 1 } @PYTHON_PACKAGES;            # issue s200
 
 my $python_reserved_set = '{' . (join(',', map { "'" . $_ . "'" } keys %PYTHON_RESERVED_SET)) . '}';   # issue s176
 $GLOBALS{_PYTHONIZER_KEYWORDS} = $python_reserved_set;                                      # issue s176
@@ -172,7 +175,7 @@ $GLOBALS{_PYTHONIZER_KEYWORDS} = $python_reserved_set;                          
 our $NON_REGEX_CHARS = qr(^[A-Za-z0-9_!"%',/:;<=>@`\\ ]*$);       # issue s138: these chars are OK in a split string pattern, else we need to use a regex
 
 our %CONVERTER_MAP = (I=>'_int', N=>'_num', F=>'_flt', S=>'_str', 'a of I'=>'_map_int', 'a of N'=>'_map_num', 'a of S'=>'_map_str', B=>'_pb');        # issue s124
-our %AUTOVIVIFICATION_CONVERTER_MAP = (a=>'Array', h=>'Hash');
+our %AUTOVIVIFICATION_CONVERTER_MAP = (a=>'Array', h=>'Hash', '['=>'Array', '{'=>'Hash');   # issue s199
 our %SIGIL_MAP = ('$'=>'s', '%'=>'h', '@'=>'a', ''=>'H');
 
 our $MAIN_MODULE = 'sys.modules["__main__"]';        # Note this is changed to $DEFAULT_PACKAGE if the -m option is NOT passed (in Pythonizer.pm)
@@ -192,6 +195,7 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
                 Array=>'ArrayHash', Hash=>'ArrayHash',
                 _bless=>'_carp,_init_package',
                 _add_element=>'_num', _subtract_element=>'_num', _open=>'_need_sh',
+                _close_=>'_carp,_longmess,_shortmess',
                 _close=>'_carp,_longmess,_shortmess', _run_s=>'_carp,_cluck,_longmess,_shortmess,_need_sh', _looks_like_text=>'_carp,_longmess,_shortmess',
                 _get_creation_age_days=>'_cluck,_longmess',
                 _get_access_age_days=>'_cluck,_longmess',
@@ -390,18 +394,18 @@ our %PREDEFINED_PACKAGES = (
                         {perl=>'tempnam', type=>'SS:S'},
                        ],
         'FileHandle'=>   [{perl=>'new', type=>'SI:H', python=>'_IOFile', 
-                         calls=>'_open,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+                         calls=>'_open,_format,_autoflush,_binmode,_close_,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
                         {perl=>'new_from_fd', type=>'II:H', python=>"_IOFile_from_fd", 
-                         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+                         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close_,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
                         {perl=>'new_tmpfile', type=>':H', python=>"_IOFile_tmpfile", 
-                         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+                         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close_,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
                        ],
         'IO::File'=>   [{perl=>'new', type=>'SI:H', python=>'_IOFile', 
-                         calls=>'_open,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+                         calls=>'_open,_format,_autoflush,_binmode,_close_,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
                         {perl=>'new_from_fd', type=>'II:H', python=>"_IOFile_from_fd", 
-                         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+                         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close_,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
                         {perl=>'new_tmpfile', type=>':H', python=>"_IOFile_tmpfile", 
-                         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
+                         calls=>'_open,_IOFile,_format,_autoflush,_binmode,_close_,_eof,_fcntl,_fdopen,_format_write,_getc,_getpos,_ioctl,_input_line_number,_IOFile_open,_print,_printf,_read,_say,_setpos,_stat,_sysread,_sysseek,_syswrite,_truncate,_write_,_ungetc'},
                        ],
         'IO::Handle'=> [],
         'POSIX'=>      [{perl=>'tmpnam', type=>':a', scalar=>'_tmpnam_s', scalar_type=>':S'},

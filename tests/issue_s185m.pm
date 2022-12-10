@@ -60,7 +60,7 @@ sub two_in_outs {
 
 sub one_multiple_out {
     shift(@_);
-    ($i) = @_;
+    my ($i) = @_;
     $$i = 1;
     $$i = 2 if($$i == 1);
     return 11;

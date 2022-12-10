@@ -9,7 +9,7 @@ def _isa(self, classname):
     if t in _ref_map:
         return 1 if _ref_map[t] == classname else ''
     elif '_ArrayHash' in t:
-        if r.isHash:
+        if self.isHash:
             return 1 if 'HASH' == classname else ''
         return 1 if 'ARRAY' == classname else ''
     elif classname == 'IO::Handle':
