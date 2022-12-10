@@ -1,9 +1,9 @@
 package issue_s185n;
-# sub-module of issue_s184 to test out parameters from a non-OO module
+# sub-module of issue_s185 to test out parameters from a non-OO module
 
 use Exporter 'import';
 use lib '.';
-use issue_s184m;
+use issue_s185m;
 
 our @EXPORT_OK = qw(set_to_one set_evens);
 

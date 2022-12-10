@@ -194,6 +194,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'bless'=>'_bless','BEGIN'=>'for _ in range(1):',        # SNOOPYJC, issue s12
                 'UNITCHECK'=>'for _ in range(1):', 'CHECK'=>'for _ in range(1):', 'INIT'=>'for _ in range(1):',       # SNOOPYJC, issue s12
                 # SNOOPYJC 'caller'=>q(['implementable_via_inspect',__file__,sys._getframe().f_lineno]),
+                'caller'=>'_caller',            # issue s195
         # issue 54 'chdir'=>'.os.chdir','chmod'=>'.os.chmod',
                 'carp'=>'_carp', 'confess'=>'_confess', 'croak'=>'_croak', 'cluck'=>'_cluck',   # SNOOPYJC
                 'longmess'=>'_longmess', 'shortmess'=>'_shortmess',                             # SNOOPYJC
@@ -394,7 +395,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
             # 17      left        HI          << >>
                         H=>17, I=>17,
             # 16      nonassoc    f           named unary operators
-                        F=>16,      # Not real in the code, but used in a call to next_lower_or_equal_precedent_token
+                        F=>16,      # Used in a call to next_lower_or_equal_precedent_token; issue s190: also used for weak functions
             # 15      nonassoc    N/A         isa
             # 14      chained     >           < > <= >= lt gt le ge
                         '>'=>14,
@@ -651,6 +652,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
         $PYF_OUT_PARAMETERS{'[0:-1]'} = 1;          # issue s183: chop
         $PyFuncType{_store_out_parameter} = 'aImm?:m';   # issue s184
         $PyFuncType{_fetch_out_parameter} = 'I:m';   # issue s184
+        $PyFuncType{_fetch_out_parameters} = 'mI?:m';   # issue s184
         $PyFuncType{_init_out_parameters} = 'aa:';   # issue s184
 
         for my $d (keys %DASH_X) {
@@ -688,7 +690,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 }
                 if($perl ne 'new') {
                     $FuncType{$perl} = $type;
-                    $TokenType{$perl} = 'f';
+                    # issue s190 $TokenType{$perl} = 'f';
+                    $TokenType{$perl} = 'F';    # issue s190: 'F' is a weak function, in other words, if there is a local sub of the same name it overrides it
                     $keyword_tr{$perl} = $python;
                 }
                 $PyFuncType{$python} = $type;
@@ -2340,6 +2343,7 @@ sub choose_glob                 # issue 108
 {
     my $perl = shift;
     my $py = shift;
+    my $quiet = (scalar @_ ? $_[0] : 0);            # issue s198
 
     my $id = substr($perl,1);           # Remove the '*'
     return $py if(!exists $NameMap{$id});
@@ -2353,11 +2357,32 @@ sub choose_glob                 # issue 108
     foreach my $sel (@selection) {
         if(exists $NameMap{$id}{$sel}) {
             $result = $NameMap{$id}{$sel};
-            logme('W',"Choosing $sel$id ($result) for $perl typeglob");
+            logme('W',"Choosing $sel$id ($result) for $perl typeglob") unless $quiet;
             return $package . $result;
         }
     }
     return $package . $NameMap{$id}{$keys[0]};
+}
+
+sub choose_glob_and_get_type           # issue s198
+# Given a reference (probably an assignment to) a *typeglob, choose one of it's components to assign to
+# Give a warning if there was more than one possibility
+# arg1 = ValPerl
+# arg2 = ValPy = default if not found
+# result = (type, ValPy)
+{
+    my $valpy = choose_glob($_[0], $_[1], (scalar @_ > 2 ? $_[2] : 0));
+    my $rdot = rindex($valpy, '.');
+    my $basename = substr($valpy, $rdot+1);
+    return ('H', $valpy) unless exists $ReverseNameMap{$basename};
+    my $id = $ReverseNameMap{$basename};
+    return ('H', $valpy) unless exists $NameMap{$id};
+    for my $key (keys %{$NameMap{$id}}) {
+        if($NameMap{$id}{$key} eq $valpy) {
+            return ($SIGIL_MAP{$key}, $valpy);
+        }
+    }
+    return ('H', $valpy);       # Assume it's a filehandle
 }
 
 #
@@ -2904,7 +2929,14 @@ my ($l,$m);
      }                  # SNOOPYJC
          if( exists($TokenType{$w}) ){
             $class=$TokenType{$w};
-            if($class eq 'f' && !$core && (exists $Pythonizer::UseSub{$w} || exists $Pythonizer::LocalSub{$w})) {     # SNOOPYJC
+            # issue s190 if($class eq 'f' && !$core && (exists $Pythonizer::UseSub{$w} || exists $Pythonizer::LocalSub{$w})) {     # SNOOPYJC
+            if($class eq 'F' && !$core && (exists $Pythonizer::UseSub{$w} || exists $Pythonizer::LocalSub{$w})) {     # SNOOPYJC
+                $class = 'i';                   # issue s190
+                $ValPy[$tno] = $w;              # issue s190
+            } elsif($class eq 'F') {            # issue s190: convert weak function back to normal function
+                $class = 'f';                   # issue s190
+            }
+            if($class eq 'f' && !$core && exists $Pythonizer::UseSub{$w}) {     # SNOOPYJC, issue s190: local sub does NOT override a function unless it's in a use subs
                 $class = 'i';
                 $ValPy[$tno] = $w;
             } elsif($class eq 'q' && $tno != 0 && $ValClass[$tno-1] eq 'q') {   # issue 120: flags!
@@ -3396,6 +3428,7 @@ my ($l,$m);
                replace($tno-1, $ValClass[$tno], $ValPerl[$tno], $ValPy[$tno]);  # issue 50
                popup();                         # issue 50
                $tno--;              # issue 50 - no need to change hashref to hash or arrayref to array in python
+               $ValType[$tno] = $was . 's';         # issue s185: Remember what this was in ValType, e.g. 'ss' means it was a $$
                $ate_dollar = $tno;              # issue 50: remember where we did this
                # issue s173: Set the type of the variable appropriately
                my $cs = cur_sub();          # issue s173
@@ -3423,7 +3456,8 @@ my ($l,$m);
                 append(')', '}', ']');
                 insert($tno, '(', '{', '[');
                 $tno += 2;
-            } elsif($tno != 0 && $ValClass[$tno-1] eq '\\' && $Pythonizer::PassNo==&Pythonizer::PASS_2 && !nonScalarRef() && !inRefOkFunction()) { # issue s169, issue s173
+            } elsif($tno != 0 && $ValClass[$tno-1] eq '\\' && $Pythonizer::PassNo==&Pythonizer::PASS_2 && !nonScalarRef() && !inRefOkFunction() &&
+                !inRefOkSub($tno-1)) { # issue s169, issue s173, issue s185
                 logme("W", "Reference to scalar $ValPerl[$tno] replaced with scalar value");
             }
 
@@ -3607,9 +3641,14 @@ my ($l,$m);
                 }
                 if( exists($TokenType{$w}) ){       # issue s58: Handle &Carp::cluck
                    $class=$TokenType{$w};
-                   if($class eq 'f' && !$core && (exists $Pythonizer::UseSub{$w} || exists $Pythonizer::LocalSub{$w})) {     # SNOOPYJC
+                   if($class eq 'F' && !$core && (exists $Pythonizer::UseSub{$w} || exists $Pythonizer::LocalSub{$w})) {     # SNOOPYJC, issue s190
                        $class = 'i';
-                   } elsif(exists $keyword_tr{$w}) {
+                   } elsif($class eq 'F') {            # issue s190: convert weak function back to normal function
+                        $class = 'f';                  # issue s190
+                   }
+                   if($class eq 'f' && !$core && exists $Pythonizer::UseSub{$w}) {     # issue s190: local sub does NOT override a function unless it's in a use subs
+                        $class = 'i';
+                   } elsif($class eq 'f' && exists $keyword_tr{$w}) {        # issue s190
                        $ValPy[$tno] = $keyword_tr{$w};
                    }
                    $ValClass[$tno] = $class;
@@ -6241,8 +6280,8 @@ my $s_rhs = (scalar(@_) > 4 ? $_[4] : 0);       # issue bootstrap: Is this on th
        $string = squash_double_x_flag_regex($string);
    }
    if($delim ne "'") {  # issue 111
-       $string =~ s/\$\&/\\g<0>/g;  # issue 11
-       $string =~ s/\$([1-9])/\\g<$1>/g; # issue 11, SNOOPYJC: Not for $0 !!!
+       $string =~ s/\$\&/\\g<0>/g if $s_rhs;  # issue 11, issue s192: only on RHS on s///
+       $string =~ s/\$([1-9])/\\g<$1>/g if $s_rhs; # issue 11, SNOOPYJC: Not for $0 !!!, issue s192: only on RHS of s///
        # SNOOPYJC if( $string =~/\$\w+/ ){
        # issue 111 if( $string =~/^\$\w+/ ){    # SNOOPYJC: We have to interpolate all $vars inside!! e.g. /DC_$year$month/ gen rf"..."
        # issue 111 return substr($string,1); # this case of /$regex/ we return the variable.
@@ -6274,6 +6313,8 @@ sub perl_regex_to_python
     # pragma pythonizer no convert regex
     $regex =~ s'\\z'\\Z'g;
     $regex =~ s/\(\?<(\w)/(?P<$1/g;           # Named capture group
+    $regex =~ s/\\g([1-9])/\\$1/g;            # issue s192
+    $regex =~ s/\\g\{([1-9])\}/\\$1/g;        # issue s192
     $regex =~ s/\\[gk]\{([A-Za-z_]\w*)\}/(?P=$1)/g;           # Backreference to a named capture group
     $regex =~ s/\\k<([A-Za-z_]\w*)>/(?P=$1)/g;           # Backreference to a named capture group
     $regex =~ s/\\k'([A-Za-z_]\w*)'/(?P=$1)/g;           # Backreference to a named capture group
@@ -6705,7 +6746,7 @@ my ($i,$k);
          substr($_[$i],0,length($PERLLIB)+1) ne "$PERLLIB.") {      # SNOOPYJC: Handle perllib option
           my $chu = $_[$i];
           if(substr($chu,0,1) eq '_') {
-              $chu = escape_keywords(substr($chu,1));       # SNOOPYJC: remove the initial '_' but change keywords like import to import_
+              $chu = escape_keywords(substr($chu,1), 2);       # SNOOPYJC: remove the initial '_' but change keywords like import to import_, issue s200: don't change stat
           }
           push(@PythonCode, "$PERLLIB.$chu");
       } else {
@@ -6914,7 +6955,7 @@ sub escape_keywords     # issue 41
 # Note: We also escape the names of the built-in functions like len, etc
 {
     my $name = $_[0];
-    my $is_package_name = (scalar(@_) >= 2) ? 1 : 0;
+    my $is_package_name = (scalar(@_) >= 2) ? $_[1] : 0;        # issue s200
     state %Pyf;             # issue s126
 
     if(!keys %Pyf) {                    # issue s126
@@ -6933,8 +6974,14 @@ sub escape_keywords     # issue 41
     my @result = ();
     for(my $i=0; $i<scalar(@ids); $i++) {
            $id = $ids[$i];
-       if(exists $PYTHON_RESERVED_SET{$id} || ($id eq $DEFAULT_PACKAGE && ($i != 0 || $id eq $name) && !$is_package_name && !$::implicit_global_my)) {
-           $id = $id.'_';
+       if($is_package_name == 2) {
+          if($PYTHON_RESERVED_SET{$id} && !exists $PYTHON_PACKAGES_SET{$id}) {       # issue s200 
+             $id = $id.'_';
+          }
+       } elsif(exists $PYTHON_RESERVED_SET{$id} || ($id eq $DEFAULT_PACKAGE && ($i != 0 || $id eq $name) && !$is_package_name && !$::implicit_global_my)) {
+           if(scalar(@ids) == 1 || !exists $PYTHON_PACKAGES_SET{$id}) {           # issue s200: Don't change sys. to sys_., don't change perllib.stat to perllib.stat_
+               $id = $id.'_';
+           }
        } elsif(substr($id,0,1) =~ /\d/) {   # issue ddts: @1234 => _1234
            $id = '_'.$id;
        } elsif($i == 0 && substr($id,0,1) eq '_' && substr($id,0,5) ne '__END' && $id !~ /^_f\d/ && exists $Pyf{$id}) {    # issue s126
@@ -8583,6 +8630,33 @@ sub nonScalarRef            # issue s173
     return 0 if(substr($source,$cut) =~ /\s*->/);   # Reference to an array element or hash key - assume it's a scalar
     return 1 if $typ =~ /^[ah]/;        # This type is set in pass 1 on the @$var or %$var reference
     return 0;
+}
+
+sub inRefOkSub              # issue s185
+# Return 1 if we are in a sub call which has reference out parameters, and this is one of them
+{
+    my $pos = shift;
+
+    for(my $i = 0; $i <= $#ValClass; $i++) {
+        if($ValClass[$i] eq 'i' && ($Pythonizer::LocalSub{$ValPy[$i]} || ($i != 0 && $ValClass[$i-1] eq 'D'))) {
+           my $prefix = '';
+           my $delta = 0;
+           if($i != 0 && $ValClass[$i-1] eq 'D') {        # Method call
+              $prefix = '->'; 
+              $delta = 1;      # one implicit arg
+           }
+           if(exists $Pythonizer::SubAttributes{$prefix . $ValPy[$i]} && exists $Pythonizer::SubAttributes{$prefix . $ValPy[$i]}{out_parameters}) {
+               return 1 if $Pythonizer::SubAttributes{$prefix . $ValPy[$i]}{out_parameters}->[0] eq 'var';
+               for(my $arg = 0; ;$arg++) {
+                   my ($s, $e) = &::get_arg_start_end($i, $ValClass[$i+1] eq '(' ? $#ValClass+1 : $#ValClass, $arg+1);  # Adjust end_pos as we may not have finished parsing this line
+                   last unless defined $s;
+                   next unless $pos >= $s && $pos <= $e;
+                   return 1 if grep {$_ eq (($arg+$delta).'r')} @{$Pythonizer::SubAttributes{$prefix . $ValPy[$i]}{out_parameters}};
+               }
+           }
+       }
+   }
+   return 0;
 }
 
 1;

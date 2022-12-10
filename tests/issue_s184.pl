@@ -48,6 +48,12 @@ sub check_read {
     read($_[0], $_[1], 100);
 }
 
+sub check_read2 {         # Make sure read works w/o being a return value
+    my $fh = shift;
+    read($fh, $_[0], 100);
+    return 100;
+}
+
 assert(one_out($i) == 11);
 assert($i == 1);
 
@@ -75,6 +81,9 @@ assert($jj == 7);
 assert(check_open($fh, '<', $0));
 assert(check_read($fh, $buf));
 assert(substr($buf,0,1) eq '#');
+seek($fh, 0, 0);
+assert(check_read2($fh, $buf2) == 100);
+assert(substr($buf2,0,1) eq '#');
 close($fh);
 
 # Try some more complex arguments
@@ -122,6 +131,66 @@ assert($s eq 's');
 
 &issue_s184m::chop_it(0, $s);    # Try a non-OO call
 assert($s eq '');
+
+sub chop_all {
+    chop(@_);
+}
+my $v1 = "1v";
+my $v2 = "2v";
+chop_all($v1, $v2);
+assert($v1 eq '1');
+assert($v2 eq '2');
+
+sub chomp_all {
+    chomp(@_);
+}
+$v1 = "v1\n";
+$v2 = "v2";
+$v3 = "v3\n";
+chomp_all($v1, $v2, $v3);
+assert($v1 eq 'v1');
+assert($v2 eq 'v2');
+assert($v3 eq 'v3');
+
+my @va = ("v1\n", "v2", "v3\n");
+chomp_all(@va);
+assert($va[0] eq 'v1');
+assert($va[1] eq 'v2');
+assert($va[2] eq 'v3');
+
+my $v = "v0\n";
+@va = ("v1\n", "v2", "v3\n");
+chomp_all($v, @va);
+assert($v eq 'v0');
+assert($va[0] eq 'v1');
+assert($va[1] eq 'v2');
+assert($va[2] eq 'v3');
+
+my %vh = (k1=>"v1\n", k2=>"v2", k3=>"v3\n");
+chomp_all(%vh);
+assert($vh{k1} eq 'v1');
+assert($vh{k2} eq 'v2');
+assert($vh{k3} eq 'v3');
+
+my %vm = (k1=>["v1\n", "v2", "v3\n"]);
+chomp_all(@{$vm{k1}});
+assert($vm{k1}->[0] eq 'v1');
+assert($vm{k1}->[1] eq 'v2');
+assert($vm{k1}->[2] eq 'v3');
+
+@oio = (1, 2, 3, 4);
+assert(out_in_out(@oio) == 2);
+assert(@oio == 4);
+assert(join('', @oio) eq '2224');
+
+sub chomp_second {
+    $_[0] = $_[0];      # Pretend we are changing the key, else we don't know which value to grab!!
+    chomp($_[1]);
+}
+%vh = (k1=>"v1\n", k2=>"v2\n");
+chomp_second(%vh);
+assert($vh{k1} eq 'v1' || $vh{k2} eq 'v2');
+assert($vh{k1} eq "v1\n" || $vh{k2} eq "v2\n");
 
 # Error tests
 
