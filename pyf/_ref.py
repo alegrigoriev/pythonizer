@@ -4,7 +4,7 @@ def _ref(r):
     _ref_map = {"<class 'int'>": 'SCALAR', "<class 'str'>": 'SCALAR',
                 "<class 'float'>": 'SCALAR', "<class 'NoneType'>": 'SCALAR',
                 "<class 'list'>": 'ARRAY', "<class 'tuple'>": 'ARRAY',
-                "<class 'dict'>": 'HASH'}
+                "<class 'function'>": 'CODE', "<class 'dict'>": 'HASH'}
     tr = type(r)
     t = str(tr)
     if t in _ref_map:

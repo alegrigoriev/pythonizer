@@ -32,9 +32,9 @@ sub TIEHASH {       # Causes the issue with -nph and -charset
 
 @other = ('a=1', 'b=2');
 sub issue {
-    $self = shift;
-    $type = shift;
-    $charset = shift;
+    my $self = shift;
+    my $type = shift;
+    my $charset = shift;
 
     return $self->header(
 	-nph => 0,

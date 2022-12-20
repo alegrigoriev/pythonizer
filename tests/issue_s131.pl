@@ -27,11 +27,18 @@ $s =~ s'([a-z])bc'$bc';
 assert($s eq '$bc');
 assert($1 eq 'f');
 
+# This one has an unbalanced paren in the replacement string
+$s = 'ubc';
+$s =~ s/([a-z])bc/(bc/;
+assert($s eq '(bc');
+assert($1 eq 'u');
+
 # This one has no capture group
-my $s = 'abc';
+$s = 'abc';
 $s =~ s/(?:[a-z])bc/xbc/;
 assert($1 ne 'a');
 assert($s eq 'xbc');
+
 
 # Try one nested in a sub
 sub testit {

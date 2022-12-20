@@ -1,19 +1,22 @@
 
-def _refs(r):
-    """ref function in perl - called when followed by a backslash"""
-    _ref_map = {"<class 'int'>": 'SCALAR', "<class 'str'>": 'SCALAR',
-                "<class 'float'>": 'SCALAR', "<class 'NoneType'>": 'SCALAR',
+def _ref_scalar(r):
+    """ref function in perl - called when being passed a scalar without a backslash"""
+    _ref_map = {"<class 'int'>": '', "<class 'str'>": '',
+                "<class 'float'>": '', "<class 'NoneType'>": '',
                 "<class 'list'>": 'ARRAY', "<class 'tuple'>": 'ARRAY',
                 "<class 'function'>": 'CODE', "<class 'dict'>": 'HASH'}
-    t = str(type(r))
+    tr = type(r)
+    t = str(tr)
     if t in _ref_map:
         return _ref_map[t]
     elif '_ArrayHash' in t:
         if r.isHash:
             return 'HASH'
         return 'ARRAY'
+    if hasattr(tr, '__name__'):
+        return tr.__name__
     elif hasattr(r, 'TIEARRAY'):
         return 'ARRAY'
     elif hasattr(r, 'TIEHASH'):
         return 'HASH'
-    return ''
+    return t.replace("<class '", '').replace("'>", '')
