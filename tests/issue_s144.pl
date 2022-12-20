@@ -46,7 +46,7 @@ $l1 = 0;
 $l2 = 1;
 $l3 = 2;
 sub tryLocal {
-    local $l1 = 1, $l2 = 2, $l3;        # In this case, they are all local
+    local $l1 = 1, $l2 = 2, $l3;        # update: In this case, only the first one is local
     assert($l1 == 1);
     assert($l2 == 2);
     assert($l3 == 2);
@@ -54,11 +54,11 @@ sub tryLocal {
 
     return $l1 + $l2 * $l3;
 }
-assert($l1 == 0);
-assert($l2 == 1);
-assert($l3 == 2);
-
 assert(tryLocal() == 9);
+assert($l1 == 0);
+assert($l2 == 2);
+assert($l3 == 4);
+
 
 sub tryState {
     state $s=3, $t=4;               # Only the first one is 'state'

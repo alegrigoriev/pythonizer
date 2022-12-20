@@ -128,7 +128,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
    %SPECIAL_VAR_FULL=(TAINT=>'False', SAFE_LOCALES=>'False', UNICODE=>'0', UTF8CACHE=>'True', UTF8LOCALE=>'True');      # issue s23
 
    %SpecialVarType=('.'=>'I', '?'=>'S', '!'=>'I', '$'=>'I', ';'=>'S', ']'=>'F', 
-                    '0'=>'S', '@'=>'S', '"'=>'S', '|'=>'I', '/'=>'S', ','=>'S',
+                    '0'=>'S', '@'=>'S', '"'=>'S', '|'=>'I', '/'=>'m', ','=>'S', # changed '/' to 'm' to distinguish undef from ''
                     '^O'=>'S', '^T'=>'S', '^V'=>'S', '^X'=>'S', '^W'=>'I',
                     '^TAINT'=>'I', '^SAFE_LOCALES'=>'I', '^UNICODE'=>'I', 'UTF8CACHE'=>'I', 'UTF8LOCALE'=>'I',          # issue s23
                     '&'=>'S', '1'=>'S', '2'=>'S', '3'=>'S', '4'=>'S',
@@ -2204,7 +2204,7 @@ sub prepare_local
     }
     $Pythonizer::VarSubMap{$ValPy[0]}{$sub} = '+' if($bare);  # We don't detect it because it's normally an 'i' token like FH
     $line_locals_map{$lno}{$quote} = $ValPy[0];
-    $sub = '__main__';                              # issue s144: Initialize local variables in main, if need be
+    # issue s144 update $sub = '__main__';                              # issue s144: Initialize local variables in main, if need be
     if(!$has_dot && !exists $Pythonizer::NeedsInitializing{$sub}{$ValPy[0]}) {
         my $typ = 'm';
         $typ = $Pythonizer::VarType{$ValPy[0]}{$sub} if(exists $Pythonizer::VarType{$ValPy[0]}{$sub});
@@ -2445,7 +2445,7 @@ my ($l,$m);
       if($s eq ',' && $tno != 0 && $ValClass[0] eq 't') {        # issue s144
          # issue s144: if this is a top-level comma in a 'my/our/state/local' statement, then
          # end the statement there and the rest is a new non-'my/our/state' statement.
-         # Note that 'local' statements don't behave like this - we add a new 'local ' for them!
+         # issue s144 update: WRONG!!! Note that 'local' statements don't behave like this - we add a new 'local ' for them!
          # Example: my $myVar=1, $globalVar=2, $globalV;
          $balance=0;
          for ($i=0;$i<@ValClass;$i++ ){
@@ -2461,11 +2461,11 @@ my ($l,$m);
          if($balance == 0) {
              $s = ';';
              my $typ = $ValPerl[0];
-             if($typ eq 'local') {          # In my testing, local applies to the whole list, but none of the others do this
-                 substr($source, 1, 0) = 'local ';      # Splice in a new 'local '
-             } else {
-                 logme('W', "Remaining declarations after ',' are not '$typ'") if(!$::implicit_global_my && $Pythonizer::PassNo == &Pythonizer::PASS_1);
-             }
+             # issue s144 update: if($typ eq 'local') {          # In my testing, local applies to the whole list, but none of the others do this
+             # issue s144 update:     substr($source, 1, 0) = 'local ';      # Splice in a new 'local '
+             # issue s144 update: } else {
+             logme('W', "Remaining declarations after ',' are not '$typ'") if(!$::implicit_global_my && $Pythonizer::PassNo == &Pythonizer::PASS_1);
+             # issue s144 update: }
          }
       }
       if( $s eq '#'  ){
@@ -2978,6 +2978,9 @@ my ($l,$m);
                 $SpecialVarsUsed{'pos'}{$cs} = 1;
             } elsif($class eq 'f' && $w eq 'bless') {   # issue s3
                 my $cs = cur_sub();
+                unless(exists $SpecalVarsUsed{'bless'}) {                   # issue s184
+                    &Pythonizer::propagate_sub_attributes_for_bless();      # issue s184
+                }                                                           # issue s184
                 $SpecialVarsUsed{'bless'}{$cs} = 1;
                 $Pythonizer::SubAttributes{$cs}{blesses} = 1;
                 $SpecialVarsUsed{'bless'}{cur_package()} = 1;
@@ -3202,11 +3205,7 @@ my ($l,$m);
                            # explisit s
                             if(index($modifier, 're.E') >= 0) {
                                 if($fake_e_flag) {                                                              # issue s131
-                                    if($delim eq "'") {
-                                        $ValPy[$tno]='re.sub('.$quoted_regex.",e'''__expand(m'".$original_regex2."')''',";    # issue s131
-                                    } else {
-                                        $ValPy[$tno]='re.sub('.$quoted_regex.",e'''__expand(m(".$original_regex2."))''',";    # issue s131
-                                    }
+                                    $ValPy[$tno]='re.sub('.$quoted_regex.",e'''__expand(m$delim".$original_regex2."$delim)''',";    # issue s131
                                 } else {
                                     $ValPy[$tno]='re.sub('.$quoted_regex.",e'''".$arg2."''',";
                                 }
@@ -3217,11 +3216,7 @@ my ($l,$m);
                         }else{
                             if(index($modifier, 're.E') >= 0) {
                                 if($fake_e_flag) {                                                                          # issue s131
-                                    if($delim eq "'") {
-                                        $ValPy[$tno]="re.sub($quoted_regex".",e'''__expand(m'".$original_regex2."')''',$DEFAULT_VAR)";    # issue s131
-                                    } else {
-                                        $ValPy[$tno]="re.sub($quoted_regex".",e'''__expand(m(".$original_regex2."))''',$DEFAULT_VAR)";    # issue s131
-                                    }
+                                    $ValPy[$tno]="re.sub($quoted_regex".",e'''__expand(m$delim".$original_regex2."$delim)''',$DEFAULT_VAR)";    # issue s131
                                 } else {
                                     $ValPy[$tno]="re.sub($quoted_regex".",e'''".$arg2."''',$DEFAULT_VAR)";
                                 }
@@ -4206,8 +4201,7 @@ my $original;
                 my $p_tno = $tno;                                           # issue s114
                 $cut = extract_tokens_from_double_quoted_string($quote, 0, 0);      # issue s80
                 $ExtractingTokensFromDoubleQuotedStringEnd -= $cut;
-                if($ExtractingTokensFromDoubleQuotedStringEnd <= 0 && $cut != 0 && 
-                    $p_tno == $tno) {                                       # issue s114
+                if($ExtractingTokensFromDoubleQuotedStringEnd <= 0 && $cut != 0 && ($p_tno == $tno || $ValClass[$tno-1] eq '"')) {       # issue s114
                     $tno--;
                     $cut = length($source) if $cut > length($source);   # Don't cut past the end
                     say STDERR "finish2: recursing" if($::debug>=5);
@@ -4247,7 +4241,7 @@ sub select_readline
 sub bash_style_or_and_fix
 # On level zero those are used instead of if statement
 {
-my $split=$_[0];
+my $split=$_[0];                # Position in source!!
    return 0 if($Pythonizer::PassNo!=&Pythonizer::PASS_2); # SNOOPYJC
    my $cs = cur_sub();                                                      # issue s79
    #say STDERR "bash_style_or_and_fix $cs line $statement_starting_lno $sub_lines_contain_potential_last_expression{$cs}";
@@ -4298,6 +4292,17 @@ my $split=$_[0];
       say STDERR "bash_style_or_and_fix($split) returning 0 - return does not need transforming" if($::debug>=3);
       return 0;
    }
+   # issue s207: Don't transform it if we're in the midst of an unparenthesized function call like bless $self, $this || $that;
+   $TokenStr=join('',@ValClass); # replace or end_of_function will not work without $TokenStr
+   for(my $p = 0; $p < $#ValClass; $p++) {                      # issue s207
+       if($ValClass[$p] eq 'f') {
+           my $eof = &Pythonizer::end_of_function($p);
+           if($eof >= $#ValClass) {
+              say STDERR "bash_style_or_and_fix($split) returning 0 - operator is in a function call" if($::debug>=3);
+              return 0;
+           }
+       }
+   }
 
    Pythonizer::getline('{');
    # issue 86 $delayed_block_closure=1;
@@ -4306,7 +4311,6 @@ my $split=$_[0];
       Pythonizer::getline(substr($source,$split)); # at this point processing contines untill th eend of the statement
    }
    $source='';
-   $TokenStr=join('',@ValClass); # replace will not work without $TokenStr
    if( $ValClass[0] eq '(' && $ValClass[-2] ){
       destroy(-1);
    }else{
@@ -4696,9 +4700,10 @@ my (@temp,$sym,$prev_sym,$i,$modifier,$meta_no);
       if( $prev_sym ne '\\' && $sym eq '(' && !($temp[$i+1] eq '?' && $temp[$i+2] eq ':')){    # issue s131: (?:...) is not capturing
          say STDERR "is_regex($myregex,$first_s) = ($modifier, 1)" if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
          return($modifier,1);
-      }elsif($prev_sym eq '$' && substr($myregex,$i) =~ /^(\w+)/ && exists $Pythonizer::VarType{$1} &&  # issue s3 - if this contains a variable ref, and that is a regex var, then assume it has groups
-                ((exists $Pythonizer::VarType{$1}{$cs} &&  $Pythonizer::VarType{$1}{$cs} eq 'R') ||
-                (exists $Pythonizer::VarType{$1}{__main__} &&  $Pythonizer::VarType{$1}{__main__} eq 'R'))) { 
+      }elsif($prev_sym eq '$' && substr($myregex,$i) =~ /^(\w+)/) {         # issue GPT regex: assume any variable can contain groups!!
+          # issue GPY regex:  && exists $Pythonizer::VarType{$1} &&  # issue s3 - if this contains a variable ref, and that is a regex var, then assume it has groups
+          # issue GPY regex:       ((exists $Pythonizer::VarType{$1}{$cs} &&  $Pythonizer::VarType{$1}{$cs} eq 'R') ||
+          # issue GPY regex:       (exists $Pythonizer::VarType{$1}{__main__} &&  $Pythonizer::VarType{$1}{__main__} eq 'R'))) { 
          say STDERR "is_regex($myregex,$first_s) = ($modifier, 1)" if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
          return($modifier,1);           # issue s3
       }elsif( $prev_sym ne '\\' && index('.*+()[]?^$|',$sym)>=-1 ){
@@ -4942,6 +4947,13 @@ sub interpolate_strings                                         # issue 39
       }
       return $close_pos;
    }
+   if($Pythonizer::PassNo==&Pythonizer::PASS_1 && $last_varclass_lno != $. && $last_varclass_lno) {     # issue s114: Move this code up!
+    # We don't capture regex's or here_is documents so just grab the last line_varclasses and propagate it down here
+        # If we don't do this and there ARE variable references in the string, we won't properly map them if
+        # they need the package name added.
+        $line_varclasses{$.} = dclone($line_varclasses{$last_varclass_lno});
+        $last_varclass_lno = $.;
+   }
    # SNOOPYJC: In the first pass, extract all variable references and return them as separate tokens
    # so we can mark their references, and add things like initialization.
    # If we're handling a here_is document, or a regex, we don't do this (but we probably should: $close_pos == 0)
@@ -4952,13 +4964,13 @@ sub interpolate_strings                                         # issue 39
           say STDERR "<interpolate_strings($quote, $pre_escaped_quote, $close_pos, $offset, $in_regex, $x_flag)=$pos (begin extract mode)" if($::debug >=3);
           return $pos;
        }
-    } elsif($Pythonizer::PassNo==&Pythonizer::PASS_1 && $last_varclass_lno != $. && $last_varclass_lno) {
-    # We don't capture regex's or here_is documents so just grab the last line_varclasses and propagate it down here
-        # If we don't do this and there ARE variable references in the string, we won't properly map them if
-        # they need the package name added.
-        $line_varclasses{$.} = dclone($line_varclasses{$last_varclass_lno});
-        $last_varclass_lno = $.;
-    }
+# issue s114    } elsif($Pythonizer::PassNo==&Pythonizer::PASS_1 && $last_varclass_lno != $. && $last_varclass_lno) {
+# issue s114    # We don't capture regex's or here_is documents so just grab the last line_varclasses and propagate it down here
+# issue s114        # If we don't do this and there ARE variable references in the string, we won't properly map them if
+# issue s114        # they need the package name added.
+# issue s114        $line_varclasses{$.} = dclone($line_varclasses{$last_varclass_lno});
+# issue s114        $last_varclass_lno = $.;
+   }
 
    #    # issue bootstrap
    #decode each part. Double quote literals in Perl are ver difficult to decode

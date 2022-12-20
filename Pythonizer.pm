@@ -57,6 +57,7 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $InLineNo=0; # counter, pointing to the current like in InputTextA during the first pass
    %LocalSub=(); # list of local subs
    %UseSub=();          # SNOOPYJC: list of subs declared on "use subs", issue s3: also imported subs are added here
+   %UsePackage=();      # issue s209: list of all packages mentioned in use XXX::YYY
    %PotentialSub=();    # SNOOPYJC: List of potential sub calls
    %GlobalVar=(); # generated "external" declaration with the list of global variables.
    %InitVar=(); # SNOOPYJC: generated initialization
@@ -763,6 +764,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
           for my $sub (@subs) {
               $UseSub{&::unquote_string($sub)} = 1;
           }
+      } elsif($#ValClass >= 1 && ($ValPerl[0] eq 'use' || $ValPerl[0] eq 'require') && $ValClass[1] eq 'i') {     # issue s209
+          $UsePackage{$ValPy[1]} = 1;       # issue s209
       }
       if($TokenStr =~ m'C"' && !$::saved_eval_tokens) {     # issue 42 eval '...'
           # Parse the eval string into tokens
@@ -923,6 +926,10 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        say STDERR Dumper(\%PotentialSub);
        print STDERR "UseSub = ";
        say STDERR Dumper(\%UseSub);
+       print STDERR "Packages = ";
+       say STDERR Dumper(\%Packages);
+       print STDERR "UsePackage = ";
+       say STDERR Dumper(\%UsePackage);
        print STDERR "FileHandles = ";
        say STDERR Dumper(\%Perlscan::FileHandles);
        print STDERR "SpecialVarsUsed = ";
@@ -1026,7 +1033,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                my $vn = substr($varname, $dx+1);
                my $ig = '_init_global';
                $ig = "$PERLLIB.init_global" if($::import_perllib);
-	           if(exists $Packages{$packname}) {	# Only init if the named package is defined here
+               if(exists $Packages{$packname}) {	# Only init if the named package is defined here
                	   $InitVar{$subname} .= "\n$varname = $ig('$packname', '$vn', " .init_val($NeedsInitializing{$subname}{$varname}) . ')';
 	           }
            }
@@ -1096,6 +1103,19 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
     if(exists $Perlscan::sub_varclasses{$CurSub}{$ValPerl[$k]} && $Perlscan::sub_varclasses{$CurSub}{$ValPerl[$k]} eq 'local') {    # issue s144
         # issue s144: 'local' variables aren't really local
         $CurSub = '__main__' 
+    }
+
+    # issue s209: If we are referring to a package variable, then grab the package name and add it to our list of packages, unless
+    # we 'use' that package.  This is so we generate an _init_package for that package
+    my $dx = rindex($name, '.');
+    if($dx != -1) {
+        my $packname = substr($name,0,$dx);
+        if(!exists $UsePackage{$packname} && !exists $PYTHON_PACKAGES_SET{$packname} && !exists $Packages{$packname} &&
+           $packname !~ /^len\(/ && $packname !~ /^builtins\b/ && 
+           $packname !~ /^\(len/ &&
+           $packname !~ /^$DEFAULT_MATCH\b/ && $packname !~ /^$PERLLIB\b/) {
+            $Packages{$packname} = 2;           # 2 means we reference it but don't define it here
+        }
     }
 
     # Record if we are modifying the loop counter
@@ -2515,7 +2535,8 @@ sub end_of_function                             # issue s3
         $t_pos++;
         # issue s151 $end_pos = $limit;  # issue s48: the function may have a token '0o>' in it so point back to the end
     } else {            # issue s151
-        $k = next_matching_tokens('0o>',$pos+1,$end_pos);  # stop at next and/or/comparison
+        # issue s207 $k = next_matching_tokens('0o>',$pos+1,$end_pos);  # stop at next and/or/comparison
+        $k = next_matching_tokens('o>',$pos+1,$end_pos);  # issue s207: stop at next and/or/comparison, but not || or &&
         $end_pos = $k-1 if($k != -1);
         return $end_pos unless defined $f_type;     # this is a guess
     }
@@ -2575,7 +2596,7 @@ sub end_of_function                             # issue s3
             $t = substr($f_type, --$t_pos, 1) if($t eq '?');
             if($t ne 'a') {
                 $j--;
-		$j = $pep unless $pep < 0;		# issue s75
+        		$j = $pep unless $pep < 0;		# issue s75
                 last;
             }
         }
@@ -4009,5 +4030,16 @@ sub set_out_parameter                   # issue s184
        $SubAttributes{'->'.$cs} = $SubAttributes{$cs};
    }
    $SubAttributes{$CurPackage . '.' . $cs} = $SubAttributes{$cs};
+   $SubAttributes{'main.' . $CurPackage . '.' . $cs} = $SubAttributes{$cs};
+}
+
+sub propagate_sub_attributes_for_bless      # issue s184
+# The first time we see a 'bless', propagate the OO form of all SubAttributes
+{
+    foreach (keys %SubAttributes) {
+        unless(/^->/) {
+            $SubAttributes{'->'.$_} = $SubAttributes{$_};
+        }
+    }
 }
 1;

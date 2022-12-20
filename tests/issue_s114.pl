@@ -28,4 +28,46 @@ sub GetOptionsHandled           # issue 48: Can we handle this GetOptions call?
 getopts_fun();
 GetOptionsHandled('start');
 
+# additional test case from CGI.pm:
+package CGI;
+use Carp::Assert;
+sub _style {
+      my @result = ();
+      if(0) {
+          ;
+      } else {
+           my $src = $s;
+           push(@result,$XHTML ? qq(<link rel="$rel" type="$type" href="$src" $other/>)
+                               : qq(<link rel="$rel" type="$type" href="$src"$other>));
+      }
+      @result;
+}
+
+# The 'push' line above never got unstacked so the reference parameters in this next
+# function are not recognized because we still think we are in a conditional!
+
+
+sub _set_values_and_labels {
+    my $self = shift;
+    my ($v,$l,$n) = @_;
+    $$l = $v if ref($v) eq 'HASH' && !ref($$l);
+    return $self->param($n) if !defined($v);
+    return $v if !ref($v);
+    return ref($v) eq 'HASH' ? sort keys %$v : @$v;
+}
+
+sub new {
+    bless {}, shift;
+}
+
+my $self = new CGI;
+$values = {k1=>'v1', k2=>'v2'};
+my ($labels, $name);
+@values = $self->_set_values_and_labels($values,\$labels,$name);
+assert($labels->{k1} eq 'v1');
+assert($labels->{k2} eq 'v2');
+assert(@values == 2);
+assert($values[0] eq 'k1');
+assert($values[1] eq 'k2');
+
 print "$0 - test passed\n";

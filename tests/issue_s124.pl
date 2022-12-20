@@ -105,6 +105,15 @@ close(FILE);
 $issues = (-e $issuesfile && -s $issuesfile > 0);
 assert($issues == 0);
 
+# from CGI.pm:
+$OS = 'DOS';
+$needs_binmode = $OS=~/^(WINDOWS|DOS|OS2|MSWin|CYGWIN|NETWARE)/;
+assert("$needs_binmode" eq '1');
+
+$OS = 'unix';
+$needs_binmode = $OS=~/^(WINDOWS|DOS|OS2|MSWin|CYGWIN|NETWARE)/;
+assert("$needs_binmode" eq '');
+
 END {
 	eval {
 		unlink $issuesfile;

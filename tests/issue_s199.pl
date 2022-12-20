@@ -1,4 +1,4 @@
-# issue s199 - constant hashrefs and arrays are non auto-vivified in arg lists
+# issue s199 - constant hashrefs and arrays should be auto-vivified in arg lists
 use Carp::Assert;
 sub check_hash {
     my $hashref = shift;

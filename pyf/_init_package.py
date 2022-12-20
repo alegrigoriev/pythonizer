@@ -8,6 +8,10 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
     for i, piece in enumerate(pieces):
         if hasattr(parent, piece):
             namespace = getattr(parent, piece)
+            if parent_name:
+                package_name = parent_name + '.' + piece
+            else:
+                package_name = piece
         else:
             if is_class and i == len(pieces)-1:
                 class_parents = []
@@ -34,6 +38,17 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
             setattr(parent, piece, namespace)
             if parent != builtins:
                 setattr(builtins, package_name, namespace)
+                if pieces[0] != 'main':
+                    if not hasattr(builtins, 'main'):
+                        _init_package('main')
+                    setattr(builtins.main, package_name, namespace)
+                setattr(builtins, f"main.{package_name}", namespace)
+            elif name != 'main':
+                setattr(builtins, f"main.{piece}", namespace)
+                if pieces[0] != 'main':
+                    if not hasattr(builtins, 'main'):
+                        _init_package('main')
+                    setattr(builtins.main, piece, namespace)
         parent = namespace
         parent_name = package_name
     return namespace

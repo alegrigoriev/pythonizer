@@ -2,6 +2,11 @@
 History
 =======
 
+1.019 (2022-12-10)
+------------------
+
+* Issue s209: Update _init_package to put all packages in the 'main' namespace and properly handle sub-namespaces, Issue scalar ref: add _ref_scalar for the ref function on various references held in scalars
+
 1.018 (2022-12-05)
 ------------------
 
