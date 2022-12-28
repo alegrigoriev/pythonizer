@@ -34,10 +34,11 @@ use File::Path qw(make_path);           # issue s23
 use File::Basename;                     # issue s23
 use File::Spec::Functions qw(catfile);  # issue s23
 require Exporter;
+use Storable qw(dclone);                # issue s18
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub save_nest restore_nest); # SNOOPYJC
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages %PackageDef arg_type_from_pos in_sub_call end_of_function new_anonymous_sub save_nest restore_nest); # SNOOPYJC
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $IntactLno = 0;           # issue s6
    $IntactEndLno = 0;        # issue s6
@@ -57,7 +58,8 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $InLineNo=0; # counter, pointing to the current like in InputTextA during the first pass
    %LocalSub=(); # list of local subs
    %UseSub=();          # SNOOPYJC: list of subs declared on "use subs", issue s3: also imported subs are added here
-   %UsePackage=();      # issue s209: list of all packages mentioned in use XXX::YYY
+   %UsePackage=();      # issue s209: list of all packages mentioned in use XXX::YYY with their line numbers
+   %RequirePackage=();  # issue s18: list of all packages mentioned in require XXX::YYY with their line numbers
    %PotentialSub=();    # SNOOPYJC: List of potential sub calls
    %GlobalVar=(); # generated "external" declaration with the list of global variables.
    %InitVar=(); # SNOOPYJC: generated initialization
@@ -66,6 +68,7 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $maxlinelen=$MAXLINELEN;
    $GeneratedCode=0;    # issue 96: used to see if we generated any real code between { and }
    %Packages = ();      # SNOOPYJC: Set of all python names of packages defined in this file (determined on the first pass)
+   %PackageDef = ();    # issue s18: Set of all python names of packages defined in this file (determined on the first pass) with the line they are defined on
    @Packages = ();      # SNOOPYJC: List of all python names of packages defined in this file in the order declared
    $CurPackage = undef; # SNOOPYJC
    $mFlag = 0;          # SNOOPYJC
@@ -488,6 +491,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          # issue s155: can have sub nested in BEGIN: correct_nest(0,0);                             # issue 45
       } elsif($ValClass[0] eq 'c' && $ValPerl[0] eq 'package' && $#ValClass >= 1) {     # SNOOPYJC: Keep track of packages
           $Packages{$ValPy[1]} = 1;              # SNOOPYJC
+          $PackageDef{$ValPy[1]} = $. unless exists $PackageDef{$ValPy[1]};              # SNOOPYJC, issue s18
           push @Packages, $ValPy[1];             # SNOOPYJC
           $CurPackage = $ValPy[1];               # SNOOPYJC
       }elsif( $ValClass[0] eq '{') {                    # issue 45
@@ -582,11 +586,19 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                     $ValPy[$k] !~ /\.__dict__$/ &&
                     substr($ValPy[$k],0,5) ne '(len(' &&        # issue 14: $#x => (len(x)-1)
                     $ValType[$k] ne 'ss' &&                 # issue s185
+                    $ValType[$k] ne '%s' &&                 # issue s215
                     substr($ValPy[$k],0,4) ne 'sys.'){   # Issue 13
                    $InLineNo = $.;
                    say "=== Pass 1 INTERNAL ERROR in processing line $InLineNo Special variable is $ValPerl[$k] as $ValPy[$k], k=$k, ValType=@ValType";
                    $DB::single = 1;
                 }
+              } elsif($ValClass[$k] eq 'k' && $ValPerl[$k] eq 'use' && $k+1 <= $#ValClass && $ValPerl[$k+1] eq 'parent') {      # issue s18
+                  my $t = 'a of S';
+                  my $pyISA = &Perlscan::escape_keywords($CurPackage,1) . '.' . &Perlscan::remap_conflicting_names('ISA', '@', '', 1);
+                  $t = merge_types($pyISA, '__main__', $t);
+                  $VarType{$pyISA}{__main__} = $t;
+      	          $VarSubMap{$pyISA}{__main__}='+';
+                  $NeedsInitializing{__main__}{$pyISA} = $t if(!exists $initialized{__main__}{$pyISA});
               } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 'shift' || $ValPerl[$k] eq 'pop') &&        # SNOOPYJC
                       ($k == $#ValClass || $ValPerl[$k+1] eq '@_' || $ValClass[$k+1] !~ /[ahfi]/)) {       # SNOOPYJC
 		         # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args
@@ -596,7 +608,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                      $SubAttributes{$cs}{arglist_shifts}++;         # issue s184
                  }                                                  # issue s184
               } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 'push' || $ValPerl[$k] eq 'unshift') &&
-		      $#ValClass >= $k+1 && $ValPerl[$k+1] eq '@_') {                         # issue s53
+		      (($#ValClass >= $k+1 && $ValPerl[$k+1] eq '@_') ||
+               ($k+2 <= $#ValClass && $ValPerl[$k+1] eq '(' && $ValPerl[$k+2] eq '@_'))) { # issue s53, issue s220
 		         # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;     # issue s53
                  my $cs = &Perlscan::cur_sub();
                  $SubAttributes{$cs}{modifies_arglist} = 1;     # issue s53, issue s84
@@ -764,8 +777,10 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
           for my $sub (@subs) {
               $UseSub{&::unquote_string($sub)} = 1;
           }
-      } elsif($#ValClass >= 1 && ($ValPerl[0] eq 'use' || $ValPerl[0] eq 'require') && $ValClass[1] eq 'i') {     # issue s209
-          $UsePackage{$ValPy[1]} = 1;       # issue s209
+      } elsif($#ValClass >= 1 && $ValPerl[0] eq 'use' && $ValClass[1] eq 'i') {   # issue s209
+          $UsePackage{$ValPy[1]} = $. unless exists $UsePackage{$ValPy[1]};       # issue s209, issue s18
+      } elsif($#ValClass >= 1 && $ValPerl[0] eq 'require' && $ValClass[1] eq 'i') {     # issue s18: Distinguish require from use as require is dynamic
+          $RequirePackage{$ValPy[1]} = $. unless exists $RequirePackage{$ValPy[1]};       # issue s18
       }
       if($TokenStr =~ m'C"' && !$::saved_eval_tokens) {     # issue 42 eval '...'
           # Parse the eval string into tokens
@@ -930,6 +945,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        say STDERR Dumper(\%Packages);
        print STDERR "UsePackage = ";
        say STDERR Dumper(\%UsePackage);
+       print STDERR "RequirePackage = ";
+       say STDERR Dumper(\%RequirePackage);
        print STDERR "FileHandles = ";
        say STDERR Dumper(\%Perlscan::FileHandles);
        print STDERR "SpecialVarsUsed = ";
@@ -996,11 +1013,11 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                     } elsif(defined $common_type && $common_type =~ / of .$/) {     # like a of S
                         $common_type =~ s/ of .$//;
                     }
-                    my $package_name = substr($varname,0,$ld);
+                    my $package_name = &Perlscan::unescape_keywords(substr($varname,0,$ld));    # issue s18
                     if(!exists $Packages{$package_name}) {       # issue bootstrap: our package: another program can change the value/type so we can't assume it
                         delete $NeedsInitializing{$subname}{$varname};
                     }
-		}
+		        }
                 $VarType{$varname}{$subname} = $common_type if(defined $common_type);
                 if(defined $common_type && $subname ne '__main__' && exists $NeedsInitializing{$subname}{$varname}) {     # SNOOPYJC
                     # $VarType{$varname}{main} = merge_types($varname, $subname, $common_type);        # SNOOPYJC
@@ -1022,7 +1039,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
    foreach $subname (sort keys %NeedsInitializing) {         # SNOOPYJC, issue s127
        foreach $varname (sort keys %{$NeedsInitializing{$subname}}) {   # issue s127
            # SNOOPYJC: issue bootstrap next if(!exists $VarSubMap{$varname}{$subname});   # if it's not in VarSubMap, then it's a "my" variable, which is handled in pythonizer
-	   next if($varname =~ /__dict__$/);
+	       next if($varname =~ /__dict__$/);
            next if($varname eq 'True' || $varname eq 'False');     # issue s23
            if($varname =~ /^[A-Za-z_][A-Za-z0-9_]*$/) {   # Has to be a valid python var name
                $InitVar{$subname} .= "\n$varname = ".init_val($NeedsInitializing{$subname}{$varname});
@@ -1030,10 +1047,11 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                $::Pyf{_init_global} = 1;
                my $dx = rindex($varname, '.');
                my $packname = substr($varname,0,$dx);
+               my $unescaped_packname = &Perlscan::unescape_keywords($packname);        # issue s18
                my $vn = substr($varname, $dx+1);
                my $ig = '_init_global';
                $ig = "$PERLLIB.init_global" if($::import_perllib);
-               if(exists $Packages{$packname}) {	# Only init if the named package is defined here
+               if(exists $Packages{$unescaped_packname}) {	# Only init if the named package is defined here
                	   $InitVar{$subname} .= "\n$varname = $ig('$packname', '$vn', " .init_val($NeedsInitializing{$subname}{$varname}) . ')';
 	           }
            }
@@ -1109,10 +1127,10 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
     # we 'use' that package.  This is so we generate an _init_package for that package
     my $dx = rindex($name, '.');
     if($dx != -1) {
-        my $packname = substr($name,0,$dx);
-        if(!exists $UsePackage{$packname} && !exists $PYTHON_PACKAGES_SET{$packname} && !exists $Packages{$packname} &&
+        my $packname = &Perlscan::unescape_keywords(substr($name,0,$dx));       # issue s18
+        if(!exists $UsePackage{$packname} && !exists $RequirePackage{$packname} && !exists $PYTHON_PACKAGES_SET{$packname} && !exists $Packages{$packname} &&   # issue s18
            $packname !~ /^len\(/ && $packname !~ /^builtins\b/ && 
-           $packname !~ /^\(len/ &&
+           $packname !~ /^\(/ &&
            $packname !~ /^$DEFAULT_MATCH\b/ && $packname !~ /^$PERLLIB\b/) {
             $Packages{$packname} = 2;           # 2 means we reference it but don't define it here
         }
@@ -2295,7 +2313,9 @@ sub apply_scalar_context                        # issue 37
     $pos = shift;
     return 0 if($pos < 0 || $pos > $#ValClass);
     # issue 30 if($ValClass[$pos] eq 'a' && substr($ValPy[$pos],0,4) ne 'len(') {
-    if($ValClass[$pos] =~ /[ah]/ && substr($ValPy[$pos],0,4) ne 'len(') {
+    if(($ValClass[$pos] =~ /[ah]/ ||
+       ($ValClass[$pos] eq 's' && defined $ValType[$pos] && $ValType[$pos] eq '@s'))    # handle @$var
+           && substr($ValPy[$pos],0,4) ne 'len(') {
         $ValPy[$pos] = 'len('.$ValPy[$pos].')';
         return 1;
     } elsif($ValClass[$pos] eq 'f' && exists $SPECIAL_FUNCTION_MAPPINGS{$ValPerl[$pos]}) {      # issue 65
@@ -2871,7 +2891,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
             if( substr($line,0,4) eq '=cut') {      # issue 79
                 # issue stdin $line = <>;                         # issue 79
                 $line = <SYSIN>;                         # issue 79, issue stdin
-                chomp($line);                   # SNOOPYJC
+                chomp($line) if defined $line;                   # SNOOPYJC
                 last;
             }
          }
@@ -3141,8 +3161,8 @@ my $delta;
 
 sub save_nest       # issue s155
 {
-    say STDERR "save_nest() = [$CurNest, $NextNest]" if($::debug);
-    return [$CurNest, $NextNest];
+    say STDERR "save_nest() = [$CurNest, $NextNest, $GeneratedCode]" if($::debug);
+    return [$CurNest, $NextNest, $GeneratedCode];
 }
 
 sub restore_nest    # issue s155
@@ -3150,7 +3170,8 @@ sub restore_nest    # issue s155
     my $saved = $_[0];
     $CurNest = $saved->[0];
     $NextNest = $saved->[1];
-    say STDERR "restore_nest([$CurNest, $NextNest])" if($::debug);
+    $GeneratedCode = $saved->[2];
+    say STDERR "restore_nest([$CurNest, $NextNest, $GeneratedCode])" if($::debug);
 }
 
 # based on https://www.geeksforgeeks.org/topological-sorting/
@@ -3181,9 +3202,12 @@ sub toposort
 }
 
 sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in the output file
+# NOTE: Issue s155 made this a bit more complicated because it generates nested subs that we have to move
+# in order to generate correct code.  The nested subs can be anywhere in the outer sub, which is typically
+# a BEGIN {...}, but can also just be a {...}.
 {
+    #return;     # TEMP
     close SYSOUT;
-    #return; # TEMP
     open(SYSOUT,'<',$output_file);
     # Pass 1 - find all the defs
     my %defs = ();
@@ -3196,6 +3220,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     my %dependencies = ('__main__'=>[]);
     my $insertion_point = 0;
     my @init_package_lnos = ();
+    my @import_lnos = ();                       # issue s18
     my @nested = ();                            # issue s3
     for my $line (@lines){
         $lno++;
@@ -3225,7 +3250,9 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
             push @nested, $func;
             $defs{$func} = $lno;
         } elsif($line =~ /^_init_package\(/ || $line =~ /^$PERLLIB\.init_package\(/) {
-            push @init_package_lnos, $lno;
+            push @init_package_lnos, $lno unless exists $::deferred_init_package_lines{$line};      # issue s18
+        } elsif($line =~ /# I_M_P_O_R_T/) {         # issue s18
+            push @import_lnos, $lno;                # issue s18
         }
     }
     # Pass 2 - find all the refs
@@ -3235,6 +3262,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     $insertion_point = 0;
     $lno = 0;
     my $in_def = undef;
+    my $in_def2 = undef;                # issue s155: Allow defs to be nested up to 2 levels
+    my %def_package = ();               # issue s18: What package is this def in?
     my %f_refs=();
     for my $Line (@lines) {
         $lno++;
@@ -3244,13 +3273,24 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         $line = eat_strings($Line);     # we change variables so eat_strings doesn't modify @lines
         if($in_def) {
             # issue s126 $in_def = undef if($line !~ /^def / && $line !~ /^class / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/ && !$multiline_string_sep);
-            $in_def = undef if($line !~ /^def / && $line !~ /^class / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/ && !$multiline_string_sep && # issue s126
-                               $line !~ /^_[A-Za-z][A-Za-z0-9_]+ = $in_def\(/);       # issue s126: still in_def on _ArrayHashClass = _partialclass(...)
-            #say STDERR "Not in_def on $line" if(!$in_def);	# TEMP
+            if($line =~ /^([A-Za-z0-9.]+)[.]$in_def = types[.]MethodType\($in_def,/ ||
+  # issue s216 $line =~ /^([A-Za-z0-9.]+)[.]$in_def = lambda \*_args: $in_def\(/ ||
+               $line =~ /^([A-Za-z0-9.]+)[.]$in_def = lambda \*_args: .*tie_call\($in_def,/ ||   # issue s216
+               $line =~ /^([A-Za-z0-9.]+)[.]$in_def = $in_def$/) {     # issue s18
+               $def_package{$in_def} = $1;                             # issue s18
+            }                                                          # issue s18
+            if($line !~ /^def / && $line !~ /^class / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/ && !$multiline_string_sep && # issue s126
+                               $line !~ /^_[A-Za-z][A-Za-z0-9_]+ = $in_def\(/) {       # issue s126: still in_def on _ArrayHashClass = _partialclass(...)
+                # issue s155 $in_def = undef;
+                $in_def = $in_def2;                 # issue s155
+                $in_def2 = undef;                   # issue s155
+                #say STDERR "Not in_def on $line" unless defined $in_def;	# TEMP
+            }
         }
         # issue s126 if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ||
         # issue s126    $line =~ /^(_[A-Za-z][A-Za-z0-9_]+) = _[A-Za-z][A-Za-z0-9_]/) {          # issue test coverage
         if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/) {  # issue s126: Don't handle _ArrayHashClass = _partialclass(...) as a def
+            $in_def2 = $in_def;             # issue s155
             $in_def = $1;
             #say STDERR "in_def $in_def on $line";	# TEMP
         }
@@ -3363,6 +3403,12 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     $lno = 0;
     my %moved_lines = ();
     my $multiline_string_sep = '';
+    # issue s18: test case is RefsMain.pm.  Contains a "require Exporting" and also @ISA='Exporting' so
+    # we have to import Exporting, then do the init_package for RefsMain.  Only after then can we
+    # put code that sets or uses RefsMain, such as "RefsMain.set_main = set_main".
+    # We use %deferred_lines to hold the lines of "def set_main" until it's package is defined
+    my %deferred_lines = ();                    # issue s18: Package => lines
+    my %packages_initialized = ();              # issue s18
     for my $line (@lines) {
         $lno++;
         next if($line eq '^');          # This means "delete this line"
@@ -3382,9 +3428,20 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
            }
            next
         }
+        for my $ip_lno (@import_lnos) {             # issue s18
+            my $ln = $lines[$ip_lno-1];             # issue s18
+            $ln =~ s/ # I_M_P_O_R_T//;              # issue s18
+            pep8($sysout, $ln);                     # issue s18
+            $moved_lines{$ip_lno} = 1;              # issue s18
+        }                                           # issue s18
+        @import_lnos = ();                          # issue s18
         if($::import_perllib) {
             for my $ip_lno (@init_package_lnos) {
-                pep8($sysout, $lines[$ip_lno-1]);
+                my $ln = $lines[$ip_lno-1];        # issue s18
+                if($ln =~ /^$PERLLIB\.init_package\('([A-Za-z0-9._]+)'/) {  # issue s18
+                    $packages_initialized{$1} = 1;                          # issue s18
+                }                                                           # issue s18
+                pep8($sysout, $ln);                 # issue s18
                 $moved_lines{$ip_lno} = 1;
             }
             @init_package_lnos = ();
@@ -3447,9 +3504,10 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                         $lines[$i] =~ /^\s*$/ || $lines[$i] =~ /^\s*#/ || $lines[$i] =~ m'^@' ||
 			            $lines[$i] =~ /^${func}_[\w]+ =/ ||	 # state variable like func_var = init
                         $lines[$i] =~ /[.]$func = types[.]MethodType\($func,/ ||     # issue s3
-                        $lines[$i] =~ /[.]$func = lambda \*_args: $func\(/ ||     # issue s154
+           # issue s216 $lines[$i] =~ /[.]$func = lambda \*_args: $func\(/ ||     # issue s154
+                        $lines[$i] =~ /[.]$func = lambda \*_args: .*tie_call\($func,/ ||     # issue s154, issue s216
                         $lines[$i] =~ /[.]$func = $func$/) {     # e.g. main.func = func
-                        #say STDERR "Found def $func";
+                        #say STDERR "Found def $func";   # TEMP
                     if(exists $moved_lines{$i+1}) {         # Don't include it twice
                         $already_moved++;
                         next;
@@ -3458,10 +3516,21 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                     $moved_def = 1 if($lines[$i] =~ /^def $func\(/ || $lines[$i] =~ /^class $func[(:]/ ||
                                       $lines[$i] =~ /^$func = _/);      # issue test coverage
                     $moved_lines{$i+1} = 1;
-                    #say STDERR "writing lines[$i] ($lines[$i])";
+                    #say STDERR "writing lines[$i] ($lines[$i])";    # TEMP
                     $lines_moved++;
-                    pep8($sysout, $lines[$i]);
+                    if(exists $def_package{$func} && !exists $packages_initialized{$def_package{$func}}) {  # issue s18
+                        push @{$deferred_lines{$def_package{$func}}}, $lines[$i];        # issue s18
+                    } else {                                                # issue s18
+                        pep8($sysout, $lines[$i]);
+                    }
+                } elsif(exists $moved_lines{$i+1}) {            # issue s155
+                    #say STDERR "skipped writing as this was already moved: $lines[$i]";    # TEMP
+                    next;
                 } else {
+                    if($lines[$i] eq 'pass') {          # issue s155: Effectively use up the 'pass' we inserted to stop movement so code of the outer block can be moved
+                        $moved_lines{$i+1} = 1;         # issue s155
+                    }                                   # issue s155
+                    #say STDERR "stopped writing as we found $lines[$i]";    # TEMP
                     last;
                 }
             }
@@ -3469,7 +3538,17 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
             # Special case - move all _init_package calls right after it's definition
             if($func eq '_init_package') {
                 for my $ip_lno (@init_package_lnos) {
-                    pep8($sysout, $lines[$ip_lno-1]);
+                    my $ln = $lines[$ip_lno-1];                                 # issue s18
+                    pep8($sysout, $ln);                                         # issue s18
+                    if($ln =~ /^_init_package\('([A-Za-z0-9._]+)'/) {           # issue s18
+                        $packages_initialized{$1} = 1;                          # issue s18
+                        if(exists $deferred_lines{$1}) {                        # issue s18
+                            foreach $ln (@{$deferred_lines{$1}}) {              # issue s18
+                                pep8($sysout, $ln);                             # issue s18
+                            }                                                   # issue s18
+                            delete $deferred_lines{$1};                         # issue s18
+                        }                                                       # issue s18
+                    }                                                           # issue s18
                     $moved_lines{$ip_lno} = 1;
                 }
             }
@@ -3488,6 +3567,16 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
             $multiline_string_sep = '' if(index($line, $multiline_string_sep, $ndx+3) >= 0);
         }
         pep8($sysout, $line);
+        if($line =~ /^$PERLLIB\.init_package\('([A-Za-z0-9._]+)'/ ||
+           $line =~ /^_init_package\('([A-Za-z0-9._]+)'/) {         # issue s18
+            $packages_initialized{$1} = 1;                          # issue s18
+            if(exists $deferred_lines{$1}) {                        # issue s18
+                foreach $ln (@{$deferred_lines{$1}}) {              # issue s18
+                    pep8($sysout, $ln);                             # issue s18
+                }                                                   # issue s18
+                delete $deferred_lines{$1};                         # issue s18
+            }                                                       # issue s18
+        }                                                           # issue s18
     }
     close $sysout;
 }
@@ -3695,6 +3784,14 @@ sub pretty_print_python
 {
     my $nul = ($^O eq 'MSWin32') ? 'nul' : '/dev/null';
     `$PRETTY_PRINTER -l$::black_line_length "$output_file" 2>$nul`
+}
+
+sub create_link_if_needed           # issue s211
+# Create a hard link from our output file to file/__init__.py if we need to create a package
+{
+    return unless $fname =~ /\.pm$/;
+    return unless -d $source_file;
+    link $output_file, "$source_file/__init__.py";      # Create a package
 }
 
 sub get_fstring_items
@@ -4026,11 +4123,11 @@ sub set_out_parameter                   # issue s184
            $SubAttributes{$cs}{out_parameters} = [$arg];
        }
    }
-   if(exists $Perlscan::SpecialVarsUsed{'bless'}) {
-       $SubAttributes{'->'.$cs} = $SubAttributes{$cs};
+   if(exists $Perlscan::SpecialVarsUsed{'bless'} && exists $Perlscan::SpecialVarsUsed{'bless'}{$CurPackage}) {  # issue s18
+       $SubAttributes{'->'.$cs} = dclone($SubAttributes{$cs});
    }
    $SubAttributes{$CurPackage . '.' . $cs} = $SubAttributes{$cs};
-   $SubAttributes{'main.' . $CurPackage . '.' . $cs} = $SubAttributes{$cs};
+   $SubAttributes{'main.' . $CurPackage . '.' . $cs} = $SubAttributes{$cs} unless $CurPackage eq 'main';
 }
 
 sub propagate_sub_attributes_for_bless      # issue s184

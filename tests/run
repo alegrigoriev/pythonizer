@@ -9,7 +9,8 @@ export PYTHONPATH=/c/pythonizer/pythonizer
 cd ../tests
 
 echo "Cleaning .py files"
-rm *.py
+rm -f *.py subdir/*.py subdir/subsubdir/*.py My/*.py
+rm -fr PyModules
 status=0
 failed=0
 tests=0

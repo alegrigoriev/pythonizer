@@ -10,10 +10,10 @@ def _num(expr):
         pass
     #if isinstance(expr, (int, float)):
         #return expr
-    try:
-        return int(expr)
-    except Exception:
-        pass
+    #try:
+        #return int(expr)
+    #except Exception:
+        #pass
     for _ in range(2):
         try:
             f = float(expr)
@@ -32,6 +32,11 @@ def _num(expr):
             expr = m.group(1);
         elif hasattr(expr, 'isHash') and expr.isHash is None:
             return 0
+        elif isinstance(expr, object) and hasattr(expr, '__class__') and isinstance(expr.__class__, type):    # a perl object
+            if hasattr(expr, '_num_') and callable(expr._num_):
+                return expr._num_()         # use overload "0+"
+            # Breaks Math::Complex operations!  return id(expr)     # Objects in == are compared by address
+            return expr
         else:
             return expr
     if WARNING:

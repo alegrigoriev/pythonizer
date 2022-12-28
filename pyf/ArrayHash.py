@@ -305,7 +305,7 @@ def ArrayHash(init=None,isHash=None):
     """Acts like an array or hash with autovivification"""
     result = _ArrayHash(ArrayHash,isHash=isHash)
     if init is not None:
-        if isinstance(init, _ArrayHash):
+        if isinstance(init, _ArrayHash) or '_ArrayHash' in str(type(init)):
             if init.isHash:
                 result.update(init)
             else:
