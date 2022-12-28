@@ -43,5 +43,32 @@ END {
     assert($begin == 4);
 }
 
+# Additional test cases
+
+{
+    package my_pack;
+    use Carp::Assert;
+    sub two { 2 };
+    assert(two() == 2);
+}
+
+assert(!defined &main::two);
+
+INIT {
+    package init_pack;
+    $init = 1;
+    sub three { 3 };
+    $init++;
+}
+assert(init_pack::three() == 3);
+assert($init_pack::init == 2);
+
+BEGIN {
+    sub one { 1 }
+}
+
+assert(one() == 1);
+assert(main::one() == 1);
+
 print "$0 - test passed!\n";
 

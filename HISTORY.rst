@@ -2,6 +2,11 @@
 History
 =======
 
+1.020 (2022-12-20)
+------------------
+
+* Issue s18: Update _init_package to upgrade a SimpleNamespace to a type if we're called again and that is specified, also handle isa=... when is_class is False as inheritance still works in Perl without using bless, Issue s216: add _add_tie_methods, call it in _bless, Issue s218: change _num(object) to call _num_ if it's defined via use overload, change _init_package to define an 'is' comparison for classes and objects so == works as expected
+
 1.019 (2022-12-10)
 ------------------
 

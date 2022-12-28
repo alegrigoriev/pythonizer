@@ -231,6 +231,7 @@
 # 1.017  2022/12/04  SNOOPYJC issue s186: Eliminate bogus warnings when calling external subs in package main, issue s187: use MODULE (); should not call the import method, issue s188: Handle \*main::STDIN and \*STDIN as alternates to STDIN
 # 1.018  2022/12/05  SNOOPYJC issue s185: Implement subs with scalar reference out parameters, issue s191: Passing a hash to a sub should send the keys and values, issue s192: Reference to a prior match capture group in a non-capturing match generates bad code, issue s190: Local sub should not override the CORE function unless use subs is specified, addl fix for issue s184 with array or hash args, issue s194: map with a ? : conditional array generates bad code, issue s195: Naming a variable $caller generates incorrect code, issue s196: Pattern match in ? : operation generates bad code, issue s197: Complex ? : with defined and split generates bad code, issue s198: Array or hash in local declaration list in a sub should consume the rest of the RHS, issue s200: Naming variables the same as python imported packages causes problems, issue s201: Method call with expanded hash generates bad code, issue s202: [arrayfunc()] incorrectly generates an array with an array in it, issue s203: $self->PACKAGE::subname(...) generates incorrect code, issue s204: Complex double ? : operation generates bad code
 # 1.019  2022/12/10  SNOOPYJC issue s205: complex method call with -barewords generates bad code, issue s206: string range in definition generates bad code, test GPT regex - assume any variable in a regex can contain groups, addl fix for issue s131 with unbalanced ( in RHS, issue s207: Bless with || generates incorrect code, addl fix for issue s124 with a regex, addl fix for issue s144 on local, issue scalar ref: handle ref function properly on scalars, issue s208: Method call with multiple shift operators isn't being translated properly, issue s209: Multiple packages in the same file with names that have the same prefix causes errors on global variable initialization, issue s210: Calling a sub stored in a hash generates incorrect code
+# 1.020  2022/12/20  SNOOPYJC issue s211: create link from PACKAGE.py to PACKAGE/__init__.py if PACKAGE is a directory, addl fix for issue s177 with -nph=>':standard', issue s212: shift->{key} generates bad code, additional fix for issue s155 to generate proper results from nested subs, handle nested packages, and also handle code after the nested sub definition, issue s18: implement use package, issue s213: Constant hashref dereference generates bad code, implement fallback on use overload, implement PerlIO::get_layers(fh), issue s214: Function templates don't work in blessed classes or packages with an ISA parent, issue s216: tie class methods need to be set on a subclass of the class instance, not on the class, issue s215: if(keys %$leftover) incorrectly raises an exception if $leftover is undef, addl fix for issue s154 on sub import, issue s218: Return with ||= generates bad code (and object comparison is broken), issue s220: In a sub, unshift(@_, ...) gives a TypeError: 'tuple' object does not support item assignment
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -266,6 +267,7 @@ BEGIN {                                                 # SNOOPYJC
    use Perlscan ('gen_statement', 'tokenize', 'gen_chunk', 'append', 'replace',
                  'insert', 'destroy', 'autoincrement_fix', '@ValClass', '@ValPerl', '@ValPy', '@ValCom',
                  'escape_keywords',                     # issue 41
+                 'unescape_keywords',                   # issue s18
                  'save_code', 'restore_code',           # issue 74
                  '%SpecialVarsUsed',                    # SNOOPYJC
                  '%SpecialVarR2L',                      # SNOOPYJC
@@ -288,7 +290,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub save_nest restore_nest); # SNOOPYJC
 
-   $VERSION='1.019';
+   $VERSION='1.020';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -480,35 +482,153 @@ BEGIN {                                                 # SNOOPYJC
        output_line('',$l); # to block reproducing the first source line
    }
 
-   my $package_sort = sub {                 # issue s209: Put 'main' first
-       my $aye = $a eq 'main' ? '0' : $a;
-       my $bee = $b eq 'main' ? '0' : $b;
-       return $aye cmp $bee;
-   };
+# issue s18   my $package_sort = sub {                 # issue s209: Put 'main' first
+# issue s18       my $aye = $a eq 'main' ? '0' : $a;
+# issue s18       my $bee = $b eq 'main' ? '0' : $b;
+# issue s18       if(exists $SpecialVarsUsed{'bless'}) {           # issue s18: Put base classes before subclasses
+# issue s18           if($SpecialVarsUsed{'bless'}{$a}) {
+# issue s18               my $key = $a . '.ISA';
+# issue s18               if(exists $SpecialVarsUsed{$key}) {
+# issue s18                   $isa = $SpecialVarsUsed{$key}{__main__};
+# issue s18                   $isa =~ s/\.split\(\)$//;
+# issue s18                   $isa = unquote_string($isa);
+# issue s18                   for my $parent (split ' ', $isa) {
+# issue s18                       return 1 if($parent eq $b);
+# issue s18                   }
+# issue s18               }
+# issue s18           }
+# issue s18           if($SpecialVarsUsed{'bless'}{$b}) {
+# issue s18               my $key = $b . '.ISA';
+# issue s18               if(exists $SpecialVarsUsed{$key}) {
+# issue s18                   $isa = $SpecialVarsUsed{$key}{__main__};
+# issue s18                   $isa =~ s/\.split\(\)$//;
+# issue s18                   $isa = unquote_string($isa);
+# issue s18                   for my $parent (split ' ', $isa) {
+# issue s18                       return -1 if($parent eq $a);
+# issue s18                   }
+# issue s18               }
+# issue s18           }
+# issue s18       }
+# issue s18
+# issue s18       return $aye cmp $bee;
+# issue s18   };
 
-   for my $package (sort $package_sort keys %Packages) {           # SNOOPYJC, issue s209: add 'sort' to get CGI before CGI.MultipartBuffer
+   # issue s18: Properly sort the packages esp if there are dependencies to other packages
+   my %dependencies = ('main'=>[]);
+   my @unsorted = reverse sort keys %Packages;
+   for my $package (@unsorted) {
+       my @pieces = split /\./, $package;
+       push @{$dependencies{'main'}}, $package unless $package eq 'main';      # Put main first
+       if(scalar(@pieces) != 1) {
+           for(my $l = 0; $l < $#pieces; $l++) {
+               my $p = join('.', @pieces[0..$l]);
+               if(exists $Packages{$p}) {
+                   push @{$dependencies{$p}}, $package;
+               }
+           }
+       }
+       # issue s18: Put base classes before subclasses
+       my $key = $package . '.ISA';
+       if(exists $SpecialVarsUsed{$key}) {
+           $isa = $SpecialVarsUsed{$key}{__main__};
+           $isa =~ s/\.split\(\)$//;
+           $isa = unquote_string($isa);
+           for my $p (split ' ', $isa) {
+               push @{$dependencies{$p}}, $package;
+           }
+       }
+   }
+   if($::debug >= 3) {
+        $Data::Dumper::Indent=0;
+        $Data::Dumper::Terse = 1;
+        say STDERR "package dependencies: ";
+        say STDERR Dumper(\%dependencies);
+    }
+
+    my $children = sub { @{$dependencies{$_[0]} || []} };
+    @sorted_packages = &Pythonizer::toposort($children, \@unsorted);
+
+   #for my $package (sort $package_sort keys %Packages) {           # SNOOPYJC, issue s209: add 'sort' to get CGI before CGI.MultipartBuffer
+   my %deferred_init_packages = ();         # RequirePackage => [lines]
+   my %deferred_init_packages_map = ();     # package => RequirePackage
+   %deferred_init_package_lines = ();       # line => 1
+   my $defer = '';                      # issue s18
+   my $defer_lno = 0;                   # issue s18
+   for my $package (@sorted_packages) {           # SNOOPYJC, issue s209: add 'sort' to get CGI before CGI.MultipartBuffer
        next if($package =~ /^main\./ && exists $Packages{substr($package, 5)});     # issue s209: skip 'main.XXX' if we have 'XXX'
        $Pyf{_init_package} = 1;
        my $is_class = '';
+       #if((exists $SpecialVarsUsed{'bless'} && exists $SpecialVarsUsed{'bless'}{$package}) || parent_is_class($package)) {  # issue s18
        if(exists $SpecialVarsUsed{'bless'} && exists $SpecialVarsUsed{'bless'}{$package}) {
            $is_class = ', is_class=True';
-           if(exists $SpecialVarsUsed{'@ISA'}) {
-              $is_class .= ", isa=$SpecialVarsUsed{'@ISA'}{__main__}";
+       }
+       my $key = $package . '.ISA';       # issue s18
+       if(exists $SpecialVarsUsed{$key}) {                      # issue s18
+           $is_class .= ", isa=$SpecialVarsUsed{$key}{__main__}";   # issue s18
+           my $parents = $SpecialVarsUsed{$key}{__main__};
+           $parents =~ s/\.split\(\)$//;
+           $parents = unquote_string($parents);
+           foreach my $parent (split ' ', $parents) {
+               if(exists $Pythonizer::RequirePackage{$parent} && !exists $BUILTIN_LIBRARY_SET{$parent}) {
+                   if($Pythonizer::RequirePackage{$parent} > $defer_lno) {
+                       $defer = $parent;
+                       $defer_lno = $Pythonizer::RequirePackage{$parent};
+                   }
+               }
            }
-           if($autovivification) {                              # issue test coverage
-               $PYF_CALLS{'_init_package'} = 'ArrayHash,Hash,_ArrayHash,_ArrayHashClass,_partialclass';  # issue test coverage
+           if($package ne $DEFAULT_PACKAGE && exists $Pythonizer::PackageDef{$package}) {
+               $deferred_init_packages_map{$package} = $package;    # Used to defer initialiazations
            }
        }
-       $package = escape_keywords($package, 1);
+       if($is_class && $autovivification) {                              # issue test coverage
+           $PYF_CALLS{'_init_package'} = 'ArrayHash,Hash,_ArrayHash,_ArrayHashClass,_partialclass';  # issue test coverage
+       }
+       my $ip;
+       $escaped_package = escape_keywords($package, 1); # issue s18
        if($import_perllib) {
-          output_line('', "$PERLLIB.init_package('$package'$is_class)");
+          $ip = "$PERLLIB.init_package('$escaped_package'$is_class)";
        } else {
-          output_line('', "_init_package('$package'$is_class)");
+          $ip = "_init_package('$escaped_package'$is_class)";
+       }
+       if($defer) {
+           push @{$deferred_init_packages{$defer}}, $ip;
+           $deferred_init_package_lines{$ip} = 1;           # So we don't move it
+           $deferred_init_packages_map{$package} = $defer;
+       } else {
+           output_line('', $ip);
        }
    }
    if(exists $InitVar{__main__}) {                  # SNOOPYJC, issue 41
+       if(keys %deferred_init_packages_map) {           # issue s18: Def any dependencies on use/_init_package
+           my @kept_lines = ();
+           my @lines = split(/\n/, $InitVar{__main__});
+           foreach (@lines) {
+               #say STDERR "InitVar = $_";
+               if(/^([A-Za-z0-9_.]+)\.[A-Za-z0-9_]+ /) {
+                   #say STDERR "matched $1";
+                   my $package = unescape_keywords($1);
+                   #say STDERR "unescaped $package";
+                   if(exists $deferred_init_packages_map{$package}) {
+                       my $usep = $deferred_init_packages_map{$package};
+                       push @{$deferred_init_packages{$usep}}, $_;
+                   } else {
+                       push @kept_lines, $_;
+                   }
+               } else {
+                   push @kept_lines, $_;
+               }
+           }
+           $InitVar{__main__} = join("\n", @kept_lines);
+       }
+
        output_line('', $InitVar{__main__});             # issue 41
    }
+   if($::debug >= 3) {
+        $Data::Dumper::Indent=0;
+        $Data::Dumper::Terse = 1;
+        say STDERR "deferred_init_packages";
+        say STDERR Dumper(\%deferred_init_packages);
+    }
 
    foreach my $end (@EndBlocks) {                               # SNOOPYJC
         output_line('', "atexit.register($end)");               # SNOOPYJC
@@ -895,9 +1015,15 @@ my ($start,$token_buffer_active);
                     # one of the names in %CLASS_METHOD_SET (new, make), or if it calls 'bless' and it's not
                     # listed in overloads:
                     gen_statement("$p_escaped.$escaped = types.MethodType($escaped, $p_escaped)");      # issue s3
-                } elsif((exists $LocalSub{TIEHASH} && $LocalSub{TIEHASH} == 1) || 
-                        (exists $LocalSub{TIEARRAY} && $LocalSub{TIEARRAY} == 1)) {      # issue s154
-                    gen_statement("$p_escaped.$escaped = lambda *_args: $escaped(_args[0].__dict__, *_args[1:])");  # issue s154
+                } elsif($CurSub ne 'import' && ((exists $LocalSub{TIEHASH} && $LocalSub{TIEHASH} == 1) || 
+                        (exists $LocalSub{TIEARRAY} && $LocalSub{TIEARRAY} == 1))) {      # issue s154
+                    # issue s216 gen_statement("$p_escaped.$escaped = lambda *_args: $escaped(_args[0].__dict__, *_args[1:])");  # issue s154
+                    $Pyf{_tie_call} = 1;        # issue s216
+                    if($import_perllib) {       # issue s216
+                        gen_statement("$p_escaped.$escaped = lambda *_args: $PERLLIB.tie_call($escaped, _args)");
+                    } else {
+                        gen_statement("$p_escaped.$escaped = lambda *_args: _tie_call($escaped, _args)");
+                    }
                 } else {
                     gen_statement("$p_escaped.$escaped = $escaped");
                 }
@@ -2004,6 +2130,7 @@ my ($start,$token_buffer_active);
    }
    Pythonizer::move_defs_before_refs();                 # SNOOPYJC
    Pythonizer::pretty_print_python() if($black);        # SNOOPYJC
+   Pythonizer::create_link_if_needed();                 # issue s211
    $rc=summary(); # print diagnostic messages summary
    exit $rc;
 
@@ -2988,6 +3115,13 @@ sub remove_dereferences                     # issue 50
                         $to -= $to - ($i+3);                     # issue s210: we destroy $to below
                     } elsif($ValClass[$i] eq '&' || $to+1 > $#ValClass || $ValClass[$to+1] ne '(') {     # issue s143: Don't change it to 'a' if it's subscripted
                         replace($i+2, $class_map{$ValClass[$i]}, $ValPerl[$i+2], $ValPy[$i+2]);     # issue s143: Replace also fixes $TokenStr
+                    } 
+                    if($autovivification && $ValClass[$i] eq '%' && $to == $i+3 && $Pythonizer::VarType{$ValPy[$i+2]}{$CurSub} !~ /^h/ &&
+                        (($i-1 >= 0 && $ValClass[$i-1] eq 'f') || ($i-2 >= 0 && $ValClass[$i-1] eq '(' && $ValClass[$i-2] eq 'f'))) {   # issue s215
+                        # Passing a %{$var} to a function like keys with autovivification makes it spring to life as a Hash
+                        $Pyf{Hash} = 1;                                                # issue s215
+                        my $perllib = $import_perllib ? "$PERLLIB." : '';              # issue s215
+                        $ValPy[$i+2] = "($ValPy[$i+2] if $ValPy[$i+2] is not None else ${perllib}Hash())";     # issue s215 
                     }                                                       # issue s143
                     $change = 1;
                 }
@@ -3406,7 +3540,8 @@ sub fix_expression_issues
         replace($oop+3,',',',',',');
         my $func = $ValPerl[$oop+2];
         my $py = '_' . $func;
-        replace($oop+2,$ValClass[$oop],$ValPerl[$oop],$ValPy[$oop]);
+        # issue s18 replace($oop+2,$ValClass[$oop],$ValPerl[$oop],$ValPy[$oop]);
+        replace($oop+2,'"',$ValPerl[$oop],$ValPy[$oop]);        # issue s18: replace the class with a pseudo-string
         replace($oop+1,'(','(','(');
         replace($oop,'f',$func,$py);
    }
@@ -3480,6 +3615,7 @@ sub fix_expression_issues
        if($pos-1 >= 0 && $pos+1 <= $limit && $ValPy[$pos] =~ /\.split\(\)$/ &&
           $ValClass[$pos-1] eq '(' && $ValPerl[$pos-1] eq '[' &&
           $ValClass[$pos+1] eq ')' && $ValPerl[$pos+1] eq ']') {
+          $ValType[$pos] = 's';             # Flag it as a scalar so we don't splat it
           destroy($pos+1,1);
           destroy($pos-1,1);
           $limit -= 2;
@@ -3595,7 +3731,7 @@ sub fix_expression_issues
        $st = $pos+1;
        last if($st > $limit);
    }
-   
+
    # NOTE: Add new updates here, not at the bottom of this function!
    
    # issue 81: Handle anonymous sub in expression
@@ -3643,6 +3779,7 @@ sub finish
     #say STDERR "finish $CurSub generated_code=$generated_code, line=(($line)), prev_line=(($prev_line)), ValPerl=@ValPerl, CurNest=$Pythonizer::CurNest";
     #say STDERR "finish nested_sub_at_level=$nested_sub_at_level, nesting_level=$Perlscan::nesting_level";
     my $reparse_with_return = 0;
+    my $top;            # issue s155
     $eval_nest = ((scalar(@eval_stack) == 0) ? -2 : $eval_stack[-1]->{eval_nest});        # issue 42, issue s13
     if(($CurSub ne '__main__' || scalar(@eval_stack) != 0 || $nested_sub_at_level > 0) && # issue 42, issue 41, issue 78
         defined $line &&                                        # issue 42
@@ -3654,6 +3791,7 @@ sub finish
          $line =~ m'^\s*};\s*#') &&                                # issue 42
         #$ValPerl[0] ne 'return' && $Pythonizer::CurNest==1) {      # issue 45
         $ValPerl[0] ne 'return' && ($Perlscan::nesting_level==1 ||  # issue 45, SNOOPYJC: Handle sub with try block
+        (scalar(@Perlscan::nesting_stack) && $Perlscan::nesting_level==($top = $Perlscan::nesting_stack[-1])->{level}+1 && $top->{type} eq 'def') || # issue s155
             exists $line_needs_added_return{$Perlscan::statement_starting_lno} || # issue implicit conditional return
         $Pythonizer::CurNest == $eval_nest+1 ||             # issue s13
         $Perlscan::nesting_level == $nested_sub_at_level)) {    # issue 78
@@ -3794,7 +3932,17 @@ sub finish
                 $return = undef;
             }                                                   # issue 45
             #say STDERR "PythonCode[0] = $Perlscan::PythonCode[0]";  # TEMP
-            unshift @Perlscan::PythonCode,$return if($return);  # issue 45
+
+            if($return) {
+                if($CurSub eq 'TIEHASH' || $CurSub eq 'TIEARRAY') {    # issue s216
+                    $Pyf{_add_tie_methods} = 1;             # issue s216
+                    my $atm = $import_perllib ? "$PERLLIB.add_tie_methods" : '_add_tie_methods';    # issue s216
+                    unshift @Perlscan::PythonCode, '(';     # issue s216
+                    unshift @Perlscan::PythonCode, $atm;    # issue s216
+                    push @Perlscan::PythonCode, ')';        # issue s216
+                }                                           # issue s216
+                unshift @Perlscan::PythonCode,$return;          # issue 45
+            }
         } elsif($ValClass[0] !~ /[cCk]/ && index($TokenStr,'=') > 0) {               # issue 45
             my $new_line = $line;                               # issue implicit conditional return
             $prev_line =~ s/^\s*my\s+//;                        # issue 45
@@ -4141,6 +4289,25 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
    if(exists $SpecialVarR2L{$ValPy[$k]}) {      # SNOOPYJC: Change _nr() to INPUT_LINE_NUMBER etc
        $ValPy[$k] = $SpecialVarR2L{$ValPy[$k]};
    }
+
+   # issue s214: Replace stores to package.__dict__ with setattr calls
+   if($ValPerl[$k] eq '*' && $ValPy[$k] =~ /^([A-Za-z0-9_.]+)\.__dict__$/ && 
+      $k+1 <= $#ValClass && $ValClass[$k+1] eq '(' && $ValPerl[$k+1] eq '{') {
+      my $close = matching_br($k+1);
+      last if $close < 0;
+      next if $close+1 > $#ValClass;
+      next if $ValClass[$close+1] ne '=';
+      my $end_pos = end_of_assignment($k, $close+1);
+      insert($end_pos+1, ')', ')', ')');
+      replace($close+2, 'y', $ValPerl[$close+2], $ValPy[$close+2]) if($ValClass[$close+2] eq 'k');
+      replace($close+1, ',', ',', ',');
+      destroy($close, 1);
+      replace($k+1, ',', ',', ',');
+      replace($k, 'y', $1, $1);
+      insert($k, '(', '(', '(');
+      insert($k, 'f', 'setattr', 'setattr');
+      return function($k);
+  }
 
 #
 # C-style ++ and --
@@ -4656,10 +4823,23 @@ my ($k,$split,$post_processing,$comma_pos,$colon_pos,$from,$to);
                     !defined $number_of_elements) {     # issue bootstrap: hashref or arrayref
                 my $typ = 'a';
                 $typ = 'h' if($ValPerl[$split+1] eq '{');
-                my $converter = $AUTOVIVIFICATION_CONVERTER_MAP{$typ};
-                $Pyf{$converter} = 1;
-                gen_chunk("$converter", '(');
-                $add_right_paren++;
+                my $end_br = matching_br($split+1);
+                my $skip_converter = 0;
+                if($end_br != -1 && $end_br < $limit) {                     # issue s213
+                    if($ValClass[$end_br+1] eq 'A' || ($ValClass[$end_br+1] eq '(' && $ValPerl[$end_br+1] ne '(')) {
+                        # issue s213: we're just grabbing an element so don't need to autovivify
+                        $skip_converter = 1 
+                    }
+                    $extra = $end_br+1;
+                    $orig_limit = $limit;
+                    $limit = $end_br;
+                }
+                unless($skip_converter) {               # issue s213
+                    my $converter = $AUTOVIVIFICATION_CONVERTER_MAP{$typ};
+                    $Pyf{$converter} = 1;
+                    gen_chunk("$converter", '(');
+                    $add_right_paren++;
+                }
             }
             # If LHS is hash and this is a list expr, do the appropriate conversion
             if($ValClass[$start] eq 'h' && &Pythonizer::expr_type($split+1, $limit, $CurSub) =~ /^a/) {
@@ -6057,6 +6237,8 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
             $k=expression($start,$#ValClass,2); # issue foreach, issue s75: do splats
          } elsif( $ValPerl[$start] ne '(' || $ValPerl[-1] ne ')') {        # issue foreach: This is a list - keep the parens
             $k=expression($start,$#ValClass,0); # issue foreach
+         } elsif(next_same_level_token('=', $start+1, $#ValClass-1) != -1) {     # issue s217: We have a := in there: keep the parens
+            $k=expression($start,$#ValClass,0); # issue s217
          } else {                                # issue foreach
             destroy($#ValClass, 1);                # issue foreach - eat the right paren
             $k=expression($start+1,$#ValClass,0); # issue foreach: No list - no parens
@@ -6075,6 +6257,15 @@ my ($hashpos,$end_pos,$end_br_pos,$k,$increment,$tempvar);
        gen_chunk("builtins.__PACKAGE__ = '$ValPy[$start]'");
        $CurPackage = $ValPy[$start];
        $set_initial_package = 1;
+       # issue s18: Generate the '_init_package(...)' lines we deferred waiting for the 'package' definition line to be generated
+       # We do this to prevent the _init_global calls from occuring before the parent variable is defined
+       if(exists $deferred_init_packages{$ValPy[$start]}) {
+           gen_statement();
+           foreach my $defer (@{$deferred_init_packages{$ValPy[$start]}}) {
+               gen_statement($defer);
+           }
+           delete $deferred_init_packages{$ValPy[$start]};     # Only generate them once even if this package is defined again
+       }
        return $#ValClass;
    }elsif($ValPy[$begin] eq 'given') {              # issue s129
        my $top = $Perlscan::nesting_stack[-1];
@@ -6790,6 +6981,11 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
    }elsif($perl_name eq 'shift' || $perl_name eq 'pop'){        # issue 28
       # assent only a single arg -- array; if no argument then it uses @_ array
       $bracketed=-1 if($bracketed!=-1 && index('>0o+-*/',$ValClass[$start]) >= 0); # issue 28: pop has no arg if the next thing is an operator
+      if($bracketed == 0 && $ValClass[$begin+1] eq '(' && $ValPerl[$begin+1] ne '(') {    # issue s212
+          $bracketed = -1;                                      # issue s212
+          $start = $begin+1;                                    # issue s212
+          $limit = $begin;                                      # issue s212
+      }                                                         # issue s212
       if($bracketed == 0 && $ValClass[$start] eq 'a' && $end_pos > $start && $ValClass[$start+1] eq ',') {   # issue s208
           $end_pos=$limit=$start;   # issue s208: end_of_function is not correct as it doesn't know the difference between an array and a list
       }                             # issue s208
@@ -7853,10 +8049,11 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
            my $p_escaped = escape_keywords($CurPackage, 1);
            gen_chunk("'$p_escaped'");
        }
-       if((exists $LocalSub{TIEHASH} && $LocalSub{TIEHASH} == 1) || 
-          (exists $LocalSub{TIEARRAY} && $LocalSub{TIEARRAY} == 1)) {       # issue s154
-          gen_chunk(', is_tie_package=True');                               # issue s154
-       }
+       # issue s216 if((exists $LocalSub{TIEHASH} && $LocalSub{TIEHASH} == 1) || 
+       # issue s216    (exists $LocalSub{TIEARRAY} && $LocalSub{TIEARRAY} == 1)) {       # issue s154
+       # issue s216    gen_chunk(', is_tie_package=True');                               # issue s154
+       # issue s216    $PYF_CALLS{_bless} .= ',_add_tie_methods,_raise';                 # issue s216
+       # issue s216 }
        gen_chunk(')');
    } elsif($perl_name eq 'tie') {               # issue s154
        my $class = $ValClass[$start];
@@ -8079,6 +8276,7 @@ sub need_splat          # SNOOPYJC: Does this function/sub arg need a '*' before
         # issue s151 return 1 if($k+2 <= $#ValClass && $ValClass[$k+1] eq '~' && $ValClass[$k+2] eq 'q');
         return 1 if($k+2 <= $#ValClass && $ValClass[$k+1] eq 'p' && $ValClass[$k+2] eq 'q');        # issue s151
     } elsif($ValClass[$k] eq 'q' && $ValPy[$k] =~ /\.split\(\)$/) {       # qw(w1 w2 ..)
+        return 0 if defined $ValType[$k] && $ValType[$k] eq 's';        # [qw(...)] doesn't get splatted
         return 1;
     } elsif($ValClass[$k] eq '(' && $ValPerl[$k] eq '(') {  # issue s205
         my $end = matching_br($k);  # issue s205
@@ -9478,6 +9676,9 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
       }elsif($ValClass[$cur_pos] eq '"' && $cur_pos+1 <= $#ValClass && $ValClass[$cur_pos+1] eq 'D') {  # issue s3: call of a class method
          gen_chunk('getattr(builtins', ',', $ValPy[$cur_pos], ')');
          $cur_pos++;
+      }elsif($ValClass[$cur_pos] eq 'i' && $cur_pos+1 <= $#ValClass && $ValClass[$cur_pos+1] eq 'D') {  # issue s18: call of a class method
+         gen_chunk(escape_keywords($ValPy[$cur_pos], 1));       # issue s18
+         $cur_pos++;                                            # issue s18
       }else{
          gen_chunk($ValPy[$cur_pos]);
          $cur_pos++;
@@ -9554,6 +9755,7 @@ sub handle_double_or_and_assignment     # issue s3: handle ||= and &&=
 
     my $adjust = 0;
 
+    $start = start_of_var($op_pos-1);           # issue s218: Handle return $Q ||= ... -or- ($Q ||= ...)
     my $op = $ValPerl[$op_pos] eq '||=' ? '||' : '&&';
     my $pyop = $op eq '||' ? 'or' : 'and';
     if($debug >= 3) {
@@ -10325,7 +10527,6 @@ sub handle_assignment_in_expression
         destroy($start+2, 2);
         $adjust -= 2;
     }
-    # FIXME: Handle assignments to reference out parameters.  
     my $cs = &Perlscan::cur_sub();              # issue s185
     my $arg;
     if($ValClass[$pos] eq  '=' && $ValClass[$start] eq 's' && ($pos-$start) == 1 && 
@@ -11074,7 +11275,10 @@ sub do_use_require
         say STDERR "For @ValPerl, using @libs (after stripping the '')" if($debug);
         unshift @UseLib, map {unquote_string($_)}  @libs;
         if($pos == 0) {
-            gen_statement('sys.path[0:0] = [' . join(',', @libs) . ']');
+            my $saved_nest = save_nest();                  # issue s18
+            correct_nest(0, 0);                            # issue s18
+            gen_statement('sys.path[0:0] = [' . join(',', @libs) . '] # I_M_P_O_R_T');  # issue s18
+            restore_nest($saved_nest);                     # issue s18
         } else {
             $Pyf{_add_path} = 1;
             gen_chunk('_add_path', '([' . join(',', @libs) . ']');
@@ -11130,6 +11334,7 @@ sub do_use_require
         my %overloads = ();             # keep track of what they overload
         my $i;
         my $p_escaped = escape_keywords($CurPackage, 1);
+        my $fallback = undef;
         for($i = $pos+2; $i <= $#ValClass; $i++) {
             last if($ValClass[$i] eq ')' && $ValPerl[$i] eq '}');
             my $comma = next_same_level_token(',', $i+2, $#ValClass);
@@ -11137,7 +11342,7 @@ sub do_use_require
                 $comma = $#ValClass;
                 $comma++ if($ValClass[$comma] ne ')');
             }
-            if($ValClass[$i] ne '"' || !exists $OVERLOAD_MAP{$ValPerl[$i]}) {
+            if(($ValClass[$i] ne '"' && $ValClass[$i] ne 'i') || !exists $OVERLOAD_MAP{$ValPerl[$i]}) {
                 logme('S', "use overload $ValPerl[$i] not supported");
                 $TrStatus = -255;
             } else {
@@ -11145,7 +11350,7 @@ sub do_use_require
                 $overloads{$ValPerl[$i]} = dclone($ovm);
                 my $normal = $ovm->{normal};
                 # For sqrt and friends, only generate code if their routine has a different name
-                $TrStatus = -255 if($ValClass[$comma-1] ne 'i');
+                $TrStatus = -255 if($ValClass[$comma-1] ne 'i' && $ValPerl[$i] ne 'fallback');
                 my $their_routine = escape_keywords($ValPy[$comma-1]);
                 $overloads{$ValPerl[$i]}->{theirs} = $their_routine;
                 my $cs = '';
@@ -11154,8 +11359,10 @@ sub do_use_require
                     $cs = $ovm->{converter} . '(';
                     $ce = ')';
                 }
-                if($their_routine ne $normal) {
-                    my $normal = escape_keywords($normal);
+                if(!defined $normal) {                  # treat fallback special
+                    $fallback = $ValPy[$comma-1] unless($ValPy[$comma-1] eq 'None');
+                } elsif($their_routine ne $normal) {
+                    $normal = escape_keywords($normal);
                     if(exists $ovm->{unary}) {
                         gen_statement("def $normal(self):    # use overload '$ValPerl[$i]'");
                     } elsif(exists $ovm->{modulo}) {
@@ -11193,7 +11400,7 @@ sub do_use_require
             $i = $comma;
         }
         #say STDERR Dumper(\%overloads);
-        if(exists $overloads{'<=>'} || exists $overloads{'cmp'}) {
+        if((!defined $fallback || $fallback) && (exists $overloads{'<=>'} || exists $overloads{'cmp'})) {
             # if we have a spaceship or cmp operator overloaded, but no < <= = != >= >, then define those based on that
             my $cmp;
             if(exists $overloads{'<=>'}) {
@@ -11207,6 +11414,39 @@ sub do_use_require
                     gen_statement("def $normal(self, other):    # extra overload '$op'");
                     correct_nest(1,1);
                     gen_statement("return $cmp(self, other, False) $op 0");
+                    correct_nest(-1,-1);
+                    #gen_statement("$p_escaped.$normal = types.MethodType($normal, $p_escaped)");
+                    gen_statement("$p_escaped.$normal = $normal");
+                }
+            }
+        }
+        if((!defined $fallback || $fallback) && exists $overloads{'0+'} && !exists $overloads{'<=>'}) {
+            # if we have a to_num operator overloaded (or not if fallback), but no < <= == != >= >, then define those based on that
+            $Pyf{_num} = 1;
+            my $numify = '_num';
+            for my $op ('<', '<=', '==', '!=', '>=', '>', '+', '-', '*', '/', '%', '**', '&', '|', '^') {
+                if(!exists $overloads{$op}) {
+                    my $normal = $OVERLOAD_MAP{$op}->{normal};
+                    gen_statement("def $normal(self, other):    # extra overload '$op'");
+                    correct_nest(1,1);
+                    gen_chunk('return', $numify, '(self)', $op, $numify, '(other)');
+                    gen_statement();
+                    correct_nest(-1,-1);
+                    #gen_statement("$p_escaped.$normal = types.MethodType($normal, $p_escaped)");
+                    gen_statement("$p_escaped.$normal = $normal");
+                }
+            }
+        } elsif((!defined $fallback || $fallback) && (exists $overloads{'""'} || $fallback) && !exists $overloads{'cmp'}) {
+            # if we have a stringify operator overloaded (or not if fallback), but no lt le eq ne ge gt, then define those based on that
+            my $stringify = 'str';
+            my %op_map = (lt=>'<', le=>'<=', eq=>'==', ne=>'!=', ge=>'>=', gt=>'>');
+            for my $op ('lt', 'le', 'eq', 'ne', 'ge', 'gt') {
+                if(!exists $overloads{$op}) {
+                    my $normal = $OVERLOAD_MAP{$op}->{normal};
+                    gen_statement("def $normal(self, other):    # extra overload '$op'");
+                    correct_nest(1,1);
+                    my $nop = $op_map{$op};
+                    gen_statement("return $stringify(self) $nop $stringify(other)");
                     correct_nest(-1,-1);
                     #gen_statement("$p_escaped.$normal = types.MethodType($normal, $p_escaped)");
                     gen_statement("$p_escaped.$normal = $normal");
@@ -11289,11 +11529,82 @@ sub do_use_require
         # issue s129: We already handled this in PASS_1 (&Perlscan::handle_use_Switch)
         say STDERR "do_use_require($pos) returns " . ($#ValClass+1) if($debug>=3);  # issue s129
         return $#ValClass+1;                                                        # issue s129
+    } elsif($pos+1 <= $#ValClass && $ValClass[$pos+1] eq 'i' && $ValPerl[$pos+1] eq 'parent') { # issue s18
+        my $norequire = 0;
+        for(my $i = 2; $i <= $#ValClass; $i++) {
+            if($ValClass[$i] eq '-') {
+                $norequire = 1;
+                last;
+            } elsif($ValClass[$i] eq 'i' && $ValPerl[$i] eq '-norequire') {
+                $norequire = 1;
+                last;
+            }
+        }
+        unless($norequire) {
+            my $saved_tokens = package_tokens();
+            destroy(0);
+            insert(0, 'k', 'use', $Perlscan::keyword_tr{use});
+            insert(1, 'i', '', '');
+            insert(2, '(', '(', '(');
+            insert(3, '}', '}', ')');       # Don't call import_(...)
+            for(my $i = 2; $i < scalar(@{$saved_tokens->{class}}); $i++) {
+                my $class = $saved_tokens->{class}->[$i];
+                next if $class eq ',' || $class eq 'A';
+                if($class eq 'q') {
+                    my $perl = $saved_tokens->{perl}->[$i];
+                    $perl =~ s/\s+/ /g;             # Change newlines or multiple spaces to single spaces
+                    $perl =~ s/^\s+//;              # Remove leading spaces
+                    $perl =~ s/\s+$//;              # Remove trailing spaces
+                    foreach $p (split ' ', $perl) {
+                        my $python = $p;
+                        $python =~ tr/::/./s;
+                        $python =~ tr/'/./s;
+                        replace(1, 'i', $p, $python);
+                        do_use_require(0);
+                    }
+                } elsif($class eq '"' && $saved_tokens->{perl}->[$i] =~ /^[A-Za-z0-9:_]+$/) {
+                    my $python = $saved_tokens->{perl}->[$i];
+                    $python =~ tr/::/./s;
+                    $python =~ tr/'/./s;
+                    replace(1, 'i', $saved_tokens->{perl}->[$i], $python);
+                    do_use_require(0);              # Handle like a require statement
+                } else {
+                    replace(1, $saved_tokens->{class}->[$i], $saved_tokens->{perl}->[$i], $saved_tokens->{py}->[$i]);
+                    do_use_require(0);              # Handle like a require statement
+                }
+            }
+            unpackage_tokens($saved_tokens);
+        }
+        for(my $i = 2; $i <= $#ValClass; $i++) {
+            next if $ValClass[$i] eq ',' || $ValClass[$i] eq 'A';
+            if($ValClass[$i] eq '-') {
+                $i++;
+                next;
+            } elsif($ValClass[$i] eq 'i' && $ValPerl[$i] eq '-norequire') {
+                ;
+            } elsif($ValClass[$i] eq 'q') {       # We don't expand qw for use statements, so do that here
+                my $python = $ValPerl[$i];
+                $python =~ s/\s+/ /g;             # Change newlines or multiple spaces to single spaces
+                $python =~ s/^\s+//;              # Remove leading spaces
+                $python =~ s/\s+$//;              # Remove trailing spaces
+                # append_ISA(&Perlscan::escape_quotes($python) . '.split()');
+                foreach my $p (split ' ', $python) {
+                    push_ISA($p);
+                }
+            } else {
+                push_ISA(unquote_string($ValPy[$i]));
+            }
+        }
+        say STDERR "do_use_require($pos) returns " . ($#ValClass+1) if($debug>=3);  # issue s18
+        return $#ValClass+1;                                                        # issue s18
     }
    
     # Ok - now for the real ones
     my $limit = $#ValClass;
     my $opp = next_lower_or_equal_precedent_token('F', $pos, $limit);
+    if($opp != -1 && ($ValClass[$opp] eq ',' || $ValClass[$opp] eq 'A')) {      # issue s177: We have a list or an '=>'
+        $opp = next_lower_or_equal_precedent_token('n', $pos, $limit);  # issue s177: Not much is lower prec than ',' or '=>'
+    }
     $limit = $opp-1 if($opp >= $pos);
     my $close = next_same_level_token(')', $pos, $limit);
     $limit = $close-1 if($close >= $pos);
@@ -11368,6 +11679,13 @@ sub do_use_require
             }
         }
     } elsif($pos+1 <= $limit && $ValClass[$pos+1] eq 'i') {              # use/require bare or use/require A::B
+        my $saved_nest;                                 # issue s18
+        my $suffix = '';
+        if($ValPerl[$pos] eq 'use') {                  # issue s18
+            $saved_nest = save_nest();                  # issue s18
+            correct_nest(0, 0);                         # issue s18
+            $suffix = ' # I_M_P_O_R_T';                 # issue s18
+        }
         my ($path, $exports, $has_import_sub) = import_it($pos);        # issue s177
         my $has_var_imports = 0;
         ($has_var_imports, $exports) = filter_exports($exports);
@@ -11386,7 +11704,7 @@ sub do_use_require
         $path = '' if($path eq '.');
         if($path eq $MODULES_DIR || $path eq "./$MODULES_DIR") {
             if(!$modules_path_added && $pos == 0) {
-                gen_statement("sys.path[0:0] = ['$path']");
+                gen_statement("sys.path[0:0] = ['$path']$suffix");  # issue s18
                 $modules_path_added = 1;
             }
             $path = '';
@@ -11394,49 +11712,56 @@ sub do_use_require
         if($pos == 0 && !$path && $ValPy[$pos+1] =~ /^[A-Za-z._][A-Za-z0-9._]*$/ &&
             ($CurSub eq '__main__' || !$exports)) {     # issue 41
             if($exports) {
-                gen_statement("from $ValPy[$pos+1] import $exports");
+                gen_statement("from $ValPy[$pos+1] import ${exports}$suffix");  # issue s18
             } elsif($has_var_imports) {
                 my $underfile = '_' . $ValPy[$pos+1];
                 $underfile =~ s/\./_/g;
-                gen_statement("import $ValPy[$pos+1] as $underfile");
+                gen_statement("import $ValPy[$pos+1] as ${underfile}$suffix");  # issue s18
             } else {
-                gen_statement("import $ValPy[$pos+1]");
+                gen_statement("import $ValPy[$pos+1]$suffix");                  # issue s18
             }
         } else {
             my $module = $ValPy[$pos+1];
             $module =~ s'\.'/'g;
+            if($exports) {
+                $exports = '[' . join(', ', map { "'" . $_ . "'" } split(/, /, $exports)) . ']';
+            }
             gen_variable_import_pre();
             if($path) {
                 gen_chunk("os.path.join('$path', '$module')");
             } else {
                 gen_chunk("'$module'");
             }
-            if($exports) {
-                $exports = '[' . join(', ', map { "'" . $_ . "'" } split(/, /, $exports)) . ']';
-            }
             gen_variable_import_post($exports);
+            gen_chunk($suffix) if $suffix;          # issue s18
         }
         if($ValPerl[$pos] eq 'use' && $has_import_sub &&
             !($ValClass[-1] eq ')' && $ValClass[-2] eq '(')      # issue s187: if we have like use Module ();, then we DON'T call import!
         ) {        # issue s177
             gen_chunk(',') unless $pos == 0;
+            # issue s18: We generate all import code at the outside nesting level because later we move it all to one spot
+            # We also tag it all using # I_M_P_O_R_T so we can find it later (that comment gets removed)
             if($pos == 0 && $has_import_sub == 1) {             # 1 means it may or may not be there (2 means it's definitely there)
-                gen_statement("if hasattr($ValPy[$pos+1], 'import_'):");
+                gen_statement("if hasattr($ValPy[$pos+1], 'import_'):$suffix");
                 correct_nest(1,1);
             }
             gen_chunk($ValPy[$pos+1], '.import_(');
-            gen_chunk("'$ValPy[$pos+1]'");
+            gen_chunk("'$ValPy[$pos+1]'");    # Pass the classname, not the class
             my $start = $pos+2;
             if($start <= $limit && ($ValClass[$pos+2] eq 'd' || ($ValClass[$pos+2] eq '"' && $ValPerl[$pos+2] =~ /^v\d+\./))) {
-                $start++;
+                $start++;           # Skip version
             }
-            if($start <= $limit && $ValClass[$start] eq 'q') {      # Process qw here because we don't process it in Perlscan for 'use' statements
-               my $python = $ValPerl[$start];
-               $python =~ s/\s+/ /g;             # Change newlines or multiple spaces to single spaces
-               $python =~ s/^\s+//;              # Remove leading spaces
-               $python =~ s/\s+$//;              # Remove trailing spaces
-               $ValPy[$start]=&Perlscan::escape_quotes($python) . '.split()';
-            }
+            for(my $i = $start; $i <= $limit; $i++) {
+                 if($ValClass[$i] eq 'A') {
+                     $ValPy[$i] = ',';              # Change '=>' from ':' to ','
+                 } elsif($ValClass[$i] eq 'q') {
+                     my $python = $ValPerl[$i];
+                     $python =~ s/\s+/ /g;             # Change newlines or multiple spaces to single spaces
+                     $python =~ s/^\s+//;              # Remove leading spaces
+                     $python =~ s/\s+$//;              # Remove trailing spaces
+                     $ValPy[$i]=&Perlscan::escape_quotes($python) . '.split()';
+                 }
+             }
             if($start > $limit) {
                 ;
             } elsif($ValClass[$start] eq '(') {
@@ -11447,15 +11772,19 @@ sub do_use_require
                 $TrStatus = expression($start, $limit, 2);  # insert splats where appropriate
             }
             gen_chunk(')');
+            gen_chunk($suffix);    # issue s18
             if($has_import_sub == 1) {          # Not sure it has def import_
                 if($pos == 0) {
                     gen_statement();
                     correct_nest(-1,-1);
                 } else {
-                    gen_chunk("if hasattr($ValPy[$pos+1], 'import_') else None");
+                    gen_chunk("if hasattr($ValPy[$pos+1], 'import_') else None$suffix"); # issue s18
                 }
             }
         }
+        if($ValPerl[$pos] eq 'use') {       # issue s18
+            restore_nest($saved_nest);      # issue s18
+        }                                   # issue s18
     } elsif($ValPerl[$pos] eq 'require' && $pos+1 <= $limit) {         # require expr
         gen_variable_import_pre();
         $TrStatus = expression($pos+1, $limit, 0);
@@ -11463,6 +11792,13 @@ sub do_use_require
         gen_variable_import_post("");
     } else {
         $TrStatus = -255;
+    }
+    # issue s18: Generate the '_init_package(...)' lines we deferred waiting for the 'use' lines to be generated
+    if($pos+1 <= $#ValClass && ($ValPerl[$pos] eq 'use' || $ValPerl[$pos] eq 'require') && exists $deferred_init_packages{$ValPy[$pos+1]}) {
+        foreach my $defer (@{$deferred_init_packages{$ValPy[$pos+1]}}) {
+            gen_statement($defer);
+        }
+        delete $deferred_init_packages{$ValPy[$pos+1]};     # Only generate them once even if this package is imported again
     }
     say STDERR "do_use_require($pos) returns " . ($limit+1) if($debug>=3);
     return $limit+1;
@@ -12042,6 +12378,7 @@ sub expand_extras
         @wantarrays = ();               # issue s3
         %export_tags=();
         %out_parameters=();             # issue s184
+        $blesses = '';                  # issue s18
         for my $e (@export_info) {
             if($e =~ m'^\$package=\'(.*)\';$') {
                 $package = $1;
@@ -12055,6 +12392,8 @@ sub expand_extras
                 %export_tags = parse_export_tags($1);
             } elsif($e =~ m'^%out_parameters=\((.*)\);$') {     # issue s184
                 %out_parameters = parse_export_tags($1);        # issue s184
+            } elsif($e =~ m'^\$blesses=\'(.*)\';$') {           # issue s18
+                $blesses = $1;                                  # issue s18
             } elsif($e =~ m'^@export_fail=qw/(.*)/;$') {
                 @export_fail = split ' ', $1;
             } elsif($e =~ m'^\$has_export_fail_sub=(.);$') {
@@ -12076,9 +12415,15 @@ sub expand_extras
     }
     {
         no warnings 'uninitialized';
-        say STDERR "expand_extras: package=$package, version=$version, export=@export, export_ok=@export_ok, export_tags=" . Dumper(\%export_tags) . ", out_parameters=" . Dumper(\%out_parameters) if($debug);
+        say STDERR "expand_extras: package=$package, version=$version, export=@export, export_ok=@export_ok, export_tags=" . Dumper(\%export_tags) . ", out_parameters=" . Dumper(\%out_parameters) .  ", blesses=$blesses" if($debug);
     }
     say STDERR "expand_extras: $errors" if($errors && $debug);
+    if($blesses && $package) {              # issue s18
+        my $p = $package;
+        $p =~ tr/::/./s;
+        $p =~ tr/'/./;
+        $SpecialVarsUsed{'bless'}{$p} = 1;
+    }
     my $message = '';
     my $gen_message = 0;
     #  Can't locate Cisco/SNMP.pm in @INC (you may need to install the Cisco::SNMP module)
@@ -12167,8 +12512,8 @@ sub expand_extras
                     $actual_imports{$e} = 1;
                 }
             }
-        } elsif($ch eq '-') {                                           # issue s164
-            logme('W', "Import $desired not handled (ignored)");        # issue s164
+        } elsif($ch eq '-' || $desired !~ /^[A-Za-z_][A-Za-z0-9_]*$/) {                 # issue s164, issue s18
+            ; # issue s177 logme('W', "Import $desired not handled (ignored)");        # issue s164
         } else {
             $actual_imports{$desired} = 1;
         }
@@ -12589,6 +12934,7 @@ sub convert_return_expression           # issue s9, issue s3
 # issue s9: for return (..., ...) convert the tuple to a list or an Array as appropriate
 # issue s3: if this is the return of a function that's generated to handle the 'e' flag on a s///e,
 # then convert the result to a str if need be.
+# issue s216: if we are in TIEHASH or TIEARRAY, then add the tie methods to the result object
 #
 # Returns 1 if a close paren needs to be added
 {
@@ -12601,7 +12947,8 @@ sub convert_return_expression           # issue s9, issue s3
        &Pythonizer::expr_type($start, $end_pos, $cs) ne 'S') {       # issue s3: handle integer on RHS of s///e
        gen_chunk($CONVERTER_MAP{S}, '(');
        return 1;
-    } elsif($ValClass[$start] eq '(' && $ValClass[$end_pos] eq ')' && next_same_level_token(',', $start+1, $end_pos-1) != -1) {
+    } elsif($ValClass[$start] eq '(' && $ValClass[$end_pos] eq ')' && next_same_level_token(',', $start+1, $end_pos-1) != -1 &&
+            matching_br($start) eq $end_pos) {      # issue s213: We have {...}->{key}
         if($ValPy[$start] eq '{') {
             if($autovivification) {
                 $Pyf{Hash} = 1;
@@ -12617,6 +12964,10 @@ sub convert_return_expression           # issue s9, issue s3
                 return 1;
             }
         }
+    } elsif($cs eq 'TIEHASH' || $cs eq 'TIEARRAY') {    # issue s216
+        $Pyf{_add_tie_methods} = 1;             # issue s216
+        gen_chunk('_add_tie_methods', '(');     # issue s216
+        return 1;                               # issue s216
     }
     return 0;
 }
@@ -13125,7 +13476,9 @@ sub gen_complex_chop_chomp              # issue s148
 
 sub generate_tie_class_methods          # issue s154
 # If this package defines the perl tie methods, then generate the associated python class methods
+# issue s216: NOTE: This sub isn't used anymore and just returns!!
 {
+    return;                                 # issue s216: We do this at runtime on the class instance now
     my $found_one = 0;
     foreach (values %TIE_CONSTRUCTORS) {
         if(exists $LocalSub{$_} && $LocalSub{$_} == 1) {
@@ -13735,6 +14088,34 @@ sub is_scalar_out_parameter         # issue scalar ref
     my $arg = $SubAttributes{$cs}{arg_copies}{$ValPerl[$pos]};
     return 1 if grep {$_ eq ($arg.'r') || $_ eq 'var'} @{$SubAttributes{$cs}{out_parameters}};
     return 0;
+}
+
+sub parent_is_class             # issue s18
+# Is any parent of this package a class?
+{
+   my $package = shift;
+
+   my $key = $package . '.ISA';       # issue s18
+   if(exists $SpecialVarsUsed{$key}) {                      # issue s18
+       my $parents = $SpecialVarsUsed{$key}{__main__};
+       $parents =~ s/\.split\(\)$//;
+       $parents = unquote_string($parents);
+       foreach my $parent (split ' ', $parents) {
+           $parent =~ tr/:/./s;
+           $parent =~ tr/'/./s;
+           return 1 if exists $SpecialVarsUsed{'bless'}{$parent};
+           return 1 if parent_is_class($parent);
+       }
+   }
+   return 0;
+}
+
+sub push_ISA                # issue s18
+# Push a value to the @ISA
+{
+    my $unquoted_value = shift;
+    $package = escape_keywords($CurPackage, 1);
+    gen_statement("$package.ISA_a.append('$unquoted_value')");
 }
 
 __DATA__

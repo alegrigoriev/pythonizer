@@ -164,7 +164,7 @@ our @PYTHON_KEYWORDS = qw(False None True and as assert async await break class 
 our @PYTHON_BUILTINS = qw(abs aiter all any anext ascii bin bool breakpoint bytearray bytes callable chr classmethod compile complex delattr dict dir divmod enumerate eval exec filter float format frozenset getattr globals hasattr hash help hex id input int isinstance issubclass iter len list locals map max memoryview min next object oct open ord pow print property range re repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip);
 our @PYTHON_PACKAGES = qw(sys os re fcntl math fileinput subprocess collections.abc argparse glob warnings inspect functools itertools signal traceback io tempfile atexit calendar types pdb random stat dataclasses builtins codecs struct $PERLLIB copy getopt tm_py);     # issue s200: Don't mess up our imports
 push @PYTHON_BUILTINS, @PYTHON_PACKAGES;
-our @EXTRA_BUILTINS = qw(Array Hash ArrayHash perllib wantarray close);        # issue test coverage: Add "close" to prevent recursive loop calling fh.close()
+our @EXTRA_BUILTINS = qw(Array Hash ArrayHash perllib wantarray close get pop update extend rstrip find rfind casefold lower upper insert keys values);        # issue test coverage: Add "close" to prevent recursive loop calling fh.close(), issue s216: add get pop method names, etc
 our %PYTHON_KEYWORD_SET = map { $_ => 1 } @PYTHON_KEYWORDS;
 our %PYTHON_RESERVED_SET = map { $_ => 1 } (@PYTHON_KEYWORDS, @PYTHON_BUILTINS, @EXTRA_BUILTINS);
 our %PYTHON_PACKAGES_SET = map { $_ => 1 } @PYTHON_PACKAGES;            # issue s200
@@ -205,6 +205,7 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
                 _kill=>'_carp,_cluck',
                 _unpack=>'_pack', _assign_sparse=>'_int',
                 _can=>'_isa', _binmode=>'_autoflush',
+                _add_tie_methods=>'_raise',         # issue s216
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
 our %PYF_OUT_PARAMETERS=();                        # Functions with out parameters - which parameter (counting from 1) is "out"?
 our %STATEMENT_FUNCTIONS=(getopts=>1, GetOptions=>1, chop=>1, chomp=>1);    # issue s150: These functions generate statements and must be pulled out of expressions/conditions, issue s167: Add chop/chomp
@@ -350,10 +351,10 @@ our %OVERLOAD_MAP =         (
         '@{}'        => {normal=>'_array', unary=>1},
         '%{}'        => {normal=>'_hash', unary=>1},
         '*{}'        => {normal=>'_typeglob', unary=>1},
-        '0+'        => {normal=>'_num', unary=>1},
+        '0+'        => {normal=>'_num_', unary=>1},     # Don't make it the same as our _num function
         #'qr'        => {normal=>'_qr', unary=>1},                # not handled
         #'nomethod'=> {normal=>'_nomethod'},        # not handled
-        #'fallback'=> {normal=>'_fallback'},        # not handled
+        'fallback'=> {normal=>undef},               # special
         );
 
 # issue s154: Implement tie
@@ -369,6 +370,9 @@ our %TIE_MAP = (FETCH=>'__getitem__',
                 UNTIE=>'__untie__',
                 PUSH=>'append',
                );
+
+my $python_tie_map = '{' . (join(',', map { "'" . $_ . "': '" . $TIE_MAP{$_} . "'" } keys %TIE_MAP)) . '}';   # issue s216
+$GLOBALS{_TIE_MAP} = $python_tie_map;                                      # issue s216
 
 our @CLASS_METHODS = qw/new make TIEHASH TIEARRAY/;        # These names will become class methods, issue s154
 our %CLASS_METHOD_SET = map { $_ => 1 } @CLASS_METHODS;
@@ -460,6 +464,8 @@ our %PREDEFINED_PACKAGES = (
                 ],
         'Scalar::Util'=>[{perl=>'openhandle', type=>'H:H'},         # issue s183
                         ],
+        'PerlIO'=>[{perl=>'get_layers', type=>'H:a of S'},
+                  ],
                );
 
 

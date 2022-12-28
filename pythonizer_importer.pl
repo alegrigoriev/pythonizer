@@ -292,6 +292,7 @@ eval {
         say STDERR "rpat = $rpat" if $debug;
         my $cpat = join('|', @reference_copy_patterns);
         say STDERR "cpat = $cpat" if $debug;
+        my $blesses = 0;                       # issue s18
         while(<SRC>) {
             if($in_pod) {                                   # issue s128: check this first!
                 $in_pod = 0 if(substr($_,0,4) eq '=cut');
@@ -313,6 +314,8 @@ eval {
                 $CurSub = $1;
                 $CurShift = 0;              # issue s184
                 %arg_copies = ();           # issue s185
+            } elsif(/\bbless\b/) {          # issue s18
+                $blesses = 1;               # issue s18
             } elsif(/\bwantarray\b/) {
                 $wantarrays{$CurSub} = 1 if defined $CurSub;
             } elsif($CurSub) {              # issue s184: Keep track of out parameters for each sub
@@ -489,6 +492,7 @@ eval {
         my @wantarrays = keys %wantarrays;
         say '@wantarrays=' . (@wantarrays ? "qw/@wantarrays/;" : '();');
         say '%out_parameters=' . &_pythonizer_importer::_gen_outs(\%out_parameters) . ';';
+        say '$blesses=1' if($blesses);          # issue s18
 
         #say STDERR "expand_extras: package=$package, version=$version, export=@export, export_ok=@export_ok, export_tags=@{[%export_tags]}" if($debug);
 };

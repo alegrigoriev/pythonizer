@@ -1,5 +1,6 @@
 # this is part of issue_bootstrapping - refer to variables in the main package
 package RefsMain;
+use lib '.';
 
 require Exporting;
 our @ISA = qw/Exporting/;

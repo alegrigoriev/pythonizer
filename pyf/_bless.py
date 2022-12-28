@@ -9,15 +9,19 @@ def _bless(obj, classname, isa=(), is_tie_package=False):
     if not hasattr(builtins, classname):
         _init_package(classname, is_class=True, isa=isa)
     result_class = getattr(builtins, classname)
+    if is_tie_package:
+        result_class = _add_tie_methods(result_class)
     result = result_class()
     self = result
     if is_tie_package:      # avoid infinite recursion calling __setitem__ for a tied class
         self = result.__dict__
     if hasattr(obj, 'isHash'):
         if obj.isHash:
+            result.isHash = True
             for key, value in obj.items():
                 self[key] = value
         else:
+            result.isHash = False
             for i, value in enumerate(obj):
                 self[i] = value
     elif isinstance(obj, collections.abc.Mapping):

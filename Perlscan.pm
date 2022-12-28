@@ -64,7 +64,7 @@ use File::Spec::Functions qw(file_name_is_absolute catfile);   # SNOOPYJC
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw(Exporter);
-@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence %SpecialVarsUsed @EndBlocks %SpecialVarR2L get_sub_vars_with_class %FileHandles add_package_to_mapped_name %FuncType %PyFuncType %UseRequireVars %UseRequireOptionsPassed %UseRequireOptionsDesired mapped_name %WHILE_MAGIC_FUNCTIONS %UseSwitch @BeginBlocks @InitBlocks @CheckBlocks @UnitCheckBlocks special_code_block_name);   # issue 41, issue 65, issue 74, issue 92, issue 93, issue 78, issue names, issue s40, issue s129, issue s155
+@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords unescape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence %SpecialVarsUsed @EndBlocks %SpecialVarR2L get_sub_vars_with_class %FileHandles add_package_to_mapped_name %FuncType %PyFuncType %UseRequireVars %UseRequireOptionsPassed %UseRequireOptionsDesired mapped_name %WHILE_MAGIC_FUNCTIONS %UseSwitch @BeginBlocks @InitBlocks @CheckBlocks @UnitCheckBlocks special_code_block_name);   # issue 41, issue 65, issue 74, issue 92, issue 93, issue 78, issue names, issue s40, issue s129, issue s155
 #our (@ValClass,  @ValPerl,  @ValPy, $TokenStr); # those are from main::
 
   $VERSION = '0.93';
@@ -654,6 +654,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
         $PyFuncType{_fetch_out_parameter} = 'I:m';   # issue s184
         $PyFuncType{_fetch_out_parameters} = 'mI?:m';   # issue s184
         $PyFuncType{_init_out_parameters} = 'aa:';   # issue s184
+        $PyFuncType{setattr} = 'mSm:';              # issue s214
 
         for my $d (keys %DASH_X) {
             if($d =~ /[sMAC]/) {            # issue s124
@@ -978,6 +979,38 @@ sub get_perl_name               # SNOOPYJC
     }
     say STDERR "get_perl_name($oname, $next, $prev) = $name" if($::debug >= 5);
     return $name;
+}
+
+sub restore_cur_raw_package     # issue s155
+# If we define a package in a block, set it back to what it was after the block
+# Arg = what it was
+{
+    my $package = shift;
+    if($Pythonizer::PassNo == &Pythonizer::PASS_2) {
+        $::CurPackage = $package;
+        gen_statement("builtins.__PACKAGE__ = '$package'");
+    } else {
+        for(my $i = 0; $i < @Pythonizer::Packages; $i++) {
+            if($Pythonizer::Packages[$i] eq $package) {
+                $#Pythonizer::Packages = $i;
+                last;
+            }
+        }
+    }
+}
+
+sub cur_raw_package         # issue s155
+{
+    my $result;
+    if($Pythonizer::PassNo == &Pythonizer::PASS_2) {
+        $result = $::CurPackage;
+    } elsif(!@Pythonizer::Packages) {
+        $result = $DEFAULT_PACKAGE;
+    } else {
+        $result = $Pythonizer::Packages[-1];
+    }
+    $Pythonizer::Packages{$result} = 1;
+    return $result;
 }
 
 sub cur_package
@@ -1437,6 +1470,7 @@ sub enter_block                 # issue 94
     $nesting_info{lno} = $.;
     # issue s110 $nesting_info{varclasses} = dclone($line_varclasses{$last_block_lno}) if($Pythonizer::PassNo == &Pythonizer::PASS_1);
     $nesting_info{level} = $nesting_level;
+    $nesting_info{package} = cur_raw_package();                 # issue s155
     # Note a {...} block by itself is considered a loop
     $nesting_info{is_loop} = ($begin <= $#ValClass && (($ValPy[$begin] eq '{' && $nesting_info{type} ne 'if') ||        # issue s44
                                                        $ValPerl[$begin] eq 'for' || 
@@ -1508,6 +1542,9 @@ sub exit_block                  # issue 94
     if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
         say STDERR "exit_block at line $., prior nesting_level=$nesting_level, nesting_last->{type} is now $nesting_last->{type}";
     }
+    if($nesting_last->{package} ne cur_raw_package()) {         # issue s155
+        restore_cur_raw_package($nesting_last->{package});      # issue s155
+    }                                                           # issue s155
     if(exists $level_block_lnos{$nesting_level+1}) {            # issue implicit conditional return
         # Grab the list of nested conditional return lines and propagate it up to the next level
         $last_expression_lno = $level_block_lnos{$nesting_level+1};     # issue implicit conditional return
@@ -2675,6 +2712,8 @@ my ($l,$m);
           } elsif($tno == 2 && $ValClass[0] eq 'k' && $ValClass[1] eq 'i' &&    # SNOOPYJC
               $ValPerl[0] eq 'use' && ($ValPerl[1] eq 'constant' || $ValPerl[1] eq 'overload')) {       # issue s3
               ;
+          } elsif($tno == 1 && $ValClass[0] eq 'k' && $ValPerl[0] eq 'return') {       # issue s213: return {...} (hashref)
+              ;                                 # issue s213
           }elsif( (length($source)==1 || $source =~ /^{\s*#/) && $ValClass[$tno-1] ne '=' && $ValClass[$tno-1] ne 'f' && # issue 82, issue 60 (map/grep)
                   $ValClass[$tno-1] ne 's' &&                   # SNOOPYJC: $var\n with '{' on next line
                   $ValClass[$tno-1] ne 'A' &&                   # issue s145
@@ -2983,7 +3022,8 @@ my ($l,$m);
                 }                                                           # issue s184
                 $SpecialVarsUsed{'bless'}{$cs} = 1;
                 $Pythonizer::SubAttributes{$cs}{blesses} = 1;
-                $SpecialVarsUsed{'bless'}{cur_package()} = 1;
+                # issue s18 $SpecialVarsUsed{'bless'}{cur_package()} = 1;
+                $SpecialVarsUsed{'bless'}{cur_raw_package()} = 1;       # issue s18
             # issue s3 } elsif($class eq 'd' && $w eq 'wantarray' && $Pythonizer::PassNo == &Pythonizer::PASS_2) {   # SNOOPYJC: give warning
             } elsif($class eq 'd' && $w eq 'wantarray') {   # issue s3
                 my $cs = cur_sub();
@@ -3425,14 +3465,20 @@ my ($l,$m);
                $tno--;              # issue 50 - no need to change hashref to hash or arrayref to array in python
                $ValType[$tno] = $was . 's';         # issue s185: Remember what this was in ValType, e.g. 'ss' means it was a $$
                $ate_dollar = $tno;              # issue 50: remember where we did this
-               # issue s173: Set the type of the variable appropriately
-               my $cs = cur_sub();          # issue s173
-               my $type;                    # issue s173
-               $type = 'a' if $was eq '@';  # issue s173
-               $type = 'h' if $was eq '%';  # issue s173
-               $Pythonizer::VarType{$ValPy[$tno]}{$cs} = $type if(defined $type);   # issue s173
+# issue s215               # issue s173: Set the type of the variable appropriately
+# issue s215               my $cs = cur_sub();          # issue s173
+# issue s215               my $type;                    # issue s173
+# issue s215               $type = 'a' if $was eq '@';  # issue s173
+# issue s215               $type = 'h' if $was eq '%';  # issue s173
+# issue s215               #say STDERR "type was $Pythonizer::VarType{$ValPy[$tno]}{$cs}";   # TEMP
+# issue s215               $Pythonizer::VarType{$ValPy[$tno]}{$cs} = &Pythonizer::merge_types($ValPy[$tno], $cs, $type) if(defined $type);   # issue s173, issue s215
                if($was eq '@' && &Pythonizer::in_sub_call($tno)) {      # issue bootstrap
                    $ValPy[$tno] = '*' . $ValPy[$tno];                   # Splat it
+               #} elsif($::autovivification && $was eq '%' && $Pythonizer::VarType{$ValPy[$tno]}{$cs} !~ /^h/ && 
+                   #(($tno-1 >= 0 && $ValClass[$tno-1] eq 'f') || ($tno-2 >= 0 && $ValClass[$tno-1] eq '(' && $ValClass[$tno-2] eq 'f'))) {  # issue s215
+                   ## Passing a %$var to a function like keys with autovivification makes it spring to life as a Hash
+                   #$::Pyf{Hash} = 1;                                                # issue s215
+                   #$ValPy[$tno] = "($ValPy[$tno] if $ValPy[$tno] else Hash())";     # issue s215
                }
                $line_contained_array_conversion{$statement_starting_lno} = 1 if $ValPy[0] eq 'for' && $was eq '@';  # issue s137
                #$ValPerl[$tno]=$ValPy[$tno]=$s; # issue 50
@@ -3533,7 +3579,7 @@ my ($l,$m);
                $arg2=~tr/:/./s;
                $arg2=~tr/'/./s;          # SNOOPYJC
                $arg2 = remap_conflicting_names($arg2, '@', substr($source,length($arg1)+1,1));      # issue 92
-           $arg2 = escape_keywords($arg2);      # issue 41
+               $arg2 = escape_keywords($arg2);      # issue 41
                if( $tno>=2 && $ValClass[$tno-2] =~ /[sd'"q]/  && $ValClass[$tno-1] eq '>'  ){
                   $ValPy[$tno]='len('.$arg2.')'; # scalar context   # issue 41
                   # SNOOPYJC: causes $i < @arr to make @arr into 'myfile' instead of 'global':  $ValType[$tno]="X";
@@ -3651,7 +3697,9 @@ my ($l,$m);
                     # We set a bit so LocalSub is True (and we don't change it to a string) but we can 
                     # still check if it's actually defined locally in add_package_name_sub
                     $Pythonizer::LocalSub{$ValPy[$tno]} |= 8;   
-                    $Pythonizer::LocalSub{cur_package() . '.' . $ValPy[$tno]} |= 8;          # issue s3
+                    if(index($ValPy[$tno], cur_package()) != 0) {                           # issue s18: Don't store Child.Child.subname
+                        $Pythonizer::LocalSub{cur_package() . '.' . $ValPy[$tno]} |= 8;          # issue s3
+                    }
                     # issue 117 - if this is "&sub" with no parens, then pass along @_ (but not if it's a reference to the sub, and not in main)
                     if(cur_sub() ne '__main__' && ($tno == 0 || ($ValClass[$tno-1] ne "\\" && $ValPerl[$tno-1] ne 'defined')) && 
                        !($tno-2 >= 0 && $ValClass[$tno-1] eq '(' && $ValPerl[$tno-2] eq 'defined') &&
@@ -4007,6 +4055,20 @@ my ($l,$m);
           } elsif($Pythonizer::PassNo == &Pythonizer::PASS_1) {
               capture_varclass();                # SNOOPYJC
           }
+          # issue s173: Set the type of the variable appropriately
+          my $cs = cur_sub();          # issue s173
+          my $type;                    # issue s173
+          $type = 'a' if defined $ValType[$tno] && $ValType[$tno] eq '@s';  # issue s173
+          $type = 'h' if defined $ValType[$tno] && $ValType[$tno] eq '%s';  # issue s173
+          #say STDERR "type was $Pythonizer::VarType{$ValPy[$tno]}{$cs}";   # TEMP
+          $Pythonizer::VarType{$ValPy[$tno]}{$cs} = &Pythonizer::merge_types($ValPy[$tno], $cs, $type) if(defined $type);   # issue s173, issue s215
+          if($::autovivification && defined $type && $type eq 'h' && $Pythonizer::VarType{$ValPy[$tno]}{$cs} !~ /^h/ && 
+              (($tno-1 >= 0 && $ValClass[$tno-1] eq 'f') || ($tno-2 >= 0 && $ValClass[$tno-1] eq '(' && $ValClass[$tno-2] eq 'f'))) {  # issue s215
+              # Passing a %$var to a function like keys with autovivification makes it spring to life as a Hash
+              $::Pyf{Hash} = 1;                                                # issue s215
+              my $perllib = $::import_perllib ? "$PERLLIB." : '';              # issue s215
+              $ValPy[$tno] = "($ValPy[$tno] if $ValPy[$tno] is not None else ${perllib}Hash())";     # issue s215
+          }
       } elsif($ValClass[$tno] eq 'j') {     # SNOOPYJC
           if($Pythonizer::PassNo == &Pythonizer::PASS_2) {
               add_package_name_j() unless ($::implicit_global_my);
@@ -4046,10 +4108,14 @@ my ($l,$m);
             handle_use_overload();
         } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'use' && $ValPerl[1] eq 'Switch') {       # issue s129
             handle_use_Switch();                                                                # issue s129
+        } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'use' && $ValPerl[1] eq 'parent') {       # issue s18
+            handle_use_parent();                                                                # issue s18
         } elsif($ValClass[0] eq 'k' && ($ValPerl[0] eq 'use' || $ValPerl[0] eq 'require')) {    # issue names
             handle_use_require(0);                                                              # issue names
-        } elsif($#ValClass == 3 && $ValClass[0] eq 't' && $ValClass[1] eq 'a' && $ValPerl[1] eq '@ISA' && $ValClass[2] eq '=' && $ValClass[3] eq 'q' && cur_sub() eq '__main__') { # issue s3
-            $SpecialVarsUsed{'@ISA'}{__main__} = $ValPy[3];             # issue s3
+        # issue s18 } elsif($#ValClass == 3 && $ValClass[0] eq 't' && $ValClass[1] eq 'a' && $ValPerl[1] eq '@ISA' && $ValClass[2] eq '=' && $ValClass[3] eq 'q' && cur_sub() eq '__main__') { # issue s3
+        # issue s18     $SpecialVarsUsed{'@ISA'}{__main__} = $ValPy[3];             # issue s3
+        } elsif($ValClass[0] eq 't' && $ValClass[1] eq 'a' && $ValPerl[1] eq '@ISA' && $ValClass[2] eq '=' && cur_sub() eq '__main__') { # issue s3, issue s18
+            handle_ISA_assignment(2);               # issue s18
         } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'return') {
             handle_return();    # issue s30
         }
@@ -6961,6 +7027,16 @@ my $balance=(scalar(@_)>2) ? $_[2] : 0; # case where opening bracket is missing 
   return -1;
 } # matching_square_br
 
+my %reverse_escaped_names = ();     # issue s18
+sub unescape_keywords {             # issue s18
+    my $escaped = $_[0];
+
+    if(exists $reverse_escaped_names{$escaped}) {
+        return $reverse_escaped_names{$escaped};
+    }
+    return $escaped;
+}
+
 sub escape_keywords     # issue 41
 # Accepts a name and escapes any python keywords in it by appending underscores.  The name can
 # be a period separated list of names.  Returns the escaped name.
@@ -6999,7 +7075,11 @@ sub escape_keywords     # issue 41
        } elsif($i == 0 && substr($id,0,1) eq '_' && substr($id,0,5) ne '__END' && $id !~ /^_f\d/ && exists $Pyf{$id}) {    # issue s126
            $id = $id.'_';                   # issue s126
        }
+       $reverse_escaped_names{$id} = $ids[$i];      # issue s18
        push @result, $id;
+       if($i != 0) {
+           $reverse_escaped_names{join('.', @result)} = join('.', @ids[0..$i]);
+       }
     }
     return join('.', @result);
 }
@@ -7042,6 +7122,7 @@ sub add_package_to_mapped_name          # issue import vars
     my $new_name = escape_keywords($package_name, 1) . '.' . $py_name;          # issue s172
     $NameMap{$name}{$sigil} = $new_name;            # issue s172
     $ReverseNameMap{$new_name} = $name;             # issue s172
+    return $new_name;                               # issue s18
 }
 
 sub mapped_name                         # issue 92
@@ -7186,6 +7267,7 @@ sub remap_conflicting_names                  # issue 92
         return (join('.', @ids));
     }
     if($sigil ne '' && $sigil ne '&') {
+        my $was_mapped = exists $NameMap{$id} && exists $NameMap{$id}{$sigil};      # issue s215
         if($::remap_all || $force || exists $::remap_requests{$sigil.$id} || exists $::remap_requests{$id} || exists $::remap_requests{'*'.$id}) {
             $ids[-1] = $mid;
             say STDERR "remap_conflicting_names($name,$s,$trailer): Remapping new $sigil$id to $mid due to -R option" if($::debug >= 3);
@@ -7208,6 +7290,33 @@ sub remap_conflicting_names                  # issue 92
             # remove the extra package name
             my $p_dot = rindex($ids[-1], '.');
             $ids[-1] = substr($ids[-1], $p_dot+1);
+        }
+        # issue s215: If we change a name we already mapped differently, then we have to change our Pythonizer variables for it
+        my $nam = $id;                      # issue s215
+        my $mnp = join('.', @ids);          # issue s215
+        if($was_mapped && $nam ne $mnp) {                  # issue s215
+            if(exists $Pythonizer::VarSubMap{$nam}) {
+                $Pythonizer::VarSubMap{$mnp} = $Pythonizer::VarSubMap{$nam};
+                delete $Pythonizer::VarSubMap{$nam};
+            }
+            if(exists $Pythonizer::VarType{$nam}) {
+                $Pythonizer::VarType{$mnp} = $Pythonizer::VarType{$nam};
+                delete $Pythonizer::VarType{$nam};
+            }
+            for $sub (keys %Pythonizer::NeedsInitializing) {
+                my $subh = $Pythonizer::NeedsInitializing{$sub};
+                if(exists $subh->{$nam}) {
+                    $subh->{$mnp} = $subh->{$nam};
+                    delete $Pythonizer::NeedsInitializing{$sub}{$nam};
+                }
+            }
+            for $sub (keys %Pythonizer::initialized) {
+                my $subh = $Pythonizer::initialized{$sub};
+                if(exists $subh->{$nam}) {
+                    $subh->{$mnp} = $subh->{$nam};
+                    delete $Pythonizer::initialized{$sub}{$nam};
+                }
+            }
         }
         say STDERR "remap_conflicting_names($name,$s,$trailer) = " . join('.', @ids) . ' (2)' if($::debug >= 5);
         return (join('.', @ids));
@@ -7957,6 +8066,147 @@ sub get_mapped_names_for_package        # SNOOPYJC
        say STDERR Dumper(\%found_map);
     }
     return \%found_map;
+}
+
+sub handle_use_parent           # issue s18
+# use parent qw/this that/;
+# use parent 'this', 'that';
+# use parent '-norequire', 'this', 'that';
+# use parent -norequire=>'this', 'that';
+{
+    my $norequire = 0;
+    for(my $i = 2; $i <= $#ValClass; $i++) {
+        if($ValClass[$i] eq '-') {
+            $norequire = 1;
+            $i++;
+            last;
+        }
+    }
+    unless($norequire) {
+        my $saved_tokens = &::package_tokens();
+        $TokenStr = join('', @ValClass);   # Required to use the Pythonizer functions
+        destroy(0);
+        insert(0, 'k', 'require', $keyword_tr{require});
+        insert(1, 'i', '', '');
+        for(my $i = 2; $i < scalar(@{$saved_tokens->{class}}); $i++) {
+            my $class = $saved_tokens->{class}->[$i];
+            next if $class eq ',' || $class eq 'A';
+            if($class eq 'q') {
+                my $perl = $saved_tokens->{perl}->[$i];
+                $perl =~ s/\s+/ /g;             # Change newlines or multiple spaces to single spaces
+                $perl =~ s/^\s+//;              # Remove leading spaces
+                $perl =~ s/\s+$//;              # Remove trailing spaces
+                foreach my $p (split ' ', $perl) {
+                    my $python = $p;
+                    $python =~ tr/::/./s;
+                    $python =~ tr/'/./s;
+                    replace(1, 'i', $p, $python);
+                    $Pythonizer::UsePackage{$python} = $. unless exists $Pythonizer::UsePackage{$python};
+                    handle_use_require(0);
+                }
+            } elsif($class eq '"' && $saved_tokens->{perl}->[$i] =~ /^[A-Za-z0-9:_]+$/) {
+                my $python = $saved_tokens->{perl}->[$i];
+                $python =~ tr/::/./s;
+                $python =~ tr/'/./s;
+                replace(1, 'i', $saved_tokens->{perl}->[$i], $python);
+                $Pythonizer::UsePackage{$python} = $. unless exists $Pythonizer::UsePackage{$python};
+                handle_use_require(0);              # Handle like a require statement
+            } else {
+                my $python = $saved_tokens->{py}->[$i];
+                replace(1, $saved_tokens->{class}->[$i], $saved_tokens->{perl}->[$i], $python);
+                $Pythonizer::UsePackage{$python} = $. if $class eq 'i' && !exists $Pythonizer::UsePackage{$python};
+                handle_use_require(0);              # Handle like a require statement
+            }
+        }
+        &::unpackage_tokens($saved_tokens);
+    }
+    for(my $i = 2; $i <= $#ValClass; $i++) {
+        next if $ValClass[$i] eq ',' || $ValClass[$i] eq 'A';
+        if($ValClass[$i] eq '-') {
+            $i++;
+            next;
+        } elsif($ValClass[$i] eq 'q') {       # We don't expand qw for use statements, so do that here
+            my $python = $ValPerl[$i];
+            $python =~ s/\s+/ /g;             # Change newlines or multiple spaces to single spaces
+            $python =~ s/^\s+//;              # Remove leading spaces
+            $python =~ s/\s+$//;              # Remove trailing spaces
+            append_ISA(&Perlscan::escape_quotes($python) . '.split()');
+        } else {
+            append_ISA($ValPy[$i]);
+        }
+    }
+}
+
+sub handle_ISA_assignment       # issue s18
+# Handle an assignment to @ISA by grabbing the RHS for use on _init_package calls
+{
+    my $eq = shift;
+
+    for(my $i = $eq+1; $i <= $#ValClass; $i++) {
+        next if($ValClass[$i] eq '(' || $ValClass[$i] eq ',' || $ValClass[$i] eq ')');
+        next if($ValClass[$i] =~ /[shaG]/);
+        append_ISA($ValPy[$i]);
+    }
+}
+
+sub append_ISA              # issue s18
+# Append a value to the current @ISA -  for use on _init_package calls
+{
+    my $value = shift;
+
+    my $package = cur_raw_package();
+    my $key = $package . '.ISA';
+    if(!exists $SpecialVarsUsed{$key}) {
+        if($value =~ /\.split\(\)$/) {
+            $value =~ s/\.split\(\)$//;
+        }
+        $value = &::unquote_string($value);
+        $value =~ tr/::/./s;
+        $value =~ tr/'/./s;
+        my @oldvalue = ();
+        foreach my $old (split ' ', $value) {
+            if(exists $SpecialVarsUsed{'bless'} && exists $SpecialVarsUsed{'bless'}{$old}) {
+                $SpecialVarsUsed{'bless'}{$package} = 1;
+            }
+            if(exists $SpecialVarsUsed{'bless'} && exists $SpecialVarsUsed{'bless'}{$package}) {
+                $SpecialVarsUsed{'bless'}{$old} = 1;
+            }
+            push @oldvalue, $old unless exists $BUILTIN_LIBRARY_SET{$old};
+        }
+        return if !@oldvalue;
+        $SpecialVarsUsed{$key}{__main__} = "'" . join(' ', @oldvalue) . "'.split()";
+    } else {
+        my $oldvalue = $SpecialVarsUsed{$key}{__main__};
+        if($oldvalue =~ /\.split\(\)$/) {
+            $oldvalue =~ s/\.split\(\)$//;
+        }
+        $oldvalue = &::unquote_string($oldvalue);
+        $oldvalue =~ tr/::/./s;
+        $oldvalue =~ tr/'/./s;
+        
+        if($value =~ /\.split\(\)$/) {
+            $value =~ s/\.split\(\)$//;
+        }
+        $value = &::unquote_string($value);
+        $value =~ tr/::/./s;
+        $value =~ tr/'/./s;
+        my @newvalue = ();
+        foreach my $new (split ' ', $value) {
+            next if $oldvalue =~ /\b$new\b/;
+            if(exists $SpecialVarsUsed{'bless'} && exists $SpecialVarsUsed{'bless'}{$new}) {
+                $SpecialVarsUsed{'bless'}{$package} = 1;
+            }
+            if(exists $SpecialVarsUsed{'bless'} && exists $SpecialVarsUsed{'bless'}{$package}) {
+                $SpecialVarsUsed{'bless'}{$new} = 1;
+            }
+            push @newvalue, $new unless exists $BUILTIN_LIBRARY_SET{$new};
+        }
+        if(@newvalue) {
+            $SpecialVarsUsed{$key}{__main__} = "'" . $oldvalue . ' ' . join(' ', @newvalue). "'.split()";
+        } else {
+            $SpecialVarsUsed{$key}{__main__} = "'" . $oldvalue . "'.split()";
+        }
+    }
 }
 
 sub handle_use_require          # issue names

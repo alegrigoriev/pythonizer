@@ -42,6 +42,9 @@ def _import(globals, path, module=None, fromlist=None, version=None):
     export = mod.EXPORT if hasattr(mod, 'EXPORT') else ()
     export_ok = mod.EXPORT_OK if hasattr(mod, 'EXPORT_OK') else ()
     export_tags = mod.EXPORT_TAGS if hasattr(mod, 'EXPORT_TAGS') else ()
+    export = mod.EXPORT_a if hasattr(mod, 'EXPORT_a') else export
+    export_ok = mod.EXPORT_OK_a if hasattr(mod, 'EXPORT_OK_a') else export_ok
+    export_tags = mod.EXPORT_TAGS_h if hasattr(mod, 'EXPORT_TAGS_h') else export_tags
 
     if (fromlist[0] == '*' or fromlist[0] == ':all') and hasattr(mod, '__all__'):
         actual_imports = set(mod.__all__)
