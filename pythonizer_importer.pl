@@ -5,7 +5,8 @@ use v5.10;
 no warnings;
 #use strict 'subs';
 #use Data::Dumper;
-#
+use overload;           # issue s236: for overload::Method
+use Sub::Util;          # issue s236: for Sub::Util::subname
 
 package Symbol::Get;    # Not a std package, so we include a heavily modified version here
 
@@ -292,7 +293,8 @@ eval {
         say STDERR "rpat = $rpat" if $debug;
         my $cpat = join('|', @reference_copy_patterns);
         say STDERR "cpat = $cpat" if $debug;
-        my $blesses = 0;                       # issue s18
+        # issue s236: Need nore info!  my $blesses = 0;                       # issue s18
+        my %blesses = ();                       # issue s18, issue s236: keep track of WHO blesses
         while(<SRC>) {
             if($in_pod) {                                   # issue s128: check this first!
                 $in_pod = 0 if(substr($_,0,4) eq '=cut');
@@ -315,7 +317,8 @@ eval {
                 $CurShift = 0;              # issue s184
                 %arg_copies = ();           # issue s185
             } elsif(/\bbless\b/) {          # issue s18
-                $blesses = 1;               # issue s18
+                # issue s236 $blesses = 1;               # issue s18
+                $blesses{$CurSub} = 1 if defined $CurSub;   # issue s236: Keep track of who blesses
             } elsif(/\bwantarray\b/) {
                 $wantarrays{$CurSub} = 1 if defined $CurSub;
             } elsif($CurSub) {              # issue s184: Keep track of out parameters for each sub
@@ -456,6 +459,10 @@ eval {
             if(substr($k,0,1) eq '(') {                # issue s3: key starting with '(' is an overload
                 next if $k eq '((';                # not sure what this is
                 push @overloads, substr($k,1);
+                eval {      # issue s236: Try to get the name of the overloaded sub too
+                    my $subname = Sub::Util::subname(overload::Method($package, substr($k, 1)));    # issue s236
+                    push @overloads, $subname if($subname);         # issue s236
+                };                                                  # issue s236
             }
             next if $k !~ /^[A-Za-z_]/;
             next if substr($k,0,2) eq '_<';        # issue s82
@@ -492,7 +499,9 @@ eval {
         my @wantarrays = keys %wantarrays;
         say '@wantarrays=' . (@wantarrays ? "qw/@wantarrays/;" : '();');
         say '%out_parameters=' . &_pythonizer_importer::_gen_outs(\%out_parameters) . ';';
-        say '$blesses=1' if($blesses);          # issue s18
+        # issue s236 say '$blesses=1' if($blesses);          # issue s18
+        my @blesses = keys %blesses;                         # issue s236
+        say '@blesses=' . (@blesses ? "qw/@blesses/;" : '();'); # issue s236
 
         #say STDERR "expand_extras: package=$package, version=$version, export=@export, export_ok=@export_ok, export_tags=@{[%export_tags]}" if($debug);
 };

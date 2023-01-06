@@ -2,7 +2,7 @@
 
 __author__ = """Joe Cool"""
 ___email__ = 'snoopyjc@gmail.com'
-__version__ = '1.020'
+__version__ = '1.021'
 
 import perllib
 import unicodedata

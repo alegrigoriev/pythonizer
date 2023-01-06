@@ -162,7 +162,8 @@ sub state_flag_name                # issue 128
 
 our @PYTHON_KEYWORDS = qw(False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield);
 our @PYTHON_BUILTINS = qw(abs aiter all any anext ascii bin bool breakpoint bytearray bytes callable chr classmethod compile complex delattr dict dir divmod enumerate eval exec filter float format frozenset getattr globals hasattr hash help hex id input int isinstance issubclass iter len list locals map max memoryview min next object oct open ord pow print property range re repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip);
-our @PYTHON_PACKAGES = qw(sys os re fcntl math fileinput subprocess collections.abc argparse glob warnings inspect functools itertools signal traceback io tempfile atexit calendar types pdb random stat dataclasses builtins codecs struct $PERLLIB copy getopt tm_py);     # issue s200: Don't mess up our imports
+our @PYTHON_PACKAGES = qw(sys os re fcntl math fileinput subprocess collections.abc argparse glob warnings inspect functools itertools signal traceback io tempfile atexit calendar types pdb random stat dataclasses builtins codecs struct copy getopt tm_py);     # issue s200: Don't mess up our imports
+push @PYTHON_PACKAGES, $PERLLIB;                    # issue s229
 push @PYTHON_BUILTINS, @PYTHON_PACKAGES;
 our @EXTRA_BUILTINS = qw(Array Hash ArrayHash perllib wantarray close get pop update extend rstrip find rfind casefold lower upper insert keys values);        # issue test coverage: Add "close" to prevent recursive loop calling fh.close(), issue s216: add get pop method names, etc
 our %PYTHON_KEYWORD_SET = map { $_ => 1 } @PYTHON_KEYWORDS;
@@ -206,6 +207,7 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
                 _unpack=>'_pack', _assign_sparse=>'_int',
                 _can=>'_isa', _binmode=>'_autoflush',
                 _add_tie_methods=>'_raise',         # issue s216
+                _method_call=>'_cluck',             # issue s236
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
 our %PYF_OUT_PARAMETERS=();                        # Functions with out parameters - which parameter (counting from 1) is "out"?
 our %STATEMENT_FUNCTIONS=(getopts=>1, GetOptions=>1, chop=>1, chomp=>1);    # issue s150: These functions generate statements and must be pulled out of expressions/conditions, issue s167: Add chop/chomp
@@ -463,9 +465,23 @@ our %PREDEFINED_PACKAGES = (
                  {perl=>'shortmess', type=>'a:S'},
                 ],
         'Scalar::Util'=>[{perl=>'openhandle', type=>'H:H'},         # issue s183
+                         {perl=>'blessed', type=>'m:m'},
                         ],
+        'builtin'=>[{perl=>'blessed', type=>'m:m'},
+                    {perl=>'ceil', type=>'F:I', python=>'math.ceil'},
+                    {perl=>'floor', type=>'F:I', python=>'math.floor'},
+                    ],
         'PerlIO'=>[{perl=>'get_layers', type=>'H:a of S'},
                   ],
+        'utf8'=>[{perl=>'upgrade', type=>'S:B', python=>'_utf8_upgrade', out_parameter=>1},
+                 {perl=>'is_utf8', type=>'S:B', python=>'_utf8_is_utf8'},
+                 {perl=>'downgrade', type=>'Sm?:B', python=>'_utf8_downgrade', out_parameter=>1},
+                 {perl=>'valid', type=>'S:B', python=>'_utf8_valid'},
+                 {perl=>'decode', type=>'S:B', python=>'_utf8_decode', out_parameter=>1},
+                 {perl=>'encode', type=>'S:', python=>'_utf8_encode', out_parameter=>1},
+                 {perl=>'native_to_unicode', type=>'I:I', python=>'_utf8_native_to_unicode'},
+                 {perl=>'unicode_to_native', type=>'I:I', python=>'_utf8_unicode_to_native'},
+                ],
                );
 
 

@@ -41,4 +41,11 @@ assert($@ =~ /^Can't locate notfound/ || $@ =~ /^No module named 'notfound'/);
 assert($@ =~ /at test_require/);
 assert($@ =~ / line /);
 
+eval {
+    require "subdir/file_not_found.pl";
+};
+assert($@ =~ m(^Can't locate subdir/file_not_found.p));
+assert($@ =~ /at test_require/);
+assert($@ =~ / line /);
+
 done_testing();

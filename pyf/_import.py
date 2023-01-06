@@ -1,8 +1,37 @@
 
-def _import(globals, path, module=None, fromlist=None, version=None):
-    """Handle use/require statement from perl"""
-    if module is None:
-        [path, module] = os.path.split(os.path.splitext(os.path.abspath(path))[0])
+def _import(globals, path, module=None, fromlist=None, version=None, is_do=False):
+    """Handle use/require statement from perl.  'path' is the relative or absolute path to the .py file
+    of the module (the extension is ignored if specified).  If 'module' is specified, then that is
+    effectively added to the path, 'fromlist' is the list of desired functions to import.  'version'
+    will perform a version check. 'is_do' handles a 'do EXPR;' statement."""
+    global OS_ERROR, EVAL_ERROR
+    caller_package = builtins.__PACKAGE__
+    pathname = None
+    if module is not None:
+        path = f'{path}/{module}'
+        module = None
+    if not os.path.isabs(path):
+        path = os.path.splitext(path)[0]
+        pathname = path.replace('.', '').replace('/', '.')
+        if pathname[0] == '.':
+            pathname = pathname[1:]
+        if path[0] == '.':
+            pass
+        else:
+            for pa in sys.path:
+                if os.path.isfile(os.path.join(pa, path, '__init__.py')):
+                    path = os.path.join(pa, path)
+                    break
+                elif os.path.isfile(os.path.join(pa, f'{path}.py')):
+                    path = os.path.join(pa, path)
+                    break
+            else:
+                if not is_do:
+                    msg = f"Can't locate {path}.py in sys.path (sys.path contains: {' '.join(sys.path)})"
+                    raise ImportError(msg)
+    [path, module] = os.path.split(os.path.splitext(os.path.abspath(path))[0])
+    if is_do:
+        sys.modules.pop(module, None)
     if module in sys.modules and \
       hasattr((mod:=sys.modules[module]), '__file__') and \
       os.path.join(path, module) + '.py' == mod.__file__:
@@ -12,6 +41,18 @@ def _import(globals, path, module=None, fromlist=None, version=None):
             sys.path.insert(0, path)
             mod = __import__(module, globals=globals, fromlist=['*'])
             sys.modules[module] = mod
+        except ImportError as _i:
+            if is_do:
+                OS_ERROR = str(_i)
+                return None
+            else:
+                raise
+        except Exception as _e:
+            if is_do:
+                EVAL_ERROR = str(_e)
+                return None
+            else:
+                raise
         finally:
             sys.path.pop(0)
 
@@ -39,20 +80,28 @@ def _import(globals, path, module=None, fromlist=None, version=None):
         fromlist = [fromlist]
 
     actual_imports = set()
-    export = mod.EXPORT if hasattr(mod, 'EXPORT') else ()
-    export_ok = mod.EXPORT_OK if hasattr(mod, 'EXPORT_OK') else ()
-    export_tags = mod.EXPORT_TAGS if hasattr(mod, 'EXPORT_TAGS') else ()
-    export = mod.EXPORT_a if hasattr(mod, 'EXPORT_a') else export
-    export_ok = mod.EXPORT_OK_a if hasattr(mod, 'EXPORT_OK_a') else export_ok
-    export_tags = mod.EXPORT_TAGS_h if hasattr(mod, 'EXPORT_TAGS_h') else export_tags
+    export = ()
+    export_ok = ()
+    export_tags = dict()
+    for pn in (pathname, builtins.__PACKAGE__):     # builtins.__PACKAGE__ is now the module's package, not ours
+        if pn is not None and hasattr(builtins, pn):
+            module_namespace = getattr(builtins, pn)
+            if hasattr(module_namespace, 'EXPORT_a'):
+                export = getattr(module_namespace, 'EXPORT_a')
+            if hasattr(module_namespace, 'EXPORT_OK_a'):
+                export_ok = getattr(module_namespace, 'EXPORT_OK_a')
+            if hasattr(module_namespace, 'EXPORT_TAGS_h'):
+                export_tags = getattr(module_namespace, 'EXPORT_TAGS_h')
 
+    builtins.__PACKAGE__ = caller_package
     if (fromlist[0] == '*' or fromlist[0] == ':all') and hasattr(mod, '__all__'):
         actual_imports = set(mod.__all__)
-    #elif fromlist[0] == '*' and not hasattr(mod, 'EXPORT'):
-        #for key in mod.__dict__.keys():
-            #if key[0] != '_':
-                #actual_imports.add(key)
+    elif fromlist[0] == '*' and not export:
+        for key in mod.__dict__.keys():
+            if callable(mod.__dict__[key]) and key[0] != '_':
+                actual_imports.add(key)
     else:
+        # This should mirror the code in pythonizer expand_extras:
         for desired in fromlist:
             if (ch:=desired[0]) == '!':
                 if desired == fromlist[0]:
@@ -84,6 +133,10 @@ def _import(globals, path, module=None, fromlist=None, version=None):
                         actual_imports.add(e)
             elif desired == '*':
                 actual_imports.update(set(export))
+            elif ch == '-' or not re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', desired):
+                pass
+            else:
+                actual_imports.add(desired)
 
         actual_imports = list(actual_imports)
         sig_map = {'$': '_v', '@': '_a', '%': '_h'}
@@ -104,13 +157,14 @@ def _import(globals, path, module=None, fromlist=None, version=None):
             elif hasattr(mod, perl_name+'_'):
                 actual_imports[i] = perl_name+'_'
 
+    namespace = None
+    if hasattr(builtins, caller_package):
+        namespace = getattr(builtins, caller_package)
     for imp in actual_imports:
         if hasattr(mod, imp):
-            globals[imp] = getattr(mod, imp)
-            if hasattr(builtins, '__PACKAGE__'):
-                pkg = builtins.__PACKAGE__
-                if hasattr(builtins, pkg):
-                    namespace = builtins[pkg]
-                    setattr(namespace, imp, getattr(mod, imp))
+            mi = getattr(mod, imp)
+            globals[imp] = mi
+            if namespace:
+                setattr(namespace, imp, mi)
 
     return 1

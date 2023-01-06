@@ -1,6 +1,7 @@
+# pragma pythonizer -s
 use CGI::Util qw/rearrange rearrange_header make_attributes unescape escape expires ebcdic2ascii ascii2ebcdic/;
 use Carp::Assert;
-use Data::Dumper;
+#use Data::Dumper;
 
 # Test rearrange
 my @test_array = qw/a b c d/;
