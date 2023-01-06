@@ -1,0 +1,12 @@
+# from netdb: This was generating a syntax error in the output code
+
+### load feed_lib but get rid of the warning from it. 
+BEGIN {
+    local $SIG{__WARN__} = sub {};
+    eval {
+        require feed_lib;
+        feed_lib::->import();
+    };
+}
+
+print "$0 - test passed!\n";

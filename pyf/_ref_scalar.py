@@ -13,6 +13,8 @@ def _ref_scalar(r):
         if r.isHash:
             return 'HASH'
         return 'ARRAY'
+    if isinstance(r, type): # return '' for a class (not a class instance)
+        return ''
     if hasattr(tr, '__name__'):
         return tr.__name__
     elif hasattr(r, 'TIEARRAY'):

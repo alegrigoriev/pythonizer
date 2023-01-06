@@ -23,7 +23,7 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
     def extend(self, lst):
         if self.isHash is None:
             self.isHash = False
-        elif self.isHash:
+        elif self.isHash and len(lst):
             raise TypeError('Not an ARRAY reference')
         ln = len(self)
         for item in lst:

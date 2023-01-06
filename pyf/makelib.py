@@ -59,7 +59,7 @@ def main():
         print(f"___email__ = '{email}'", file=of)
         print(f"__version__ = '{version}'", file=of)
         print(file=of)
-        print('import sys,os,re,fileinput,subprocess,collections.abc,warnings,inspect,itertools,signal,traceback,io,tempfile,calendar,types,random,dataclasses,builtins,codecs,struct,pprint,functools,argparse', file=of)
+        print('import sys,os,re,fileinput,subprocess,collections.abc,warnings,inspect,itertools,signal,traceback,io,tempfile,calendar,types,random,dataclasses,builtins,codecs,struct,pprint,functools,argparse,abc', file=of)
         print('import time as tm_py', file=of)
         print('import stat as st_py', file=of)
         print('_str = lambda s: "" if s is None else str(s)', file=of)

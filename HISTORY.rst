@@ -2,6 +2,11 @@
 History
 =======
 
+1.021 (2022-12-28)
+------------------
+
+* Issue s223: Update the metaclass of our dynamically generated classes in _init_package to define a __str__ that returns the class name.  Update _ref_scalar to return '' if given a class (not a class instance), Issue s225: fix _import to actually work!, fix _tie_call if passed a string instead of self, Issue s231: Implement do EXPR in _import with a new keyword parameter, implement utf8:: functions, implement blessed, Issue s203: addl fix for _init_package to properly subclass MethodType subs, skip error in ArrayHash.extend if asked to extend a hash with an empty array as it is () in the source code, which is also used for an empty hash, Issue s236: _ref now returns '' for a class (not a class instance), Issue s237: add _logical_xor
+
 1.020 (2022-12-20)
 ------------------
 

@@ -11,6 +11,8 @@ def _ref(r):
         return ''
     elif '_ArrayHash' in t:
         return ''
+    if isinstance(r, type): # return '' for a class (not a class instance)
+        return ''
     if hasattr(tr, '__name__'):
         return tr.__name__
     return t.replace("<class '", '').replace("'>", '')

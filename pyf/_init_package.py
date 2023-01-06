@@ -5,6 +5,10 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
     parent = builtins
     parent_name = ''
     package_name = ''
+    class perllibMeta(abc.ABCMeta):
+        def __str__(self):      # so str(class_v) works
+            return self.__name__ if isinstance(self, type) else super().__str__()
+
     for i, piece in enumerate(pieces):
         prior_namespace = namespace = None
         if hasattr(parent, piece):
@@ -32,6 +36,7 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
                                 new_parent_namespace = type(name, (_ArrayHashClass,), Hash())
                             else:
                                 new_parent_namespace = type(name, (_ArrayHashClass,), dict())
+                            new_parent_namespace.__class__ = perllibMeta
                             new_parent_namespace.__eq__ = lambda self, other: self is other
                             for k, v in parent_namespace.__dict__.items():
                                 setattr(new_parent_namespace, k, v)
@@ -44,6 +49,10 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
                                 grandparent_namespace = getattr(builtins, grandparent_package_name)
                                 setattr(grandparent_namespace, ppn_pieces[-1], new_parent_namespace)
                             parent_namespace = new_parent_namespace
+                        if class_parents and type(class_parents[0]) != type(parent_namespace) and \
+                           type(class_parents[0]).__name__ == type(parent_namespace).__name__:
+                            # Avoid: TypeError: metaclass conflict: the metaclass of a derived class must be a (non-strict) subclass of the metaclasses of all its bases
+                            parent_namespace.__class__ = class_parents[0].__class__
                         class_parents.append(parent_namespace)
                         if isinstance(parent_namespace, type):
                             any_parent_is_class = True
@@ -53,6 +62,13 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
                     namespace = type(name, tuple(class_parents), Hash())
                 else:
                     namespace = type(name, tuple(class_parents), dict())
+
+                if is_class or any_parent_is_class:
+                    for key in dir(namespace):
+                        if isinstance(getattr(namespace, key), types.MethodType):
+                            setattr(namespace, key, types.MethodType(getattr(namespace, key).__func__, namespace))
+
+                namespace.__class__ = perllibMeta
                 namespace.__eq__ = lambda self, other: self is other
                 if prior_namespace is not None:
                     for k, v in prior_namespace.__dict__.items():

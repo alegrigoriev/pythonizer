@@ -38,7 +38,7 @@ use Storable qw(dclone);                # issue s18
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages %PackageDef arg_type_from_pos in_sub_call end_of_function new_anonymous_sub save_nest restore_nest); # SNOOPYJC
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages %PackageDef arg_type_from_pos in_sub_call end_of_function new_anonymous_sub save_nest restore_nest for_loop_uses_default_var); # SNOOPYJC
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $IntactLno = 0;           # issue s6
    $IntactEndLno = 0;        # issue s6
@@ -695,6 +695,13 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                            }
                        }
                    }
+              } elsif($k != 0 && $ValClass[$k] eq 'c' && $k+2 <= $#ValClass &&
+                      ((($ValPerl[$k] eq 'while' || $ValPerl[$k] eq 'until') && $ValClass[$k+1] eq '(' && ($ValClass[$k+2] eq 'j' || $ValClass[$k+2] eq 'g')) ||
+		               ($ValPy[$k] eq 'for' && for_loop_uses_default_var($k)))) {	# issue s235: Handle while/until/for loop as stmt modifier
+	            $VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s235
+                my $t = merge_types($DEFAULT_VAR, $CurSubName, 'm');     # issue s235 it's a string but it could also be undef at EOF
+                $VarType{$DEFAULT_VAR}{$CurSubName} = $t;      		# issue s235
+	            $initialized{$CurSubName}{$DEFAULT_VAR} = $t unless $NeedsInitializing{$CurSubName}{$DEFAULT_VAR};	# issue s103, issue s104
               }
 
           } # for
@@ -708,12 +715,12 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
               }
               $VarType{$CurSubName}{__main__} = merge_types($CurSubName, '__main__', $typ);
           } elsif(($#ValClass >= 2 && ($ValPerl[0] eq 'while' || $ValPerl[0] eq 'until') && $ValClass[1] eq '(' && ($ValClass[2] eq 'j' || $ValClass[2] eq 'g')) ||
-		   $#ValClass >= 2 && $ValPy[0] eq 'for' && $ValClass[1] eq '(' && is_foreach_loop()) {	# issue s103
-	      $VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
+		   ($#ValClass >= 2 && $ValPy[0] eq 'for' && for_loop_uses_default_var(0))) {	# issue s103, issue s235
+	          $VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
               my $t = merge_types($DEFAULT_VAR, $CurSubName, 'm');     # issue s104: it's a string but it could also be undef at EOF
               $VarType{$DEFAULT_VAR}{$CurSubName} = $t;      		# issue s104
-	      $initialized{$CurSubName}{$DEFAULT_VAR} = $t unless $NeedsInitializing{$CurSubName}{$DEFAULT_VAR};	# issue s103, issue s104
-	  }
+	          $initialized{$CurSubName}{$DEFAULT_VAR} = $t unless $NeedsInitializing{$CurSubName}{$DEFAULT_VAR};	# issue s103, issue s104
+	      }
       } # statements
       # SNOOPYJC: Capture the prior expr type in case of implicit function return (as done by pythonizer::finish())
       # If we determine it's a mixed type ('m'), then stop checking
@@ -786,7 +793,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
           # Parse the eval string into tokens
           my $pos = $-[0];
           my $ch0;
-          if($ValPerl[$pos] eq 'eval' && ($ch0 = substr($ValPy[$pos+1],0,1)) eq "'" || $ch0 eq '"') {
+          if($ValPerl[$pos] eq 'eval' && (($ch0 = substr($ValPy[$pos+1],0,1)) eq "'" || $ch0 eq '"')) {
               $::saved_eval_tokens = 1;     # We don't need to actually save the code, just set a flag for getline
               $::saved_eval_lno = $.;
               my $t;
@@ -1130,7 +1137,7 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
         my $packname = &Perlscan::unescape_keywords(substr($name,0,$dx));       # issue s18
         if(!exists $UsePackage{$packname} && !exists $RequirePackage{$packname} && !exists $PYTHON_PACKAGES_SET{$packname} && !exists $Packages{$packname} &&   # issue s18
            $packname !~ /^len\(/ && $packname !~ /^builtins\b/ && 
-           $packname !~ /^\(/ &&
+           $packname !~ /^\(/ && $packname !~ /^\d/ &&
            $packname !~ /^$DEFAULT_MATCH\b/ && $packname !~ /^$PERLLIB\b/) {
             $Packages{$packname} = 2;           # 2 means we reference it but don't define it here
         }
@@ -1532,10 +1539,12 @@ sub in_sub_call                           # SNOOPYJC
            return 0;
         } elsif($ValClass[$i] eq 'i' && $LocalSub{$ValPy[$i]}) {
             return 1;
+        } elsif($ValClass[$i] eq 'i' && $i-1 >= 0 && $ValClass[$i-1] eq 'D') {  # issue s205: Method call
+            return 1;                       # issue s205
         } elsif($ValClass[$i] eq ')') {
             $i = reverse_matching_br($i);
             return 0 if($i < 0);
-	    $i++;	# issue bootstrapping: Process the '(' next
+	        $i++;	# issue bootstrapping: Process the '(' next
         } elsif($ValClass[$i] eq '=' && $ValPy[$i] ne ':=') {
             return 0;
         }
@@ -1621,9 +1630,18 @@ sub arg_from_pos                           # issue s48
 
     for($i = $k; $i >= 0; $i--) {
         if($ValClass[$i] eq '(') {
-           if($i-1 >= 0 && $ValClass[$i-1] eq 'f') {
-              $i--;
-              last;
+           if($i-1 >= 0) {
+              if($ValClass[$i-1] eq 'f') {
+                 $i--;
+                 last;
+              } elsif($ValClass[$i-1] eq 'i') {     # issue s205: Sub call
+                  return (undef, undef, undef);
+              } elsif($ValPerl[$i-1] eq '}') {      # issue s205
+                  my $j = reverse_matching_br($i-1);
+                  if($j-1 >= 0 && $ValPerl[$j-1] eq '&') {  # object being cast as a sub
+                     return (undef, undef, undef);
+                  }
+              }
            }
            # issue s48 return (undef, undef, undef);
         } elsif($ValClass[$i] eq 'f' && $i != $k) {
@@ -1807,7 +1825,7 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
 }
 
 sub _expr_type           # Attempt to determine the type of the expression
-# a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, S=String, u=undef, f=function, H=FileHandle, ?=Optional, m=mixed, R=regex, B=bool
+# a=Array, h=Hash, s=Scalar, I=Integer, F=Float, N=Numeric, S=String, u=undef, f=function, H=FileHandle, ?=Optional, m=mixed, R=regex, B=bool, C=coderef
 {
     my $k = shift;
     my $e = shift;
@@ -1864,14 +1882,14 @@ sub _expr_type           # Attempt to determine the type of the expression
             my $v = substr($ValPerl[$k], 1);
             if(exists $Perlscan::SpecialVarType{$v}) {
                 my $typ = $Perlscan::SpecialVarType{$v};
-		if($ValPy[$k] eq $DEFAULT_VAR && ($#ValClass == $k || $ValPy[$k+1] ne '=')) {	# issue s103
-	      	    $VarSubMap{$DEFAULT_VAR}{$CurSub}='+';		# issue s103
+		        if($ValPy[$k] eq $DEFAULT_VAR && ($#ValClass == $k || $ValPy[$k+1] ne '=')) {	# issue s103
+	      	        $VarSubMap{$DEFAULT_VAR}{$CurSub}='+';		# issue s103
                	    $NeedsInitializing{$CurSub}{$ValPy[$k]} = $typ unless exists $initialized{$CurSub}{$ValPy[$k]};	# issue s103
-		} elsif($ValPy[$k] eq $DEFAULT_VAR && exists $NeedsInitializing{$CurSub}{$ValPy[$k]}) {	# issue s103
-	      	    $VarSubMap{$DEFAULT_VAR}{$CurSub}='+';		# issue s103
-	        } else {									# issue s103
+		        } elsif($ValPy[$k] eq $DEFAULT_VAR && exists $NeedsInitializing{$CurSub}{$ValPy[$k]}) {	# issue s103
+	      	        $VarSubMap{$DEFAULT_VAR}{$CurSub}='+';		# issue s103
+                } else {									# issue s103
                     $initialized{$CurSub}{$ValPy[$k]} = $typ;
-	        }
+                }
                 $VarType{$ValPy[$k]}{$CurSub} = $typ;
                 if(exists $SpecialVarR2L{$ValPy[$k]}) { # e.g. _nr() => INPUT_LINE_NUMBER
                     $initialized{$CurSub}{$SpecialVarR2L{$ValPy[$k]}} = $typ;
@@ -1906,6 +1924,7 @@ sub _expr_type           # Attempt to determine the type of the expression
             }
             return 'h of u';
         } elsif($class eq '"' || $class eq 'x') {       # string or `exec` or /regex/
+            return 'C' if($ValPy[$k] =~ /^$ANONYMOUS_SUB/);   # issue s229
             return 'S';                 # string
         } elsif($class eq 'q') {        # /regex/
             return 'R' if($ValPerl[$k] eq 'qr');        # Compiled regex
@@ -1919,13 +1938,15 @@ sub _expr_type           # Attempt to determine the type of the expression
             } elsif($LocalSub{$name} || (exists $VarType{$name} && exists $VarType{$name}{__main__})) { # Local sub with no args
                 return $VarType{$name}{__main__} if(exists $VarType{$name} && exists $VarType{$name}{__main__});
                 return 'm';
-	    } elsif(exists $CONSTANT_MAP{$ValPerl[$k]}) {
-		return 'I';
+	        } elsif(exists $CONSTANT_MAP{$ValPerl[$k]}) {
+		        return 'I';
             } else {
                 return 'S';
             }
         } elsif($class eq 'g') {                # Glob
             return 'a of S';
+        } elsif($class eq 'k' && $ValPerl[$k] eq 'sub') {   # issue s229
+            return 'C';                         # issue s229: coderef
         }
         return 'm';
     } elsif($k+2 <= $e && $ValClass[$k+1] eq '=') {     # Type of assignment is type of RHS
@@ -1943,8 +1964,14 @@ sub _expr_type           # Attempt to determine the type of the expression
             return 'm';
         } elsif($k+1 <= $#ValClass && $ValClass[$k+1] eq 'A') {         # key => value
             return 'm';         # User can change it to any type of value
+        } elsif($k+1 <= $#ValClass && $ValClass[$k+1] eq 'i') {         # issue s236: new Package
+            return 'm';             # issue s236
+        } elsif($k+1 <= $#ValClass && $ValClass[$k+1] eq 'D') {         # issue s236: Package->method
+            return 'm';             # issue s236
         }
         return 'S';             # will be changed to a string
+    } elsif($class eq '\\' && $k+1 <= $e && $ValClass[$k+1] eq 'i' && $LocalSub{$ValPy[$k+1]}) {    # issue s229: coderef
+        return 'C';             # issue s229
     } elsif($class ne '(') {            # Non-parenthesized expression
         my $s = $k;                     # issue s151
         $s = end_of_function($k)+1 if $class eq 'f';    # issue s151
@@ -1957,6 +1984,11 @@ sub _expr_type           # Attempt to determine the type of the expression
 	            # issue s124 return 'S' if($ValPerl[$m] =~ /^[a-z][a-z]$/);  # like eq, gt, etc
 	            # issue s124 return 'I';     # boolean is an Int in perl
                 # issue s151 return 'B';		# issue s124: Boolean
+                my $mm = next_same_level_tokens('?:', $m+1, $#ValClass);        # issue s229
+                # issue s229: Handle $s==1 ? $subref : sub{5} properly - it's not an 'I'!!
+                if($mm != -1 && $mm <= $e) {
+                    return expr_type($mm-1, $e, $CurSub);
+                }
 	            return 'I';     # issue s151: boolean is an Int in python (until we convert it with _pb)
             # issue s152 } elsif($ValClass[$m] =~ /0o/) {    # or || and &&
             } elsif($ValClass[$m] =~ /[0o]/) {    # or || and &&, issue s152
@@ -3275,7 +3307,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
             # issue s126 $in_def = undef if($line !~ /^def / && $line !~ /^class / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/ && !$multiline_string_sep);
             if($line =~ /^([A-Za-z0-9.]+)[.]$in_def = types[.]MethodType\($in_def,/ ||
   # issue s216 $line =~ /^([A-Za-z0-9.]+)[.]$in_def = lambda \*_args: $in_def\(/ ||
-               $line =~ /^([A-Za-z0-9.]+)[.]$in_def = lambda \*_args: .*tie_call\($in_def,/ ||   # issue s216
+               $line =~ /^([A-Za-z0-9.]+)[.]$in_def = lambda \*_args.*tie_call\($in_def,/ ||   # issue s216
                $line =~ /^([A-Za-z0-9.]+)[.]$in_def = $in_def$/) {     # issue s18
                $def_package{$in_def} = $1;                             # issue s18
             }                                                          # issue s18
@@ -3505,7 +3537,7 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
 			            $lines[$i] =~ /^${func}_[\w]+ =/ ||	 # state variable like func_var = init
                         $lines[$i] =~ /[.]$func = types[.]MethodType\($func,/ ||     # issue s3
            # issue s216 $lines[$i] =~ /[.]$func = lambda \*_args: $func\(/ ||     # issue s154
-                        $lines[$i] =~ /[.]$func = lambda \*_args: .*tie_call\($func,/ ||     # issue s154, issue s216
+                        $lines[$i] =~ /[.]$func = lambda \*_args.*tie_call\($func,/ ||     # issue s154, issue s216
                         $lines[$i] =~ /[.]$func = $func$/) {     # e.g. main.func = func
                         #say STDERR "Found def $func";   # TEMP
                     if(exists $moved_lines{$i+1}) {         # Don't include it twice
@@ -3526,9 +3558,28 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                 } elsif(exists $moved_lines{$i+1}) {            # issue s155
                     #say STDERR "skipped writing as this was already moved: $lines[$i]";    # TEMP
                     next;
+                } elsif(exists $moved_lines{$i} && $lines[$i] =~ /^\s+#/ && ($i+1 >= scalar(@lines) || $lines[$i+1] !~ /^\s+#/)) {  # issue test_comments
+                    # If we just moved a sub and we have exactly one comment below it, that comment gets moved with the sub
+                    $moved_lines{$i+1} = 1;
+                    $lines_moved++;
+                    if(exists $def_package{$func} && !exists $packages_initialized{$def_package{$func}}) {  # issue s18
+                        push @{$deferred_lines{$def_package{$func}}}, $lines[$i];        # issue s18
+                    } else {                                                # issue s18
+                        pep8($sysout, $lines[$i]);
+                    }
                 } else {
                     if($lines[$i] eq 'pass') {          # issue s155: Effectively use up the 'pass' we inserted to stop movement so code of the outer block can be moved
                         $moved_lines{$i+1} = 1;         # issue s155
+                        if(exists $moved_lines{$i} && $i+1 < scalar(@lines) && $lines[$i+1] =~ /^\s*#/ && ($i+2 >= scalar(@lines) || $lines[$i+2] !~ /^\s*#/)) {  # issue test_comments
+                            # If we just moved a sub and we have exactly one comment below it, that comment gets moved with the sub
+                            $moved_lines{$i+2} = 1;
+                            $lines_moved++;
+                            if(exists $def_package{$func} && !exists $packages_initialized{$def_package{$func}}) {
+                                push @{$deferred_lines{$def_package{$func}}}, $lines[$i+1];
+                            } else {
+                                pep8($sysout, $lines[$i+1]);
+                            }
+                        }
                     }                                   # issue s155
                     #say STDERR "stopped writing as we found $lines[$i]";    # TEMP
                     last;
@@ -3998,10 +4049,13 @@ sub being_declared_here                         # issue bootstrap
 
 sub is_foreach_loop				# issue s103
 {
-    for(my $p = 0; $p <= $#ValClass; $p++) {
+    my $pos = shift;
+
+    for(my $p = $pos; $p <= $#ValClass; $p++) {
         return 0 if $ValClass[$p] eq ';';
     }
-    return 1;
+    return 1 if $ValPy[$pos] eq 'for';     # issue s235
+    return 0;                           # issue s235
 }
 
 sub function_modifies_sub_arg       # issue s183
@@ -4063,7 +4117,15 @@ sub track_potential_sub_parameter_copies       # issue s185
     my $rhs = $eq+1;
     my $lhs = 1;
     if($ValClass[$lhs] eq '(') {           # my (...)
-        if($rhs == $#ValClass && $ValClass[$rhs] eq 'a' && $ValPerl[$rhs] eq '@_') {        # Easy case
+        if($rhs == $#ValClass && $ValClass[$rhs] eq 'a' && $ValPerl[$rhs] eq '@_') {        # Easy case: my (...) = @_;
+            my $which = (exists $SubAttributes{$cs}{arglist_shifts}) ? $SubAttributes{$cs}{arglist_shifts} : 0;
+            for(my $p = $lhs+1; $p < $eq; $p++) {
+                if($ValClass[$p] eq 's') {
+                    $SubAttributes{$cs}{arg_copies}{$ValPerl[$p]} = $which;
+                    $which++;
+                }
+            }
+        } elsif($ValClass[$rhs] eq '(' && $ValClass[$rhs+1] eq 'a' && $ValPerl[$rhs+1] eq '@_') {   # Another easy case: my (...) = (@_);
             my $which = (exists $SubAttributes{$cs}{arglist_shifts}) ? $SubAttributes{$cs}{arglist_shifts} : 0;
             for(my $p = $lhs+1; $p < $eq; $p++) {
                 if($ValClass[$p] eq 's') {
@@ -4138,5 +4200,19 @@ sub propagate_sub_attributes_for_bless      # issue s184
             $SubAttributes{'->'.$_} = $SubAttributes{$_};
         }
     }
+}
+
+sub for_loop_uses_default_var       # issue s235
+# Does this for(each) loop use the default variable?
+# The case that caused this to be written is: $selected{$_}++ for $self->param($name);
+# which needs to return True!!
+{
+    my $pos = shift;
+
+    return 0 unless is_foreach_loop($pos);
+    return 1 if $ValClass[1] eq '(';    # for (...)
+    return 0 if $ValClass[1] eq 't';    # for my ...
+    return 0 if $ValClass[1] eq 's' && $ValClass[2] eq '('; # for $s (
+    return 1;
 }
 1;

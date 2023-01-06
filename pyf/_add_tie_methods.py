@@ -1,6 +1,6 @@
 
 def _add_tie_methods(obj):
-    """Create a subclass for the object and add the methods to it to implement 'tie', like __getitem__ etc."""
+    """Create a subclass for the object and add the methods to it to implement 'tie', like __getitem__ etc.  The call to this functions is generated on any 'return' statement (or implicit return) in TIEHASH or TIEARRAY"""
     try:
         cls = obj.__class__
     except Exception:       # Not an object, so just ignore
