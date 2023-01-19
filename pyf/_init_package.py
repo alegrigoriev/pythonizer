@@ -24,6 +24,11 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
             if (is_class or isa) and i == len(pieces)-1:
                 class_parents = []
                 any_parent_is_class = False
+                if not hasattr(builtins, 'UNIVERSAL'):
+                    if autovivification:
+                        builtins.UNIVERSAL = _ArrayHashClass
+                    else:
+                        builtins.UNIVERSAL = type('UNIVERSAL', tuple(), dict())
                 for p in isa:
                     py = p.replace("'", '.').replace('::', '.')
                     if hasattr(builtins, f"{py}_"): # handle names that need to be escaped
@@ -35,7 +40,7 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
                             if autovivification:
                                 new_parent_namespace = type(name, (_ArrayHashClass,), Hash())
                             else:
-                                new_parent_namespace = type(name, (_ArrayHashClass,), dict())
+                                new_parent_namespace = type(name, tuple(), dict())
                             new_parent_namespace.__class__ = perllibMeta
                             new_parent_namespace.__eq__ = lambda self, other: self is other
                             for k, v in parent_namespace.__dict__.items():
@@ -61,6 +66,8 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
                         class_parents.append(_ArrayHashClass)
                     namespace = type(name, tuple(class_parents), Hash())
                 else:
+                    if is_class and not any_parent_is_class:
+                        class_parents.append(builtins.UNIVERSAL)
                     namespace = type(name, tuple(class_parents), dict())
 
                 if is_class or any_parent_is_class:

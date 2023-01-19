@@ -8,7 +8,9 @@ def _store_perl_global(perlname, value, infer_suffix=False):
     packname = packname.replace('::', '.')
     if packname == '':
         packname = 'main'
-    if not hasattr(builtins, packname):
+    if callable(value) and (varname == 'new' or varname == 'make') and not hasattr(builtins, packname):
+        _init_package(packname, is_class=True)
+    elif not hasattr(builtins, packname):
         _init_package(packname)
     namespace = getattr(builtins, packname)
     if infer_suffix:
@@ -23,6 +25,8 @@ def _store_perl_global(perlname, value, infer_suffix=False):
             varname += '_h'
         elif isinstance(value, collections.abc.Iterable):
             varname += '_a'
+    if callable(value) and (varname == 'new' or varname == 'make'):
+        value = types.MethodType(value, namespace)
     if varname in _PYTHONIZER_KEYWORDS:
         varname += '_'
     if varname == '' or varname == '_h':    # namespace dictionary

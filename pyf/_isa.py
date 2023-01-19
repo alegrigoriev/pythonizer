@@ -1,6 +1,8 @@
 
 def _isa(self, classname):
     """Implementation of UNIVERSAL::isa and $obj->isa and $cls->isa"""
+    if hasattr(self, 'isa'):
+            return self.isa(classname)
     _ref_map = {"<class 'int'>": 'SCALAR', "<class 'str'>": 'SCALAR',
                 "<class 'float'>": 'SCALAR', "<class 'NoneType'>": 'SCALAR',
                 "<class 'list'>": 'ARRAY', "<class 'tuple'>": 'ARRAY',

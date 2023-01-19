@@ -2,6 +2,11 @@
 History
 =======
 
+1.022 (2023-01-06)
+------------------
+
+* Issue s238: Update _cmp and _spaceship to work on objects with overloaded cmp and <=> operators - _cmp also now converts non-object to str internally, Added _overload_Method, _overload_Overloaded, _overloaded_StrVal, _subname.  Updated Math.Complex.py to set the new attributes we use to determine what's overloaded.  Add HTML::Entities.  Issue s243: Define UNIVERSAL as base class of all objects in _init_package and change the name of our _ArrayHashClass from NewCls to UNIVERSAL in ArrayHash.  Issue s244: update _store_perl_global to convert a callable to a MethodType if the method name is 'new' or 'make'.
+
 1.021 (2022-12-28)
 ------------------
 

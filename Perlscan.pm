@@ -161,8 +161,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                             '.keys()_s'=>'h:I', '.values()_s'=>'h:I',           # issue s3
                             '_readdir'=>'H:S', '_readline_full'=>'H:S',         # issue s40
                             '.rstrip("\n")_s'=>'S:m', '[0:-1]_s'=>'S:m',        # issue s48
-                            '_split_s'=>'SSI?:I',                               # issue s52
-                            '_reverse_scalar'=>'a:S', 
+                            '_split_s'=>'S?S?I?:I',                             # issue s52, issue s246: Add the '?' to everything
+                            '_reverse_scalar'=>'a?:S', 
                             # issue s153 'filter_s'=>'Sa:I', 
                             'filter_s'=>'sa:I',         # issue s153
                             'caller_s'=>'I?:m',         # issue s177
@@ -353,21 +353,28 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
        # y => Extra python code we need to generate as is (used in multi_subscripts)
        # z
        # A => => (arrow)
+       # B
        # C => More control like default, else, elsif
        # D => -> (dot in python)
+       # E
        # F => Named Unary Operators (not generated, but used in calls to next_lower_or_equal_precedent_token)
        # G => TypeGlob *name
        # H => Here doc <<
        # I => >>
+       # J, K, L, 
+       # M => ~~ (smartMatch)
+       # N, O
        # P => :: (package reference)
+       # Q..V
        # W => Context manager (with)
+       # X..Z
        # 0 => &&, ||
        # ^ => ++ or --
        # > => comparison like > < >= <= == eq ne lt gt le ge
        # = => assignment like = += -= etc
        # ? => ? (part of ? : )
-       # : => : or =>
-       # . => . or -> or ::
+       # : => :
+       # . => . or ::
        # * => *, **, or x
        # ! => !
        # +, -, /, % => Operators
@@ -401,6 +408,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
             # 14      chained     >           < > <= >= lt gt le ge
                         '>'=>14,
             # 13      chain/na    >           == != eq ne <=> cmp ~~
+                        'M'=>13,              # issue s251
             # 12      left        &           & &.
                         '&'=>12,
             # 11      left        |           | |. ^ ^.
@@ -549,6 +557,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   '_assign_global'=>'SSm:m', '_read'=>'HsII?:s',
                   '_set_breakpoint'=>':u',              # issue s62
                   '__expand'=>'R:S',                    # issue s131
+                  'xor' => 'mm:B',                      # issue s237
                   '_logical_xor' => 'mm:B',             # issue s237
                   'exp'=>'F:F', 'log'=>'F:F', 'cos'=>'F:F', 'sin'=>'F:F',       # issue s3
                   '$#'=>'a:I',                                                # issue 119: _last_ndx
@@ -563,36 +572,41 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'longmess'=>'a:S', 'shortmess'=>'a:S',                             # SNOOPYJC
                   'chdir'=>'S:I',
                   # issue s48 'chomp'=>'S:m', 'chop'=>'S:m', 
-                  'chomp'=>'a:m', 'chop'=>'a:m',        # issue s48
+                  'chomp'=>'a?:m', 'chop'=>'a?:m',        # issue s48
                   'chmod'=>'Ia:I','chr'=>'I?:S','close'=>'H:I',
-                  'cmp'=>'SS:I', '<=>'=>'NN:I',
+                  # issue s238 'cmp'=>'SS:I', 
+                  'cmp'=>'mm:I',        # issue s238: Don't convert to str here because it could be an object
+                  '<=>'=>'NN:I',
+                  '~~'=>'mm:I',         # issue s251
                   'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:m', 'dirname'=>'S:S', 'each'=>'h:a', 'exists'=>'m:I', 
                   'exit'=>'I?:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':m', 'fileno'=>'H:I',
-                  'fileparse'=>'Sm?:a of S', 'hex'=>'S:I', 'GetOptions'=>'a:I',
+                  'fileparse'=>'Sm?:a of S', 'hex'=>'S?:I', 'GetOptions'=>'a:I',
                   'getopt'=>'a:I', 'getopts'=>'a:I',            # issue s67
                   'glob'=>'S:a of S', 'index'=>'SSI?:I', 'int'=>'s:I', 
                   # issue s153 'grep'=>'Sa:a of S', 
                   'grep'=>'sa:a of S',          # issue s153: Handle grep !/pat/, ...
                   'join'=>'Sa:S', 'keys'=>'h:a of S', 
                   'isa'=>'mS:I',                # issue s54
-                  'kill'=>'mI:u', 'lc'=>'S:S', 'lstat'=>'m:a of I',
+                  'kill'=>'mI:u', 'lc'=>'S:S', 'lstat'=>'m?:a of I',
                   'lcfirst'=>'S:S',
-                  'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'SI?:I', 'oct'=>'S:I', 'ord'=>'S:I', 
+                  'length'=>'S:I', 'localtime'=>'I?:a of I', 'map'=>'fa:a', 'mkdir'=>'SI?:I', 'oct'=>'S?:I', 'ord'=>'S?:I', 
                   # issue s166 'open'=>'HSS?:I',
                   'open'=>'HSs?:I',     # issue s166: Don't convert the 3rd arg
                   'pack'=>'Sa:S',
                   'opendir'=>'HS:I', 'closedir'=>'H:I', 'readdir'=>'H:a of S', 'rename'=>'SS:I', 'rmdir'=>'S:I',
                   'readline'=>'H:a of S',    # issue s40
                   'seekdir'=>'HI:I', 'telldir'=>'H:I', 'rewinddir'=>'H:m',
-                  'push'=>'aa:I', 'pop'=>'a:s', 'pos'=>'s:I', 'print'=>'H?a:I', 'printf'=>'H?S?a:I', 'quotemeta'=>'S:S', 'rand'=>'F?:F',
-                  'rindex'=>'SSI?:I','read'=>'HsII?:I', '.read'=>'HsII?:I', 'reverse'=>'a:a', 'ref'=>'u:S', 
+                  'push'=>'aa:I', 'pop'=>'a:s', 'pos'=>'s:I', 'print'=>'H?a:I', 'printf'=>'H?S?a:I', 'quotemeta'=>'S?:S', 'rand'=>'F?:F',
+                  'rindex'=>'SSI?:I','read'=>'HsII?:I', '.read'=>'HsII?:I', 'reverse'=>'a?:a', 'ref'=>'u:S', 
                   'readlink'=>'S:S',            # issue s128
                   '_refs'=>'u:S',               # issue s3
                   'say'=>'H?a:I','scalar'=>'a:I','seek'=>'HII:u', 'shift'=>'a?:s', 'sleep'=>'I:I', 'splice'=>'aI?I?a?:a',
                   'select'=>'H?:H',             # SNOOPYJC
-                  'split'=>'SSI?:a of m', 'sprintf'=>'Sa:S', 'sort'=>'f?a:a','system'=>'a:I',
+                  # issue s246 'split'=>'SSI?:a of m',
+                  'split'=>'S?S?I?:a of m',     # issue s246: add the '?' to everything
+                  'sprintf'=>'Sa:S', 'sort'=>'f?a:a','system'=>'a:I',
                   'stat_cando'=>'aII:I',        # issue s33
-                  'sqrt'=>'N:F', 'stat'=>'m:a of I', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'tell'=>'H:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timegm'=>'IIIIII:I',
+                  'sqrt'=>'N:F', 'stat'=>'m?:a of I', 'substr'=>'SII?S?:S','sysread'=>'HsII?:I',  'sysseek'=>'HII:I', 'tell'=>'H:I', 'time'=>':I', 'gmtime'=>'I?:a of I', 'timegm'=>'IIIIII:I',
                   'truncate'=>'HI:I', 
                   'utime'=>'a:I',               # issue s32
                   'timelocal'=>'IIIIII:I', 'unlink'=>'a?:I', 'values'=>'h:a', 'warn'=>'a:I', 'undef'=>'a?:u', 'unshift'=>'aa:I', 'uc'=>'S:S',
@@ -624,6 +638,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
         # Handle a couple of special cases that are not words
         $PyFuncType{_last_ndx} = $FuncType{'$#'};
         $PyFuncType{_spaceship} = $FuncType{'<=>'};
+        $PyFuncType{_smartmatch} = $FuncType{'~~'};     # issue s251
         $PyFuncType{_read} = $FuncType{read};
         $PyFuncType{_sysread} = $FuncType{sysread};
         $PyFuncType{_IOFile_open} = $FuncType{open};
@@ -673,7 +688,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
         }
 
         for my $pkg (keys %PREDEFINED_PACKAGES) {       # See Pyconfig.pm
-            $BUILTIN_LIBRARY_SET{$pkg} = 1;
+            # test overload methods $BUILTIN_LIBRARY_SET{$pkg} = 1;
+            $BUILTIN_LIBRARY_SET{$pkg} = 1 unless $pkg eq 'overload';   # test overload methods
             for my $func_info (@{$PREDEFINED_PACKAGES{$pkg}}) {
                 my $perl = $func_info->{perl};
                 my $type = $func_info->{type};
@@ -719,6 +735,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                    # issue s151 '=~'=>'~','!~'=>'~',
                    '=~'=>'p','!~'=>'p',                     # issue s151
                    '=='=>'>', '!='=>'>', '>='=>'>', '<='=>'>', # comparison
+                   '~~'=>'M',                               # issue s251
                    '=>'=>'A', '->'=>'D',                        # issue 93
                    '<<' => 'H', '>>'=>'I', '&&'=>'0', '||'=>'0', # issue 93
                    '*='=>'=', '/='=>'=', '**'=>'*', '::'=>'P' ); # issue 93
@@ -727,6 +744,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 '&&'=>' and ', '||'=>' or ',
                 # SNOOPYJC '::'=>'.',
                 '::'=>'.__dict__',               # SNOOPYJC
+                '~~'=>'_smartmatch',            # issue s251
                );
 
 #  %SpaceBefore=(in=>1, is=>1, an=>1, or=>1);                  # SNOOPYJC - always generate a space before these 2-letter output words
@@ -1012,6 +1030,7 @@ sub restore_cur_raw_package     # issue s155
 }
 
 sub cur_raw_package         # issue s155
+# Get the current package name w/o it being escaped
 {
     my $result;
     if($Pythonizer::PassNo == &Pythonizer::PASS_2) {
@@ -1026,6 +1045,7 @@ sub cur_raw_package         # issue s155
 }
 
 sub cur_package
+# Get the current package name and escape it if it conflicts with a python reserved or special name
 {
     my $result;
     if($Pythonizer::PassNo == &Pythonizer::PASS_2) {
@@ -1429,7 +1449,7 @@ sub enter_block                 # issue 94
 {
     # SNOOPYJC: Now we use a different character (^ all alone) to replace the '{' for the second round
     # SNOOPYJC return if($last_block_lno == $. && scalar(@ValPerl) <= 1);       # We see the '{' twice on like if(...) {
-    if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
+    if(($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) || $::debug >= 6) {
         no warnings;
         say STDERR "enter_block at line $., prior nesting_level=$nesting_level, Tokenstr |".join('',@ValClass)."|, ValPerl=@ValPerl";
     }
@@ -1497,7 +1517,7 @@ sub enter_block                 # issue 94
                                                        is_eval() ||    # issue ddts
                                                        $ValPerl[$begin] eq 'elsif' || $ValPerl[$begin] eq 'else'));
     if($Pythonizer::PassNo == &Pythonizer::PASS_1) {            # issue s110
-        if($nesting_info{is_loop}) {                            # issue s110
+        if($nesting_info{is_loop} && ($begin > $#ValClass || $ValPy[$begin] ne '{')) {      # issue s110, issue s243: handle my $seven = eval q(return 7);
             # Issue s110: The scope of variables declared as a loop carry inside of the { } block only
             $nesting_info{varclasses} = $line_varclasses{$statement_starting_lno . 's'};    # issue s110
         } else {
@@ -1538,7 +1558,7 @@ sub enter_block                 # issue 94
         # we set this only if we need to use it $all_labels{$ValPerl[0]} = 1;
     }
     push @nesting_stack, \%nesting_info;
-    if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
+    if(($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) || $::debug >= 6) {
         no warnings 'uninitialized';
         $Data::Dumper::Indent=0;        # issue s110
         $Data::Dumper::Terse = 1;       # issue s110
@@ -1557,7 +1577,7 @@ sub exit_block                  # issue 94
         return;
     }
     $nesting_last = pop @nesting_stack;
-    if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
+    if(($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) || $::debug >= 6) {
         say STDERR "exit_block at line $., prior nesting_level=$nesting_level, nesting_last->{type} is now $nesting_last->{type}";
     }
     if($nesting_last->{package} ne cur_raw_package()) {         # issue s155
@@ -2563,6 +2583,7 @@ my ($l,$m);
                $balance--;
             }
          }
+         $balance = 0 if($Pythonizer::PassNo == &Pythonizer::PASS_0 && $balance < 0);   # issue s239
          {
           no warnings 'uninitialized';
           $Data::Dumper::Indent=0;
@@ -2629,6 +2650,7 @@ my ($l,$m);
             if(index(substr($source,0,$end_br), '(') < 0) {    # issue 43: Don't do this on @{myFunc()}
                substr($source,$end_br,1) = '';          # issue 43
                substr($source,1,1) = '';                # issue 43
+               $ValType[$tno] = $ValClass[$tno] . '{';  # issue s250: Handle %{ $vhohash{$vho1}} not as '%' operator
                if($ExtractingTokensFromDoubleQuotedStringAdjustBrackets) {      # issue test coverage
                    $ExtractingTokensFromDoubleQuotedTokensEnd-=2;   # issue test coverage
                    $ExtractingTokensFromDoubleQuotedStringEnd-=2;   # issue test coverage
@@ -2822,7 +2844,7 @@ my ($l,$m);
          $cut=1;
       # issue 17 }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,k]/ || $ValPerl[$tno-1] eq 'split') ){
       # issue s151 }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~\(,kc=o0!>]/ || $ValPerl[$tno-1] eq 'split' ||   # issue ddts: add '>' to list
-      }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~p\(,kc=o0!>]/ || $ValPerl[$tno-1] eq 'split' ||   # issue ddts: add '>' to list, issue s151 add p but keep ~ in case of 'mistaken' code
+      }elsif( $s eq '/' && ( $tno==0 || $ValClass[$tno-1] =~/[~p\(,kc=o0!>M]/ || $ValPerl[$tno-1] eq 'split' ||   # issue ddts: add '>' to list, issue s151 add p but keep ~ in case of 'mistaken' code, issue s251: add 'M' to list for ~~
           $ValPerl[$tno-1] eq 'grep' || $ValClass[$tno-1] eq 'r') ){    # issue 17, 32, 66, 60, range
            # typical cases: if(/abc/ ){0}; $a=~/abc/; /abc/; split(/,/,$text)  split /,/,$text REALLY CRAZY STAFF
            if($ValClass[$tno-1] eq '~' && $Pythonizer::PassNo == &Pythonizer::PASS_2) {     # issue s151
@@ -3038,14 +3060,16 @@ my ($l,$m);
                 my $subname = $ValPy[0];
                 my $pd = rindex($ValPy[0], '.');
                 $subname = substr($subname, $pd+1) if($pd >= 0);        # Remove package name
-                replace(1, 'i', substr($ValPerl[0],1), $subname);       # Change the = to the subname (eat the '*')
-                replace(0, $class, $ValPerl[$tno], $ValPy[$tno]);      # Start with the sub
-                popup();                                       # Eat the extra 'sub'
-                remap_conflicting_names($ValPerl[1], '&', '');      # issue 92: sub takes the name from other vars
-                $class = 'i';
-                $tno--;
-                $Pythonizer::LocalSub{$ValPy[$tno]} = 1;
-                $Pythonizer::LocalSub{cur_package() . '.' . $ValPy[$tno]} = 1;          # issue s3
+                if($pd < 0 || substr($subname, 0, $pd) eq cur_package()) {  # issue s243
+                    replace(1, 'i', substr($ValPerl[0],1), $subname);       # Change the = to the subname (eat the '*')
+                    replace(0, $class, $ValPerl[$tno], $ValPy[$tno]);      # Start with the sub
+                    popup();                                       # Eat the extra 'sub'
+                    remap_conflicting_names($ValPerl[1], '&', '');      # issue 92: sub takes the name from other vars
+                    $class = 'i';
+                    $tno--;
+                    $Pythonizer::LocalSub{$ValPy[$tno]} = 1;
+                    $Pythonizer::LocalSub{cur_package() . '.' . $ValPy[$tno]} = 1;          # issue s3
+                }
             } elsif($tno != 0 && ($ValClass[$tno-1] eq 'D' || 
                 ($ValClass[$tno-1] eq 'c' && $ValPerl[$tno-1] eq 'package') ||  # SNOOPYJC: package name
                 ($ValClass[$tno-1] eq 'k' && $ValPerl[$tno-1] eq 'require' && $class ne 'q') || # SNOOPYJC: Allow require q(...)
@@ -3498,7 +3522,8 @@ my ($l,$m);
             if($tno!=0 &&                               # issue 50, issue 92
                (($ValClass[$tno-1] eq 's' && $ValPerl[$tno-1] eq '$') || # issue 50
                 $ValClass[$tno-1] eq '@' || 
-                ($ValClass[$tno-1] eq '%' && !$had_space))) {   # issue 50
+                # issue s246 ($ValClass[$tno-1] eq '%' && !$had_space))) {   # issue 50
+                ($ValClass[$tno-1] eq '%' && ($tno-1 == 0 || !&Pythonizer::is_term($tno-2))))) {   # issue s246: depend on the prior token to distinguish MOD from % cast
                # Change $$xxx to $xxx, @$xxx to $xxx and %$yyy to $yyy but NOT % $yyy as that's a MOD operator!
                my $was = $ValClass[$tno-1];
                $TokenStr = join('',@ValClass);             # issue 50: replace doesn't work w/o $TokenStr
@@ -3649,7 +3674,8 @@ my ($l,$m);
             $source = get_rest_of_variable_name($source,0);
          }
          # SNOOPYJC if( substr($source,1)=~/^(\:?\:?[_a-zA-Z]\w*(\:\:[_a-zA-Z]\w*)*)/ ){
-         if( substr($source,1)=~/^(\:?\:?\'?[_a-zA-Z]\w*((?:(?:\:\:)|\')[_a-zA-Z]\w*)*)/ ){     # old perl used ' for ::
+         if( substr($source,1)=~/^(\:?\:?\'?[_a-zA-Z]\w*((?:(?:\:\:)|\')[_a-zA-Z]\w*)*)/ && # old perl used ' for ::
+             ($tno == 0 || index('dsha)"', $ValClass[$tno-1]) == -1)){                 # issue s246: "...) % scalar(..." is a mod operator
             $cut=length($1)+1;
             $ValClass[$tno]='h'; #hash
             $ValPerl[$tno]=substr($source,0,1).$1;      # SNOOPYJC
@@ -3689,6 +3715,10 @@ my ($l,$m);
       }elsif( $s eq '&' && ($ch = substr($source,1,1)) ne '&' && $ch ne '='){  # old perl for a sub name, not && or &=
          # the problem here is that &2 can be in i=k&2, so we need to exclude digits from regex  -- NNB Sept 3, 2020
          # if( substr($source,1)=~/^(\:?\:?[_a-zA-Z]\w*(\:\:[_a-zA-Z]\w*)*)/ ){
+         my $s2=substr($source,1,1);        # issue s246
+         if($s2 eq '' || $s2 =~ /\s/) {     # issue s246
+            $source = get_rest_of_variable_name($source,0); # issue s246
+         }                                  # issue s246
          if( substr($source,1)=~/^(\:?\:?\'?[_a-zA-Z]\w*((?:(?:\:\:)|\')[_a-zA-Z]\w*)*)/){
             if(ampersand_is_sub_sigil()) {      # issue s152: distinguish & from &Sub
                 $cut=length($1)+1;
@@ -3746,12 +3776,12 @@ my ($l,$m);
                     if(cur_sub() ne '__main__' && ($tno == 0 || ($ValClass[$tno-1] ne "\\" && $ValPerl[$tno-1] ne 'defined')) && 
                        !($tno-2 >= 0 && $ValClass[$tno-1] eq '(' && $ValPerl[$tno-2] eq 'defined') &&
                        substr($source,$cut) !~ /^\s*\(/) {  # issue 117
-                        if( $::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0 ){
+                        if(($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) || $::debug >= 6){
                             say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
                         }
                         $tno++;
                         $ValClass[$tno]=$ValPerl[$tno]=$ValPy[$tno]='(';
-                        if( $::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0 ){
+                        if(($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) || $::debug >= 6){
                             say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
                         }
                         $tno++;
@@ -3759,7 +3789,7 @@ my ($l,$m);
                         $ValPerl[$tno]='@_';
                         $ValType[$tno]="X";
                         $ValPy[$tno]="$PERL_ARG_ARRAY";
-                        if( $::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0 ){
+                        if(($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) || $::debug >= 6){
                             say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
                         }
                         $tno++;
@@ -3937,7 +3967,7 @@ my ($l,$m);
                    $fh = $1;
                    $fh=~tr/:/./s;          # issue bootstrap
                    $fh=~tr/'/./s;          # SNOOPYJC
-           $FileHandles{$fh} = $. unless($fh eq '' || exists $keyword_tr{$fh} || exists $FileHandles{$fh}); # SNOOPYJC
+                   $FileHandles{$fh} = $. unless($fh eq '' || exists $keyword_tr{$fh} || exists $FileHandles{$fh}); # SNOOPYJC
                }                                # issue 66
                #
                # Let's try to determine the context
@@ -4025,7 +4055,7 @@ my ($l,$m);
                    #$tno++;                                     # issue 66
                    #$ValPy[$tno]=qq{next(with fileinput.input("<$1>",openhook=lambda _,__:$1), None)};        # issue 66: Allows for $.
                }
-            }elsif($tno > 0 && (index("(.=", $ValClass[$tno-1]) >= 0 || bracketed_function_end($tno-1)) && $source =~ /^<[^>]+>/) {    # issue 66 <glob>, issue s135
+            }elsif($tno > 0 && (index("(.=,", $ValClass[$tno-1]) >= 0 || bracketed_function_end($tno-1)) && $source =~ /^<[^>]+>/) {    # issue 66 <glob>, issue s135, ussye s249: add ',' to list of possible prev tokens
                 $ValClass[$tno] = 'g';
                 $cut=double_quoted_literal('<',1);
                 $ValPy[$tno] = $keyword_tr{glob}.'('.join('",f"', split ' ', $ValPy[$tno]).')';
@@ -4310,7 +4340,7 @@ my $original;
        $ValPerl[$tno] = substr($ValPy[$tno], 4, length($ValPy[$tno])-7);
    }
    $ValType[$tno]='' unless defined $ValType[$tno];           # issue bootstrap segv
-   if( $::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0 ){
+   if(($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) || $::debug >= 6){
      say STDERR "Lexem $tno Current token='$ValClass[$tno]' perl='$ValPerl[$tno]' value='$ValPy[$tno]'", " Tokenstr |",join('',@ValClass),"| translated: ",join(' ',@ValPy);
    }
    $tno++;
@@ -4895,12 +4925,14 @@ my  $groups_are_present;
       #regex with modifiers
       $quoted_regex='re.compile('.put_regex_in_quotes($myregex, $delim, $original_regex, x_flag($modifier), $s_rhs).$modifier.')';  # issue 111, issue s80, issue s131
       return $quoted_regex if($ValClass[0] eq 'c' && $ValPy[0] eq 'when');           # issue s129
+      return $quoted_regex if $tno >= 1 && $ValClass[$tno-1] eq 'M';                # issue s251: ~~
    }else{
       # No modifier
       $quoted_regex=put_regex_in_quotes($myregex, $delim, $original_regex, 0, $s_rhs);      # issue 111, issue s131
       if($ValClass[0] eq 'c' && $ValPy[0] eq 'when') {           # issue s129
           return "re.compile($quoted_regex)";                    # issue s129
       }                                                          # issue s129
+      return "re.compile($quoted_regex)" if $tno >= 1 && $ValClass[$tno-1] eq 'M';          # issue s251: ~~
    }
    if( length($modifier)>0 ){
       #this is regex
@@ -5820,7 +5852,19 @@ sub handle_expr_in_string
         my $was_hash = 0;
         $was_hash = 1 if($ValClass[$t_start] eq '%');
         &::remove_dereferences();
+        $convert_to_arr = 0;                # issue s249
+        if(!$was_hash && substr($string, 0, 1) eq '@') {        # issue s249
+            $::force_list_context = 1;      # issue s249
+            if(&Pythonizer::expr_type($t_start, $#ValClass, cur_sub()) !~ /^[ah]/) { # issue s249: Handle @{[scalar @$left]}
+                $convert_to_arr = 1;            # issue s249
+                gen_chunk('[');                 # issue s249
+            }
+        }
         $::TrStatus = &::expression($t_start, $#ValClass, 0);
+        if($convert_to_arr) {  # issue s249
+            gen_chunk(']'); 
+        }
+        $::force_list_context = 0;      # issue s249
         &::unpackage_tokens($saved_tokens);
         $code = format_chunks();
         $code = remove_oddities($code);
@@ -6319,7 +6363,7 @@ $allowed_escapes = "\n\\'\"abfnrtv01234567xNoc";         # issue s28: \u and \U 
 # ref https://docs.python.org/3/library/re.html
 # issue s28 $allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDsSwWZgabfnrtv0123456789xNuU/;
 # issue s81 $allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDsSwWZgabfnrtv0123456789xNoc/;        # issue s28: remove \u and \U
-$allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDGsSwWZgabfknrtvz0123456789xNoc/;        # issue s28: remove \u and \U, issue s81 allow \k and \z
+$allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDGsSwWZgabfknrtvz0123456789xNocpP/;        # issue s28: remove \u and \U, issue s81 allow \k and \z
 
 sub remove_perl_escapes         # issue bootstrap
 # Remove any escape sequences allowed by perl but not allowed by python, e.g. \[ \{ \$ \@ etc
@@ -6473,6 +6517,10 @@ sub perl_regex_to_python
     $regex =~ s/\\[gk]\{([A-Za-z_]\w*)\}/(?P=$1)/g;           # Backreference to a named capture group
     $regex =~ s/\\k<([A-Za-z_]\w*)>/(?P=$1)/g;           # Backreference to a named capture group
     $regex =~ s/\\k'([A-Za-z_]\w*)'/(?P=$1)/g;           # Backreference to a named capture group
+    # Handle some of the unicode properties:
+    if($regex =~ /\\[pP]/) {                    # issue s240
+        $regex = handle_pP_unicode($regex);     # issue s240
+    }                                           # issue s240
     # issue bootstrap: Add the POSIX brackets:
     $regex =~ s/\[:alnum:\]/a-zA-Z0-9/g;
     $regex =~ s/\[:alpha:\]/a-zA-Z/g;
@@ -6504,6 +6552,10 @@ sub perl_regex_to_python
             logme('S', "Sorry, regex recursion '$&' is not supported");
         } elsif($regex =~ /\(\?&\w+\)/) {
             logme('S', "Sorry, regex subroutines '$&' are not supported");
+        } elsif($regex =~ /\\p/) {
+            logme('S', "Sorry, not all \\p unicode regex properties are supported");
+        } elsif($regex =~ /\\P/) {
+            logme('S', "Sorry, not all \\P complement unicode regex properties are supported, and they are only handled outside of a character class or the first thing in a character class");
         }
     }
 
@@ -7681,7 +7733,7 @@ sub get_rest_of_variable_name   # issue ws after sigil
         my $diff = $orig_source_length - $new_source_length;
         $ExtractingTokensFromDoubleQuotedTokensEnd-=$diff;   # issue test coverage
         $ExtractingTokensFromDoubleQuotedStringEnd-=$diff;   # issue test coverage
-        say STDERR "ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd, source=$source after get_rest_of_variable_name" if($::debug>=5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
+        say STDERR "ExtractingTokensFromDoubleQuotedTokensEnd=$ExtractingTokensFromDoubleQuotedTokensEnd, ExtractingTokensFromDoubleQuotedStringEnd=$ExtractingTokensFromDoubleQuotedStringEnd, source=$source after get_rest_of_variable_name" if($::debug>=5 && $Pythonizer::PassNo == &Pythonizer::PASS_1);
     }
     say STDERR "get_rest_of_variable_name(".substr($source,0,1).", $in_string), lno=$., source='$source'" if($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
     return $source;
@@ -9036,5 +9088,124 @@ sub inRefOkSub              # issue s185
    return 0;
 }
 
+sub handle_pP_unicode               # issue s240
+{
+    my $regex = shift;
+
+    # This is just a subset of the Unicode specification
+    my %p_map = (
+    L => 'a-zA-Z',  # Letter
+    N => '0-9',  # Number
+    P => '!"\#%&\x27()*+,\-.\/:;<=>?\@\[\\\\\]^_\x91{|}~\$',         # Punctuation
+    S => '\$+<=>\^`\|~\xa2-\xa6\xa8-\xa9\xac\xae-\xb1\xb4\xb8\xd7\xf7',    # Symbol
+    Z => ' \t\r\n\x0b\f',    # Space
+    C => '\x00-\x1f\x7f',    # Control
+
+    '{AHex}' => "a-fA-F0-9",
+    '{All}' => ".",
+    '{Alnum}' => "a-zA-Z0-9",
+    '{Alpha}' => "a-zA-Z",
+    '{Any}' => ".",
+    '{ASCII}' => '\x00-\x7f',
+    '{ASCII_Hex_Digit}' => "a-fA-F0-9",
+    '{Blank}' => ' \t\xa0',    # Blank
+    '{C}' => '\x00-\x1f\x7f',    # Control
+    '{Cc}' => '\x00-\x1f\x7f',    # Control
+    '{Cc}' => '\x00-\x1f\x7f',    # Control
+    '{Cntrl}' => '\x00-\x1f\x7f',    # Control
+    '{Control}' => '\x00-\x1f\x7f',    # Control
+    '{Decimal_Number}' => "0-9",  # Number
+    '{Digit}' => "0-9",  # Number
+    '{Graph:}' => '\x21-\x7e',
+    '{Hex}' => "a-fA-F0-9",
+    '{Hex_Digit}' => "a-fA-F0-9",
+    '{HorizSpace}' => ' \t\xa0',    # Blank
+    '{L}' => "a-zA-Z",  # Letter
+    '{Letter}' => "a-zA-Z",  # Letter
+    '{Ll}' => "a-z",  # Lowercase Letter
+    '{Lower}' => "a-z",  # Lowercase Letter
+    '{Lowercase}' => "a-z",  # Lowercase Letter
+    '{Lowercase_Letter}' => "a-z",  # Lowercase Letter
+    '{Lu}' => "A-Z",  # Uppercase Letter
+    '{N}' => "0-9",  # Number
+    '{Number}' => "0-9",  # Number
+    '{P}' => '!"\#%&\x27()*+,\-.\/:;<=>?\@\[\\\\\]^_\x91{|}~\$',         # Punctuation
+    '{PerlSpace}' => '\s',
+    '{PerlWord}' => '\w',
+    '{PosixAlnum}' => "a-zA-Z0-9",
+    '{PosixAlpha}' => "a-zA-Z",
+    '{PosixBlank}' => ' \t',
+    '{PosixCntrl}' => '\x00-\x1f\x7f',
+    '{PosixDigit}' => "0-9",
+    '{PosixGraph}' => '\x21-\x7e',
+    '{PosixLower}' => "a-z",
+    '{PosixPrint}' => '\x20-\x7e',
+    '{PosixPunct}' => '!"\#%&\x27()*+,\-.\/:;<=>?\@\[\\\\\]^_\x91{|}~\$',         # Punctuation
+    '{PosixSpace}' => ' \t\r\n\x0b\f',
+    '{PosixUpper}' => "A-Z",
+    '{PosixWord}' => "A-Za-z0-9_",
+    '{PosixXDigit}' => "0-9A-Fa-f",
+    '{Print}' => '\x20-\x7e',
+    '{Punct}' => '!"\#%&\x27()*+,\-.\/:;<=>?\@\[\\\\\]^_\x91{|}~\$',         # Punctuation
+    '{Punctuation}' => '!"\#%&\x27()*+,\-.\/:;<=>?\@\[\\\\\]^_\x91{|}~\$',         # Punctuation
+    '{S}' => '\$+<=>\^`\|~\xa2-\xa6\xa8-\xa9\xac\xae-\xb1\xb4\xb8\xd7\xf7',    # Symbol
+    '{Space}' => '\s',
+    '{Symbol}' => '\$+<=>\^`\|~\xa2-\xa6\xa8-\xa9\xac\xae-\xb1\xb4\xb8\xd7\xf7',    # Symbol
+    '{Unicode}' => ".",
+    '{Upper}' => "A-Z",  # Uppercase Letter
+    '{Uppercase}' => "A-Z",  # Uppercase Letter
+    '{Uppercase_Letter}' => "A-Z",  # Uppercase Letter
+    '{White_Space}' => '\s',
+    '{Word}' => '\w',
+    '{WSpace}' => '\s',
+    '{XDigit}' => "a-fA-F0-9",
+    '{XPerlSpace}' => '\s',
+    '{XPosixBlank}' => ' \t\xa0',
+    '{XPosixCntrl}' => '\x00-\x1f\x7f',    # Control
+    '{XPosixSpace}' => '\s',
+    );
+
+    my @result = ();
+    my $in_class = 0;
+    my $c;
+    for(my $i = 0; $i < length($regex); $i++, push @result, $c) {
+        $c = substr($regex, $i, 1);
+        if($c eq '\\') {
+            my $c2 = substr($regex, $i+1, 1);
+            if($c2 eq 'p' || $c2 eq 'P') {
+                next if $c2 eq 'P' && $in_class && substr($regex, $i-1, 1) ne '[';  # We only handle \P at start of class or not in class
+                my $c3 = substr($regex, $i+2, 1);
+                my $repl;
+                if($c3 eq '{') {
+                    my $ndx = index($regex, '}', $i+3);
+                    next if $ndx < 0;
+                    my $uni = substr($regex, $i+2, $ndx+1-($i+2));
+                    next if !exists $p_map{$uni};
+                    $repl = $p_map{$uni};
+                    $i = $ndx;
+                } else {
+                    next if !exists $p_map{$c3};
+                    $repl = $p_map{$c3};
+                    $i += 2;
+                }
+                push @result, '[' unless $in_class;
+                push @result, '^' if $c2 eq 'P';    # Complement
+                push @result, $repl;
+                push @result, ']' unless $in_class;
+                $c = '';
+                next;
+            }
+            $c .= $c2;
+            $i++;
+        } elsif($c eq '[') {
+            $in_class = 1;
+        } elsif($c eq ']') {
+            $in_class = 0;
+        }
+    }
+    $result = join('', @result);
+    say STDERR "handle_pP_unicode($regex) = $result" if $::debug;
+    return $result;
+}
 1;
 

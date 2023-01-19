@@ -321,7 +321,18 @@ eval {
                 $blesses{$CurSub} = 1 if defined $CurSub;   # issue s236: Keep track of who blesses
             } elsif(/\bwantarray\b/) {
                 $wantarrays{$CurSub} = 1 if defined $CurSub;
+            } elsif(/^\s*\*(\w+)\s*=\s*\\\&(\w+);/) {     # issue s241 *alias = \&sub;
+                $wantarrays{$1} = 1 if exists $wantarrays{$2};  # issue s241
+                if(exists $out_parameters{$2}) {                # issue s241
+                    $out_parameters{$1} = $out_parameters{$2};  # issue s241
+                }                                               # issue s241
             } elsif($CurSub) {              # issue s184: Keep track of out parameters for each sub
+                if(/\bgoto\s+\&(\w+);/ || /\breturn\s+\&(\w+);/) {      # issue s241
+                    $wantarrays{$CurSub} = 1 if exists $wantarrays{$1}; # issue s241
+                    if(exists $out_parameters{$1}) {                # issue s241
+                        $out_parameters{$CurSub} = $out_parameters{$1};  # issue s241
+                    }                                               # issue s241
+                }
                 if(m'^\s*my\s+(\$[A-Za-z_][A-Za-z0-9_]*)\s*=\s*shift\s*(?:\(?(?:@_)?\)?)\s*;') {      # Defining an arg copy
                     $arg_copies{$1} = $CurShift;
                     print STDERR "arg_copies{$1} = $CurShift in $CurSub on $_" if $debug;
