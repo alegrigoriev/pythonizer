@@ -21,4 +21,4 @@ def _ref_scalar(r):
         return 'ARRAY'
     elif hasattr(r, 'TIEHASH'):
         return 'HASH'
-    return t.replace("<class '", '').replace("'>", '')
+    return t.replace("<class '", '').replace("'>", '').replace('.', '::')

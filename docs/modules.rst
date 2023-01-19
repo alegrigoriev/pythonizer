@@ -53,3 +53,11 @@ FindBin
    :maxdepth: 4
 
    FindBin
+
+HTML
+====
+
+.. toctree::
+   :maxdepth: 4
+
+   HTML

@@ -38,7 +38,7 @@ use Storable qw(dclone);                # issue s18
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages %PackageDef arg_type_from_pos in_sub_call end_of_function new_anonymous_sub save_nest restore_nest for_loop_uses_default_var); # SNOOPYJC
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages %PackageDef arg_type_from_pos in_sub_call end_of_function new_anonymous_sub save_nest restore_nest for_loop_uses_default_var get_sub_attribute set_sub_attribute); # SNOOPYJC
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $IntactLno = 0;           # issue s6
    $IntactEndLno = 0;        # issue s6
@@ -389,6 +389,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
              for my $t (@::saved_eval_buffer) {
                  getline($t);
              }
+             @::saved_eval_buffer = ();       # issue s240
              next;
          }
          last unless(defined($line));
@@ -478,6 +479,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
       }elsif($ValPerl[0] eq 'sub' && 1 <= $#ValClass && exists $::nested_subs{$ValPerl[1]}) {   # issue 78: don't switch to nested sub
           $LocalSub{$ValPy[1]}=1;
           $::nested_sub_at_level = $Perlscan::nesting_level;
+          push @::nested_sub_at_levels, $::nested_sub_at_level;     # issue s241
       }elsif(  $ValPerl[0] eq 'sub' && $#ValClass >= 1) {         # SNOOPYJC: handle sub xxx() (with parens)
          $CurSubName=$ValPy[1];
 	     $initialized{$CurSubName}{$PERL_ARG_ARRAY} = 'a';	  # SNOOPYJC
@@ -517,7 +519,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          my $p;                             # issue s184
          my $cs = &Perlscan::cur_sub();     # issue s184, issue s185
          for( $k=0; $k<@ValClass; $k++ ){
-             if(  $ValClass[$k]=~/[sah]/ ){
+             if(  $ValClass[$k]=~/[sahG]/ ){        # issue s248: add 'G' to handle *db_connect::new = sub {...};
                 check_ref($CurSubName, $k);                  # SNOOPYJC
                 if($ValClass[$k] eq 's' && $ValPerl[$k] eq '$_' && $ValPy[$k] =~ /^$PERL_ARG_ARRAY/ &&    # issue s184
                     (($k-1 >= 0 && $ValClass[$k-1] eq '^') ||  # issue s184: handle ++$_[N] / --$_[N]
@@ -587,9 +589,10 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                     substr($ValPy[$k],0,5) ne '(len(' &&        # issue 14: $#x => (len(x)-1)
                     $ValType[$k] ne 'ss' &&                 # issue s185
                     $ValType[$k] ne '%s' &&                 # issue s215
+                    $ValType[$k] ne '@s' &&                 # issue s243
                     substr($ValPy[$k],0,4) ne 'sys.'){   # Issue 13
                    $InLineNo = $.;
-                   say "=== Pass 1 INTERNAL ERROR in processing line $InLineNo Special variable is $ValPerl[$k] as $ValPy[$k], k=$k, ValType=@ValType";
+                   say "=== Pass 1 INTERNAL ERROR in processing line $InLineNo Special variable is $ValPerl[$k] as $ValPy[$k], k=$k, our ValType=$ValType[$k]";
                    $DB::single = 1;
                 }
               } elsif($ValClass[$k] eq 'k' && $ValPerl[$k] eq 'use' && $k+1 <= $#ValClass && $ValPerl[$k+1] eq 'parent') {      # issue s18
@@ -645,6 +648,35 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
 		        $VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
 	      	    $NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = $t if(!exists $initialized{$CurSubName}{$DEFAULT_VAR});	# issue s103, issue s104
               } 
+	          if($ValClass[$k] eq 'i' && ($k == 0 || $ValPerl[$k-1] eq 'return' || $ValPerl[$k-1] eq 'goto') && $we_are_in_sub_body && $k+3 <= $#ValClass &&
+                      $ValClass[$k+1] eq '(' && $ValPerl[$k+2] eq '@_' && $ValClass[$k+3] eq ')' &&
+                      ((($k == 0 || $ValClass[$k-1] ne 'D') && exists $SubAttributes{$ValPy[$k]}{wantarray}) ||
+                       ($k != 0 && $ValClass[$k-1] eq 'D' && exists $SubAttributes{'->'.$ValPy[$k]}{wantarray}))) { # issue s241: goto &mysub; -or- return &mysub;
+                  my $cs = &Perlscan::cur_sub();                   # issue s241
+                  $SubAttributes{$cs}{wantarray} = 1;              # issue s241
+                  $SubAttributes{$cs}{wantarray_inherited_from} = $ValPy[$k];   # issue s241
+                  if(exists $Perlscan::SpecialVarsUsed{'bless'} && exists $Perlscan::SpecialVarsUsed{'bless'}{$CurPackage}) {  # issue s241
+                      $SubAttributes{'->'.$cs} = dclone($SubAttributes{$cs});          # issue s241
+                  }                                                # issue s241
+                  $SubAttributes{$CurPackage . '.' . $cs} = $SubAttributes{$cs};       # issue s241
+                  $SubAttributes{'main.' . $CurPackage . '.' . $cs} = $SubAttributes{$cs} unless $CurPackage eq 'main';    # issue s241
+              } elsif($ValClass[$k] eq 'i' && $k == 3 && $ValClass[0] eq 'G' && $ValClass[1] eq '=' && $ValClass[2] eq '\\' &&
+                      (exists $SubAttributes{$ValPy[$k]}{wantarray} || exists $SubAttributes{$ValPy[$k]}{out_parameters})) {    # issue s241: *x = \&mysub;
+                  my $cs = $ValPy[0];                               # issue s241
+                  $SubAttributes{$cs}{wantarray} = 1 if exists $SubAttributes{$ValPy[$k]}{wantarray};              # issue s241
+                  if(exists $SubAttributes{$ValPy[$k]}{out_parameters}) {    # issue s241
+                      $outs = $SubAttributes{$ValPy[$k]}{out_parameters};    # issue s241
+                      $SubAttributes{$cs}{out_parameters} = dclone($outs);   # issue s241
+                  }
+                  if(exists $LocalSub{$ValPy[$k]}) {
+                      $LocalSub{$cs} = $LocalSub{$ValPy[$k]};
+                  }
+                  if(exists $Perlscan::SpecialVarsUsed{'bless'} && exists $Perlscan::SpecialVarsUsed{'bless'}{$CurPackage}) {  # issue s241
+                      $SubAttributes{'->'.$cs} = dclone($SubAttributes{$cs});          # issue s241
+                  }                                                # issue s241
+                  $SubAttributes{$CurPackage . '.' . $cs} = $SubAttributes{$cs};       # issue s241
+                  $SubAttributes{'main.' . $CurPackage . '.' . $cs} = $SubAttributes{$cs} unless $CurPackage eq 'main';    # issue s241
+              }
               if($ValClass[$k] eq 'f' && $we_are_in_sub_body && $#ValClass != $k && exists $PYF_OUT_PARAMETERS{$ValPy[$k]} &&
                   ($p = function_modifies_sub_arg($k))) {              # issue s183
                  my $cs = &Perlscan::cur_sub();
@@ -663,7 +695,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                  }
                  set_out_parameter($cs, $arg);          # issue s184, issue s185
                  # issue s184 logme('W', "Sub arg modified by this $ValPerl[$k] call will not change the argument passed in python");
-	          } elsif($ValClass[$k] eq 'i' && ($k == 0 || $ValClass[$k-1] ne 'sub') && $we_are_in_sub_body && $#ValClass != $k && 
+	          } elsif($ValClass[$k] eq 'i' && ($k == 0 || $ValPerl[$k-1] ne 'sub') && $we_are_in_sub_body && $#ValClass != $k && 
                       ((($k == 0 || $ValClass[$k-1] ne 'D') && exists $SubAttributes{$ValPy[$k]}{out_parameters}) ||
                        ($k != 0 && $ValClass[$k-1] eq 'D' && exists $SubAttributes{'->'.$ValPy[$k]}{out_parameters}))) { # issue s184
                    # This is a call to a sub that modified it's arguments - propagate that up to this sub if appropriate
@@ -692,7 +724,12 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                                } else {               # issue s184: varargs
                                   set_out_parameter($cs, 'var');            # issue s184
                                }
-                           }
+                           } elsif($ValClass[$s] eq 'a' && $ValPerl[$s] eq '@_') {      # issue s241
+                              $SubAttributes{$cs}{modifies_arglist} = 1;    # issue s241 This sub mods it's args, issue s84
+                              $SubAttributes{$cs}{out_parameters} = dclone($outs);    # issue s241
+                              set_out_parameter($cs, $arg);          # issue s241: This is just used to set the -> and the package:: entries
+                              last;     # We copied the whole thing so we don't need to do anything else
+                          }
                        }
                    }
               } elsif($k != 0 && $ValClass[$k] eq 'c' && $k+2 <= $#ValClass &&
@@ -857,6 +894,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          $::nested_subs{$subname} = "\*$PERL_ARG_ARRAY";
          $::saved_sub_tokens = &::package_tokens();
          $::nested_sub_at_level = $Perlscan::nesting_level;
+         push @::nested_sub_at_levels, $::nested_sub_at_level;     # issue s241
          &::p_replace($::saved_sub_tokens, $#ValClass,'"',$subname,$subname);     # Change the 'sub' to the subname reference
          destroy(0, $#ValClass);
          append('i', $subname, $subname);
@@ -877,6 +915,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          $::nested_subs{$subname} = "";
          $::saved_sub_tokens = &::package_tokens();
          $::nested_sub_at_level = $Perlscan::nesting_level;
+         push @::nested_sub_at_levels, $::nested_sub_at_level;     # issue s241
          &::p_replace($::saved_sub_tokens, $#ValClass,'"',$subname,$subname);     # Change the 'sub' to the subname reference
          &::p_append($::saved_sub_tokens,'(','(','(');            # insert '()'
          &::p_append($::saved_sub_tokens,')',')',')');
@@ -898,8 +937,13 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
 
       correct_nest();                           # issue 45
       if($Perlscan::nesting_level < $::nested_sub_at_level) {       # issue 78
-          say STDERR "Setting nested_sub_at_level = -1" if($::debug >= 3);
-          $::nested_sub_at_level = -1;
+          #say STDERR "Setting nested_sub_at_level = -1" if($::debug >= 3);
+          # issue s241 $::nested_sub_at_level = -1;
+          pop @::nested_sub_at_levels;                   # issue s241
+          $nsal = scalar(@::nested_sub_at_levels) ? $::nested_sub_at_levels[-1] : -1; # issue s241
+          say STDERR "Setting nested_sub_at_level = $nsal (was $::nested_sub_at_level), nested_sub_at_levels=@::nested_sub_at_levels" if $::debug >= 3;  # issue s241
+          $::nested_sub_at_level = $nsal;                           # issue s241
+          
       }
       $got_first_line = 1;      # issue s63
    } # while
@@ -1693,7 +1737,7 @@ sub arg_type            # Given the name of a built-in function, and the arg#, r
     my $name = shift;           # Python name
     my $arg = shift;
     my $repeat = (scalar(@_) > 0 ? $_[0] : 1);  # Flag to repeat the last arg if we run out - default = True
-    my $return_optional = (scalar(@_) > 1 ? $_[0] : 0); # Flag to return if the next arg is optional or not
+    my $return_optional = (scalar(@_) > 1 ? $_[1] : 0); # Flag to return if the next arg is optional or not, issue s246
 
     return 'u' if(!defined $fname);             # issue s48
     my $ft = undef;
@@ -1911,7 +1955,7 @@ sub _expr_type           # Attempt to determine the type of the expression
                 $VarType{$ValPy[$k]}{$CurSub} = $typ;
                 return $typ;
             }
-            return 'a of u';
+            return 'a of m';
         } elsif($class eq 'h') {        # hash
             return 'I' if($ValPy[$k] =~ /^len\(/);      # Scalar context
             return $VarType{$ValPy[$k]}{$CurSub} if(exists $VarType{$ValPy[$k]} && exists $VarType{$ValPy[$k]}{$CurSub});
@@ -1922,7 +1966,7 @@ sub _expr_type           # Attempt to determine the type of the expression
                 $VarType{$ValPy[$k]}{$CurSub} = $typ;
                 return $typ;
             }
-            return 'h of u';
+            return 'h of m';
         } elsif($class eq '"' || $class eq 'x') {       # string or `exec` or /regex/
             return 'C' if($ValPy[$k] =~ /^$ANONYMOUS_SUB/);   # issue s229
             return 'S';                 # string
@@ -1936,6 +1980,7 @@ sub _expr_type           # Attempt to determine the type of the expression
                 return 'a of S' if($k-2 >= 0 && $ValClass[$k-2] eq 'a' && $ValClass[$k-1] eq '=');
                 return 'S';
             } elsif($LocalSub{$name} || (exists $VarType{$name} && exists $VarType{$name}{__main__})) { # Local sub with no args
+                return 'a' if exists $SubAttributes{$name}{wantarray} && &::list_or_scalar_context($k, $e); # issue string exprs
                 return $VarType{$name}{__main__} if(exists $VarType{$name} && exists $VarType{$name}{__main__});
                 return 'm';
 	        } elsif(exists $CONSTANT_MAP{$ValPerl[$k]}) {
@@ -1975,8 +2020,21 @@ sub _expr_type           # Attempt to determine the type of the expression
     } elsif($class ne '(') {            # Non-parenthesized expression
         my $s = $k;                     # issue s151
         $s = end_of_function($k)+1 if $class eq 'f';    # issue s151
+        my $m;                                          # test list util
+        if(($m = next_same_level_token(',', $s, $e)) != -1) {    # test list util
+            my $typ = expr_type($k, $m-1, $CurSub);
+            my $p = $m+1;
+            $m = end_of_function($m+1) if $m+1 <= $#ValClass && $ValClass[$m+1] eq 'f';
+            while(($m = next_same_level_token(',', $m+1, $e)) != -1) {
+                $typ = common_type($typ, expr_type($p, $m-1, $CurSub));
+                $p = $m+1;
+                $m = end_of_function($m+1) if $m+1 <= $#ValClass && $ValClass[$m+1] eq 'f';
+            }
+            $typ = common_type($typ, expr_type($p, $e, $CurSub)) if $p <= $e;
+            return "a of $typ";
+        }
         # issue s151 my $m = next_same_level_tokens('>+-*/%0o.?:r', $k, $#ValClass);
-        my $m = next_same_level_tokens('>+-*/%0o.?:r', $s, $#ValClass);     # issue s151
+        $m = next_same_level_tokens('>+-*/%0o.?:r', $s, $#ValClass);     # issue s151
         if($m != -1 && $m <= $e) {
             if($ValClass[$m] eq '.') {
                 return 'S';             # String concat
@@ -2135,8 +2193,10 @@ sub common_type         # Create a common type from 2 types
     my $t2 = shift;
 
     return $t1 if($t1 eq $t2);          # That was easy!
-    return $t2 if($t1 eq 'u');          # u = undefined
-    return $t1 if($t2 eq 'u');
+    # test list util u = undef (e.g. None) not undefined : return $t2 if($t1 eq 'u');          # u = undefined
+    # test list util: return $t1 if($t2 eq 'u');
+    return $t2 if(!defined $t1);    # test list util
+    return $t1 if(!defined $t2);    # test list util
     if(index('IF', $t1) >= 0 && index('IF', $t2) >= 0) {
         return 'F';             # Int mixed with Float => Float
     } elsif($t1 eq 'N' && index('IF', $t2) >= 0) {
@@ -2346,7 +2406,8 @@ sub apply_scalar_context                        # issue 37
     return 0 if($pos < 0 || $pos > $#ValClass);
     # issue 30 if($ValClass[$pos] eq 'a' && substr($ValPy[$pos],0,4) ne 'len(') {
     if(($ValClass[$pos] =~ /[ah]/ ||
-       ($ValClass[$pos] eq 's' && defined $ValType[$pos] && $ValType[$pos] eq '@s'))    # handle @$var
+       ($ValClass[$pos] eq 's' && defined $ValType[$pos] && ($ValType[$pos] eq '@s' || # handle @$var
+                                                             $ValType[$pos] eq '%s'))) # issue s246: handle %$var
            && substr($ValPy[$pos],0,4) ne 'len(') {
         $ValPy[$pos] = 'len('.$ValPy[$pos].')';
         return 1;
@@ -2503,7 +2564,8 @@ sub fix_scalar_context                          # issue 37
         } elsif($i > $in_function_until+1) {
             $last_special_function = -1;        # Don't keep this long past the end of the function call
         }
-        if(index("+-*/.>",$ValClass[$i]) >= 0) {        # Scalar operator
+        # issue s246 if(index("+-*/.>%",$ValClass[$i]) >= 0) {        # Scalar operator, issue s246: add '%' operator
+        if(is_scalar_operator($i)) {        # Scalar operator, issue s246
             if($i == 0) {
                 ;
             } elsif($last_special_function != -1 && $i == $last_special_function_end+1) {     # issue s3
@@ -2618,6 +2680,7 @@ sub end_of_function                             # issue s3
 # issue s151     }
     my $balance = 0;
     my $pep = -1;		# issue s75
+    my $last_t;         # test list util
     EOFLOOP:
     for($j = $pos+1; $j <= $end_pos; $j++) {
         if($ValClass[$j] eq '(') {
@@ -2641,11 +2704,20 @@ sub end_of_function                             # issue s3
         # issue s48 $ep = $close-1 if($close!=-1 && $close-1 < $ep);
         my $optional = 0;
         my $t = substr($f_type, $t_pos, 1);
+        if($t eq 'a' && substr($f_type, $t_pos) =~ /^a of ?/) { # test list util: Allow 'a of N' and 'a of S'
+            $t_pos += 5;                    # test list util
+            $last_t = $t;                   # test list util
+        }                                   # test list util
         $optional = 1 if(substr($f_type, $t_pos+1, 1) eq '?');
         $t = substr($f_type, ++$t_pos, 1) if($t eq '?');
         if($t eq ':') {
-            $t = substr($f_type, --$t_pos, 1) if($t_pos > 0);   # issue s151
-            $t = substr($f_type, --$t_pos, 1) if($t eq '?');
+            if(defined $last_t) {        # test list util: could be 'a of ?' - can't just back up 1 symbol
+                $t = $last_t; 
+                $t_pos--;
+            } else {
+                $t = substr($f_type, --$t_pos, 1) if($t_pos > 0);   # issue s151
+                $t = substr($f_type, --$t_pos, 1) if($t eq '?');
+            }
             if($t ne 'a') {
                 $j--;
         		$j = $pep unless $pep < 0;		# issue s75
@@ -2664,13 +2736,23 @@ sub end_of_function                             # issue s3
             index("^*p/%.HI>&|0or?:=,A", $ValClass[$j]) >= 0) {  # issue s52: Eliminated unary ops here, issue s151
             $j--;
             last;
-        } elsif(!$optional && $comma != -1 && $ValClass[$comma] ne ',' &&
+        # issue s246 } elsif(!$optional && $comma != -1 && $ValClass[$comma] ne ',' &&
+        } 
+        if($comma != -1 && $ValClass[$comma] ne ',' &&     # issue s246: Do this even if it's optional
                 substr($f_type, $t_pos, 1) ne ':' && substr($f_type, $t_pos+1, 1) ne '?') {       # issue s46
             # issue s46: If we came to a lower-precedent operator that's not a comma, but
             # we still need more non-optional arguments to this function, then skip over that
             # looking for our real comma.
-            $comma = next_same_level_token(',', $j, $end_pos);
-            $ep = (($comma==-1) ? $end_pos : $comma-1);
+            # issue s246 $comma = next_same_level_token(',', $j, $end_pos);
+            # issue s246 $ep = (($comma==-1) ? $end_pos : $comma-1);
+            my $co = next_same_level_token(',', $comma+1, $end_pos);      # issue s246
+            if($optional) {                                         # issue s246
+                $ep = (($co==-1) ? $ep : $co-1);                    # issue s246
+                $comma = $co if $co != -1;                          # issue s246
+            } else {                                                # issue s246
+                $ep = (($co==-1) ? $end_pos : $co-1);               # issue s246
+                $comma = $co;                                       # issue s246
+            }                                                       # issue s246
         }
 	    $pep = $ep;			# issue s75
         if($comma < 0 || ($comma >= 0 && $ValClass[$comma] ne ',')) {
@@ -2781,6 +2863,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
        $IntactLno = $l;
        $IntactLine = $i;
        $. = $lno;
+       say STDERR "getline(1) = $.:$line" if $::debug >= 6;
        return $line;
    }
    # issue 42: if(  scalar(@_)>0 ){
@@ -2792,11 +2875,17 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
        #  say join('|',@_);
        #  $DB::single = 1;
        #}
-       #say STDERR "getline(@_): pushed to buffer";
+       if($::debug >= 6) {
+          my (undef, $fn, $ln) = caller(0);
+          say STDERR "getline(@_): pushed to buffer, returns undef (called from $fn:$ln)";
+       }
        return;
    } elsif(scalar(@_) == 2) {   # issue 42: 2nd arg means push to special_buffer
        push(@special_buffer,$_[0]); # buffer lines in the order they listed; they will be injected in the next call;
-       #say STDERR "getline($_[0]): pushed to special buffer";
+       if($::debug >= 6) {
+          my (undef, $fn, $ln) = caller(0);
+          say STDERR "getline($_[0], $_[1]): pushed to special buffer, returns undef (called from $fn:$ln)";
+       }
        return;
    }
    return $line if( scalar(@Perlscan::BufferValClass)>0  ); # issue 95: block input if we process token buffer Oct 8, 2020 -- NNB
@@ -2821,17 +2910,18 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
       #
       if(  scalar(@buffer) ){
          $line=shift(@buffer);
-	 #say STDERR "getline(): got $line from buffer, buffer=@buffer";
+	     say STDERR "getline(): got $line from buffer, buffer=@buffer" if $::debug >= 6;
       }elsif(scalar(@special_buffer)) {         # issue 42
          $line = shift(@special_buffer);
-         #say STDERR "was: $. $::saved_eval_lno " . scalar(@special_buffer);
+         say STDERR "was: $. $::saved_eval_lno " . scalar(@special_buffer) if $::debug >= 6;
          if(scalar(@special_buffer) > 1) {
             $. = $::saved_eval_lno - (scalar(@special_buffer) - 0);     # CHECKME!
-            #say STDERR "is:  $. $::saved_eval_lno " . scalar(@special_buffer);
+            say STDERR "is:  $. $::saved_eval_lno " . scalar(@special_buffer) if $::debug >= 6;
          }
-	 #say STDERR "getline(): got $line from special_buffer, lno=$.";
+	     say STDERR "getline(): got $.:$line from special_buffer" if $::debug >= 6;
       }elsif(defined $::saved_eval_tokens) {    # issue 42: Signal EOF from string we pushed
          $line = undef;
+         say STDERR "getline(): returns undef because \$::saved_eval_tokens" if $::debug >= 6;
          return $line;
       }else{
 	 if($PassNo == PASS_2 && &Softpano::get_verbosity() >= 1) {		# issue ddts
@@ -2847,6 +2937,10 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          #say STDERR "$. getline(): got $l2 from <>, tell=" . tell(STDIN);
          if(!defined $line && $::debug) {
              say STDERR "getline: EOF on $fname at lno $.";
+         } elsif($::debug >= 6) {
+             my $l2 = $line;
+             $l2 =~ s/[\n\r]//g;
+             say STDERR "getline(): got $.:$l2 from <>, tell=" . tell(SYSIN);
          }
          return $line unless (defined($line)); # End of file
       }
@@ -2875,6 +2969,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
              $IntactLine = $line;
              $line =~ s/^\s*#\s*//;
              $line .= ';';
+             say STDERR "getline(): $.:$line" if $::debug >= 6;
              return $line;
          }
          $IntactLno = $. unless($IntactLine);       # issue s6
@@ -2897,6 +2992,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
              while($line = <SYSIN> ) {       # issue stdin, SNOOPYJC: Read in the rest of the file and discard so in the next pass we start over
                  ;
              }
+             say STDERR "getline(): returns undef for __DATA__ or __END__" if $::debug >= 6;
              return undef;
          }
 
@@ -3000,6 +3096,7 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
       } else {
           say STDERR "skipped $. $line" if($TraceIntactLine);
       }
+      say STDERR "getline(): $.:$line" if $::debug >= 6;
       return  $line;
    }
 }
@@ -4169,6 +4266,7 @@ sub track_potential_sub_parameter_copies       # issue s185
 }
 
 sub set_out_parameter                   # issue s184
+# FIXME: Use set_sub_attribute here!!
 {
     my $cs = shift;
     my $arg = shift;
@@ -4190,6 +4288,83 @@ sub set_out_parameter                   # issue s184
    }
    $SubAttributes{$CurPackage . '.' . $cs} = $SubAttributes{$cs};
    $SubAttributes{'main.' . $CurPackage . '.' . $cs} = $SubAttributes{$cs} unless $CurPackage eq 'main';
+}
+
+sub set_sub_attribute               # issue s241
+# Set SubAttributes for the specified sub to the specified value, propogating it as appropriate
+{
+    my $py_name = shift;
+    my $attr = shift;
+    my $val = shift;
+
+    my $package = &Perlscan::cur_raw_package();
+    my $escaped_package = &Perlscan::cur_package();
+
+    my $ld = rindex($py_name, '.');
+    if($ld >= 0) {
+        $package = substr($py_name, 0, $ld);
+        $py_name = substr($py_name, $ld+1);
+    }
+    $SubAttributes{$package . '.' . $py_name}{$attr} = $val;
+    if(exists $Perlscan::SpecialVarsUsed{'bless'} && exists $Perlscan::SpecialVarsUsed{'bless'}{$package}) {
+        $SubAttributes{'->'.$py_name} = dclone($SubAttributes{$py_name});
+    }
+    if($package eq $CurPackage) {
+        $SubAttributes{$py_name} = $SubAttributes{$package . '.' . $py_name};
+    }
+    if($package ne $escaped_package) {
+        $SubAttributes{$escaped_package . '.' . $py_name} = $SubAttributes{$package . '.' . $py_name};
+        $SubAttributes{'main.' . $escaped_package . '.' . $py_name} = $SubAttributes{$py_name} unless $escaped_package eq 'main';
+    }
+    $SubAttributes{'main.' . $package . '.' . $py_name} = $SubAttributes{$py_name} unless $package eq 'main';
+}
+
+sub get_sub_attribute_at            # issue s241
+# Get a SubAttribute for the token at pos
+{
+    my $pos = shift;
+    my $attr = shift;
+
+    my $method_call = 0;
+    my $py_name = $ValPy[$pos];
+    $method_call = 1 if($pos != 0 && $ValClass[$pos-1] eq 'd');
+    return get_sub_attribute($py_name, $attr, $method_call);
+}
+
+sub get_sub_attribute               # issue s241
+# Get a specified SubAttribute for the specified sub
+{
+    my $py_name = shift;
+    my $attr = shift;
+    my $method_call = scalar(@_) ? $_[0] : 0;
+
+    my $package = &Perlscan::cur_raw_package();
+
+    my $ld = rindex($py_name, '.');
+    if($ld >= 0) {
+        $package = substr($py_name, 0, $ld);
+        $py_name = substr($py_name, $ld+1);
+    }
+    if($method_call) {
+        if(exists $SubAttributes{'->'.$py_name})  {
+            if(exists $SubAttributes{'->'.$py_name}{$attr}) {
+                return $SubAttributes{'->'.$py_name}{$attr};
+            }
+            return undef;
+        }
+    }
+    if(exists $SubAttributes{$package . '.' . $py_name}) {
+        if(exists $SubAttributes{$package . '.' . $py_name}{$attr}) {
+            return $SubAttributes{$package . '.' . $py_name}{$attr};
+        }
+        return undef;
+    }
+    if(exists $SubAttributes{$py_name}) {
+        if(exists $SubAttributes{$py_name}{$attr}) {
+            return $SubAttributes{$py_name}{$attr};
+        }
+    }
+    return undef;
 }
 
 sub propagate_sub_attributes_for_bless      # issue s184
@@ -4214,5 +4389,42 @@ sub for_loop_uses_default_var       # issue s235
     return 0 if $ValClass[1] eq 't';    # for my ...
     return 0 if $ValClass[1] eq 's' && $ValClass[2] eq '('; # for $s (
     return 1;
+}
+
+sub is_scalar_operator      # issue s246
+# Is this a scalar operator?
+{
+    my $pos = shift;
+
+    if(index("+-*/.>%&|",$ValClass[$pos]) >= 0) {
+        if($pos == 0) {
+            return 1 if($ValClass[$pos] eq '-');    # Unary - is all that counts here
+            return 0;
+        }
+        return 1 if is_term($pos-1); # Previous is a term
+    }
+    return 0;
+}
+
+sub is_term                 # issue s246
+# Is this a term in an expression?
+{
+    my $pos = shift;
+
+    if(index('dshaf)"', $ValClass[$pos]) != -1) {
+        if($ValClass[$pos] eq 'f') {
+            $arg_type = arg_type($ValPerl[$pos], $ValPy[$pos], 0, 0, 1);
+            if($arg_type eq '' || length($arg_type) == 2) {  # Empty or ends with a '?'
+                say STDERR "is_term(f: $ValPerl[$pos] ($ValPy[$pos]) arg_type=$arg_type) = 1" if $::debug >= 5;
+                return 1;
+            }
+            say STDERR "is_term(f: $ValPerl[$pos] ($ValPy[$pos]) arg_type=$arg_type) = 0" if $::debug >= 5;
+            return 0;
+        }
+        say STDERR "is_term($ValClass[$pos]: $ValPerl[$pos] ($ValPy[$pos])) = 1" if $::debug >= 5;
+        return 1;
+    }
+    say STDERR "is_term($ValClass[$pos]: $ValPerl[$pos] ($ValPy[$pos])) = 0" if $::debug >= 5;
+    return 0;
 }
 1;

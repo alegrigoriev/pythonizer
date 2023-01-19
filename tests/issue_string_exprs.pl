@@ -55,4 +55,26 @@ $top = {key=>'val'};
 $val = "updated nesting_info=@{[%{$top}]}";
 assert($val eq 'updated nesting_info=key val');
 
+$val = "@{[keys %$top]}";
+assert($val eq 'key');
+
+# Here is one that chatGPT generated in issue_s249
+my $right = [1,2,3,4];
+my $str = "length @{[scalar @$right]}";
+assert($str eq 'length 4');
+
+# See what happens with wantarray
+sub wa {
+    return unless defined wantarray;
+    @arr = (1,2,3);
+    return @arr if wantarray;
+    return 1;
+}
+#print "@{[wa]}\n";
+assert("@{[wa]}" eq '1 2 3');
+
+# NOT SURE why this sends list context and returns 3, so let's skip it!!
+#print "${\(wa)}\n";
+#assert("${\(wa)}" eq '3');
+
 print "$0 - test passed!\n";

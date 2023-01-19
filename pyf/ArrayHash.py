@@ -319,7 +319,7 @@ def ArrayHash(init=None,isHash=None):
     return result
 
 def _partialclass(cls, *args, **kwds):
-    class NewCls(cls):
+    class UNIVERSAL(cls):
         __init__ = functools.partialmethod(cls.__init__, *args, **kwds)
-    return NewCls
+    return UNIVERSAL
 _ArrayHashClass = _partialclass(_ArrayHash, ArrayHash)

@@ -15,4 +15,4 @@ def _ref(r):
         return ''
     if hasattr(tr, '__name__'):
         return tr.__name__
-    return t.replace("<class '", '').replace("'>", '')
+    return t.replace("<class '", '').replace("'>", '').replace('.', '::')

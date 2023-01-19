@@ -45,6 +45,7 @@ sub pass_0
         $line = &Pythonizer::getline();
         last unless(defined($line));
 
+        say STDERR "\n === Pass0: Line-$. Perl source:".$line."===" if($::debug >= 6);
         next if(defined $use_implicit_my);
 
         &Perlscan::tokenize($line);
@@ -84,6 +85,11 @@ sub pass_0
                 !&Perlscan::in_eval()) {
             $use_implicit_my = 0;   # will die if in a script
             say STDERR "Using -M due to return not in sub" if($say_why);
+        } elsif(($ValClass[0] =~ m'[*@%&$]' || ($ValClass[0] eq 's' && $ValPerl[0] =~ m'^[*@%&$]$')) && 
+                3 <= $#ValClass && $ValClass[1] eq '(' && 
+                $ValPerl[1] eq '{' && contains_colon_colon(2, &Pythonizer::matching_br(1)-1)) { # issue s244
+            $use_implicit_my = 0;           # issue s244
+            say STDERR "Using -M due to dynamic package" if($say_why);  # issue s244
         } elsif($ValClass[0] eq '{') {
             &Pythonizer::correct_nest(1);
         } elsif($ValClass[0] eq '}' && $#ValClass == 0) {
@@ -353,6 +359,17 @@ sub handle_pragma_pythonizer
     return 0 if($MFlag);
     return $implicit_global_my if(defined $implicit_global_my);
     return undef;
+}
+
+sub contains_colon_colon        # issue s244
+# Do these tokens contain a string with '::' in it?
+{
+    my ($pos, $end_pos) = @_;
+
+    for(; $pos <= $end_pos; $pos++) {
+        return 1 if($ValClass[$pos] eq '"' && index($ValPy[$pos], '::') != -1);
+    }
+    return 0;
 }
 
 1;

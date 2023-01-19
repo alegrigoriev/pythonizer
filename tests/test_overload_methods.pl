@@ -10,15 +10,109 @@ assert($str_val eq "hello world", "Test StrVal method with string value");
 
 # Test case for Overloaded method
 sub overload_string { "overload string" };
-use overload '""' => \&overload_string;
+sub overload_cmp { return 0 };
+use overload '""' => \&overload_string, cmp=>\&overload_cmp;
 my $overloaded_var = bless {};
+assert(($overloaded_var cmp $overloaded_var) == 0);
+assert($overloaded_var eq $overloaded_var);     # Default eq uses cmp
+assert("$overloaded_var" eq "overload string"); # Uses our "" operator
 assert(overload::Overloaded($overloaded_var), "Test Overloaded method with overloaded variable");
+my $hashref = {};
+assert(!overload::Overloaded($hashref), "Test Overloaded method with plain hashref");
+my $aref = [];
+assert(!overload::Overloaded($aref), "Test Overloaded method with plain arrayref");
+
+# Test case for StrVal on overloaded object
+$str_val = overload::StrVal($overloaded_var);
+assert($str_val =~ /^main=HASH\(0x[A-Fa-f0-9]+\)$/);
+
+# Test case for StrVal on non-OO references
+$str_val = overload::StrVal($hashref);
+assert($str_val =~ /^HASH\(0x[A-Fa-f0-9]+\)$/);
+
+$str_val = overload::StrVal($aref);
+assert($str_val =~ /^ARRAY\(0x[A-Fa-f0-9]+\)$/);
 
 # Test case for Method method
 my $method = overload::Method($overloaded_var, '""');
-assert(subname($method) eq 'main::overload_string', "Test Method method with object and method name");
+assert(subname($method) eq 'main::overload_string', "Test Method method with object and method name \"\" ");
+
+$method = overload::Method($overloaded_var, 'cmp');
+assert(subname($method) eq 'main::overload_cmp', "Test Method method with object and method name cmp");
+
+$method = overload::Method($overloaded_var, 'eq');
+assert(!defined $method, "Test Method method on eq not directly defined");
 
 assert(!overload::Method($overloaded_var, '=='));
 assert(!overload::Method($overloaded_var, '<'));
+
+# Test case for Overloaded method w/o overload
+package NotOverloaded;
+use Carp::Assert;
+my $nonoverloaded_var = bless [];
+assert(!overload::Overloaded($nonoverloaded_var), "Test Overloaded method with non-overloaded variable");
+
+# Test case for StrVal on nonoverloaded object
+my $str_val = overload::StrVal($nonoverloaded_var);
+assert($str_val =~ /^NotOverloaded=ARRAY\(0x[A-Fa-f0-9]+\)$/);
+
+package Over::Loaded;
+use Carp::Assert;
+use Sub::Util 'subname';
+sub less_than { 1 };
+use overload '<' => \&less_than;
+my $overloaded_var = bless [];
+assert(overload::Overloaded($overloaded_var));
+my $method = overload::Method($overloaded_var, '<');
+assert(subname($method) eq 'Over::Loaded::less_than', "Test Mothod method with object and method name less_than");
+
+# Make sure our Math::Complex gives the proper results
+use Math::Complex;
+use Carp::Assert;
+use Sub::Util 'subname';
+
+my $i = i;
+assert(overload::Overloaded($i));
+my %subnames = (	'='	=> 'Math::Complex::_copy',
+	'+='	=> 'Math::Complex::_plus',
+	'+'	=> 'Math::Complex::_plus',
+	'-='	=> 'Math::Complex::_minus',
+	'-'	=> 'Math::Complex::_minus',
+	'*='	=> 'Math::Complex::_multiply',
+	'*'	=> 'Math::Complex::_multiply',
+	'/='	=> 'Math::Complex::_divide',
+	'/'	=> 'Math::Complex::_divide',
+	'**='	=> 'Math::Complex::_power',
+	'**'	=> 'Math::Complex::_power',
+	'=='	=> 'Math::Complex::_numeq',
+	'<=>'	=> 'Math::Complex::_spaceship',
+	'neg'	=> 'Math::Complex::_negate',
+	'~'	=> 'Math::Complex::_conjugate',
+	'abs'	=> 'Math::Complex::abs',
+	'sqrt'	=> 'Math::Complex::sqrt',
+	'exp'	=> 'Math::Complex::exp',
+	'log'	=> 'Math::Complex::log',
+	'sin'	=> 'Math::Complex::sin',
+	'cos'	=> 'Math::Complex::cos',
+	'atan2'	=> 'Math::Complex::atan2',
+    '""'    => 'Math::Complex::_stringify');
+for (keys %subnames) {
+    my $method = overload::Method($i, $_);
+    my $sbn = subname($method);
+    assert($sbn eq $subnames{$_}, "$sbn ne $subnames{$_} for $_");
+}
+
+# And try some names that need to be (un-)escaped
+#
+package yield::in;
+use Carp::Assert;
+use Sub::Util 'subname';
+use overload;
+sub len { 0 }
+use overload '+'=>\&len;
+my $obj = bless {};
+my $method = overload::Method($obj, '+');
+my $sbn = subname($method);
+assert($sbn eq 'yield::in::len', "$sbn ne 'yield::in::len'");
 
 print "$0 - test passed!\n";

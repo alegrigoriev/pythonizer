@@ -208,6 +208,7 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
                 _can=>'_isa', _binmode=>'_autoflush',
                 _add_tie_methods=>'_raise',         # issue s216
                 _method_call=>'_cluck',             # issue s236
+                _smartmatch=>'_num',                # issue s251
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
 our %PYF_OUT_PARAMETERS=();                        # Functions with out parameters - which parameter (counting from 1) is "out"?
 our %STATEMENT_FUNCTIONS=(getopts=>1, GetOptions=>1, chop=>1, chomp=>1);    # issue s150: These functions generate statements and must be pulled out of expressions/conditions, issue s167: Add chop/chomp
@@ -320,6 +321,7 @@ our %OVERLOAD_MAP =         (
         'ge'        => {normal=>'__ge__'},
         'lt'        => {normal=>'__lt__'},
         'gt'        => {normal=>'__gt__'},
+        '~~'        => {normal=>'__smartmatch__', reversed=>'__rsmartmatch__'},  # issue s251
         '<=>'        => {normal=>'__spaceship__', reversed=>'__rspaceship__'},
         'cmp'        => {normal=>'__cmp__', reversed=>'__rcmp__'},
         '<<='        => {normal=>'__ilshift__', assign=>1},
@@ -482,6 +484,21 @@ our %PREDEFINED_PACKAGES = (
                  {perl=>'native_to_unicode', type=>'I:I', python=>'_utf8_native_to_unicode'},
                  {perl=>'unicode_to_native', type=>'I:I', python=>'_utf8_unicode_to_native'},
                 ],
+        'overload'=>[{perl=>'StrVal', type=>'m:S', python=>'_overload_StrVal', calls=>'_ref_scalar'},
+                     {perl=>'Overloaded', type=>'m:B', python=>'_overload_Overloaded'},
+                     {perl=>'Method', type=>'mS:C', python=>'_overload_Method'},
+                 ],
+         'Sub::Util'=>[{perl=>'subname', type=>'C:S'},
+                      ],
+         'List::Util'=>[
+                {perl=>'max', type=>'a of N:N', python=>'max'},
+                {perl=>'maxstr', type=>'a of S:S', python=>'max_s'},    # separate type has to have distinct name - is mapped back to 'max'
+                {perl=>'min', type=>'a of N:N', python=>'min'},
+                {perl=>'minstr', type=>'a of S:S', python=>'min_s'},    # separate type has to have distinct name - is mapped back to 'min'
+                {perl=>'product', type=>'a of N:N', python=>'math.prod'},
+                {perl=>'sum', type=>'a of N:N', python=>'sum'},
+                {perl=>'sum0', type=>'a of N:N', python=>'sum'},
+                    ],
                );
 
 
