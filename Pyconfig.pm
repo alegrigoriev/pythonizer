@@ -209,6 +209,9 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
                 _add_tie_methods=>'_raise',         # issue s216
                 _method_call=>'_cluck',             # issue s236
                 _smartmatch=>'_num',                # issue s251
+                _exec=>'_execp,_cluck',             # issue s247
+                _execp=>'_cluck',                   # issue s247
+                _caller_s=>'_caller',               # issue s259
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
 our %PYF_OUT_PARAMETERS=();                        # Functions with out parameters - which parameter (counting from 1) is "out"?
 our %STATEMENT_FUNCTIONS=(getopts=>1, GetOptions=>1, chop=>1, chomp=>1);    # issue s150: These functions generate statements and must be pulled out of expressions/conditions, issue s167: Add chop/chomp

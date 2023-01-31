@@ -46,6 +46,17 @@ my $regex = qr/[a-z]/;
 my @array8 = (a, b, c);
 assert(@array8 ~~ $regex, "All array elements match regex");
 
+# Test simple array contains
+assert('a' ~~ @array8, "Array contains match a");
+assert('b' ~~ @array8, "Array contains match b");
+assert('c' ~~ @array8, "Array contains match c");
+assert(!('d' ~~ @array8), "Array not contains match d");
+
+# Test simple hash key contains
+assert('a' ~~ %hash1, "Hash key contains match a");
+assert('b' ~~ %hash1, "Hash key contains match b");
+assert('c' ~~ %hash1, "Hash key contains match c");
+assert(!('d' ~~ %hash1), "Hash key not contains match d");
 
 sub test_smart_match {
     my $undef;

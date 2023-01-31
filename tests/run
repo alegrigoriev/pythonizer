@@ -139,7 +139,7 @@ done;
 
 echo
 echo "Running pythonizer tests"
-for f in *.pl *.pln;
+for f in *.pl *.pln issue_s245;
 do
    if [ $ctrlc -eq 1 ]; then
       break
@@ -205,6 +205,7 @@ do
    case "$f" in
    *.pln) pyf=${f%.pln}.py;;
    *.pl)  pyf=${f%.pl}.py;;
+   *)     pyf=${f}.py;;
    esac
    python $pyf >>run1.log 2>&1
    if [ $? -ne 0 ]; then
@@ -218,6 +219,11 @@ do
    fi
    # Make sure it says "test passed" twice
    count=`grep -c "test passed" run1.log`
+   if [[ $count -ne 2 ]]; then
+       # Could be one of the exec tests and it returned control to us but it's not done yet
+       sleep 3
+       count=`grep -c "test passed" run1.log`
+   fi
    if [[ $count -ne 2 && "$f" != "issue_empty_file.pl" ]]; then
       echo "test $f failed because 2 'test passed' messages were not found!" >>run1.log
       ((failed++))
@@ -262,6 +268,10 @@ else
    cat run.log
    end_red
    echo "(see run.log for these details)"
+   green "pythonizer $passed tests PASSED. "
+   red "$failed tests FAILED!"
+   green " in $elap"
+   echo
    exit 1
 fi
 exit 0

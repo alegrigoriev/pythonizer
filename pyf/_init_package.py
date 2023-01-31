@@ -105,4 +105,7 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
                     setattr(builtins.main, piece, namespace)
         parent = namespace
         parent_name = package_name
+    if not hasattr(builtins, '__packages__'):
+        builtins.__packages__ = set()
+    builtins.__packages__.add(name)
     return namespace

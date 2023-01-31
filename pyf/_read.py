@@ -21,6 +21,7 @@ def _read(fh, var, length, offset=0, need_len=False):
         return var
 
     ls = len(s)
+    var = _str(var)
     lv = len(var)
     if offset < 0:
         offset += lv

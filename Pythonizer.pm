@@ -38,7 +38,7 @@ use Storable qw(dclone);                # issue s18
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
-@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages %PackageDef arg_type_from_pos in_sub_call end_of_function new_anonymous_sub save_nest restore_nest for_loop_uses_default_var get_sub_attribute set_sub_attribute); # SNOOPYJC
+@EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages %PackageDef arg_type_from_pos in_sub_call end_of_function new_anonymous_sub save_nest restore_nest for_loop_uses_default_var get_sub_attribute get_sub_attribute_at set_sub_attribute clone_sub_attributes debug_start_end); # SNOOPYJC
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $IntactLno = 0;           # issue s6
    $IntactEndLno = 0;        # issue s6
@@ -75,6 +75,7 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    $MFlag = 0;          # SNOOPYJC
    %anonymous_subs_used = ();   # issue s26
    $pass_0_ran = 0;     # issue s63: set to 1 if we ran pass_0
+   $deferred_nesting_top = undef;       # issue s252
 
 #
 #::prolog --  Decode parameter for the pythonizer. all parameters are exported
@@ -254,7 +255,9 @@ sub prolog
          unless( -f $fname ){
             abend("Input file $fname does not exist");
          }
-         $source_file=substr($ARGV[0],0,rindex($ARGV[0],'.'));
+         # issue s245 $source_file=substr($ARGV[0],0,rindex($ARGV[0],'.'));
+         my $p = rindex($ARGV[0], '.');                                # issue s245
+         $source_file = ($p < 0 ? $ARGV[0] : substr($ARGV[0],0,$p));   # issue s245
          if(defined $::output_dir) {            # issue s23
              make_path($::output_dir);          # issue s23
              $source_file = catfile($::output_dir, basename($source_file));     # issue s23 - also used for the .data file
@@ -405,8 +408,12 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          if(defined $::saved_sub_tokens && $::nested_sub_at_level < 0) {  # SNOOPYJC
              &::unpackage_tokens($::saved_sub_tokens);
              $::saved_sub_tokens = undef;
-             say STDERR "Continuing to scan tokens after handling sub with line=$line" if($::debug >= 3);
-             &Perlscan::tokenize($line, 1);     # continue where we left off
+             if($ValClass[0] eq 'c' && $ValPerl[0] eq 'aliased_foreach') {  # issue s252
+                 getline($line);                # issue s252
+             } else {                           # issue s252
+                say STDERR "Continuing to scan tokens after handling sub with line=$line" if($::debug >= 3);
+                &Perlscan::tokenize($line, 1);     # continue where we left off
+             }
          } else {
             Perlscan::tokenize($line);
          }
@@ -464,9 +471,11 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                       ($k == $#ValClass || $ValPerl[$k+1] eq '@_' || $ValClass[$k+1] !~ /[ahfi]/)) {        # SNOOPYJC
                   # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args
                   my $cs = &Perlscan::cur_sub();                # issue s184
-                  $SubAttributes{$cs}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args, issue s84
+                  # issue s241 $SubAttributes{$cs}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args, issue s84
+                  set_sub_attribute($cs, 'modifies_arglist', 1);                  # SNOOPYJC: This sub shifts it's args, issue s84
                   if($ValPerl[$k] eq 'shift') {                      # issue s184
-                     $SubAttributes{$cs}{arglist_shifts}++;          # issue s184
+                      # issue s241 $SubAttributes{$cs}{arglist_shifts}++;          # issue s184
+                     set_sub_attribute($cs, 'arglist_shifts', get_sub_attribute($cs, 'arglist_shifts',0,0) + 1);   # issue s184, issue s241
                   }                                                  # issue s184
                   $possible_parameter = 1;                           # issue s185
                }
@@ -498,6 +507,15 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
           $CurPackage = $ValPy[1];               # SNOOPYJC
       }elsif( $ValClass[0] eq '{') {                    # issue 45
           correct_nest(1);                              # issue 45
+          if($deferred_nesting_top) {            # issue s252: We deferred marking this aliased_foreach because it's a stmt modifier
+            $top = $Perlscan::nesting_stack[-1];
+            $top->{is_sub} = 1;
+            $top->{in_sub} = 1;
+            $top->{cur_sub} = $deferred_nesting_top;
+            $top->{type} = 'sub';
+            $top->{was_foreach} = 1;
+            $deferred_nesting_top = undef;
+          }
       }elsif( $ValClass[0] eq '}' && $#ValClass == 0) {	# issue 45
          correct_nest(-1);                              # issue 45
          if($we_are_in_sub_body && $NextNest == 0) {	# issue 45
@@ -534,10 +552,12 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
 		           ($ValClass[$k+1] eq 'p' && $ValClass[$k+2] eq 'f' && $ValPerl[$k+2] =~ /^(?:re|tr)$/))	# issue ddts, issue s151
 	            ))) {
                     # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;    # SNOOPYJC: This sub mods it's args
-                    $SubAttributes{$cs}{modifies_arglist} = 1;    # SNOOPYJC: This sub mods it's args, issue s84
+                    # issue s241 $SubAttributes{$cs}{modifies_arglist} = 1;    # SNOOPYJC: This sub mods it's args, issue s84
+                    set_sub_attribute($cs, 'modifies_arglist', 1);    # SNOOPYJC: This sub mods it's args, issue s84, issue s241
                     if($ValPy[$k] =~ /\[(\d+)\]/) {                # issue s184
                          my $als = 0;                           # issue s184
-                         $als = $SubAttributes{$cs}{arglist_shifts} if exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arglist_shifts};    # issue s184
+                         # issue s241 $als = $SubAttributes{$cs}{arglist_shifts} if exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arglist_shifts};    # issue s184
+                         $als = get_sub_attribute($cs, 'arglist_shifts',0,0);   # issue s241
                          set_out_parameter($cs, $1+$als);       # issue s184
                     } else {        # issue s184: vararg
                          set_out_parameter($cs, 'var');          # issue s184
@@ -545,8 +565,10 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                 } elsif($ValClass[$k] eq 's' && $ValPerl[$k] eq '$' && $k+3 <= $#ValClass && $ValClass[$k+1] eq '(' &&
                         $ValClass[$k+3] eq ')' && $ValClass[$k+2] eq 's' &&
                         (($ValPerl[$k+2] eq '$_' && $ValPy[$k+2] =~ /\[\d+\]$/) ||
-                         (exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arg_copies} &&
-                         exists $SubAttributes{$cs}{arg_copies}{$ValPerl[$k+2]})) &&
+                            # issue s241 (exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arg_copies} &&
+                            # issue s241 exists $SubAttributes{$cs}{arg_copies}{$ValPerl[$k+2]})) &&
+                         (defined get_sub_attribute($cs, 'arg_copies') &&           # issue s241
+                         exists ${get_sub_attribute($cs, 'arg_copies')}{$ValPerl[$k+2]})) &&   # issue s241
                         (($k-1 >= 0 && $ValClass[$k-1] eq '^') ||
                          ($k+4 <= $#ValClass &&
 		                  ($ValClass[$k+4] eq '=' ||
@@ -555,25 +577,31 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                           ))) {                                 # issue s185
                       my $arg;
                       if($ValPy[$k+2] =~ /\[(\d+)\]$/) {    # Arg specified
-                         $SubAttributes{$cs}{modifies_arglist} = 1;     # We store the value here
+                          # issue s241 $SubAttributes{$cs}{modifies_arglist} = 1;     # We store the value here
+                         set_sub_attribute($cs, 'modifies_arglist', 1);     # We store the value here, issue s241
                          my $als = 0;                           # issue s185
-                         $als = $SubAttributes{$cs}{arglist_shifts} if exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arglist_shifts};    # issue s185
+                         # issue s241 $als = $SubAttributes{$cs}{arglist_shifts} if exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arglist_shifts};    # issue s185
+                         $als = get_sub_attribute($cs, 'arglist_shifts',0,0);   # issue s241
                          $arg = $1 + $als;
                       } else {
-                          $arg = $SubAttributes{$cs}{arg_copies}{$ValPerl[$k+2]}
+                          # issue s241 $arg = $SubAttributes{$cs}{arg_copies}{$ValPerl[$k+2]}
+                          $arg = ${get_sub_attribute($cs, 'arg_copies')}{$ValPerl[$k+2]};   # issue s241
                       }
                       $arg .= 'r';            # Reference
                       set_out_parameter($cs, $arg);         # issue s185
                 } elsif($ValClass[$k] eq 's' && defined $ValType[$k] && $ValType[$k] eq  'ss' &&
-                     exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arg_copies} &&
-                     exists $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]} &&
+                    # issue s241 exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arg_copies} &&
+                    # issue s241 exists $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]} &&
+                     defined get_sub_attribute($cs, 'arg_copies') &&
+                     exists ${get_sub_attribute($cs, 'arg_copies')}{$ValPerl[$k]} &&
                     (($k-1 >= 0 && $ValClass[$k-1] eq '^') ||
                      ($k+1 <= $#ValClass &&
                       ($ValClass[$k+1] eq '=' ||
                        $ValClass[$k+1] eq '^' ||               # issue s184: handle $_[N]++ / $_[N]--
                        ($k+2 <= $#ValClass && $ValClass[$k+1] eq 'p' && $ValClass[$k+2] eq 'f' && $ValPerl[$k+2] =~ /^(?:re|tr)$/))
                 ))) {                                                   # issue s185
-                    my $arg = $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]};
+                    # issue s241 my $arg = $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]};
+                    my $arg = ${get_sub_attribute($cs, 'arg_copies')}{$ValPerl[$k]};    # issue s241
                     $arg .= 'r';            # Reference
                     set_out_parameter($cs, $arg);         # issue s185
                 }
@@ -606,18 +634,22 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                       ($k == $#ValClass || $ValPerl[$k+1] eq '@_' || $ValClass[$k+1] !~ /[ahfi]/)) {       # SNOOPYJC
 		         # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args
                  my $cs = &Perlscan::cur_sub();
-                 $SubAttributes{$cs}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args, issue s84
+                 # issue s241 $SubAttributes{$cs}{modifies_arglist} = 1;                  # SNOOPYJC: This sub shifts it's args, issue s84
+                 set_sub_attribute($cs, 'modifies_arglist', 1);                  # SNOOPYJC: This sub shifts it's args, issue s84
                  if($ValPerl[$k] eq 'shift') {                      # issue s184
-                     $SubAttributes{$cs}{arglist_shifts}++;         # issue s184
+                     # issue s241 $SubAttributes{$cs}{arglist_shifts}++;         # issue s184
+                     set_sub_attribute($cs, 'arglist_shifts', get_sub_attribute($cs, 'arglist_shifts',0,0) + 1);   # issue s184, issue s241
                  }                                                  # issue s184
               } elsif($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 'push' || $ValPerl[$k] eq 'unshift') &&
 		      (($#ValClass >= $k+1 && $ValPerl[$k+1] eq '@_') ||
                ($k+2 <= $#ValClass && $ValPerl[$k+1] eq '(' && $ValPerl[$k+2] eq '@_'))) { # issue s53, issue s220
 		         # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;     # issue s53
                  my $cs = &Perlscan::cur_sub();
-                 $SubAttributes{$cs}{modifies_arglist} = 1;     # issue s53, issue s84
+                 # issue s241 $SubAttributes{$cs}{modifies_arglist} = 1;     # issue s53, issue s84
+                 set_sub_attribute($cs, 'modifies_arglist', 1);                  # SNOOPYJC: This sub shifts it's args, issue s84
                  if($ValPerl[$k] eq 'unshift') {                      # issue s184
-                     $SubAttributes{$cs}{arglist_shifts}--;         # issue s184
+                     # issue s241 $SubAttributes{$cs}{arglist_shifts}--;         # issue s184
+                     set_sub_attribute($cs, 'arglist_shifts', get_sub_attribute($cs, 'arglist_shifts',0,0) - 1);   # issue s184, issue s241
                  }                                                  # issue s184
               } elsif((($ValClass[$k] eq 'q' && $ValPy[$k] =~ /\b$DEFAULT_VAR\b/)) ||                # issue s151
                   ($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 're' && $ValPy[$k] =~ /\b$DEFAULT_VAR\b/) ||
@@ -628,6 +660,10 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                 $VarType{$DEFAULT_VAR}{$CurSubName} = $t;      # issue s8, issue s104
       	        $VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
                 $NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = $t if(!exists $initialized{$CurSubName}{$DEFAULT_VAR}); # issue s8, issue s104
+                if($ValPy[$k] =~ /^re\.sub/ && &Perlscan::is_loop_ctr('$_')) {      # issue s252
+                    &Perlscan::set_loop_ctr_mod('$_');  # issue s252
+                }                                       # issue s252
+
 	          } elsif($ValClass[$k] eq 'f' && arg_type($ValPerl[$k], $ValPy[$k], 0, 0) eq 'H' && $#ValClass > $k) {	# issue s101: handle file handles across subs
 		        my $h = $k+1;
 		        $h++ if($ValClass[$h] eq '(');
@@ -647,48 +683,124 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                 $VarType{$DEFAULT_VAR}{$CurSubName} = $t;      		# issue s104
 		        $VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
 	      	    $NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = $t if(!exists $initialized{$CurSubName}{$DEFAULT_VAR});	# issue s103, issue s104
+                if($ValPerl[$k] eq 'chomp' || $ValPerl[$k] eq 'chop') { # issue s252: They modify $_
+                    if(&Perlscan::is_loop_ctr('$_')) {      # issue s252
+                        &Perlscan::set_loop_ctr_mod('$_');  # issue s252
+                    }                                       # issue s252
+                }                                           # issue s252
               } 
+              if($ValClass[$k] eq '(' && $k+1 <= $#ValClass && $ValClass[$k+1] eq ')' && $ValPerl[$k] eq '(' &&
+                 ($k == 0 || ($ValClass[$k-1] eq 'k' && $ValPerl[$k-1] eq 'return'))) {     # issue s254
+                 # Here we are (potentially) returning () - make this an implicit wantarray, since we
+                 # need to return either an empty array or None, based on the calling context
+                  my $cs = &Perlscan::cur_sub();                   # issue s254
+                  if($cs ne '__main__') {                          # issue s254
+                      $Perlscan::SpecialVarsUsed{'wantarray'}{$cs} = 2; # issue s254
+                      set_sub_attribute($cs, 'wantarray', 2);      # issue s254
+                      say STDERR "Setting 'wantarray' on $cs based on return of ()" if $::debug;
+                  }                                                # issue s254
+              }                                                    # issue s254
+
 	          if($ValClass[$k] eq 'i' && ($k == 0 || $ValPerl[$k-1] eq 'return' || $ValPerl[$k-1] eq 'goto') && $we_are_in_sub_body && $k+3 <= $#ValClass &&
                       $ValClass[$k+1] eq '(' && $ValPerl[$k+2] eq '@_' && $ValClass[$k+3] eq ')' &&
-                      ((($k == 0 || $ValClass[$k-1] ne 'D') && exists $SubAttributes{$ValPy[$k]}{wantarray}) ||
-                       ($k != 0 && $ValClass[$k-1] eq 'D' && exists $SubAttributes{'->'.$ValPy[$k]}{wantarray}))) { # issue s241: goto &mysub; -or- return &mysub;
+                      # issue s241 ((($k == 0 || $ValClass[$k-1] ne 'D') && exists $SubAttributes{$ValPy[$k]}{wantarray}) ||
+                      # issue s241 ($k != 0 && $ValClass[$k-1] eq 'D' && exists $SubAttributes{'->'.$ValPy[$k]}{wantarray}))) { # issue s241: goto &mysub; -or- return &mysub;
+                       defined get_sub_attribute_at($k,'wantarray')) { # issue s241: goto &mysub; -or- return &mysub;
                   my $cs = &Perlscan::cur_sub();                   # issue s241
-                  $SubAttributes{$cs}{wantarray} = 1;              # issue s241
-                  $SubAttributes{$cs}{wantarray_inherited_from} = $ValPy[$k];   # issue s241
-                  if(exists $Perlscan::SpecialVarsUsed{'bless'} && exists $Perlscan::SpecialVarsUsed{'bless'}{$CurPackage}) {  # issue s241
-                      $SubAttributes{'->'.$cs} = dclone($SubAttributes{$cs});          # issue s241
-                  }                                                # issue s241
-                  $SubAttributes{$CurPackage . '.' . $cs} = $SubAttributes{$cs};       # issue s241
-                  $SubAttributes{'main.' . $CurPackage . '.' . $cs} = $SubAttributes{$cs} unless $CurPackage eq 'main';    # issue s241
+# issue s241                  $SubAttributes{$cs}{wantarray} = 1;              # issue s241
+# issue s241                  $SubAttributes{$cs}{wantarray_inherited_from} = $ValPy[$k];   # issue s241
+# issue s241                  if(exists $Perlscan::SpecialVarsUsed{'bless'} && exists $Perlscan::SpecialVarsUsed{'bless'}{$CurPackage}) {  # issue s241
+# issue s241                      $SubAttributes{'->'.$cs} = dclone($SubAttributes{$cs});          # issue s241
+# issue s241                  }                                                # issue s241
+# issue s241                  $SubAttributes{$CurPackage . '.' . $cs} = $SubAttributes{$cs};       # issue s241
+# issue s241                  $SubAttributes{'main.' . $CurPackage . '.' . $cs} = $SubAttributes{$cs} unless $CurPackage eq 'main';    # issue s241
+                  set_sub_attribute($cs, 'wantarray', 1);                           # issue s241
+                  set_sub_attribute($cs, 'wantarray_inherited_from', $ValPy[$k]);   # issue s241
               } elsif($ValClass[$k] eq 'i' && $k == 3 && $ValClass[0] eq 'G' && $ValClass[1] eq '=' && $ValClass[2] eq '\\' &&
-                      (exists $SubAttributes{$ValPy[$k]}{wantarray} || exists $SubAttributes{$ValPy[$k]}{out_parameters})) {    # issue s241: *x = \&mysub;
-                  my $cs = $ValPy[0];                               # issue s241
-                  $SubAttributes{$cs}{wantarray} = 1 if exists $SubAttributes{$ValPy[$k]}{wantarray};              # issue s241
-                  if(exists $SubAttributes{$ValPy[$k]}{out_parameters}) {    # issue s241
-                      $outs = $SubAttributes{$ValPy[$k]}{out_parameters};    # issue s241
-                      $SubAttributes{$cs}{out_parameters} = dclone($outs);   # issue s241
-                  }
+                  # issue s241 (exists $SubAttributes{$ValPy[$k]}{wantarray} || exists $SubAttributes{$ValPy[$k]}{out_parameters})) {    # issue s241: *x = \&mysub;
+                      (defined get_sub_attribute_at($k, 'wantarray') || defined get_sub_attribute_at($k, 'out_parameters'))) {    # issue s241: *x = \&mysub;
+                  clone_sub_attributes($ValPy[$k], $ValPy[0]);      # issue s241
+# issue s241                  my $cs = $ValPy[0];                               # issue s241
+# issue s241                  $SubAttributes{$cs}{wantarray} = 1 if exists $SubAttributes{$ValPy[$k]}{wantarray};              # issue s241
+# issue s241                  if(exists $SubAttributes{$ValPy[$k]}{out_parameters}) {    # issue s241
+# issue s241                      $outs = $SubAttributes{$ValPy[$k]}{out_parameters};    # issue s241
+# issue s241                      $SubAttributes{$cs}{out_parameters} = dclone($outs);   # issue s241
+# issue s241                  }
                   if(exists $LocalSub{$ValPy[$k]}) {
                       $LocalSub{$cs} = $LocalSub{$ValPy[$k]};
                   }
-                  if(exists $Perlscan::SpecialVarsUsed{'bless'} && exists $Perlscan::SpecialVarsUsed{'bless'}{$CurPackage}) {  # issue s241
-                      $SubAttributes{'->'.$cs} = dclone($SubAttributes{$cs});          # issue s241
-                  }                                                # issue s241
-                  $SubAttributes{$CurPackage . '.' . $cs} = $SubAttributes{$cs};       # issue s241
-                  $SubAttributes{'main.' . $CurPackage . '.' . $cs} = $SubAttributes{$cs} unless $CurPackage eq 'main';    # issue s241
+# issue s241                  if(exists $Perlscan::SpecialVarsUsed{'bless'} && exists $Perlscan::SpecialVarsUsed{'bless'}{$CurPackage}) {  # issue s241
+# issue s241                      $SubAttributes{'->'.$cs} = dclone($SubAttributes{$cs});          # issue s241
+# issue s241                  }                                                # issue s241
+# issue s241                  $SubAttributes{$CurPackage . '.' . $cs} = $SubAttributes{$cs};       # issue s241
+# issue s241                  $SubAttributes{'main.' . $CurPackage . '.' . $cs} = $SubAttributes{$cs} unless $CurPackage eq 'main';    # issue s241
               }
+              my $outs;                     # issue s252
+              if($ValClass[$k] eq 'f' && exists $PYF_OUT_PARAMETERS{$ValPy[$k]}) {      # issue s252
+                  $p = get_function_out_parameter($k);                                  # issue s252
+                  if(defined $p && &Perlscan::is_loop_ctr($ValPerl[$p])) {              # issue s252
+                    &Perlscan::set_loop_ctr_mod($ValPerl[$p]);                          # issue s252
+                  }                                                                     # issue s252
+              } elsif($ValClass[$k] eq 'i' && ($k == 0 || $ValPerl[$k-1] ne 'sub') && exists $LocalSub{$ValPy[$k]}) {   # issue s252
+                  # Is this a sub call that can change the loop counter?
+                  my $lc = &Perlscan::get_loop_ctr();
+                  if(defined $lc) {
+                      my @lcs = split(/,/, $lc);
+                      for $lc (@lcs) {
+                          if($lc eq '$_') {
+                              # VarSubMap isn't set for the default var because it has ValType==X - the
+                              # default variable isn't global in Pythonizer, so we don't assume it's changed
+                              # over a sub call.
+                              #if(exists $VarSubMap{$DEFAULT_VAR}{$ValPy[$k]}) {
+                              #   &Perlscan::set_loop_ctr_mod('$_');
+                              #}
+                          } else {
+                              my $py = &Perlscan::perl_name_to_py($lc);
+                              if(exists $VarSubMap{$py}{$ValPy[$k]} && &Perlscan::loop_ctr_type($lc, $py) ne 'my') {
+                                 &Perlscan::set_loop_ctr_mod($lc);
+                              }
+                          }
+                      }
+                  }
+              }
+              if($ValClass[$k] eq 'i' && ($k == 0 || $ValPerl[$k-1] ne 'sub') && $#ValClass != $k &&
+                    defined ($outs = get_sub_attribute_at($k, 'out_parameters'))) {     # issue s252
+                   my $adj = 0;
+                   if($k == 0 || $ValClass[$k-1] ne 'D') {
+                       ;
+                   } else {
+                       $adj = 1;        # Allow for the first arg being $self
+                   }
+                   my $ep = &::end_of_call($k);
+                   foreach my $arg (@$outs) {
+                       no warnings 'numeric';       # handle 1r, etc
+                       my ($s, $e) = &::get_arg_start_end($k, $ep, $arg+1-$adj);
+                       my $r = '';
+                       $r = 'r' if($arg =~ /r/);
+                       if($s && ($s == $e || ($r eq 'r' && $ValClass[$s] eq '\\' && $e-$s == 1))) {
+                           if(&Perlscan::is_loop_ctr($ValPerl[$e])) {
+                               &Perlscan::set_loop_ctr_mod($ValPerl[$e]);                          # issue s252
+                           }
+                       }
+                   }
+              }                                                                         # issue s252
               if($ValClass[$k] eq 'f' && $we_are_in_sub_body && $#ValClass != $k && exists $PYF_OUT_PARAMETERS{$ValPy[$k]} &&
                   ($p = function_modifies_sub_arg($k))) {              # issue s183
                  my $cs = &Perlscan::cur_sub();
-                 $SubAttributes{$cs}{modifies_arglist} = 1 if $ValPerl[$p] eq '$_' || $ValPerl[$p] eq '@_';     # issue s183: function modifies argument, issue s185
+                 # issue s241 $SubAttributes{$cs}{modifies_arglist} = 1 if $ValPerl[$p] eq '$_' || $ValPerl[$p] eq '@_';     # issue s183: function modifies argument, issue s185
+                 set_sub_attribute($cs, 'modifies_arglist', 1) if $ValPerl[$p] eq '$_' || $ValPerl[$p] eq '@_';     # issue s183: function modifies argument, issue s185
                  my $arg;
                  if($ValPy[$p] =~ /\[(\d+)\]/) {                # issue s184
                      my $als = 0;                           # issue s184
-                     $als = $SubAttributes{$cs}{arglist_shifts} if exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arglist_shifts};    # issue s184
-                     $arg = $1 + $als;               # issue s185
+                     # issue s241 $als = $SubAttributes{$cs}{arglist_shifts} if exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arglist_shifts};    # issue s184
+                     $arg = $1;                     # issue s241
+                     $als = get_sub_attribute($cs, 'arglist_shifts',0,0);   # issue s241
+                     # issue s241 $arg = $1 + $als;               # issue s185
+                     $arg += $als;                  # issue s241
                      $arg .= 'r' if($ValType[$p] eq 'ss');      # issue s185
                  } elsif($ValType[$p] eq 'ss') {                      # issue s185: 'ss' means it's a '$$'
-                    $arg = $SubAttributes{$cs}{arg_copies}{$ValPerl[$p]};
+                     # issue s241 $arg = $SubAttributes{$cs}{arg_copies}{$ValPerl[$p]};
+                    $arg = ${get_sub_attribute($cs, 'arg_copies')}{$ValPerl[$p]};   # issue s241
                     $arg .= 'r';            # Reference
                  } else {               # issue s184: varargs
                      $arg = 'var';      # issue s185
@@ -696,20 +808,23 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                  set_out_parameter($cs, $arg);          # issue s184, issue s185
                  # issue s184 logme('W', "Sub arg modified by this $ValPerl[$k] call will not change the argument passed in python");
 	          } elsif($ValClass[$k] eq 'i' && ($k == 0 || $ValPerl[$k-1] ne 'sub') && $we_are_in_sub_body && $#ValClass != $k && 
-                      ((($k == 0 || $ValClass[$k-1] ne 'D') && exists $SubAttributes{$ValPy[$k]}{out_parameters}) ||
-                       ($k != 0 && $ValClass[$k-1] eq 'D' && exists $SubAttributes{'->'.$ValPy[$k]}{out_parameters}))) { # issue s184
+                  # issue s241 ((($k == 0 || $ValClass[$k-1] ne 'D') && exists $SubAttributes{$ValPy[$k]}{out_parameters}) ||
+                  # issue s241 ($k != 0 && $ValClass[$k-1] eq 'D' && exists $SubAttributes{'->'.$ValPy[$k]}{out_parameters}))) { # issue s184
+                       defined get_sub_attribute_at($k, 'out_parameters')) { # issue s184, issue s241
                    # This is a call to a sub that modified it's arguments - propagate that up to this sub if appropriate
-                   my $outs;
                    my $adj = 0;
                    if($k == 0 || $ValClass[$k-1] ne 'D') {
-                       $outs = $SubAttributes{$ValPy[$k]}{out_parameters};
+                       # issue s241 $outs = $SubAttributes{$ValPy[$k]}{out_parameters};
+                       $outs = get_sub_attribute($ValPy[$k], 'out_parameters');     # issue s241
                    } else {
-                       $outs = $SubAttributes{'->'.$ValPy[$k]}{out_parameters};
+                       # issue s241 $outs = $SubAttributes{'->'.$ValPy[$k]}{out_parameters};
+                       $outs = get_sub_attribute($ValPy[$k], 'out_parameters', 1);      # issue s241: method call
                        $adj = 1;        # Allow for the first arg being $self
                    }
                    my $cs = &Perlscan::cur_sub();
                    my $als = 0;                           # issue s184
-                   $als = $SubAttributes{$cs}{arglist_shifts} if exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arglist_shifts};    # issue s184
+                   # issue s241 $als = $SubAttributes{$cs}{arglist_shifts} if exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arglist_shifts};    # issue s184
+                   $als = get_sub_attribute($cs, 'arglist_shifts',0,0);   # issue s241
                    my $ep = &::end_of_call($k);
                    foreach my $arg (@$outs) {
                        no warnings 'numeric';       # handle 1r, etc
@@ -718,15 +833,18 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                            my $r = '';                          # issue s185
                            $r = 'r' if($arg =~ /r/);            # issue s185
                            if($ValClass[$s] eq 's' && $ValPerl[$s] eq '$_' && $ValPy[$s] =~ /^$PERL_ARG_ARRAY/) {   # issue s184
-                              $SubAttributes{$cs}{modifies_arglist} = 1;    # SNOOPYJC: This sub mods it's args, issue s84
+                               # issue s241 $SubAttributes{$cs}{modifies_arglist} = 1;    # SNOOPYJC: This sub mods it's args, issue s84
+                              set_sub_attribute($cs, 'modifies_arglist', 1);    # SNOOPYJC: This sub mods it's args, issue s84, issue s241
                               if($ValPy[$s] =~ /\[(\d+)\]/) {                # issue s184
                                   set_out_parameter($cs, ($1+$als).$r);          # issue s184, issue s185
                                } else {               # issue s184: varargs
                                   set_out_parameter($cs, 'var');            # issue s184
                                }
                            } elsif($ValClass[$s] eq 'a' && $ValPerl[$s] eq '@_') {      # issue s241
-                              $SubAttributes{$cs}{modifies_arglist} = 1;    # issue s241 This sub mods it's args, issue s84
-                              $SubAttributes{$cs}{out_parameters} = dclone($outs);    # issue s241
+                              # issue s241 $SubAttributes{$cs}{modifies_arglist} = 1;    # issue s241 This sub mods it's args, issue s84
+                              # issue s241 $SubAttributes{$cs}{out_parameters} = dclone($outs);    # issue s241
+                              set_sub_attribute($cs, 'modifies_arglist', 1);    # SNOOPYJC: This sub mods it's args, issue s84, issue s241
+                              set_sub_attribute($cs, 'out_parameters', dclone($outs));    # issue s241
                               set_out_parameter($cs, $arg);          # issue s241: This is just used to set the -> and the package:: entries
                               last;     # We copied the whole thing so we don't need to do anything else
                           }
@@ -934,6 +1052,70 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
             say STDERR "updated nesting_info=@{[%{$top}]}";
         }
       }
+      if($#ValClass >= 1 && $ValClass[0] eq 'c' && is_foreach_loop(0)) {  # issue s252
+         my $expr_start;
+         my $loop_ctr_ndx;
+         my $loop_ctr_py;
+         my $loop_ctr_perl;
+         if(for_loop_uses_default_var(0)) {
+             $expr_start = 0;
+             $expr_start = 1 if($ValPerl[1] eq '(');
+         } else {
+             $expr_start = next_same_level_token('(', 1, $#ValClass);
+             $loop_ctr_ndx = 1;
+             $loop_ctr_ndx = 2 if $ValClass[1] eq 't';
+         }
+         if(&::is_list($expr_start)) {
+             if(defined $loop_ctr_ndx) {
+                 $loop_ctr_py = $ValPy[$loop_ctr_ndx];
+                 $loop_ctr_perl = $ValPerl[$loop_ctr_ndx];
+             } else {
+                 $loop_ctr_py = $DEFAULT_VAR;
+                 $loop_ctr_perl = '$_';
+             }
+
+             my $subname = new_anonymous_sub();
+             say STDERR "Creating nested_subs{$subname} for foreach $loop_ctr_py with list" if($::debug);
+             if(exists $Perlscan::line_needs_try_block{$Perlscan::statement_starting_lno} &&
+                 ($Perlscan::line_needs_try_block{$Perlscan::statement_starting_lno} & Perlscan::TRY_BLOCK_FOREACH)) {
+                 $loop_ctr_py = '';
+             }
+             $::nested_subs{$subname} = $loop_ctr_py;
+             $::aliased_foreach_subs{$subname} = $loop_ctr_perl; 
+             $DeclaredVarH{$loop_ctr_py} = 1;  # Make sure the sub arg is not declared 'global'
+             $::saved_sub_tokens = &::package_tokens();
+             $::nested_sub_at_level = $Perlscan::nesting_level;
+             push @::nested_sub_at_levels, $::nested_sub_at_level;     # issue s241
+             &::p_replace($::saved_sub_tokens, 0, 'c', 'aliased_foreach', $subname);
+             if(!defined $loop_ctr_ndx) {        # Normalize it always to have a loop ctr and parens
+                 &::p_insert($::saved_sub_tokens, 1, 's', '$_', $DEFAULT_VAR);
+                 if($ValPerl[$expr_start] ne '(') {
+                     &::p_append($::saved_sub_tokens,')',')',')');
+                     &::p_insert($::saved_sub_tokens, 2, '(','(','(');
+                 }
+             }
+             destroy(0, $#ValClass);
+             replace(0,'k','sub','def');
+             append('i', $subname, $subname);
+             if(scalar(@Perlscan::nesting_stack) == 0 || $Perlscan::nesting_stack[-1]->{type} ne 'foreach') {
+                 $deferred_nesting_top = $subname;
+             } else {
+                # Since we already processed the '{' after the 'for', adjust the nesting_info at the top of the stack
+                $top = $Perlscan::nesting_stack[-1];
+                $top->{is_sub} = 1;
+                $top->{in_sub} = 1;
+                $top->{cur_sub} = $subname;
+                $top->{type} = 'sub';
+                $top->{was_foreach} = 1;
+            }
+         }
+      } elsif($#ValClass >= 1 && $ValClass[0] eq 'c' && $ValPerl[0] eq 'aliased_foreach') {     # issue s252
+          if($ValClass[1] eq 't') {
+              &Perlscan::unmap_loop_var($ValPerl[2]);           # issue s252
+          } else {
+              &Perlscan::unmap_loop_var($ValPerl[1]);           # issue s252
+          }
+      }
 
       correct_nest();                           # issue 45
       if($Perlscan::nesting_level < $::nested_sub_at_level) {       # issue 78
@@ -973,6 +1155,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        say STDERR Dumper(\%Perlscan::line_contains_stmt_modifier);
        print STDERR "line_contains_for_loop_with_modified_counter = ";
        say STDERR Dumper(\%Perlscan::line_contains_for_loop_with_modified_counter);
+       print STDERR "line_modifies_foreach_counter = ";                 # issue s252
+       say STDERR Dumper(\%Perlscan::line_modifies_foreach_counter);    # issue s252
        print STDERR "line_contains_local_for_loop_counter = ";			# issue s100
        say STDERR Dumper(\%Perlscan::line_contains_local_for_loop_counter);	# issue s100
        print STDERR "SubAttributes = ";
@@ -1190,18 +1374,24 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
     # Record if we are modifying the loop counter
     if($ValPy[0] ne 'for' && $class eq 's' && 
        (($k != 0 && $ValClass[$k-1] eq '^') || ($k+1 <= $#ValClass && ($ValClass[$k+1] eq '=' || $ValClass[$k+1] eq '^')))) {
-        my $lc = &Perlscan::get_loop_ctr();        # undef  $i  -or- $i,$j
-        if(defined $lc) {
-            my @lcs = split(/,/, $lc);
-            for $lc (@lcs) {
-                if($ValPerl[$k] eq $lc) {
-                    &Perlscan::set_loop_ctr_mod($lc);
+# issue s252        my $lc = &Perlscan::get_loop_ctr();        # undef  $i  -or- $i,$j
+# issue s252        if(defined $lc) {
+# issue s252            my @lcs = split(/,/, $lc);
+# issue s252            for $lc (@lcs) {
+# issue s252                if($ValPerl[$k] eq $lc) {
+                if(&Perlscan::is_loop_ctr($ValPerl[$k])) {      # issue s252
+                    &Perlscan::set_loop_ctr_mod($ValPerl[$k]);  # issue s252
                     # issue for logme('W',"Loop counter $lc modified in loop - generated code for 'for' loop may be incorrect");
-                    last;
+# issue s252                    last;
                 }
-            }
-        }
-    }
+# issue s252            }
+# issue s252        }
+    } elsif($class eq 's' && $k+2 <= $#ValClass && $ValClass[$k+1] eq 'p' && $ValClass[$k+2] eq 'f' &&
+        ($ValPerl[$k+2] eq 're' || $ValPerl[$k+2] eq 'tr')) {           # issue s252
+        if(&Perlscan::is_loop_ctr($ValPerl[$k])) {      # issue s252
+            &Perlscan::set_loop_ctr_mod($ValPerl[$k]);  # issue s252
+        }                                               # issue s252
+    }                                                   # issue s252
 
     if($k > 0) {
         if($ValClass[$k-1] eq '^') {      # pre ++ or --
@@ -1231,9 +1421,12 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
     if($k+1 <= $#ValClass) {
         if($ValClass[$k+1] eq '=') {
             my $cs = &Perlscan::cur_sub();      # issue s185
-            if(exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arg_copies} &&
-               exists $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]} && $ValType[$k] ne 'ss') {      # issue s185
-               delete $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]};        # issue s185: No longer a copy if we change it
+            # issue s241 if(exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arg_copies} &&
+            # issue s241 exists $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]} && $ValType[$k] ne 'ss') {      # issue s185
+            if(defined get_sub_attribute($cs, 'arg_copies') &&
+               exists ${get_sub_attribute($cs, 'arg_copies')}{$ValPerl[$k]} && $ValType[$k] ne 'ss') {      # issue s185
+               # issue s241 delete $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]};        # issue s185: No longer a copy if we change it
+               delete ${get_sub_attribute($cs, 'arg_copies')}{$ValPerl[$k]};        # issue s185: No longer a copy if we change it, issue s241
             }                                                               # issue s185
             my $lim = $#ValClass;
             if($k-1 >= 0 && $ValClass[$k-1] eq '(') {   # parens around assignment - stop at the )
@@ -1314,9 +1507,12 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
             #say STDERR "m = $m";
             if($m != -1 && $ValPerl[$m] eq ')' && $m < $#ValClass && $ValClass[$m+1] eq '=') {        # like ($v1, $v2) = RHS;
                 my $cs = &Perlscan::cur_sub();      # issue s185
-                if(exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arg_copies} &&
-                    exists $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]} && $ValType[$k] ne 'ss') {      # issue s185
-                    delete $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]};        # issue s185: No longer a copy if we change it
+                # issue s241 if(exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arg_copies} &&
+                # issue s241 exists $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]} && $ValType[$k] ne 'ss') {      # issue s185
+                if(defined get_sub_attribute($cs, 'arg_copies') &&
+                    exists ${get_sub_attribute($cs, 'arg_copies')}{$ValPerl[$k]} && $ValType[$k] ne 'ss') {      # issue s185
+                    # issue s241 delete $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]};        # issue s185: No longer a copy if we change it
+                    delete ${get_sub_attribute($cs, 'arg_copies')}{$ValPerl[$k]};        # issue s185: No longer a copy if we change it, issue s241
                 }                                                               # issue s185
                 $rhs_type = expr_type($m+2, $#ValClass, $CurSub);
                 if($rhs_type =~ /^a of (.*)$/) {            # like a of S
@@ -1343,6 +1539,9 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
            ($k >=3 && $ValClass[$k-1] eq 't' && $ValClass[$k-2] eq '(' && $ValClass[$k-3] eq 'f' && ($ValPerl[$k-3] eq 'open' || $ValPerl[$k-3] eq 'opendir'))) { # open(my $fh
         $type = 'H';
         $initialized{$CurSub}{$name} = $type if($ValClass[$k-1] eq 't' || !&Perlscan::in_conditional($k));
+        if(&Perlscan::is_loop_ctr($ValPerl[$k])) {      # issue s252
+            &Perlscan::set_loop_ctr_mod($ValPerl[$k]);  # issue s252
+        }                                               # issue s252
     } elsif($ValClass[0] eq 't' && ($ValPerl[0] eq 'my' || $ValPerl[0] eq 'local' || $ValPerl[0] eq 'state') &&
             being_declared_here($k) &&                                                  # issue bootstrap: make sure this isn't on the RHS of the = (if any)
             !exists $initialized{$CurSub}{$name} && !&Perlscan::in_conditional($k)) {   # issue s10
@@ -1980,7 +2179,8 @@ sub _expr_type           # Attempt to determine the type of the expression
                 return 'a of S' if($k-2 >= 0 && $ValClass[$k-2] eq 'a' && $ValClass[$k-1] eq '=');
                 return 'S';
             } elsif($LocalSub{$name} || (exists $VarType{$name} && exists $VarType{$name}{__main__})) { # Local sub with no args
-                return 'a' if exists $SubAttributes{$name}{wantarray} && &::list_or_scalar_context($k, $e); # issue string exprs
+                # issue s241 return 'a' if exists $SubAttributes{$name}{wantarray} && &::list_or_scalar_context($k, $e); # issue string exprs
+                return 'a' if defined get_sub_attribute($name, 'wantarray') && &::list_or_scalar_context($k, $e); # issue string exprs, issue s241
                 return $VarType{$name}{__main__} if(exists $VarType{$name} && exists $VarType{$name}{__main__});
                 return 'm';
 	        } elsif(exists $CONSTANT_MAP{$ValPerl[$k]}) {
@@ -2418,13 +2618,18 @@ sub apply_scalar_context                        # issue 37
             return 1;
         }
     } elsif($ValClass[$pos] eq '(' && $ValPerl[$pos] eq '(' && 
-            $pos+2 <= $#ValClass && $ValClass[$pos+1] eq ')' && 
-            $ValClass[$pos+2] eq '='                            # issue s46
-        ) {  # goatse: $s = () = ...
-        append(')',')',')');
-        insert($pos+3,'(','(','(');
-        insert($pos+3,'f','scalar','len');
-        return 2;               # Signal list context
+            $pos+1 <= $#ValClass && $ValClass[$pos+1] eq ')') {
+        if($pos+2 <= $#ValClass && $ValClass[$pos+2] eq '=') {        # issue s46: goatse: $s = () = ...
+            append(')',')',')');
+            insert($pos+3,'(','(','(');
+            # issue s254 insert($pos+3,'f','scalar','len');
+            insert($pos+3,'f','scalar','lena');     # This 'scalar' has type a:I so the arg is in list context
+            return 2;               # Signal list context
+        } else {                    # issue s254: () is undef in scalar context
+            replace($pos, 'f', 'undef', 'None');
+            destroy($pos+1, 1);
+            return 1;
+        }
     }
     return 0;
 }
@@ -2456,9 +2661,9 @@ sub fix_scalar_context                          # issue 37
             $did_something = 1;
         }
     }
-    if($TokenStr eq 's=a' || $TokenStr eq 's=h' || $TokenStr =~ /^s=f/ || $TokenStr =~ /^s=\(\)=/) {         # issue 65, goatse, issue 30
+    if($TokenStr eq 's=a' || $TokenStr eq 's=h' || $TokenStr =~ /^s=f/ || $TokenStr =~ /^s=\(\)/) {         # issue 65, goatse, issue 30, issue s254: remove the check for '=' at the end of ()
         $did_something |= apply_scalar_context(2);
-    } elsif($TokenStr eq 'ts=a' || $TokenStr eq 'ts=h' || $TokenStr =~ /^ts=f/ || $TokenStr =~ /^ts=\(\)=/) {    # issue 65, goatse, issue 30
+    } elsif($TokenStr eq 'ts=a' || $TokenStr eq 'ts=h' || $TokenStr =~ /^ts=f/ || $TokenStr =~ /^ts=\(\)/) {    # issue 65, goatse, issue 30, issue s254: remove the check for '=' at the end of ()
         $did_something |= apply_scalar_context(3);
     } elsif($#ValClass > 5 && $ValClass[1] eq '(' && $ValClass[0] eq 's') {    # Array subscript or hashref
         $j=&::end_of_variable(0);                      # Look for $arr[ndx]=@arr or $arr[ndx]=func()
@@ -2468,7 +2673,7 @@ sub fix_scalar_context                          # issue 37
     }
     # Handle the assigment being in a control statement
     if($ValClass[0] eq 'c' || $ValClass[0] eq 'C') {            # issue 37
-        if($TokenStr =~ /^[cC]\(s=[ahf]/ || $TokenStr =~ /^[cC]\(s=\(\)=/) {         # issue 65, goatse, issue 30
+        if($TokenStr =~ /^[cC]\(s=[ahf]/ || $TokenStr =~ /^[cC]\(s=\(\)/) {         # issue 65, goatse, issue 30
             $did_something |= apply_scalar_context(4);
         } elsif($TokenStr =~ /^[cC]\(f\(s=[ahf]/ && $ValPerl[2] eq 'defined') {         # issue s40: Added by handle_while_magic_function
             $did_something |= apply_scalar_context(6);                                  # issue s40
@@ -2546,12 +2751,18 @@ sub fix_scalar_context                          # issue 37
                 say STDERR "Can't get type of token $i on function in =|$TokenStr|=, ValPy=@ValPy";
             }
             my $arg_type = arg_type($fname, $pname, $arg, 0);   # 0 = don't repeat the last arg if we're past the end
+            # my $arg_type = arg_type($fname, $pname, $arg, 0, 1);   # 0 = don't repeat the last arg if we're past the end, issue s247: request if optional
             #say STDERR "arg_type($fname, $pname, $arg, 0) = $arg_type";         # TEMP
             # Check the next arg too because this array could just be splatted into multiple arguments like for timegm
             my $next_arg_type = 'u';
             $next_arg_type = arg_type($fname, $pname, $arg+1, 0, 1) if defined $arg;
             #say STDERR "arg_type($fname, $pname, $arg+1, 0, 1) = $next_arg_type" if defined $arg;  # TEMP
             $next_arg_type = '' unless defined($next_arg_type);
+            # THIS FIX BREAKS issue_s48 so we can't do it this way!
+            # if(defined $arg_type && $arg_type =~ /[sSIFN]\?/ && $ValClass[$i] eq 'a') {     # issue s247
+            # $arg_type = $next_arg_type;         # issue s247
+            # $next_arg_type = '';                # issue s247
+            # }
             if(defined $arg_type && $arg_type =~ /[sSIFN]/ && $next_arg_type !~ /^[sSIFN]$/) {
                 # For printf only (not sprintf), if we are passing an array where the first element is the format,
                 # then don't apply scalar context to that
@@ -2602,7 +2813,7 @@ sub fix_scalar_context                          # issue 37
         } elsif($ValClass[$i] eq 'f') {                 # issue s48: Examine all function args looking for scalar type requirements
 
             my $j = end_of_function($i);
-            say STDERR "end_of_function($i) =|$TokenStr|= $ValPerl[$i] = $j" if($::debug >= 5);
+            #say STDERR "end_of_function($i) =|$TokenStr|= $ValPerl[$i] = $j" if($::debug >= 5);
             if($j != -1 && $j > $in_function_until) {
                 $in_function_until = $j;
             }
@@ -2619,7 +2830,7 @@ sub fix_scalar_context                          # issue 37
     }
 }
 
-sub end_of_function                             # issue s3
+sub _end_of_function                             # issue s3
 # Find the end of this function call - returns the index of the last token that's still part of the call
 {
     my $pos = shift;    # point to the function
@@ -2642,7 +2853,9 @@ sub end_of_function                             # issue s3
     $limit = $#ValClass;                # issue s48
     # issue s151: Move this code up from below as the and/or/comparison was messing up $limit!
     my $t_pos = 0;
-    if(($ValPerl[$pos] eq 'grep' || $ValPerl[$pos] eq 'map' || $ValPerl[$pos] eq 'sort') && $ValPerl[$pos+1] eq '{') {
+    if(($ValPerl[$pos] eq 'grep' || $ValPerl[$pos] eq 'map' || 
+            $ValPerl[$pos] eq 'sort' || $ValPerl[$pos] eq 'exec') &&    # issue s247: add 'exec'
+        $ValPerl[$pos+1] eq '{') {
         # this is like grep { function } @array - skip right to the array
         my $close = matching_br($pos+1);
         $pos = $close;
@@ -2753,6 +2966,14 @@ sub end_of_function                             # issue s3
                 $ep = (($co==-1) ? $end_pos : $co-1);               # issue s246
                 $comma = $co;                                       # issue s246
             }                                                       # issue s246
+        } elsif($t ne ':' && $comma != -1 && 
+            ($ValClass[$comma] eq '?' || ($ValClass[$comma] eq ':' && $ValPy[$comma] eq 'if'))) {    # issue s194
+            # If we are in a ? : operation, skip past it
+            $comma = next_lower_or_equal_precedent_token($op, $comma+1, $end_pos);
+            if($comma != -1 && $ValClass[$comma] eq ':') {
+                $comma = next_lower_or_equal_precedent_token($op, $comma+1, $end_pos);
+                $ep = (($comma==-1) ? $end_pos : $comma-1);               # issue s246
+            }
         }
 	    $pep = $ep;			# issue s75
         if($comma < 0 || ($comma >= 0 && $ValClass[$comma] ne ',')) {
@@ -2776,6 +2997,37 @@ sub end_of_function                             # issue s3
     $k = $end_pos if($k > $end_pos);
     $k = &::end_of_variable($k);
     return $k;
+}
+
+sub end_of_function
+{
+    my $pos = $_[0];
+    my $result = _end_of_function($pos);
+    if($::debug >= 3) {
+        debug_start_end("end_of_function($pos) for =|%|= $ValPerl[$pos]($ValPy[$pos]) $result", $pos, $result);
+    }
+    return $result;
+}
+
+sub debug_start_end
+# Point out where an expression starts and ends in the token string
+# Pass in the debug message with the token string position marked with a '%'
+# and the start and optionally the end
+{
+    my ($msg, $start, $end) = @_;
+
+    return unless $::debug;
+    my $pos = index($msg, '%');
+    $TokenStr = join('', @ValClass) if $PassNo == PASS_1;
+    say STDERR substr($msg, 0, $pos) . $TokenStr . substr($msg, $pos+1);
+    return unless $::debug >= 3;
+    my $spaces = ' ' x ($pos + $start);
+    if(!defined $end || $end == $start) {
+        say STDERR "$spaces^";
+    } else {
+        my $spaces2 = ' ' x ($end-$start-1);
+        say STDERR "$spaces^$spaces2^";
+    }
 }
 
 sub get_here
@@ -4172,13 +4424,17 @@ sub function_modifies_sub_arg       # issue s183
              $result = $k;
         } elsif($ValClass[$k] eq 's' && $ValPerl[$k] eq '$' && $k+3 <= $#ValClass && $ValClass[$k+1] eq '(' &&
                $ValPerl[$k+1] eq '{' && $ValClass[$k+2] eq 's' && $ValClass[$k+3] eq ')' && ($ValPy[$k+2] =~ /\[\d+\]$/ ||
-                 (exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arg_copies} &&
-                  exists $SubAttributes{$cs}{arg_copies}{$ValPerl[$k+2]}))) {
+                   # issue s241 (exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arg_copies} &&
+                   # issue s241 exists $SubAttributes{$cs}{arg_copies}{$ValPerl[$k+2]}))) {
+                 (defined get_sub_attribute($cs, 'arg_copies') &&                       # issue s241
+                  exists ${get_sub_attribute($cs, 'arg_copies')}{$ValPerl[$k+2]}))) {   # issue s241
              $result = $k+2;
              $ValType[$result] = 'ss';
         } elsif($ValClass[$k] eq 's' && $ValType[$k] eq 'ss' &&
-                exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arg_copies} &&
-                exists $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]}) {
+            # issue s241 exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arg_copies} &&
+            # issue s241 exists $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]}) {
+                defined get_sub_attribute($cs, 'arg_copies') &&
+                exists ${get_sub_attribute($cs, 'arg_copies')}{$ValPerl[$k]}) {
              $result = $k;
         }
         if(defined $result) {
@@ -4198,6 +4454,31 @@ sub function_modifies_sub_arg       # issue s183
     return 0;
 }
 
+sub get_function_out_parameter       # issue s241
+# For a function that has an out parameter, get the pointer to that out parameter
+{
+    my $pos = shift;        # Point to the 'f'
+
+    my $limit = end_of_function($pos);
+
+    my $which_arg = $PYF_OUT_PARAMETERS{$ValPy[$pos]};
+    for(my $k = $pos+1; $k <= $limit; $k++) {
+        next if $ValClass[$k] eq ',';
+        my ($prl, $py, $arg) = arg_from_pos($k);
+        if(defined $arg && $arg+1 == $which_arg) {            # arg_from_pos counts from 0
+           say STDERR "get_function_out_parameter(@ValPerl[$pos..$limit]) = $k" if($::debug);
+           return $k;
+        }
+        if($ValClass[$k] eq 'f') {
+            $k = end_of_function($k);
+        } elsif($ValClass[$k] ne '(') {
+            $k = &::end_of_variable($k);
+        }
+    }
+    say STDERR "ERROR: get_function_out_parameter(@ValPerl[$pos..$limit]) = undef" if($::debug);
+    return undef;
+}
+
 sub track_potential_sub_parameter_copies       # issue s185
 # This is a 'my' statement in a sub - see if it copies the sub arguments, and if so,
 # keep track of that in order to check for reference out parameters
@@ -4215,23 +4496,32 @@ sub track_potential_sub_parameter_copies       # issue s185
     my $lhs = 1;
     if($ValClass[$lhs] eq '(') {           # my (...)
         if($rhs == $#ValClass && $ValClass[$rhs] eq 'a' && $ValPerl[$rhs] eq '@_') {        # Easy case: my (...) = @_;
-            my $which = (exists $SubAttributes{$cs}{arglist_shifts}) ? $SubAttributes{$cs}{arglist_shifts} : 0;
+            # issue s241 my $which = (exists $SubAttributes{$cs}{arglist_shifts}) ? $SubAttributes{$cs}{arglist_shifts} : 0;
+            my $which = get_sub_attribute($cs, 'arglist_shifts',0,0);  # issue s241
             for(my $p = $lhs+1; $p < $eq; $p++) {
                 if($ValClass[$p] eq 's') {
-                    $SubAttributes{$cs}{arg_copies}{$ValPerl[$p]} = $which;
+                    # issue s241 $SubAttributes{$cs}{arg_copies}{$ValPerl[$p]} = $which;
+                    my $ac = get_sub_attribute($cs, 'arg_copies', 0, {});       # issue s241
+                    $ac->{$ValPerl[$p]} = $which;                               # issue s241
+                    set_sub_attribute($cs, 'arg_copies', $ac);                  # issue s241
                     $which++;
                 }
             }
         } elsif($ValClass[$rhs] eq '(' && $ValClass[$rhs+1] eq 'a' && $ValPerl[$rhs+1] eq '@_') {   # Another easy case: my (...) = (@_);
-            my $which = (exists $SubAttributes{$cs}{arglist_shifts}) ? $SubAttributes{$cs}{arglist_shifts} : 0;
+            # issue s241 my $which = (exists $SubAttributes{$cs}{arglist_shifts}) ? $SubAttributes{$cs}{arglist_shifts} : 0;
+            my $which = get_sub_attribute($cs, 'arglist_shifts',0,0);  # issue s241
             for(my $p = $lhs+1; $p < $eq; $p++) {
                 if($ValClass[$p] eq 's') {
-                    $SubAttributes{$cs}{arg_copies}{$ValPerl[$p]} = $which;
+                    # issue s241 $SubAttributes{$cs}{arg_copies}{$ValPerl[$p]} = $which;
+                    my $ac = get_sub_attribute($cs, 'arg_copies', 0, {});       # issue s241
+                    $ac->{$ValPerl[$p]} = $which;                               # issue s241
+                    set_sub_attribute($cs, 'arg_copies', $ac);                  # issue s241
                     $which++;
                 }
             }
         } elsif($ValClass[$rhs] eq '(') {
-            my $which = (exists $SubAttributes{$cs}{arglist_shifts}) ? $SubAttributes{$cs}{arglist_shifts} : 0;
+            # issue s241 my $which = (exists $SubAttributes{$cs}{arglist_shifts}) ? $SubAttributes{$cs}{arglist_shifts} : 0;
+            my $which = get_sub_attribute($cs, 'arglist_shifts',0,0);  # issue s241
             for(my $p = $rhs+1; $p < $#ValClass; $p++) {       # Start by reducing $which by the number of shifts
                 if($ValClass[$p] eq 'f' && $ValPerl[$p] eq 'shift') {
                     $which--;
@@ -4241,10 +4531,16 @@ sub track_potential_sub_parameter_copies       # issue s185
             for(my $p = $lhs+1; $p < $eq; $p++) {
                 if($ValClass[$p] eq 's') {
                     if($ValClass[$q] eq 'f' && $ValPerl[$q] eq 'shift') {
-                        $SubAttributes{$cs}{arg_copies}{$ValPerl[$p]} = $which;
+                        # issue s241 $SubAttributes{$cs}{arg_copies}{$ValPerl[$p]} = $which;
+                        my $ac = get_sub_attribute($cs, 'arg_copies', 0, {});       # issue s241
+                        $ac->{$ValPerl[$p]} = $which;                               # issue s241
+                        set_sub_attribute($cs, 'arg_copies', $ac);                  # issue s241
                         $which++;
                     } elsif($ValClass[$q] eq 's' && $ValPy[$q] =~ /\[(\d+)\]$/) {
-                        $SubAttributes{$cs}{arg_copies}{$ValPerl[$lhs]} = $1 + $which;
+                        # issue s241 $SubAttributes{$cs}{arg_copies}{$ValPerl[$lhs]} = $1 + $which;
+                        my $ac = get_sub_attribute($cs, 'arg_copies', 0, {});       # issue s241
+                        $ac->{$ValPerl[$lhs]} = $1 + $which;                        # issue s241
+                        set_sub_attribute($cs, 'arg_copies', $ac);                  # issue s241
                     }
                 }
                 next if $ValClass[$p] eq ',';
@@ -4254,40 +4550,54 @@ sub track_potential_sub_parameter_copies       # issue s185
         }
     } elsif($eq == 2) {                 # my $var = ...
         if($ValClass[$rhs] eq 'f' && $ValPerl[$rhs] eq 'shift' && ($rhs == $#ValClass || $ValPerl[$rhs+1] eq '@_')) {
-            $SubAttributes{$cs}{arg_copies}{$ValPerl[$lhs]} = $SubAttributes{$cs}{arglist_shifts}-1;    # We already incremented it
+            # issue s241 $SubAttributes{$cs}{arg_copies}{$ValPerl[$lhs]} = $SubAttributes{$cs}{arglist_shifts}-1;    # We already incremented it
+            my $ac = get_sub_attribute($cs, 'arg_copies', 0, {});       # issue s241
+            $ac->{$ValPerl[$lhs]} = get_sub_attribute($cs, 'arglist_shifts')-1;
+            set_sub_attribute($cs, 'arg_copies', $ac);                  # issue s241
         } elsif($rhs == $#ValClass && $ValPerl[$rhs] eq '$_' && $ValPy[$rhs] =~ /\[(\d+)\]$/) {
-            if(exists $SubAttributes{$cs}{arglist_shifts}) {
-                $SubAttributes{$cs}{arg_copies}{$ValPerl[$lhs]} = $1 + $SubAttributes{$cs}{arglist_shifts};
+            # issue s241 if(exists $SubAttributes{$cs}{arglist_shifts}) {
+            # issue s241 $SubAttributes{$cs}{arg_copies}{$ValPerl[$lhs]} = $1 + $SubAttributes{$cs}{arglist_shifts};
+            # issue s241 } else {
+            # issue s241 $SubAttributes{$cs}{arg_copies}{$ValPerl[$lhs]} = $1;
+            # issue s241 }
+            my $ac = get_sub_attribute($cs, 'arg_copies', 0, {});       # issue s241
+            if(defined get_sub_attribute($cs, 'arglist_shifts')) {
+                $ac->{$ValPerl[$lhs]} = $1 + get_sub_attribute($cs, 'arglist_shifts');
             } else {
-                $SubAttributes{$cs}{arg_copies}{$ValPerl[$lhs]} = $1;
+                $ac->{$ValPerl[$lhs]} = $1;
             }
+            set_sub_attribute($cs, 'arg_copies', $ac);                  # issue s241
         }
     }
 }
 
 sub set_out_parameter                   # issue s184
-# FIXME: Use set_sub_attribute here!!
 {
     my $cs = shift;
     my $arg = shift;
 
     if($arg eq 'var') {
-       $SubAttributes{$cs}{out_parameters} = ['var'];
+       # issue s241 $SubAttributes{$cs}{out_parameters} = ['var'];
+       set_sub_attribute($cs, 'out_parameters', ['var']);
     } else {
        no warnings 'numeric';       # handle 1r, etc
-       if(exists $SubAttributes{$cs}{out_parameters}) {
-           if(!grep {($_+0) == ($arg+0) || $_ eq 'var'} @{$SubAttributes{$cs}{out_parameters}}) {
-              push @{$SubAttributes{$cs}{out_parameters}}, $arg;
+       # issue s241 if(exists $SubAttributes{$cs}{out_parameters}) {
+       if(defined get_sub_attribute($cs, 'out_parameters')) {
+           # issue s241 if(!grep {($_+0) == ($arg+0) || $_ eq 'var'} @{$SubAttributes{$cs}{out_parameters}}) {
+           # issue s241 push @{$SubAttributes{$cs}{out_parameters}}, $arg;
+           if(!grep {($_+0) == ($arg+0) || $_ eq 'var'} @{get_sub_attribute($cs, 'out_parameters')}) {   # issue s241
+              push @{get_sub_attribute($cs, 'out_parameters')}, $arg;    # issue s241
            }                                                              # issue s184
        } else { 
-           $SubAttributes{$cs}{out_parameters} = [$arg];
+           # issue s241 $SubAttributes{$cs}{out_parameters} = [$arg];
+           set_sub_attribute($cs, 'out_parameters',  [$arg]);
        }
    }
-   if(exists $Perlscan::SpecialVarsUsed{'bless'} && exists $Perlscan::SpecialVarsUsed{'bless'}{$CurPackage}) {  # issue s18
-       $SubAttributes{'->'.$cs} = dclone($SubAttributes{$cs});
-   }
-   $SubAttributes{$CurPackage . '.' . $cs} = $SubAttributes{$cs};
-   $SubAttributes{'main.' . $CurPackage . '.' . $cs} = $SubAttributes{$cs} unless $CurPackage eq 'main';
+   # issue s241 if(exists $Perlscan::SpecialVarsUsed{'bless'} && exists $Perlscan::SpecialVarsUsed{'bless'}{$CurPackage}) {  # issue s18
+   # issue s241 $SubAttributes{'->'.$cs} = dclone($SubAttributes{$cs});
+   # issue s241 }
+   # issue s241 $SubAttributes{$CurPackage . '.' . $cs} = $SubAttributes{$cs};
+   # issue s241 $SubAttributes{'main.' . $CurPackage . '.' . $cs} = $SubAttributes{$cs} unless $CurPackage eq 'main';
 }
 
 sub set_sub_attribute               # issue s241
@@ -4307,9 +4617,9 @@ sub set_sub_attribute               # issue s241
     }
     $SubAttributes{$package . '.' . $py_name}{$attr} = $val;
     if(exists $Perlscan::SpecialVarsUsed{'bless'} && exists $Perlscan::SpecialVarsUsed{'bless'}{$package}) {
-        $SubAttributes{'->'.$py_name} = dclone($SubAttributes{$py_name});
+        $SubAttributes{'->'.$py_name} = dclone($SubAttributes{$package . '.' . $py_name});
     }
-    if($package eq $CurPackage) {
+    if((defined $CurPackage && $package eq $CurPackage) || (!defined $CurPackage && $package eq $DEFAULT_PACKAGE)) {
         $SubAttributes{$py_name} = $SubAttributes{$package . '.' . $py_name};
     }
     if($package ne $escaped_package) {
@@ -4324,11 +4634,12 @@ sub get_sub_attribute_at            # issue s241
 {
     my $pos = shift;
     my $attr = shift;
+    my $default = scalar(@_) ? $_[0] : undef;
 
     my $method_call = 0;
     my $py_name = $ValPy[$pos];
-    $method_call = 1 if($pos != 0 && $ValClass[$pos-1] eq 'd');
-    return get_sub_attribute($py_name, $attr, $method_call);
+    $method_call = 1 if($pos != 0 && $ValClass[$pos-1] eq 'D');
+    return get_sub_attribute($py_name, $attr, $method_call, $default);
 }
 
 sub get_sub_attribute               # issue s241
@@ -4337,6 +4648,7 @@ sub get_sub_attribute               # issue s241
     my $py_name = shift;
     my $attr = shift;
     my $method_call = scalar(@_) ? $_[0] : 0;
+    my $default = scalar(@_) >= 2 ? $_[1] : undef;
 
     my $package = &Perlscan::cur_raw_package();
 
@@ -4350,28 +4662,54 @@ sub get_sub_attribute               # issue s241
             if(exists $SubAttributes{'->'.$py_name}{$attr}) {
                 return $SubAttributes{'->'.$py_name}{$attr};
             }
-            return undef;
+            return $default;
         }
     }
     if(exists $SubAttributes{$package . '.' . $py_name}) {
         if(exists $SubAttributes{$package . '.' . $py_name}{$attr}) {
             return $SubAttributes{$package . '.' . $py_name}{$attr};
         }
-        return undef;
+        return $default;
     }
     if(exists $SubAttributes{$py_name}) {
         if(exists $SubAttributes{$py_name}{$attr}) {
             return $SubAttributes{$py_name}{$attr};
         }
     }
-    return undef;
+    return $default;
+}
+
+sub clone_sub_attributes               # issue s241
+# Clone the sub attributes, used for like *sub = \%my_sub;
+{
+    my $from_py_name = shift;
+    my $to_py_name = shift;
+
+    my $package = &Perlscan::cur_raw_package();
+
+    my $ld = rindex($from_py_name, '.');
+    if($ld >= 0) {
+        $package = substr($from_py_name, 0, $ld);
+        $from_py_name = substr($from_py_name, $ld+1);
+    }
+    if(exists $SubAttributes{$package . '.' . $from_py_name}) {
+        for my $attr (keys %{$SubAttributes{$package . '.' . $from_py_name}}) {
+            set_sub_attribute($to_py_name, $attr, $SubAttributes{$package . '.' . $from_py_name}{$attr});
+        }
+        return;
+    }
+    if(exists $SubAttributes{$from_py_name}) {
+        for my $attr (keys %{$SubAttributes{$from_py_name}}) {
+            set_sub_attribute($to_py_name, $attr, $SubAttributes{$from_py_name}{$attr});
+        }
+    }
 }
 
 sub propagate_sub_attributes_for_bless      # issue s184
 # The first time we see a 'bless', propagate the OO form of all SubAttributes
 {
     foreach (keys %SubAttributes) {
-        unless(/^->/) {
+        unless(/^->/ || /[.]/) {
             $SubAttributes{'->'.$_} = $SubAttributes{$_};
         }
     }

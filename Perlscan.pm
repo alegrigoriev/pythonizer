@@ -162,7 +162,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                             '_readdir'=>'H:S', '_readline_full'=>'H:S',         # issue s40
                             '.rstrip("\n")_s'=>'S:m', '[0:-1]_s'=>'S:m',        # issue s48
                             '_split_s'=>'S?S?I?:I',                             # issue s52, issue s246: Add the '?' to everything
-                            '_reverse_scalar'=>'a?:S', 
+                            '_reverse_scalar'=>'a of S?:S',     # test reverse
                             # issue s153 'filter_s'=>'Sa:I', 
                             'filter_s'=>'sa:I',         # issue s153
                             'caller_s'=>'I?:m',         # issue s177
@@ -216,6 +216,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 'else'=>'else: ','elsif'=>'elif ',
                 # issue 42 'eval'=>'NoTrans!', 
                 'eval'=>'try',  # issue 42
+                'exec'=>'_exec',    # issue s247
                 'exit'=>'sys.exit','exists'=> 'in', # if  key in dictionary 'exists'=>'.has_key'
                 'fc'=>'.casefold()',                    # SNOOPYJC
         'flock'=>'_flock',          # issue flock
@@ -461,6 +462,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'do'=>'C',            # SNOOPYJC
                   'each'=>'f',          # SNOOPYJC
                   'else'=>'C', 'elsif'=>'C', 'exists'=>'f', 'exit'=>'f', 'export'=>'f',
+                  'exec'=>'f',          # issue s247
                   '__expand'=>'f',      # issue s131
                   'exp'=>'f',           # issue s3
                   'eval'=>'C',          # issue 42
@@ -561,7 +563,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   '_logical_xor' => 'mm:B',             # issue s237
                   'exp'=>'F:F', 'log'=>'F:F', 'cos'=>'F:F', 'sin'=>'F:F',       # issue s3
                   '$#'=>'a:I',                                                # issue 119: _last_ndx
-                  're'=>'S', 'tr'=>'S',                                         # SNOOPYJC
+                  're'=>':S', 'tr'=>':S',                                         # SNOOPYJC, issue s252: add ':'
                   'abs'=>'N:N', 'alarm'=>'N:N', 'atan2'=>'NN:F', 
                   'autoflush'=>'I?:I', 'basename'=>'S:S', 'binmode'=>'HS?:m',
                   # issue s154 'bless'=>'mS?:m',                      # SNOOPYJC
@@ -579,6 +581,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   '<=>'=>'NN:I',
                   '~~'=>'mm:I',         # issue s251
                   'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:m', 'dirname'=>'S:S', 'each'=>'h:a', 'exists'=>'m:I', 
+                  # 'exec'=>'s?a:',          # issue s247
+                  'exec'=>'a:',          # issue s247
                   'exit'=>'I?:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':m', 'fileno'=>'H:I',
                   'fileparse'=>'Sm?:a of S', 'hex'=>'S?:I', 'GetOptions'=>'a:I',
                   'getopt'=>'a:I', 'getopts'=>'a:I',            # issue s67
@@ -600,7 +604,10 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'rindex'=>'SSI?:I','read'=>'HsII?:I', '.read'=>'HsII?:I', 'reverse'=>'a?:a', 'ref'=>'u:S', 
                   'readlink'=>'S:S',            # issue s128
                   '_refs'=>'u:S',               # issue s3
-                  'say'=>'H?a:I','scalar'=>'a:I','seek'=>'HII:u', 'shift'=>'a?:s', 'sleep'=>'I:I', 'splice'=>'aI?I?a?:a',
+                  'say'=>'H?a:I',
+                  # issue s254 'scalar'=>'a:I',
+                  'scalar'=>'m:I',              # issue s254
+                  'seek'=>'HII:u', 'shift'=>'a?:s', 'sleep'=>'I:I', 'splice'=>'aI?I?a?:a',
                   'select'=>'H?:H',             # SNOOPYJC
                   # issue s246 'split'=>'SSI?:a of m',
                   'split'=>'S?S?I?:a of m',     # issue s246: add the '?' to everything
@@ -676,6 +683,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
         $PyFuncType{_get_subref} = 'm:m';           # issue s229
         $PyFuncType{_method_call} = 'mSa?:m';       # issue s236
         $PyFuncType{_raise} = 'm:';
+        $PyFuncType{lena} = 'a:I';                  # issue s254: We put in this version of 'scalar' if they use a goatse to make sure the arg is in list context
 
         for my $d (keys %DASH_X) {
             if($d =~ /[sMAC]/) {            # issue s124
@@ -784,6 +792,7 @@ sub TRY_BLOCK_FOREACH      { 128 }      # issue s100: used on foreach loop that 
 $statement_starting_lno = 0;            # issue 116
 %line_contains_stmt_modifier=();        # issue 116
 %line_contains_for_loop_with_modified_counter=();       # SNOOPYJC
+%line_modifies_foreach_counter=();      # issue s252: lno=>foreach_loop_lno
 %line_contains_local_for_loop_counter=();   # issue s100
 %line_contains_pos_gen=();      # SNOOPYJC: {lno=>scalar, ...} on any stmt that can generate the pos of this scalar
 %line_contains_for_given=();    # issue s129: Is this 'for' really a 'given'?
@@ -915,7 +924,8 @@ sub add_package_name_sub
     return if(exists $Pythonizer::LocalSub{$py} && ($Pythonizer::LocalSub{$py} & 3));
     $ValPy[$tno] = cur_package() . '.' . $ValPy[$tno];         # Add the package name
     $Pythonizer::LocalSub{$ValPy[$tno]} = $Pythonizer::LocalSub{$py} if exists $Pythonizer::LocalSub{$py};                        # issue s3
-    $Pythonizer::SubAttributes{$ValPy[$tno]} = $Pythonizer::SubAttributes{$py} if exists $Pythonizer::SubAttributes{$py};         # issue s3
+    # issue s241  $Pythonizer::SubAttributes{$ValPy[$tno]} = $Pythonizer::SubAttributes{$py} if exists $Pythonizer::SubAttributes{$py};         # issue s3
+    &Pythonizer::clone_sub_attributes($py, $ValPy[$tno]);         # issue s3, issue s241
     say STDERR "Changed $py to $ValPy[$tno] for non-local sub" if($::debug >= 5);
 }
 
@@ -1111,10 +1121,15 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
         $class = $ValPerl[$tno-1];
         $declared_here = 1;
     }
+    my $cs = cur_sub();                 # issue s252
     $class = 'myfile' if($class eq 'my' && !in_sub());          # issue s83
-    $class = 'global' if($class eq 'my' && special_code_block_name(cur_sub())); # issue s155
+    $class = 'global' if($class eq 'my' && special_code_block_name($cs)); # issue s155, issue s252
     $class = 'myfile' if($class eq 'local' && !@nesting_stack); # 'local' at outer scope is same as 'my'
     $class = 'my' if(scalar(@ValType) > $tno && $ValType[$tno] eq 'X');        # issue s79: Special variable like @_, @INC, @ENV should not be declared "global"
+    if(exists $::aliased_foreach_subs{$cs} && $::aliased_foreach_subs{$cs} eq $name && $::nested_subs{$cs} ne '') { # issue s252
+        $class = 'my';      # issue s252
+        $declared_here = 1; # issue s252: It's the arg to our sub
+    }                       # issue s252
     if($class eq 'our') {
         if($::implicit_global_my) {
             # issue s100 $class = 'myfile' 
@@ -1128,7 +1143,7 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
         $line_varclasses{$.} = dclone($line_varclasses{$last_varclass_lno});
     }
     $last_varclass_lno = $.;
-    my $cs = cur_sub();
+    # issue s252 my $cs = cur_sub();
     if(!exists $line_varclasses{$last_varclass_lno}{$name} || $class eq 'my' || $class eq 'local'
        || $class eq 'state'                 # issue s144
        || (($class eq 'myfile' || $class eq 'implicit_myfile') && $declared_here)) {         # issue s83, issue s100
@@ -1337,9 +1352,54 @@ sub get_loop_ctr        # SNOOPYJC
     return undef if(!@nesting_stack);
     $top = $nesting_stack[-1];
     if(defined $top->{loop_ctr}) {
+        my $cs = cur_sub();                 # issue s252
+        if(exists $::aliased_foreach_subs{$cs}) {   # issue s252
+            return join(',', ($top->{loop_ctr}, $::aliased_foreach_subs{$cs})); # issue s252
+        }                                   # issue s252
         return $top->{loop_ctr};
     }
+    my $cs = cur_sub();                         # issue s252
+    if(exists $::aliased_foreach_subs{$cs}) {   # issue s252
+        return $::aliased_foreach_subs{$cs};    # issue s252
+    }                                           # issue s252
     return undef;
+}
+
+sub loop_ctr_type        # issue s252
+# Get the type of this loop counter - call from a statement inside the loop
+{
+    my ($perl, $py) = @_;
+
+    for(my $i = $#nesting_stack; $i >= 0; $i--) {
+        if(($nesting_stack[$i]->{type} eq 'for' || $nesting_stack[$i]->{type} eq 'foreach') && 
+            exists($nesting_stack[$i]->{loop_ctr}) && index($nesting_stack[$i]->{loop_ctr}, $perl) == 0) {
+            if(exists $line_contains_local_for_loop_counter{$nesting_stack[$i]->{lno}} &&
+               exists $line_contains_local_for_loop_counter{$nesting_stack[$i]->{lno}}{$py}) {
+               return $line_contains_local_for_loop_counter{$nesting_stack[$i]->{lno}}{$py};
+            }
+       }
+    }
+    return '';
+}
+
+sub is_loop_ctr         # issue s252
+# Is this ValPerl the loop counter?
+{
+    my $arg = $_[0];
+
+    my $lc = get_loop_ctr();
+    if(!defined $lc && $arg eq '$_') {
+        for(my $k = 1; $k <= $#ValClass; $k++) {
+            return 1 if($ValClass[$k] eq 'c' && $ValPy[$k] eq 'for');   # e.g. ... for(@array);
+        }
+    }
+    return '' unless defined $lc;
+    my @lcs = split(/,/, $lc);
+    say STDERR "is_loop_ctr($arg) - checking $lc" if($::debug >= 5);
+    for $lc (@lcs) {
+        return 1 if($arg eq $lc);
+    }
+    return '';
 }
 
 sub set_loop_ctr_mod        # SNOOPYJC
@@ -1349,10 +1409,30 @@ sub set_loop_ctr_mod        # SNOOPYJC
 
     for(my $i = $#nesting_stack; $i >= 0; $i--) {
         if($nesting_stack[$i]->{type} eq 'for' && exists($nesting_stack[$i]->{loop_ctr}) && index($nesting_stack[$i]->{loop_ctr}, $lc_name) == 0) {
-            say STDERR "exit_block: setting line_contains_for_loop_with_modified_counter{$nesting_stack[$i]->{lno}} from assignment to $lc_name in line $." if($::debug >= 5);
+            say STDERR "set_loop_ctr_mod: setting line_contains_for_loop_with_modified_counter{$nesting_stack[$i]->{lno}} from assignment to $lc_name in line $." if($::debug >= 5);
             $line_contains_for_loop_with_modified_counter{$nesting_stack[$i]->{lno}} = $lc_name;
-            last;
+            return;
+        } elsif($nesting_stack[$i]->{type} eq 'foreach' && exists($nesting_stack[$i]->{loop_ctr}) && index($nesting_stack[$i]->{loop_ctr}, $lc_name) == 0) {  # issue s252
+            say STDERR "set_loop_ctr_mod: 'foreach': setting line_contains_for_loop_with_modified_counter{$nesting_stack[$i]->{lno}} from assignment to $lc_name in line $." if($::debug >= 5);   # issue s252
+            $line_contains_for_loop_with_modified_counter{$nesting_stack[$i]->{lno}} = $lc_name;    # issue s252
+            $line_modifies_foreach_counter{$.} = $nesting_stack[$i]->{lno};                         # issue s252
+            return;   # issue s252
         }
+    }
+    if($lc_name eq '$_') {                          # issue s252
+        for(my $k = 1; $k <= $#ValClass; $k++) {
+            if($ValClass[$k] eq 'c' && $ValPy[$k] eq 'for') {   # e.g. ... for(@array);
+                $line_contains_for_loop_with_modified_counter{$.} = $lc_name;    # issue s252
+                $line_modifies_foreach_counter{$.} = $.;                         # issue s252
+                return;                                     # issue s252
+            }
+        }
+    }
+    my $cs = cur_sub();                         # issue s252
+    if(exists $::aliased_foreach_subs{$cs} && $cs =~ /^$ANONYMOUS_SUB(\d+)/) {   # issue s252
+        my $lno = $1;                           # issue s252
+        $line_contains_for_loop_with_modified_counter{$lno} = $lc_name;    # issue s252
+        $line_modifies_foreach_counter{$.} = $lno;                         # issue s252
     }
 }
 
@@ -1468,9 +1548,9 @@ sub enter_block                 # issue 94
     $begin++ if(scalar(@ValClass) >= 2 && $ValClass[0] eq 'W');         # with fileinput...
     # issue s78: if this is like foreach my $k(sort {...}) and we're at the '{' after the sort, then
     # don't mis-classify this as a loop start bracket
-    if($ValClass[-1] eq 'f' && $ValPerl[-1] =~ /sort|map|grep/) {       # issue s78
+    if($ValClass[-1] eq 'f' && $ValPerl[-1] =~ /sort|map|grep|exec/) {       # issue s78, issue s247: add 'exec'
         $begin = $#ValClass;                            # issue s78
-    } elsif ($#ValClass != 0 && $ValClass[-2] eq 'f' && $ValPerl[-2] =~ /sort|map|grep/) {  # issue s78
+    } elsif ($#ValClass != 0 && $ValClass[-2] eq 'f' && $ValPerl[-2] =~ /sort|map|grep|exec/) {  # issue s78, issue s247: add 'exec'
         $begin = $#ValClass-1;                          # issue s78
     }
     $nesting_info{type} = '';
@@ -1491,10 +1571,18 @@ sub enter_block                 # issue 94
         } else {                                # issue s100: Handle for(each) loop also
             $lcx = index($TokenStr, 's');       # issue s100: tokens 'cs' or 'cts'
             if(&Pythonizer::for_loop_uses_default_var(0)) {      # issue s235: Handle $selected{$_}++ for $self->param($name); -or- foreach (@arr)
-                $nesting_info{loop_ctr} = '$_';                 # issue s235
+                if(exists $nesting_info{loop_ctr}) {    # issue s252
+                    $nesting_info{loop_ctr} = '$_' . ',' . $nesting_info{loop_ctr}; # issue s252
+                } else {
+                    $nesting_info{loop_ctr} = '$_';                 # issue s235
+                }
                 $nesting_info{type} = 'foreach'; # issue s235: flag this as a different type of loop
             } elsif($lcx > 0) {                      # issue s100: should be always true
-                $nesting_info{loop_ctr} = $ValPerl[$lcx];   # issue s100
+                if(exists $nesting_info{loop_ctr}) {    # issue s252
+                    $nesting_info{loop_ctr} = $ValPerl[$lcx] . ',' . $nesting_info{loop_ctr};   # issue s252
+                } else {                            # issue s252
+                    $nesting_info{loop_ctr} = $ValPerl[$lcx];   # issue s100
+                }
                 ##### $ValPy[$lcx] = remap_loop_var($ValPy[$lcx]);    # issue s100
                 $nesting_info{type} = 'foreach'; # issue s100: flag this as a different type of loop
             }                                   # issue s100
@@ -1883,6 +1971,15 @@ sub needs_try_block                # issue 94, issue 108
     return 0;
 }
 
+sub clear_foreach_try_block     # issue s252: Don't need a try block for an unrolled foreach loop
+# Returns if it was set
+{
+    return 0 unless exists $line_needs_try_block{$statement_starting_lno};
+    my $result = $line_needs_try_block{$statement_starting_lno} & TRY_BLOCK_FOREACH;
+    $line_needs_try_block{$statement_starting_lno} &= ~(TRY_BLOCK_FINALLY|TRY_BLOCK_FOREACH);
+    return $result;
+}
+
 sub in_eval
 # Are we in an eval?
 {
@@ -1998,6 +2095,18 @@ sub in_local_do                     # issue s137
     for $ndx (reverse 0 .. $#nesting_stack) {
         return 1 if($nesting_stack[$ndx]->{type} eq 'do');
         return 1 if(exists $nesting_stack[$ndx]->{was_do});
+        return 0 if($nesting_stack[$ndx]->{is_loop});   # Don't look outside of a loop
+    }
+    return 0;
+}
+
+sub in_aliased_foreach                     # issue s252
+# Is this statement in a foreach (list)?
+# The issue here is that we are pulling the code of the loop into a sub, so
+# the last needs to propagate out via an exception
+{
+    for $ndx (reverse 0 .. $#nesting_stack) {
+        return 1 if(exists $nesting_stack[$ndx]->{was_foreach});
         return 0 if($nesting_stack[$ndx]->{is_loop});   # Don't look outside of a loop
     }
     return 0;
@@ -2143,7 +2252,7 @@ sub gen_try_block_finally               # issue 108
 
 sub stack_foreach_var           # issue s100
 {
-    $lno = $statement_starting_lno;         # issue s108
+    my $lno = $statement_starting_lno;         # issue s108
     if(exists $line_contains_local_for_loop_counter{$lno}) {        # issue s100
         if($lno != $.) {                    # issue s108
             $line_contains_local_for_loop_counter{$.} = $line_contains_local_for_loop_counter{$lno};    # issue s108
@@ -2163,6 +2272,33 @@ sub stack_foreach_var           # issue s100
     }
 }
 
+sub unstack_foreach_var           # issue s252
+{
+    my $lno = $statement_starting_lno;         # issue s108
+    my $code_generated = 0;
+    if(exists $line_contains_local_for_loop_counter{$lno}) {        # issue s100
+        if($lno != $.) {                    # issue s108
+            $line_contains_local_for_loop_counter{$.} = $line_contains_local_for_loop_counter{$lno};    # issue s108
+        }
+        foreach $name (sort keys %{$line_contains_local_for_loop_counter{$lno}}) {
+            next if($line_contains_local_for_loop_counter{$lno}{$name} ne 'localdone');
+            my $pname = '$' . $name;                    # issue s108
+            if(exists $NameMap{$name} && exists $NameMap{$name}{'$'}) {
+                $name = $NameMap{$name}{'$'};
+            }
+            $name = escape_keywords($name);
+            if(exists $line_varclasses{$lno}{$pname} && $line_varclasses{$lno}{$pname} =~ /global|local/) {       # issue s108
+                $name = cur_package() . '.' . $name;            # issue s108
+            }                                                   # issue s108
+            gen_statement("$name = $LOCALS_STACK.pop()");
+            $code_generated = 1;
+        }
+    }
+    if(!$code_generated) {
+        gen_statement('pass');
+    }
+}
+
 sub next_last_needs_raise               # issue 94
 # Do we need to generate a raise statement for this next/last?
 {
@@ -2172,6 +2308,7 @@ sub next_last_needs_raise               # issue 94
     my $top = $nesting_stack[-1];
     return 1 if(!$top->{in_loop});
     return 1 if(in_local_do());                       # issue s137
+    return 1 if($ValPerl[$pos] eq 'last' && in_aliased_foreach());                # issue s252
     my $ndx = cur_loop_ndx();
     my $is_next = ($ValPerl[$pos] eq 'next');
     return 1 if(exists $line_needs_try_block{$nesting_stack[$ndx]->{lno}} && $is_next &&
@@ -3086,7 +3223,8 @@ my ($l,$m);
                     &Pythonizer::propagate_sub_attributes_for_bless();      # issue s184
                 }                                                           # issue s184
                 $SpecialVarsUsed{'bless'}{$cs} = 1;
-                $Pythonizer::SubAttributes{$cs}{blesses} = 1;
+                # issue s241  $Pythonizer::SubAttributes{$cs}{blesses} = 1;
+                &Pythonizer::set_sub_attribute($cs, 'blesses', 1);  # issue s241
                 # issue s18 $SpecialVarsUsed{'bless'}{cur_package()} = 1;
                 $SpecialVarsUsed{'bless'}{cur_raw_package()} = 1;       # issue s18
             # issue s3 } elsif($class eq 'd' && $w eq 'wantarray' && $Pythonizer::PassNo == &Pythonizer::PASS_2) {   # SNOOPYJC: give warning
@@ -3094,7 +3232,8 @@ my ($l,$m);
                 my $cs = cur_sub();
                 # issue s3 logme('W',"'wantarray' reference in $cs is hard wired to $ValPy[$tno]");
                 $SpecialVarsUsed{'wantarray'}{$cs} = 1;         # issue s3
-                $Pythonizer::SubAttributes{$cs}{wantarray} = 1; # issue s3
+                # issue s241 $Pythonizer::SubAttributes{$cs}{wantarray} = 1; # issue s3
+                &Pythonizer::set_sub_attribute($cs, 'wantarray', 1); # issue s3, issue s241
             } elsif($class eq 'c' && $ValPy[$tno] eq 'when') {  # issue s129
                 set_for_given();                                # issue s129: If this 'when' (or 'case') is in a 'for', change the 'for' to a 'given'
                 $source = fixup_case_subs($source, $cut);       # issue s129
@@ -4405,6 +4544,7 @@ my $split=$_[0];                # Position in source!!
            return 0 if($l == $statement_starting_lno);                      # issue s79
        }                                                                    # issue s79
    }                                                                        # issue s79
+   return 0 if exists $line_modifies_foreach_counter{$.};                   # issue s252: We can't handle the array assignment if the line is split up
    # bash-style conditional statement, like ($debug>0) && ( line eq ''); Aug 10, 2020 --NNB
    $is_or = ($ValPy[-1] =~ /or/);   # issue 12
    $is_low_prec = ($ValPerl[-1] =~ /^[a-z]+$/);         # issue 93: is this low precedence like and/or instead of &&/||
@@ -4721,6 +4861,7 @@ my $rc=-1;
             #} else {                                        # issue s150
             $name=~tr/:/./s;            # SNOOPYJC
             $name=~tr/'/./s;            # SNOOPYJC
+            $ValPy[$tno]=$name;         # issue s252: for_loop_local_ctr checks this
             $name = remap_conflicting_names($name, '$', $next_c);      # issue 92
             $name = escape_keywords($name);
             $ValPy[$tno]=$name;
@@ -4733,8 +4874,9 @@ my $rc=-1;
             substr($name,0,1)="$MAIN_MODULE.";
             $name=~tr/:/./s;            # SNOOPYJC
             $name=~tr/'/./s;            # SNOOPYJC
+            $ValPy[$tno]=$name;         # issue s252: for_loop_local_ctr checks this
             $name = remap_conflicting_names($name, '$', $next_c);      # issue names
-        $name = escape_keywords($name);                            # issue names
+            $name = escape_keywords($name);                            # issue names
             $ValPy[$tno]=$name;
             $rc=1 #regular var
          }else{
@@ -4742,8 +4884,8 @@ my $rc=-1;
             $name=~tr/:/./s;            # SNOOPYJC
             $name=~tr/'/./s;            # SNOOPYJC
             $name = remap_conflicting_names($name, '$', $next_c);      # issue 92
-        $name = escape_keywords($name);
-        $ValPy[$tno]=$name;
+            $name = escape_keywords($name);
+            $ValPy[$tno]=$name;
             $rc=1 #regular var
          }
       }elsif( length($name) ==1 ){
@@ -7367,6 +7509,12 @@ sub remap_conflicting_names                  # issue 92
     if(scalar(@ids) > 1) {              # we have a package
         if(exists $NameMap{$name} && exists $NameMap{$name}{$sigil}) {  # we have a mapping for the full name already
             my $mapping = $NameMap{$name}{$sigil};
+            if($sigil eq '$') {                         # issue s252: Handle for loop with fully qualified index
+                my $ctr_type;                           # issue s252
+                if(($ctr_type = for_loop_local_ctr($name, $trailer))) {         # issue s252
+                    $mapping = remap_loop_var($name, $ctr_type);       # issue s252
+                }                                       # issue s252
+            }
             say STDERR "remap_conflicting_names($name,$s,$trailer) = $mapping (p0)" if($::debug >= 5);
             return $mapping;
         }
@@ -7633,6 +7781,8 @@ sub remap_loop_var          # issue s100
         say STDERR "remap_loop_var($name) = $loop_name" if($::debug >= 5);
         return $NameMap{$name}{$sigil};
     }
+    my $esc = escape_keywords($original_name);                              # issue s252
+    return $NameMap{$esc}{$sigil} if exists $NameMap{$esc}{$sigil};         # issue s252
     return $original_name;
 }
 
@@ -7641,6 +7791,8 @@ sub unmap_loop_var          # issue s100
 # arg = perl name of loop var
 {
     my $perl_name = shift;
+    my @perl_names = split(/,/, $perl_name);        # issue s252: We now keep all nested loops listed in order inner..outer
+    $perl_name = $perl_names[0];                    # issue s252: So just grab the inner-most one
 
     my $sigil = substr($perl_name, 0, 1);
     my $name = substr($perl_name, 1);
@@ -7654,6 +7806,23 @@ sub unmap_loop_var          # issue s100
         delete $ReverseNameMap{loop_var_name($name)};       # issue s172
         say STDERR "unmap_loop_var($name) = $NameMap{$name}{$sigil}" if($::debug >= 5);
     }
+}
+
+sub perl_name_to_py                 # issue s252
+# Convert a perl name to a python name
+{
+    my $name = shift;
+    my $sigil = substr($name, 0, 1);
+    if(index('*@$%&', $sigil) != -1) {
+        $name = substr($name, 1);
+    } else {
+        $sigil = '';
+    }
+    $name=~tr/:/./s;            # SNOOPYJC
+    $name=~tr/'/./s;            # SNOOPYJC
+    $name = remap_conflicting_names($name, $sigil, '');
+    $name = escape_keywords($name);
+    return $name;
 }
 
 sub parens_are_balanced         # issue 85 - return 1 if the parens are balanced in the token stream
@@ -8101,7 +8270,8 @@ sub handle_use_overload                         # issue s3
     my $pos = 0;
     for(my $i=$pos+2; $i<=$#ValClass; $i++) {
         if($ValClass[$i] eq 'i') {          # sub
-            $Pythonizer::SubAttributes{$ValPy[$i]}{overloads} = 1;
+            # issue s241 $Pythonizer::SubAttributes{$ValPy[$i]}{overloads} = 1;
+            &Pythonizer::set_sub_attribute($ValPy[$i], 'overloads', 1); # issue s241
         }
     }
 }
@@ -9074,13 +9244,16 @@ sub inRefOkSub              # issue s185
               $prefix = '->'; 
               $delta = 1;      # one implicit arg
            }
-           if(exists $Pythonizer::SubAttributes{$prefix . $ValPy[$i]} && exists $Pythonizer::SubAttributes{$prefix . $ValPy[$i]}{out_parameters}) {
-               return 1 if $Pythonizer::SubAttributes{$prefix . $ValPy[$i]}{out_parameters}->[0] eq 'var';
+           # issue s241 if(exists $Pythonizer::SubAttributes{$prefix . $ValPy[$i]} && exists $Pythonizer::SubAttributes{$prefix . $ValPy[$i]}{out_parameters}) {
+           # issue s241 return 1 if $Pythonizer::SubAttributes{$prefix . $ValPy[$i]}{out_parameters}->[0] eq 'var';
+           if(defined &Pythonizer::get_sub_attribute_at($i, 'out_parameters')) {    # issue s241
+               return 1 if &Pythonizer::get_sub_attribute_at($i, 'out_parameters')->[0] eq 'var';
                for(my $arg = 0; ;$arg++) {
                    my ($s, $e) = &::get_arg_start_end($i, $ValClass[$i+1] eq '(' ? $#ValClass+1 : $#ValClass, $arg+1);  # Adjust end_pos as we may not have finished parsing this line
                    last unless defined $s;
                    next unless $pos >= $s && $pos <= $e;
-                   return 1 if grep {$_ eq (($arg+$delta).'r')} @{$Pythonizer::SubAttributes{$prefix . $ValPy[$i]}{out_parameters}};
+                   # issue s241 return 1 if grep {$_ eq (($arg+$delta).'r')} @{$Pythonizer::SubAttributes{$prefix . $ValPy[$i]}{out_parameters}};
+                   return 1 if grep {$_ eq (($arg+$delta).'r')} @{&Pythonizer::get_sub_attribute_at($i, 'out_parameters')}; # issue s241
                }
            }
        }

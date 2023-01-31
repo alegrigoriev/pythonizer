@@ -124,7 +124,7 @@ assert($string eq $expected, "2nd numeric test failed: $string vs $expected");
 
 # Another wantarray issue from CGI.pm:
 package CGI;
-import Carp::Assert;
+use Carp::Assert;
 
 our $DefaultClass = 'CGI';
 our $Q;
@@ -150,5 +150,58 @@ sub unescapeHTML {
 my $obj = new CGI;
 
 assert($obj->unescapeHTML('abc') eq 'abc');
+
+# Yet another wantarray issue from CGI.pm:
+
+my $LIST_CONTEXT_WARN =  1;
+sub param {
+    my ($self,@p) = self_or_default(@_);
+    return $self->all_parameters unless @p;
+
+    if ( wantarray && $LIST_CONTEXT_WARN == 1 ) {
+		my ( $package, $filename, $line ) = caller;
+		if ( $package ne 'CGI' ) {
+			$LIST_CONTEXT_WARN++; # only warn once
+			warn "CGI::param called in list context from $filename line $line, this can lead to vulnerabilities. "
+				. 'See the warning in "Fetching the value or values of a single named parameter"';
+            assert(0, "We should not be calling warn, package should be 'CGI' but is $package");
+		}
+	}
+    return if $p[0] ne 'foo';
+    @result = ('param');
+    return wantarray ?  @result : $result[0]
+}
+
+sub all_parameters {
+    my $self = shift;
+    return () unless defined($self) && $self->{'.parameters'};
+    return () unless @{$self->{'.parameters'}};
+    return @{$self->{'.parameters'}};
+}
+
+# List context
+my @params = $obj->param;
+assert(scalar(@params) == 0);
+
+for my $param ($obj->param) {
+    assert(0, "Shouldn't be any params but we have $param!");
+}
+
+@params = $obj->param('foo');
+assert(scalar(@params) == 1 && $params[0] eq 'param');
+
+@params = $obj->param('bar');
+assert(scalar(@params) == 0);
+for my $param ($obj->param('bar')) {
+    assert(0, "for \$obj->param('bar'), shouldn't be any params but we have $param!");
+}
+
+# Scalar context
+my $param = $obj->param;
+assert(!defined $param);
+$param = $obj->param('foo');
+assert($param eq 'param');
+$param = $obj->param('bar');
+assert(!defined $param);
 
 print "$0 - test passed!\n";

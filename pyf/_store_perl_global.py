@@ -1,14 +1,16 @@
 
-def _store_perl_global(perlname, value, infer_suffix=False):
+def _store_perl_global(perlname, value, infer_suffix=False, method_type=False):
     """Assigns a value to a package global variable specified by it's perl name
     and returns the value.  Optional keyword argument infer_suffix
     will map the variable's suffix based on the type of the value,
-    e.g. it will add _h for a hash."""
+    e.g. it will add _h for a hash.  Optional keyword argument method_type will
+    set this to a MethodType if True, or will check if the name is 'new' or 'make'
+    and set this to a MethodType if None"""
     (packname, varname) = perlname.rsplit('::', maxsplit=1)
     packname = packname.replace('::', '.')
     if packname == '':
         packname = 'main'
-    if callable(value) and (varname == 'new' or varname == 'make') and not hasattr(builtins, packname):
+    if callable(value) and (method_type or (method_type is None and (varname == 'new' or varname == 'make'))) and not hasattr(builtins, packname):
         _init_package(packname, is_class=True)
     elif not hasattr(builtins, packname):
         _init_package(packname)
@@ -25,7 +27,7 @@ def _store_perl_global(perlname, value, infer_suffix=False):
             varname += '_h'
         elif isinstance(value, collections.abc.Iterable):
             varname += '_a'
-    if callable(value) and (varname == 'new' or varname == 'make'):
+    if callable(value) and (method_type or (method_type is None and (varname == 'new' or varname == 'make'))):
         value = types.MethodType(value, namespace)
     if varname in _PYTHONIZER_KEYWORDS:
         varname += '_'
