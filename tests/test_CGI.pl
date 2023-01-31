@@ -36,15 +36,15 @@ assert($cgi->header(-type => 'text/html') eq "Content-Type: text/html; charset=I
 
 # Test the start_html() method
 my $start = qq(<!DOCTYPE html\n\tPUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"\n\t "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">\n<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US" xml:lang="en-US">\n<head>\n<title>Test Page</title>\n<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />\n</head>\n<body>\n);
-assert(&eq($cgi->start_html(-title => 'Test Page'), $start), 'start_html() generates the correct HTML');
+assert(&is_eq($cgi->start_html(-title => 'Test Page'), $start), 'start_html() generates the correct HTML');
 
 # Test the h1() method
 assert($cgi->h1('Test Header') eq '<h1>Test Header</h1>', 'h1() generates the correct HTML');
 
 # Test the end_html() method
-assert(&eq($cgi->end_html , "\n</body>\n</html>"), 'end_html() generates the correct HTML');
+assert(&is_eq($cgi->end_html , "\n</body>\n</html>"), 'end_html() generates the correct HTML');
 
-sub eq {
+sub is_eq {
     my ($s1, $s2) = @_;
     return 1 if $s1 eq $s2;
     my $ls1 = length($s1);

@@ -1,0 +1,2 @@
+# issue 245 - If the Pythonizer input file has no file extension, the output filename is not correct 
+print "$0 - test passed!\n";

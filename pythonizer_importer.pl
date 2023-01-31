@@ -321,6 +321,8 @@ eval {
                 $blesses{$CurSub} = 1 if defined $CurSub;   # issue s236: Keep track of who blesses
             } elsif(/\bwantarray\b/) {
                 $wantarrays{$CurSub} = 1 if defined $CurSub;
+            } elsif(/\breturn\s*\(\)/) {            # issue s254
+                $wantarrays{$CurSub} = 1 if defined $CurSub;    # issue s254: Implicit wantarray
             } elsif(/^\s*\*(\w+)\s*=\s*\\\&(\w+);/) {     # issue s241 *alias = \&sub;
                 $wantarrays{$1} = 1 if exists $wantarrays{$2};  # issue s241
                 if(exists $out_parameters{$2}) {                # issue s241

@@ -2,6 +2,11 @@
 History
 =======
 
+1.023 (2023-01-18)
+------------------
+
+* Issue s247: Add _exec and _execp.  Fix ArrayHash to defined __contains__.  Fix _add_tie_methods to handle a tie class that's both a hash and an array using a generator function.  Issue s253: fix _switch to handle objects that overload the smart match (~~) operator.  Issue s252: _read shouldn't raise an exception if given an int or None buffer.  Issue s244: add method_type argument to _store_perl_global.  Issue s259: Fix _caller and _callers to return the proper package (with some help from _init_package).
+
 1.022 (2023-01-06)
 ------------------
 

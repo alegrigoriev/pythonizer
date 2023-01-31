@@ -26,9 +26,11 @@ do
        f=${f}.pm
        pyf=${f%.pm}.py
        pyopt=-m py_compile
-   else
+   elif [ -e ${f}.pln ]; then
        f=${f}.pln
        pyf=${f%.pln}.py
+   else
+       pyf=${f}.py
    fi
    echo "==================== $f ===================="
    ((tests++))

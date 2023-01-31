@@ -8,7 +8,7 @@ def _add_tie_methods(obj):
     is_hash = is_array = False
     if hasattr(cls, 'TIEARRAY'):
         is_array = True
-    elif hasattr(cls, 'TIEHASH'):
+    if hasattr(cls, 'TIEHASH'):
         is_hash = True
     if not is_array and not is_hash:
         return obj
@@ -45,45 +45,33 @@ def _add_tie_methods(obj):
             setattr(result, 'pop', pop)
 
         result.extend = lambda self, lst: [self.PUSH(l) for l in lst]
-        cls.__TIE_subclass__ = result
 
         def __iter__(self):
             for i in range(self.SCALAR() if hasattr(self, 'SCALAR') else self.FETCHSIZE()):
                 yield self.FETCH(i)
         result.__iter__ = __iter__
+        cls.__TIE_subclass__ = result
 
     if is_hash:
-        def __iter__(self):
-            self.iterfirst = True
-            return self
-        result.__iter__ = __iter__
-
         if is_array:
-            def __next__(self):
-                if self.iterfirst:
-                    self.iterfirst = False
-                    if not self.isHash:
-                        for i in range(self.SCALAR() if hasattr(self, 'SCALAR') else self.FETCHSIZE()):
-                            yield self.FETCH(i)
-                        raise StopIteration
-                    else:
-                        result = self.FIRSTKEY()
+            def __iter__(self):
+                if self.isHash:
+                    current_key = self.FIRSTKEY()
+                    while current_key is not None:
+                        yield current_key
+                        current_key = self.NEXTKEY()
                 else:
-                    result = self.NEXTKEY()
-                if result is None:
-                    raise StopIteration
-                return result
+                    for i in range(self.SCALAR() if hasattr(self, "SCALAR") else self.FETCHSIZE()):
+                        yield self.FETCH(i)
+            result.__iter__ = __iter__
+
         else:
-            def __next__(self):
-                if self.iterfirst:
-                    self.iterfirst = False
-                    result = self.FIRSTKEY()
-                else:
-                    result = self.NEXTKEY()
-                if result is None:
-                    raise StopIteration
-                return result
-        result.__next__ = __next__
+            def __iter__(self):
+                current_key = self.FIRSTKEY()
+                while current_key is not None:
+                    yield current_key
+                    current_key = self.NEXTKEY()
+            result.__iter__ = __iter__
 
         if is_array:
             def pop(*args):
@@ -101,12 +89,13 @@ def _add_tie_methods(obj):
                         return args[2]  # default
                     return None # default default
                 return self.DELETE(key)
+            result.pop = pop
         else:
             def pop(self, key, default=None):
                 if not self.EXISTS(key):
                     return default
                 return self.DELETE(key)
-        result.pop = pop
+            result.pop = pop
 
         def get(self, key, default=None):
             if not self.EXISTS(key):

@@ -301,6 +301,12 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
     def __gt__(self, other):
         return not (self < other or self == other)
 
+    def __contains__(self, key):
+        if self.isHash:
+            return key in self.keys()
+        else:
+            return any(key == self[i] for i in range(len(self)))
+
 def ArrayHash(init=None,isHash=None):
     """Acts like an array or hash with autovivification"""
     result = _ArrayHash(ArrayHash,isHash=isHash)

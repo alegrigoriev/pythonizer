@@ -24,6 +24,24 @@ sub list_or {
   return $list[0] || list_or(@list[1..$#list]);
 }
 
+sub test0 {
+
+    my $a = 1;
+    my $b = 2;
+    my $c = 3;
+
+    assert !$a < $b || $a == $b == 0;
+    assert !$a <= $b and $b <= $c || $a + $b == $c == 1;
+    assert !$a < $b || $a == $b == 0;
+
+    assert not not ($a < $b) or $a == $b;
+    assert (not $a <= $b or $b <= $c or $a + $b == $c);
+    assert !(not $a < $b or $a == $b);
+    assert !(not $a <= $b and $b <= $c or $a + $b == $c == 0);
+    assert !(not $a < $b or $a == $b == 1);
+}
+test0();
+
 sub test {
   # define variables
   my $a = 1;
