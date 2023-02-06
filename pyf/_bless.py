@@ -1,7 +1,9 @@
 
 def _bless(obj, classname, isa=()):
     """Create an object for obj in classname"""
-    if not isinstance(classname, str):
+    if isinstance(classname, str):
+        classname = classname.replace("'", '.').replace('::', '.')
+    else:
         if hasattr(classname, '__name__'):  # They sent us the class object
             classname = classname.__name__
         elif hasattr(classname, '__class__'): # They sent us an instance

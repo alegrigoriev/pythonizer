@@ -3228,6 +3228,9 @@ my ($l,$m);
                 # issue s18 $SpecialVarsUsed{'bless'}{cur_package()} = 1;
                 $SpecialVarsUsed{'bless'}{cur_raw_package()} = 1;       # issue s18
             # issue s3 } elsif($class eq 'd' && $w eq 'wantarray' && $Pythonizer::PassNo == &Pythonizer::PASS_2) {   # SNOOPYJC: give warning
+            } elsif($class eq 'f' && $w eq 'caller') {      # issue s160
+                my $cs = cur_sub();                         # issue s160
+                $SpecialVarsUsed{'caller'}{$cs} = 1;        # issue s160
             } elsif($class eq 'd' && $w eq 'wantarray') {   # issue s3
                 my $cs = cur_sub();
                 # issue s3 logme('W',"'wantarray' reference in $cs is hard wired to $ValPy[$tno]");
@@ -4378,7 +4381,7 @@ my ($l,$m);
    my $f = substr($TokenStr,0,1);               # issue implicit conditional return
    if($f eq 'C') {                      # issue implicit conditional return
        ;            # Do nothing on else/elsif
-   } elsif($f =~ /[ck]/) {                      # issue implicit conditional return
+   } elsif($f =~ /[ck]/ && $ValClass[0] =~ /^(?:if|unless|given|when|return)$/) {    # issue implicit conditional return, issue s263
        my $csn = cur_sub_level();
        if($nesting_level == $csn+1 && $Pythonizer::PassNo == &Pythonizer::PASS_1) { # issue s79
            my $cs = cur_sub();
@@ -4397,9 +4400,18 @@ my ($l,$m);
        }
        say STDERR "Deleting level_block_lnos{".($nesting_level+1)."} on |$TokenStr|" if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);
        delete $level_block_lnos{$nesting_level+1};
+       my $expr_level = $nesting_level;         # issue s263
+       if($f eq 'c' && $ValPerl[0] =~ /^(?:foreach|for|while|until)$/) {       # issue s263
+           # issue s263: On a loop start, we already entered the block, so we also need to delete the
+           # level_block_lnos for the prior nesting level
+           say STDERR "Deleting level_block_lnos{".($nesting_level)."} on |$TokenStr| with $ValClass[0]" if($::debug >= 5 && $Pythonizer::PassNo != &Pythonizer::PASS_0);   # issue s263
+           delete $level_block_lnos{$nesting_level};        # issue s263
+           $expr_level--;                                   # issue s263
+       }
        my $cs = cur_sub();
        my $csn = cur_sub_level();
-       if($nesting_level == $csn+1 && $Pythonizer::PassNo == &Pythonizer::PASS_1) { # issue s79
+       # issue s263 if($nesting_level == $csn+1 && $Pythonizer::PassNo == &Pythonizer::PASS_1) { # issue s79
+       if($expr_level == $csn+1 && $Pythonizer::PassNo == &Pythonizer::PASS_1) { # issue s79, issue s263
            if($last_expression_lno == 0) {
                delete $sub_lines_contain_potential_last_expression{$cs};
            } else {
@@ -6505,7 +6517,8 @@ $allowed_escapes = "\n\\'\"abfnrtv01234567xNoc";         # issue s28: \u and \U 
 # ref https://docs.python.org/3/library/re.html
 # issue s28 $allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDsSwWZgabfnrtv0123456789xNuU/;
 # issue s81 $allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDsSwWZgabfnrtv0123456789xNoc/;        # issue s28: remove \u and \U
-$allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDGsSwWZgabfknrtvz0123456789xNocpP/;        # issue s28: remove \u and \U, issue s81 allow \k and \z
+# issue s267 $allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDGsSwWZgabfknrtvz0123456789xNocpP/;        # issue s28: remove \u and \U, issue s81 allow \k and \z
+$allowed_escapes_in_regex = q/.^$*+?{}[]|()\\'"&ABdDGsSwWZgabfknrtvz0123456789xNocpP-/;        # issue s28: remove \u and \U, issue s81 allow \k and \z, issue s267: allow \- esp in character classes
 
 sub remove_perl_escapes         # issue bootstrap
 # Remove any escape sequences allowed by perl but not allowed by python, e.g. \[ \{ \$ \@ etc
@@ -6835,6 +6848,9 @@ sub remove_oddities
     if($line =~ /^\s*\[([\w.]+(?:,[\w.]+)*)\] = perllib\.list_of_n\(perllib.Array\(\), \d+\)/) {
         $line = ($1 =~ s/,/ = /gr) . " = None";
     }
+
+    # Change "not len(X)" -to- "not X"
+    $line =~ s/\bnot\s+len\(([A-Za-z0-9_]+)\)/not $1/g;
     
     # Can't do this here because the list can contain an array value which we won't know.
     # Instead, we check when we generate the code and don't put the _list_of_n in in the first place.

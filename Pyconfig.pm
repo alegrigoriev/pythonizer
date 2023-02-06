@@ -134,8 +134,14 @@ sub generic_var_name                    # issue s176
 # Given a sigil, return the suffix of the python name for it.
 {
     my $sigil = shift;
+    my $next_pos = shift;           # issue s244
     return hash_var_name('') if $sigil eq '%';
     return array_var_name('') if $sigil eq '@';
+    if($sigil eq '$' && $next_pos <= $#Perlscan::ValClass && $Perlscan::ValClass[$next_pos] eq '(' && 
+       $Perlscan::ValPerl[$next_pos] ne '(') { # issue s244
+        return hash_var_name('') if $Perlscan::ValPerl[$next_pos] eq '{';     # issue s244
+        return array_var_name('') if $Perlscan::ValPerl[$next_pos] eq '[';    # issue s244
+    }                                                               # issue s244
     return scalar_var_name('') if $sigil eq '$';
     return '';
 }

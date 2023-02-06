@@ -1,61 +1,7 @@
 # issue s244b - Use of struct generates code with syntax error - this test defines our own sub struct, add @ and %
 use Carp::Assert;
-#use Class::Struct;
-
-sub struct
-{
-    my $package = shift;
-    *{"$package\::new"} = sub { 
-        my $self = bless {}, shift;
-        my %args = @_;
-        for (keys %args) {
-            $self->{$_} = $args{$_}
-        }
-        return $self;
-    };
-    for my $key (keys %{$_[0]}) {
-        my $val = %{$_[0]}{$key};
-        if($val eq '$') {
-            *{"$package\::$key"} = sub {
-                                        my $self = shift;
-                                        if(scalar(@_)) {
-                                            $self->{$key} = $_[0];
-                                        }
-                                        return $self->{$key};
-                                    };
-        } elsif($val eq '@') {
-            *{"$package\::$key"} = sub {
-                                        my $self = shift;
-                                        if(scalar(@_)) {
-                                            if(ref $_[0] eq 'ARRAY') {
-                                                $self->{$key} = $_[0];
-                                            } elsif(scalar(@_) == 1) {
-                                                return $self->{$key}->[$_[0]];
-                                            } else {
-                                                $self->{$key}->[$_[0]] = $_[1];
-                                                return $_[1];
-                                            }
-                                        }
-                                        return $self->{$key};
-                                    };
-        } elsif($val eq '%') {
-            *{"$package\::$key"} = sub {
-                                        my $self = shift;
-                                        if(scalar(@_)) {
-                                            if(ref $_[0] eq 'HASH') {
-                                                $self->{$key} = $_[0];
-                                            } elsif(scalar(@_) == 1) {
-                                                return $self->{$key}->{$_[0]};
-                                            } else {
-                                                $self->{$key}->{$_[0]} = $_[1];
-                                                return $_[1];
-                                            }
-                                        }
-                                        return $self->{$key};
-                                    };
-        }
-    }
-}
+#use lib '.';
+use Class::Struct;
 
 struct Car => {
     make => '$',
@@ -63,10 +9,12 @@ struct Car => {
     year => '$',
     features => '%',
     previous_owners => '@',
+    address => 'Address',
 };
 
 # Test creating a new car object with valid attributes
 my $car = Car->new(make => 'Toyota', model => 'Camry', year => '2022', features => {'color' => 'red', 'sunroof' => 1}, previous_owners => ['John', 'Mary', 'Bob']);
+$car->address(Address->new("123 Main St", "Anytown", "CA", "12345"));
 assert(defined $car, "Error creating car object");
 assert($car->make eq 'Toyota', "Make is not correct");
 assert($car->model eq 'Camry', "Model is not correct");
@@ -75,5 +23,26 @@ assert(exists $car->features->{'color'} && $car->features->{'color'} eq 'red', "
 assert(exists $car->features->{'sunroof'} && $car->features->{'sunroof'} == 1, "Sunroof feature is not correct");
 assert(scalar @{$car->previous_owners} == 3, "Number of previous owners is not correct");
 assert(join(',', @{$car->previous_owners}) eq 'John,Mary,Bob', "Previous Owners are not correct");
+assert($car->address->{street} eq "123 Main St", "The street should be '123 Main St'");
+assert($car->address->{city} eq "Anytown", "The city should be 'Anytown'");
+assert($car->address->{state} eq "CA", "The state should be 'CA'");
+assert($car->address->{zip} eq "12345", "The zip should be '12345'");
+
+# Define a class called "Address"
+{
+    package Address;
+
+    sub new {
+        my $class = shift;
+        my $self = {
+            street => shift,
+            city => shift,
+            state => shift,
+            zip => shift,
+        };
+        bless $self, $class;
+        return $self;
+    }
+}
 
 print "$0 - test passed!\n";

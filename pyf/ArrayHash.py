@@ -115,10 +115,11 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
             super().__setitem__(index, value)
             return
         elif isinstance(index, slice):
-            for i in range(len(self), index.start):
-                super().__setitem__(i, None)
+            if index.start is not None:
+                for i in range(len(self), index.start):
+                    super().__setitem__(i, None)
             value = iter(value)
-            ndx = index.start
+            ndx = index.start if index.start is not None else 0
             j = None
             for i in range(*index.indices(len(self))):
                 try:

@@ -61,3 +61,19 @@ HTML
    :maxdepth: 4
 
    HTML
+
+Class
+=====
+
+.. toctree::
+   :maxdepth: 4
+
+   Class
+
+Text
+====
+
+.. toctree::
+   :maxdepth: 4
+
+   Text
