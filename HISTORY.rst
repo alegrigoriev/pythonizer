@@ -2,6 +2,11 @@
 History
 =======
 
+1.024 (2023-01-30)
+------------------
+
+* Issue s260: Rewrite _caller and _callers.  Issue s244: In _store_perl_global, store a sub with both the escaped name and the unescaped name, and also call _ininit_package with is_class=True if the namespace is not a 'type'.  Add Class::Struct and Text::ParseWords packages.  Issue s261: Handle [:] in ArrayHash __setitem__ for slice.  Issue s266: _bless: Change "'" and '::' in classname to '.'
+
 1.023 (2023-01-18)
 ------------------
 

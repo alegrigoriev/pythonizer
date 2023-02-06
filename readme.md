@@ -1,5 +1,5 @@
 ## Translator from Perl to Python 
-### THIS IS AN ANNOUNCEMENT FOR VERSION 1.023 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
+### THIS IS AN ANNOUNCEMENT FOR VERSION 1.024 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
 
 This readme is for informational purposes only and is not intended to be updated often. 
 
@@ -74,6 +74,7 @@ Currently these user options are supported (pythonizer -h provides a list of opt
           3 -- More debugging output.
           4 -- Stop at lexical scanner with $DB::single = 1;
           5 -- output stages of Python line generation
+          6 -- also trace all calls to getline()
     -B N  -- for internal debugging - set breakpoint when processing input line N in the first pass
     -b N  -- for internal debugging - set breakpoint when processing input line N in the second pass
     -r -- (deprecated) run the initial pre_pythonizer pass (no longer needed)
@@ -99,6 +100,8 @@ If __DATA__ or __END__ are used a separate file with  the extension  .data (/pat
 
 ### HISTORY 
 
+February 5, 2023: Version 1.024 was uploaded.  File::Path now properly supports the error => $err parameter.  The range (..) operator is now supported in initializations.  The 'can' method is now implemented for packages and blessed classes.  The import function is now called when translating 'use' statements, and they are now executed first in the generated code.  The 'openhandle' function is implemented.  Subs with both scalar out parameters (where you modify $\_[N]) and where you pass in a reference to a scalar (\$myScalar) and modify it using $$ are now supported using a perllib helper function.  'wantarray' now supports the void context and is inherited when needed, also 'return ();' creates an implicit wantarray.  Logical xor and smartmatch (~~) operators are implemented, as is 'exec'.  foreach loops that modify the loop variable now properly update the array or list of variables being looped on.  Newly implemented packages: PerlIO::get_layers, package, utf8:: functions, builtins (blessed, ceil, floor), overload:: functions, Scalar::Util, List::Util, Class::Struct, Text::ParseWords.
+ 
 November 11, 2022: Version 1.013 was uploaded.  IO encoding no longer defaults to UTF-8, boolean values including perllib function results now properly convert to 1 or '' in strings, the Pythonizer output of globals, imports, and initializations are now sorted to make the output of repeated pythonizer runs the same, add FindBin and readlink, implement switch/case and given/when, -V option prints version and exist, old -V option is now -N, $\* is now handled, options to Getopt::Long can now be passed as -option or --option, tie of hash or array is now implemented.  BEGIN blocks are now executed first no matter where they appear in the perl code. INIT/CHECK/UNITCHECK blocks are also properly supported. # pragma pythonizer now supports the verbose option.
 
 October 1, 2022: Version 1.001 was uploaded.  First production release.  It adds support for -oOutputDir option, does a much better job at inserting 'return' statements, adds readline, warnings are now disabled by default, -a option to add __author__ etc, more File::Spec functions implemented, UNIVERSAL::isa and File::Path added, allow Pythonizer to run under Strawberry Perl, add Getopt::Std, improve test coverage, add strftime, replace references to other perl scripts with python references (with -Y option to turn it off), allow global file handles, scope of 'my' is now obeyed in for(each) loops and all foreach counters are now localized, add tmpdir.

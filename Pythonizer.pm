@@ -2662,9 +2662,9 @@ sub fix_scalar_context                          # issue 37
         }
     }
     if($TokenStr eq 's=a' || $TokenStr eq 's=h' || $TokenStr =~ /^s=f/ || $TokenStr =~ /^s=\(\)/) {         # issue 65, goatse, issue 30, issue s254: remove the check for '=' at the end of ()
-        $did_something |= apply_scalar_context(2);
+        $did_something |= apply_scalar_context(2) if(!$ValType[0] || $ValType[0] !~ /[@%]s/);  # issue s244h
     } elsif($TokenStr eq 'ts=a' || $TokenStr eq 'ts=h' || $TokenStr =~ /^ts=f/ || $TokenStr =~ /^ts=\(\)/) {    # issue 65, goatse, issue 30, issue s254: remove the check for '=' at the end of ()
-        $did_something |= apply_scalar_context(3);
+        $did_something |= apply_scalar_context(3) if(!$ValType[1] || $ValType[1] !~ /[@%]s/);  # issue s244h
     } elsif($#ValClass > 5 && $ValClass[1] eq '(' && $ValClass[0] eq 's') {    # Array subscript or hashref
         $j=&::end_of_variable(0);                      # Look for $arr[ndx]=@arr or $arr[ndx]=func()
         if($j+2 <= $#ValClass && $ValClass[$j+1] eq '=' && $ValClass[$j+2] =~ /[ahf]/) {        # issue 30
@@ -2677,6 +2677,10 @@ sub fix_scalar_context                          # issue 37
             $did_something |= apply_scalar_context(4);
         } elsif($TokenStr =~ /^[cC]\(f\(s=[ahf]/ && $ValPerl[2] eq 'defined') {         # issue s40: Added by handle_while_magic_function
             $did_something |= apply_scalar_context(6);                                  # issue s40
+        } elsif($TokenStr =~ /^[cC]\(f/ && ($ValPerl[0] eq 'if' || $ValPerl[0] eq 'unless' || $ValPerl[0] eq 'elsif')) {   # issue s260
+            $did_something |= apply_scalar_context(2);                                      # issue s260
+        } elsif($TokenStr =~ /^[cC]f/ && ($ValPerl[0] eq 'if' || $ValPerl[0] eq 'unless' || $ValPerl[0] eq 'elsif')) {   # issue s260
+            $did_something |= apply_scalar_context(1);                                      # issue s260
         } elsif($#ValClass > 7 && $ValClass[3] eq '(' && $ValClass[2] eq 's') {    # Array subscript or hashref
             $j=&::end_of_variable(2);                      # Look for $arr[ndx]=@arr or $arr[ndx]=func()
             if($j+2 <= $#ValClass && $ValClass[$j+1] eq '=' && $ValClass[$j+2] =~ /[ahf]/) {        # issue 30
@@ -4739,7 +4743,13 @@ sub is_scalar_operator      # issue s246
             return 1 if($ValClass[$pos] eq '-');    # Unary - is all that counts here
             return 0;
         }
+        return 1 if $ValClass[$pos] eq '-';     # issue s260
         return 1 if is_term($pos-1); # Previous is a term
+    }
+    if($ValClass[$pos] eq '!') {     # issue 260: not
+        return 1 if $pos == 0;
+        return 0 if $ValClass[$pos-1] eq 'f' && $ValPerl[$pos-1] eq 'grep'; # see issue s153
+        return 1;
     }
     return 0;
 }
