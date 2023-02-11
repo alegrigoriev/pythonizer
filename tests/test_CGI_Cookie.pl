@@ -1,4 +1,3 @@
-# pragma pythonizer pythonize stdlib
 use CGI::Cookie;
 use Carp::Assert;
 

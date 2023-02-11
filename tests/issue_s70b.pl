@@ -1,10 +1,11 @@
 # issue s70b: Handle different file encodings properly
-# WARNING: When editing this file, set fileencoding=cp1252 and encoding=cp1252
+# -*- coding: cp1252 -*-
 # This file is encoded using cp1252 (windows-1252), but it's not marked as such
 use Carp::Assert;
 my $str = "€";      # Euro sign
 #printf "\\x%02x", ord $str;
 assert(ord $str == 0x80);
+assert(chr 0x80 eq $str);
 $str = "…";         # Elipsis
 #printf "\\x%02x", ord $str;
 assert(ord $str == 0x85);

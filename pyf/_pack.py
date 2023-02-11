@@ -1,9 +1,6 @@
 
-_PACK_TO_STRUCT = dict(a='s', c='b', C='B', s='h', S='H', l='l', L='L', q='q', Q='Q',
-                       i='i', I='I', n='!H', N='!L', v='<H', V='<L', j='i', J='I', f='f',
-                       d='d', F='d', x='x')
+_PACK_TO_STRUCT = dict(a='s', c='b', C='B', s='h', S='H', l='l', L='L', q='q', Q='Q', i='i', I='I', n='!H', N='!L', v='<H', V='<L', j='i', J='I', f='f', d='d', F='d', x='x')
 _TEMPLATE_LENGTH = dict(a=1, c=1, C=1, s=2, S=2, l=4, L=4, q=8, Q=8, i=4, I=4, n=2, N=4, v=2, V=4, j=4, J=4, f=4, d=8, F=8, x=1)
-# Create simple bytes <-> str identity conversions
 _decoding_map = codecs.make_identity_dict(range(256))
 _encoding_map = codecs.make_encoding_map(_decoding_map)
 def _str_to_bytes(by):
@@ -46,7 +43,7 @@ def _get_pack_unpack_format_and_counts(template, args, is_unpack=False):
                 cnt = int(cnt)
             elif cnt in _TEMPLATE_LENGTH:
                 cnt = _TEMPLATE_LENGTH[cnt]
-            else:
+            elif cnt != '*':
                 raise Die(f'{typ} cannot get length of {cnt} template')
             if mod == '!':
                 if len(fmt) != 1:

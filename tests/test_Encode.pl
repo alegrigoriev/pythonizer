@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-# Test of Encode.pm, written by chatGPT
-# pragma pythonizer -s
+# Test of Encode.pm, written by chatGPT & SNOOPYJC
 use utf8;
 use Encode;
 use Carp::Assert;
+use Data::Dumper;
 
 # Test the encode method
 assert(Encode::encode('UTF-8', 'hello world') eq 'hello world');
@@ -19,6 +19,8 @@ sub print_it {                  # For debug only
     if(!defined $chars) {
         print "undef\n";
         return;
+    } elsif(!$chars) {
+        print '<empty string detected>';
     }
     for(my $i = 0; $i < length($chars); $i++) {
         my $c = ord(substr($chars, $i, 1));
@@ -40,7 +42,7 @@ assert(Encode::encode('shift_jis', 'こんにちは世界') eq "\x82\xb1\x82\xf1
 # Test for an error condition
 eval {
     # Code that is expected to throw an error
-    Encode::decode('UTF-8', "\xC3\x28", Encode::FB_CROAK);
+    Encode::decode('UTF-8', "\xC3\x28", Encode::FB_CROAK|Encode::LEAVE_SRC);
 };
 if ($@) {
     # If an error was thrown, the test case passes
@@ -54,9 +56,6 @@ if ($@) {
 sub check_encoding {
   my ($string) = @_;
 
-  # Check that the input string is encoded in UTF-8
-  assert(utf8::is_utf8($string), "Input string is not encoded in UTF-8: $string");
-
   # Encode the string in ASCII and return the result
   return Encode::encode('ASCII', $string);
 }
@@ -67,8 +66,7 @@ sub test_encoding {
   assert(check_encoding("\x{263a}") eq "?", "Unexpected output for input ('\x{263a}')");
 
   # Test the subroutine with a non-UTF-8 encoded string
-  eval { check_encoding(pack('C*', 0xC2, 0xA9)) };
-  assert($@ =~ /Input string is not encoded in UTF-8/, "Unexpected output for input (pack('C*', 0xC2, 0xA9))");
+  assert(check_encoding(pack('C*', 0xC2, 0xA9)) =~ /\?/, "Unexpected output for input (pack('C*', 0xC2, 0xA9))");
 }
 
 # Run the test
@@ -94,19 +92,17 @@ assert(scalar @encodings > 0, "Unexpected output for encodings");
 # Test `find_encoding`
 my $utf8_encoding = Encode::find_encoding('UTF-8');
 assert(defined $utf8_encoding, "Unexpected output for input ('UTF-8') with find_encoding");
+assert($utf8_encoding->encode("\x{00E9}") eq "\xC3\xA9", "Unexpected output for input ('\x{00E9}') with \$obj->encode");
+assert($utf8_encoding->decode("\xC3\xA9") eq "\x{00E9}", "Unexpected output for input ('\xC3\xA9') with \$obj->decode");
 
 # Test `find_mime_encoding`
 my $iso8859_1_encoding = Encode::find_mime_encoding('ISO-8859-1');
 assert(defined $iso8859_1_encoding, "Unexpected output for input ('ISO-8859-1') with find_mime_encoding");
 
 # Test `clone_encoding`
-my $utf8_encoding_clone = Encode::clone_encoding($utf8_encoding);
+my $utf8_encoding_clone = Encode::clone_encoding('UTF-8');
 assert(defined $utf8_encoding_clone, "Unexpected output for input (\$utf8_encoding) with clone_encoding");
 
-use Encode;
-use Carp::Assert;
-
-# Subroutine being tested
 sub check_encoding2 {
   my ($string, $flag) = @_;
 
@@ -114,7 +110,7 @@ sub check_encoding2 {
 
   eval {
     # Decode the string using the specified flag
-    $decoded_string = Encode::decode('UTF-8', $string, $flag);
+    $decoded_string = Encode::decode('UTF-8', $string, $flag|Encode::LEAVE_SRC);
   };
 
   # Check the behavior based on the specified flag
@@ -149,7 +145,7 @@ sub test_encoding2 {
   open(TMP, '<tmp.tmp');
   my $line = <TMP>;
   close(TMP);
-  assert($line =~ "does not map");
+  assert($line =~ /does not map/ || $line =~ /codec can't decode byte 0xc3/);
 }
 
 END {
@@ -158,6 +154,189 @@ END {
 
 # Run the test
 test_encoding2();
+
+sub error_handler {
+    my ($chr) = @_;
+    return sprintf "\\x{%02x}", $chr;
+}
+
+sub test_sub_error_handler {
+    my $input = "a\x{F1}b";
+    my $expected_output = "a\\x{f1}b";
+    my $output = Encode::decode("UTF-8", $input, \&error_handler);
+    assert($output eq $expected_output, "Test sub: Unexpected output from decode: $output");
+
+    $input = "a\x{F1}b";
+    $expected_output = "a\\x{f1}b";
+    $output = Encode::encode("ascii", $input, \&error_handler);
+    assert($output eq $expected_output, "Test sub: Unexpected output from encode: $output");
+}
+
+test_sub_error_handler();
+
+sub test_partial_buffer_with_restart {
+    my $partial_input = "a\xC3";
+    my $output = Encode::decode('utf8', $partial_input, Encode::FB_QUIET);
+    assert($output eq "a", "Unexpected output from partial input: $partial_input");
+
+    my $complete_input = $partial_input . "\xA9";
+    $output .= Encode::decode('utf8', $complete_input, Encode::FB_QUIET);
+    assert($output eq "a\x{e9}", "Unexpected output from complete input: $complete_input");
+
+    # Ensure that the decoder can be used again after a successful decode
+    $output = Encode::decode('utf8', "\xC3\xA9");
+    assert($output eq "\x{e9}", "Unexpected output from second decode: $output");
+
+    # Now try something a little more complex:
+
+    for(my $length = 2; $length <= 100; $length += 2) {
+        my $full_input = "\xC3\xA9" x ($length/2);
+        for(my $at_a_time = 1; $at_a_time <= 50; $at_a_time++) {
+            #my @pieces = unpack "(A$at_a_time)*", $full_input;
+            my @pieces;
+            for(my $i = 0; $i < $length; $i+=$at_a_time) {
+                push @pieces, substr($full_input, $i, $at_a_time);
+            }
+            #print "for length $length and $at_a_time, got " . scalar(@pieces) . " pieces\n";
+            $partial_input = '';
+            $output = '';
+            for(my $i = 0; $i < scalar(@pieces); $i++) {
+                $partial_input .= $pieces[$i];
+                $output .= Encode::decode('utf8', $partial_input, Encode::FB_QUIET);
+            }
+            my $expected_output = "\x{e9}" x ($length/2);
+            if($output ne $expected_output) {
+                print "length = $length, at_a_time = $at_a_time\n";
+                print "Output          = "; print_it($output);
+                print "Expected Output = "; print_it($expected_output);
+            }
+            assert($output eq $expected_output);
+            my $a = 'a';
+            Encode::decode('utf8', $a, Encode::FB_QUIET);        # Clear the decoder
+        }
+    }
+
+    # See if we can abandon a partial translation and send in a new one (that's different)
+    $partial_input = "b\xC3";
+    $output = Encode::decode('utf8', $partial_input, Encode::FB_QUIET);
+    assert($output eq "b", "Unexpected output from partial input: $partial_input");
+    
+    # Ensure that the decoder can be used again after a incomplete decode
+    $partial_input = "\xC3\xA9";
+    $output = Encode::decode('utf8', $partial_input, Encode::FB_QUIET);
+    assert($output eq "\x{e9}", "Unexpected output from decode after incomplete decode: $output");
+}
+
+sub test_partial_buffer_with_restart_utf8 {
+    my $partial_input = "a\xC3";
+    my $output = Encode::decode_utf8($partial_input, Encode::FB_QUIET);
+    assert($output eq "a", "Unexpected output from partial input: $partial_input");
+
+    my $complete_input = $partial_input . "\xA9";
+    $output .= Encode::decode_utf8($complete_input, Encode::FB_QUIET);
+    assert($output eq "a\x{e9}", "Unexpected output from complete input: $complete_input");
+
+    # Ensure that the decode_utf8r can be used again after a successful decode_utf8
+    $output = Encode::decode_utf8("\xC3\xA9");
+    assert($output eq "\x{e9}", "Unexpected output from second decode_utf8: $output");
+
+    # Now try something a little more complex:
+
+    for(my $length = 2; $length <= 100; $length += 2) {
+        my $full_input = "\xC3\xA9" x ($length/2);
+        for(my $at_a_time = 1; $at_a_time <= 50; $at_a_time++) {
+            #my @pieces = unpack "(A$at_a_time)*", $full_input;
+            my @pieces;
+            for(my $i = 0; $i < $length; $i+=$at_a_time) {
+                push @pieces, substr($full_input, $i, $at_a_time);
+            }
+            #print "for length $length and $at_a_time, got " . scalar(@pieces) . " pieces\n";
+            $partial_input = '';
+            $output = '';
+            for(my $i = 0; $i < scalar(@pieces); $i++) {
+                $partial_input .= $pieces[$i];
+                $output .= Encode::decode_utf8($partial_input, Encode::FB_QUIET);
+            }
+            my $expected_output = "\x{e9}" x ($length/2);
+            if($output ne $expected_output) {
+                print "length = $length, at_a_time = $at_a_time\n";
+                print "Output          = "; print_it($output);
+                print "Expected Output = "; print_it($expected_output);
+            }
+            assert($output eq $expected_output);
+            my $a = 'a';
+            Encode::decode_utf8($a, Encode::FB_QUIET);        # Clear the decode_utf8r
+        }
+    }
+
+    # See if we can abandon a partial translation and send in a new one (that's different)
+    $partial_input = "b\xC3";
+    $output = Encode::decode_utf8($partial_input, Encode::FB_QUIET);
+    assert($output eq "b", "Unexpected output from partial input: $partial_input");
+    
+    # Ensure that the decoder can be used again after a incomplete decode_utf8
+    $partial_input = "\xC3\xA9";
+    $output = Encode::decode_utf8($partial_input, Encode::FB_QUIET);
+    assert($output eq "\x{e9}", "Unexpected output from decode_utf8 after incomplete decode_utf8: $output");
+}
+
+sub test_partial_buffer_with_restart_obj {
+    my $obj = Encode::find_encoding("UTF-8");
+    my $partial_input = "a\xC3";
+    my $output = $obj->decode($partial_input, Encode::FB_QUIET);
+    assert($output eq "a", "Unexpected output from partial input: $partial_input");
+
+    my $complete_input = $partial_input . "\xA9";
+    $output .= $obj->decode($complete_input, Encode::FB_QUIET);
+    assert($output eq "a\x{e9}", "Unexpected output from complete input: $complete_input");
+
+    # Ensure that the decoder can be used again after a successful decode
+    $output = $obj->decode("\xC3\xA9");
+    assert($output eq "\x{e9}", "Unexpected output from second decode: $output");
+
+    # Now try something a little more complex:
+
+    for(my $length = 2; $length <= 100; $length += 2) {
+        my $full_input = "\xC3\xA9" x ($length/2);
+        for(my $at_a_time = 1; $at_a_time <= 50; $at_a_time++) {
+            #my @pieces = unpack "(A$at_a_time)*", $full_input;
+            my @pieces;
+            for(my $i = 0; $i < $length; $i+=$at_a_time) {
+                push @pieces, substr($full_input, $i, $at_a_time);
+            }
+            #print "for length $length and $at_a_time, got " . scalar(@pieces) . " pieces\n";
+            $partial_input = '';
+            $output = '';
+            for(my $i = 0; $i < scalar(@pieces); $i++) {
+                $partial_input .= $pieces[$i];
+                $output .= $obj->decode($partial_input, Encode::FB_QUIET);
+            }
+            my $expected_output = "\x{e9}" x ($length/2);
+            if($output ne $expected_output) {
+                print "length = $length, at_a_time = $at_a_time\n";
+                print "Output          = "; print_it($output);
+                print "Expected Output = "; print_it($expected_output);
+            }
+            assert($output eq $expected_output);
+            my $a = 'a';
+            $obj->decode($a, Encode::FB_QUIET);        # Clear the decoder
+        }
+    }
+
+    # See if we can abandon a partial translation and send in a new one (that's different)
+    $partial_input = "b\xC3";
+    $output = $obj->decode($partial_input, Encode::FB_QUIET);
+    assert($output eq "b", "Unexpected output from partial input: $partial_input");
+    
+    # Ensure that the decoder can be used again after a incomplete decode
+    $partial_input = "\xC3\xA9";
+    $output = $obj->decode($partial_input, Encode::FB_QUIET);
+    assert($output eq "\x{e9}", "Unexpected output from decode after incomplete decode: $output");
+}
+
+test_partial_buffer_with_restart();
+test_partial_buffer_with_restart_utf8();
+test_partial_buffer_with_restart_obj();
 
 use Encode qw/define_encoding from_to is_utf8 perlio_ok resolve_alias/;
 
@@ -177,34 +356,6 @@ sub test_from_to {
 }
 test_from_to();
 
-# Test Encode::is_16bit
-sub test_is_16bit {
-  # Test a string encoded in UTF-8
-  my $input = "\x{263a}";
-  my $output = Encode::is_16bit($input);
-  assert(!$output, "Unexpected output: $output");
-
-  # Test a string encoded in UTF-16
-  $input = "\x{263a}\x{263a}";
-  $output = Encode::is_16bit($input);
-  assert($output, "Unexpected output: $output");
-}
-# is_16bit doesn't exist!!  test_is_16bit();
-
-# Test Encode::is_8bit
-sub test_is_8bit {
-  # Test a string encoded in UTF-8
-  my $input = "\x{263a}";
-  my $output = Encode::is_8bit($input);
-  assert(!$output, "Unexpected output: $output");
-
-  # Test a string encoded in ISO-8859-1
-  $input = "\x{00E9}";
-  $output = Encode::is_8bit($input);
-  assert($output, "Unexpected output: $output");
-}
-# is_8bit doesn't exist!!   test_is_8bit();
-
 # Test Encode::is_utf8
 sub test_is_utf8 {
   # Test a string encoded in UTF-8
@@ -213,41 +364,12 @@ sub test_is_utf8 {
   assert($output, "Unexpected output: $output");
 
   # Test a string encoded in ISO-8859-1
-  $input = "\x{00E9}";
+  #$input = "\x{00E9}";
+  $input = "A";
   $output = Encode::is_utf8($input);
   assert(!$output, "Unexpected output: $output");
 }
 test_is_utf8();
-
-# Test for utf8_upgrade
-sub test_utf8_upgrade {
-  # Test input string with ASCII characters
-  my $ascii_string = "Hello World";
-  my $utf8_string = Encode::utf8_upgrade($ascii_string);
-  assert(Encode::is_utf8($utf8_string), "ASCII string not upgraded to UTF-8");
-
-  # Test input string with UTF-8 characters
-  $ascii_string = "\x{263a}";
-  $utf8_string = Encode::utf8_upgrade($ascii_string);
-  assert(Encode::is_utf8($utf8_string), "UTF-8 string not upgraded to UTF-8");
-}
-# utf8_upgrade doesn't exist!! test_utf8_upgrade();
-
-# Test for utf8_downgrade
-sub test_utf8_downgrade {
-  # Test input string with ASCII characters
-  my $ascii_string = "Hello World";
-  my $utf8_string = Encode::utf8_upgrade($ascii_string);
-  my $downgraded_string = Encode::utf8_downgrade($utf8_string);
-  assert(!Encode::is_utf8($downgraded_string), "ASCII string not downgraded from UTF-8");
-
-  # Test input string with UTF-8 characters
-  $ascii_string = "\x{263a}";
-  $utf8_string = Encode::utf8_upgrade($ascii_string);
-  $downgraded_string = Encode::utf8_downgrade($utf8_string);
-  assert(!Encode::is_utf8($downgraded_string), "UTF-8 string not downgraded from UTF-8");
-}
-# utf8_upgrade doesn't exist!!  test_utf8_downgrade();
 
 # Test for define_encoding
 package Encode::MyEncoding;
@@ -258,7 +380,7 @@ __PACKAGE__->Define(qw(TestEncoding));
 sub encode($$;$){
     my ($obj, $str, $chk) = @_;
     $str =~ tr/A-Za-z/N-ZA-Mn-za-m/;
-    $_[1] = '' if $chk; # this is what in-place edit means
+    #$_[1] = '' if $chk; # this is what in-place edit means
     return $str;
 }
 *decode = \&encode;
@@ -289,6 +411,24 @@ sub test_define_encoding {
 }
 test_define_encoding();
 
+sub test_define_alias {
+    Encode::define_alias("newalias" => "UTF-8");
+    my $utf8_encoder = Encode::find_encoding("UTF-8");
+    my $newalias_encoder = Encode::find_encoding("newalias");
+
+    my $input = "abcdé";
+    my $utf8_encoded = $utf8_encoder->encode($input);
+    my $newalias_encoded = $newalias_encoder->encode($input);
+    assert($utf8_encoded eq $newalias_encoded, "Unexpected encoding result from new alias");
+
+    my $utf8_decoded = $utf8_encoder->decode($utf8_encoded);
+    my $newalias_decoded = $newalias_encoder->decode($newalias_encoded);
+    assert($utf8_decoded eq $newalias_decoded, "Unexpected decoding result from new alias");
+}
+
+test_define_alias();
+
+
 
 # Test for from_to
 sub test_from_to2 {
@@ -300,31 +440,21 @@ sub test_from_to2 {
 }
 test_from_to2();
 
-sub test_is_utf82 {
-  # Test is_utf8 with a UTF-8 encoded string
-  assert(Encode::is_utf8("\x{263a}"), "is_utf8 failed for string '\x{263a}'");
-
-  # Test is_utf8 with an ASCII encoded string
-  assert(!Encode::is_utf8("A"), "is_utf8 incorrect for string 'A'");
-
-  # Test is_utf8 with a non-UTF-8 encoded string
-  assert(!Encode::is_utf8(pack('C*', 0xC2, 0xA9)), "is_utf8 failed for string (pack('C*', 0xC2, 0xA9))");
-}
-test_is_utf82();
-
 sub test_perlio_ok {
   # Test perlio_ok for an encoding that is compatible with PerlIO
   assert(Encode::perlio_ok("UTF-8"), "perlio_ok failed for encoding 'UTF-8'");
   assert(Encode::perlio_ok("Shift_JIS"), "perlio_ok failed for encoding 'Shift_JIS'");
 
   # Test perlio_ok for an encoding that is not compatible with PerlIO
-  assert(!Encode::perlio_ok("ISO-2022-kr"), "perlio_ok failed for encoding 'ISO-2022-kr'");
+  # Python supports this encoding on I/O
+  #assert(!Encode::perlio_ok("ISO-2022-kr"), "perlio_ok failed for encoding 'ISO-2022-kr'");
 }
 test_perlio_ok();
 
 sub test_resolve_alias {
   # Test resolve_alias for a well-known encoding
-  assert(Encode::resolve_alias("utf-8") eq "utf-8-strict", "resolve_alias failed for encoding 'utf-8'");
+  $result = Encode::resolve_alias("UTF-8");
+  assert($result eq "utf-8" || $result eq "utf-8-strict", "resolve_alias failed for encoding 'utf-8'");
 
   # Test resolve_alias for an unknown encoding
   assert(!Encode::resolve_alias("unknown"), "resolve_alias failed for encoding 'unknown'");

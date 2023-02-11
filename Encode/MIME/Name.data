@@ -1,0 +1,10 @@
+
+=head1 NAME
+
+Encode::MIME::NAME -- internally used by Encode
+
+=head1 SEE ALSO
+
+L<I18N::Charset>
+
+=cut

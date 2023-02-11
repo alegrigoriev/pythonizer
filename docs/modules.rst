@@ -6,6 +6,14 @@ perllib
 
    perllib
 
+CGI
+===
+
+.. toctree::
+   :maxdepth: 4
+
+   CGI
+
 charnames
 =========
 
@@ -13,6 +21,14 @@ charnames
    :maxdepth: 4
 
    charnames
+
+Class
+=====
+
+.. toctree::
+   :maxdepth: 4
+
+   Class
 
 Config
 ======
@@ -22,21 +38,13 @@ Config
 
    Config
 
-Math
-====
+Encode
+======
 
 .. toctree::
    :maxdepth: 4
 
-   Math
-
-Sys
-===
-
-.. toctree::
-   :maxdepth: 4
-
-   Sys
+   Encode
 
 File
 ====
@@ -62,13 +70,21 @@ HTML
 
    HTML
 
-Class
-=====
+Math
+====
 
 .. toctree::
    :maxdepth: 4
 
-   Class
+   Math
+
+Sys
+===
+
+.. toctree::
+   :maxdepth: 4
+
+   Sys
 
 Text
 ====
