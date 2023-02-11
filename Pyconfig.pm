@@ -168,7 +168,7 @@ sub state_flag_name                # issue 128
 
 our @PYTHON_KEYWORDS = qw(False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield);
 our @PYTHON_BUILTINS = qw(abs aiter all any anext ascii bin bool breakpoint bytearray bytes callable chr classmethod compile complex delattr dict dir divmod enumerate eval exec filter float format frozenset getattr globals hasattr hash help hex id input int isinstance issubclass iter len list locals map max memoryview min next object oct open ord pow print property range re repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip);
-our @PYTHON_PACKAGES = qw(sys os re fcntl math fileinput subprocess collections.abc argparse glob warnings inspect functools itertools signal traceback io tempfile atexit calendar types pdb random stat dataclasses builtins codecs struct copy getopt tm_py);     # issue s200: Don't mess up our imports
+our @PYTHON_PACKAGES = qw(sys os re fcntl math fileinput subprocess collections.abc argparse glob warnings inspect functools itertools signal traceback io tempfile atexit calendar types pdb random stat dataclasses builtins codecs struct copy getopt tm_py abc);     # issue s200: Don't mess up our imports
 push @PYTHON_PACKAGES, $PERLLIB;                    # issue s229
 push @PYTHON_BUILTINS, @PYTHON_PACKAGES;
 our @EXTRA_BUILTINS = qw(Array Hash ArrayHash perllib wantarray close get pop update extend rstrip find rfind casefold lower upper insert keys values);        # issue test coverage: Add "close" to prevent recursive loop calling fh.close(), issue s216: add get pop method names, etc
@@ -218,6 +218,7 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
                 _exec=>'_execp,_cluck',             # issue s247
                 _execp=>'_cluck',                   # issue s247
                 _caller_s=>'_caller',               # issue s259
+                _import=>'_init_package',           # issue s269
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
 our %PYF_OUT_PARAMETERS=();                        # Functions with out parameters - which parameter (counting from 1) is "out"?
 our %STATEMENT_FUNCTIONS=(getopts=>1, GetOptions=>1, chop=>1, chomp=>1);    # issue s150: These functions generate statements and must be pulled out of expressions/conditions, issue s167: Add chop/chomp
@@ -507,6 +508,24 @@ our %PREDEFINED_PACKAGES = (
                 {perl=>'product', type=>'a of N:N', python=>'math.prod'},
                 {perl=>'sum', type=>'a of N:N', python=>'sum'},
                 {perl=>'sum0', type=>'a of N:N', python=>'sum'},
+                    ],
+         'Encode'=>[
+                {perl=>'encode', type=>'SSm?:S', calls=>'_int,_croak,_decode'},
+                {perl=>'decode', type=>'SSm?:S', calls=>'_int,_croak'},
+                {perl=>'str2bytes', type=>'SSm?:S', python=>'_encode', calls=>'_int,_croak'},
+                {perl=>'bytes2str', type=>'SSm?:S', python=>'_decode', calls=>'_int,_croak'},
+                {perl=>'encode_utf8', type=>'S:S', calls=>'_decode'},
+                {perl=>'decode_utf8', type=>'Sm?:S', calls=>'_int,_croak_decode'},
+                {perl=>'encodings', type=>'S?:a'},
+                {perl=>'define_encoding', type=>'mSa?:m', calls=>'_define_alias'},
+                {perl=>'define_alias', type=>'SS:'},
+                {perl=>'find_encoding', type=>'S:m'},
+                {perl=>'find_mime_encoding', type=>'S:m', class=>'_find_encoding'},
+                {perl=>'clone_encoding', type=>'S:m', class=>'_find_encoding'},
+                {perl=>'from_to', type=>'SSm?:', calls=>'_encode,_decode', out_parameter=>1},
+                {perl=>'is_utf8', type=>'SI?:B', calls=>'_utf8_is_utf8'},
+                {perl=>'perlio_ok', type=>'S:B'},
+                {perl=>'resolve_alias', type=>'S:S'},
                     ],
                );
 

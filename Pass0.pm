@@ -230,6 +230,7 @@ sub handle_pragma_pythonizer
 	    	     n=>\$::trace_run, k=>\$::black, K=>\$KFlag, u=>\$::replace_usage, U=>\$UFlag,
                  a=>\$::gen_author,	# issue s19
                  y=>\$::replace_run, Y=>\$YFlag,	# issue s87
+                 e=>\$Pythonizer::e_option,         # issue s70
                  v0=>\$v0Flag, v1=>\$v1Flag, v2=>\$v2Flag, v3=>\$v3Flag,
                  S=>\$SFlag, p=>$::import_perllib, P=>\$PFlag, N=>\$NFlag);     # issue s132
     my %options = (traceback=>\$::traceback, autodie=>\$::autodie, implicit=>\$implicit_global_my,
@@ -240,6 +241,7 @@ sub handle_pragma_pythonizer
                    verbose=>\$v2Flag,
                    verbosity=>\$v2Flag,
                    convert=>undef,              # issue s64
+                   encoding=>\$Pythonizer::e_option,    # issue s70
                    autovivification=>\$::autovivification);
 
     my $set_option_from_flag = sub {            # issue bootstrap
@@ -250,6 +252,8 @@ sub handle_pragma_pythonizer
             $::autodie = $val;
         } elsif($flag eq 'a') {		# issue s19
             $::gen_author = $val;	# issue s19
+        } elsif($flag eq 'e') {     # issue s70
+            $Pythonizer::e_option = $val;   # issue s70
         } elsif($flag eq 'm') {
             $mFlag = $val;
         } elsif($flag eq 'M') {
@@ -292,6 +296,7 @@ sub handle_pragma_pythonizer
     my %option_flags = (traceback=>'T', autodie=>'A', implicit=>'m', trace=>'n', black=>'k',
 	    	       author=>'a',		# issue s19
                    pl_to_py=>'y',	# issue s87
+                   encoding=>'e',   # issue s70
                    verbose=>'v2', verbosity=>'v2',
                    pythonize=>'s', import=>'p', replace=>'u');
     my %option_no_flags = (implicit=>'M', pythonize=>'S', import=>'P', autovivification=>'N', black=>'K', replace=>'U', # issue s132
@@ -299,9 +304,10 @@ sub handle_pragma_pythonizer
                    verbose=>'v0', verbosity=>'v0',
     			   convert=>undef,	# issue s64 - use special processing
 		   	  );
+    my %flag_has_arg = (e=>1);            # issue s70
 
-    # pragma pythonizer -flags -moreflags
-    # pragma pythonizer implicit global my, traceback, no import perllib, trace run
+    # pragma pythonizer -flags -moreflags -e input_encoding,output_encoding
+    # pragma pythonizer implicit global my, traceback, no import perllib, trace run, encoding input_encoding, output_encoding
 
     for(my $i=2; $i <= $#ValClass; $i++) {
         if($ValClass[$i] eq 'i') {
@@ -309,21 +315,28 @@ sub handle_pragma_pythonizer
             if($ValPerl[$i-1] eq '-') { # flags
                 for my $flag (keys %flags) {
                     if($vp =~ /$flag/) {
-		        #${$flags{$flag}} = 1;
-			&$set_option_from_flag($flag, 1);
-                        push @implied_options, "-$flag";
-                        say STDERR "Using -$flag due to pragma pythonizer -$vp" if($say_why);
+		                #${$flags{$flag}} = 1;
+                        my $val = 1;                        # issue s70
+                        if(exists $flag_has_arg{$flag}) {   # issue s70
+                            $val = get_arg($i);      # Modifies $i
+                            say STDERR "Using -$flag $val due to pragma pythonizer -$vp $val" if($say_why);
+                            push @implied_options, "-$flag", $val;
+                        } else {
+                            say STDERR "Using -$flag due to pragma pythonizer -$vp" if($say_why);
+                            push @implied_options, "-$flag";
+                        }
+			            &$set_option_from_flag($flag, $val);    # issue s70
                     }
                 }
             } else {
                 for my $option (keys %options) {
                     if($vp =~ /^$option$/i) {
                         if($ValPerl[$i-1] eq 'no') {
-			    #${$options{$option}} = 0;
+			                #${$options{$option}} = 0;
                             if(exists $option_no_flags{$option}) {
                                 $flag = $option_no_flags{$option};
                                 if(defined $flag) {
-				    &$set_option_from_flag($flag, 1);
+				                    &$set_option_from_flag($flag, 1);
                                     say STDERR "Using -$flag due to pragma pythonizer no $vp" if($say_why);
                                     push @implied_options, "-$flag";
                                 } else {        # issue s64: special processing
@@ -332,12 +345,19 @@ sub handle_pragma_pythonizer
                                 }
                             }
                         } else {
-			    #${$options{$option}} = 1;
+			                #${$options{$option}} = 1;
                             if(exists $option_flags{$option}) {
                                 $flag = $option_flags{$option};
-                                &$set_option_from_flag($flag, 1);
-                                say STDERR "Using -$flag due to pragma pythonizer $vp" if($say_why);
-                                push @implied_options, "-$flag";
+                                my $val = 1;                        # issue s70
+                                if(exists $flag_has_arg{$flag}) {   # issue s70
+                                    $val = get_arg($i);      # Modifies $i
+                                    say STDERR "Using -$flag $val due to pragma pythonizer $vp $val" if($say_why);
+                                    push @implied_options, "-$flag", $val;
+                                } else {
+                                    say STDERR "Using -$flag due to pragma pythonizer $vp" if($say_why);
+                                    push @implied_options, "-$flag";
+                                }
+                                &$set_option_from_flag($flag, $val);    # issue s70
                             }
                         }
                     }
@@ -359,6 +379,34 @@ sub handle_pragma_pythonizer
     return 0 if($MFlag);
     return $implicit_global_my if(defined $implicit_global_my);
     return undef;
+}
+
+sub get_arg         # issue s70
+# Get argument from option or flag
+# arg: $i = position of flag or option - gets updated to point to the last argument
+# returns: the argument as a string value
+{
+    my $pos = $_[0];
+    my $i = $pos+1;
+    my $result = '';
+    for(; $i <= $#ValClass; $i++) {
+        if($ValClass[$i] eq 'i') {
+            last if($result && $result !~ /,$/);    # Get out if this is the next option
+            $result .= $ValPy[$i];
+        } elsif($ValClass[$i] eq '-') {     # e.g. cp-1252 gets split into cp(i), -(-), 1252(d)
+            $result .= '-';
+        } elsif($ValClass[$i] eq 'd') {
+            $result .= $ValPy[$i];
+        } elsif($ValClass[$i] eq ',') {
+            $result .= ',';
+        } else {
+            last;
+        }
+    }
+
+    $_[0] = $i-1;           # Update the loop counter in the caller
+    say STDERR "get_arg($pos) = '$result' and updates $pos to $_[0]" if $::debug >= 6;
+    return $result;
 }
 
 sub contains_colon_colon        # issue s244

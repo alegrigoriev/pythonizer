@@ -29,17 +29,21 @@ use Softpano qw(abend logme out getopts standard_options);
 use Pyconfig;				# issue 32
 use Pass0 qw(pass_0);   # SNOOPYJC
 use Data::Dumper;       # SNOOPYJC
-use open ':std', IN=>':crlf', IO=>':utf8';        # SNOOPYJC
+# issue s70 use open ':std', IN=>':crlf', IO=>':utf8';        # SNOOPYJC
+use open ':std', IN=>':crlf';        # issue s70
 use File::Path qw(make_path);           # issue s23
 use File::Basename;                     # issue s23
 use File::Spec::Functions qw(catfile);  # issue s23
 require Exporter;
 use Storable qw(dclone);                # issue s18
+use FixLatin qw(fix_latin);             # issue s70
+use Encode qw/decode find_encoding/;    # issue s70
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 @ISA = qw(Exporter);
 @EXPORT = qw(preprocess_line correct_nest getline prolog output_line %LocalSub %PotentialSub %UseSub %GlobalVar %InitVar %VarType init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages %PackageDef arg_type_from_pos in_sub_call end_of_function new_anonymous_sub save_nest restore_nest for_loop_uses_default_var get_sub_attribute get_sub_attribute_at set_sub_attribute clone_sub_attributes debug_start_end); # SNOOPYJC
 our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
+   our ($f_encoding, $f_encodobj, $f_decodobj, $e_option);  # issue s70
    $IntactLno = 0;           # issue s6
    $IntactEndLno = 0;        # issue s6
    $TraceIntactLine = 0;     # issue s6
@@ -90,7 +94,7 @@ sub prolog
       # SNOOPYJC getopts("AThd:v:r:b:t:l:",\%options);
       @orig_ARGV = @ARGV;                       # SNOOPYJC
       # NOTE: Remember to add new flags to Pass0.PM (# pragma pythonizer), the help with ## at the start of pythonizer, and the readme/documentation!
-      getopts("NyYauUkKnmMAVThsSpPd:v:r:b:B:t:l:R:o:",\%options);     # SNOOPYJC, issue s23, issue s19, issue s87, issue s132
+      getopts("NyYauUkKnmMAVThsSpPd:v:r:b:B:t:l:R:o:e:",\%options);     # SNOOPYJC, issue s23, issue s19, issue s87, issue s132, issue s70
 #
 # Three standard options -h, -v and -d
 #
@@ -247,6 +251,9 @@ sub prolog
       if( exists $options{'Y'} ) {		# issue s87
           $::replace_run = 0;
       }
+      if( exists $options{'e'} ) {              # issue s70
+          $e_option = $options{'e'};            # issue s70
+      }                                         # issue s70
 #
 # Application arguments
 #
@@ -1795,7 +1802,7 @@ sub in_sub_call                           # SNOOPYJC
     return 0;
 }
 
-=pod    # issue s48
+=pod
 sub arg_type_from_pos                           # SNOOPYJC
 # If this token is a function arg, return what arg type it is, else return 'u'
 {
@@ -1914,10 +1921,12 @@ sub arg_from_pos                           # issue s48
         $arg = 1;
         # issue s184 my $j = $i+2;
         my $j = ($ValClass[$i+1] eq 'f' ? end_of_function($j) : &::end_of_variable($i+1))+1;      # issue s184
-        $j++ if($j <= $k && $ValClass[$j] eq ',');
+        # issue s271 $j++ if($j <= $k && $ValClass[$j] eq ',');
+        $j++ if($j <= $k && ($ValClass[$j] eq ',' || $ValClass[$j] eq 'A'));    # issue s271
         for( ; $j<=$k; $j++) {
             last if($k == $j);
-            $arg++ if($ValClass[$j] eq ',');
+            # issue s271 $arg++ if($ValClass[$j] eq ',');
+            $arg++ if($ValClass[$j] eq ',' || $ValClass[$j] eq 'A');    # issue s271
             $arg++ if($ValClass[$j] eq ')' and $ValPerl[$j] eq '}');    # issue s48: like map {...} a
             #$j = matching_br($j) if($ValClass[$j] eq '(');
             $j = &::end_of_variable($j);
@@ -3180,14 +3189,50 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
          say STDERR "getline(): returns undef because \$::saved_eval_tokens" if $::debug >= 6;
          return $line;
       }else{
-	 if($PassNo == PASS_2 && &Softpano::get_verbosity() >= 1) {		# issue ddts
+            # issue s70 if($PassNo == PASS_2 && &Softpano::get_verbosity() >= 1) {		# issue ddts
             # issue stdin $line=<>;
             $line=<SYSIN>;      # issue stdin
-         } else {
-            no warnings 'utf8';			# issue ddts: only give warnings in one pass and not with -v0
+            if(defined $f_encoding) {                   # issue s70
+                if($line && $line =~ /[^\x00-\x7f]/) {           # issue s70: Does line contain non-ascii characters?
+                    $line =~ s/^\x{FEFF}// if $. == 1;  # issue s70: Remove BOM
+                    if(defined $f_decodobj) {           # issue s70
+                        $line = $f_decodobj->decode($line, 0);  # issue s70: 0 means to ignore errors
+                    } else {                            # issue s70
+                        $line = fix_latin($line);       # issue s70
+                        $f_encodobj = find_encoding('utf8') unless defined $f_encodobj; # issue s70
+                    }                                   # issue s70
+                }                                       # issue s70
+            } else {                                    # issue s70
+                if($line && $line =~ /[^\x00-\x7f]/) {           # issue s70: Does line contain non-ascii characters?
+                    if($line =~ /^\x{FEFF}/) {          # issue s70: Does line contain windows utf8 BOM?
+                        $line =~ s/^\x{FEFF}// if $. == 1;     # issue s70: Remove BOM
+                    }
+                    if(defined $e_option) {             # issue s70
+                        my ($perl_encoding, $python_encoding) = split(/,/, $e_option);  # issue s70
+                        $python_encoding = $perl_encoding if !defined $python_encoding && $perl_encoding; # issue  s70
+                        $python_encoding = 'utf8' if !$python_encoding; # issue s70
+                        $f_decodobj = find_encoding($perl_encoding) if $perl_encoding;    # issue s70
+                        $f_encodobj = find_encoding($python_encoding);  # issue s70
+                        $f_encoding = $f_encodobj->name;          # issue s70
+                        $f_encoding =~ s/-strict//;               # issue s70
+                        $f_encoding =~ s/utf-8/utf8/;             # issue s70
+                        if(defined $f_decodobj) {                 # issue s70
+                            $line = $f_decodobj->decode($line, 0);  # issue s70: 0 means to ignore errors
+                        } else {                                  # issue s70
+                            $line = fix_latin($line);             # issue s70
+                        }                                         # issue s70
+                    } else {
+                        $line = fix_latin($line);
+                        $f_encoding = 'utf8';
+                        $f_encodobj = find_encoding('utf8') unless defined $f_encodobj; # issue s70
+                    }
+                }
+            }
+            # issue s70 } else {
+            # issue s70 no warnings 'utf8';			# issue ddts: only give warnings in one pass and not with -v0
             # issue stdin $line=<>;
-            $line=<SYSIN>;      # issue stdin
-	 }
+            # issue s70 $line=<SYSIN>;      # issue stdin
+	        # issue s70 }
          #my $l2 = $line;
          #$l2 =~ s/[\n\r]//g;
          #say STDERR "$. getline(): got $l2 from <>, tell=" . tell(STDIN);
@@ -3227,6 +3272,17 @@ state @buffer; # buffer to "postponed lines. Used for translation of postfix con
              $line .= ';';
              say STDERR "getline(): $.:$line" if $::debug >= 6;
              return $line;
+         } elsif($. <= 2 && $line =~ /^[ \t\f]*#.*?coding[:=][ \t]*([-_.a-zA-Z0-9]+)/) {   # issue s70: Source specifies encoding
+             $f_decodobj = find_encoding($1);          # issue s70
+             $f_encodobj = $f_decodobj;                # issue s70
+             if(defined $f_decodobj) {                 # issue s70
+                $f_encoding = $f_decodobj->name;          # issue s70
+                $f_encoding =~ s/-strict//;               # issue s70
+                $f_encoding =~ s/utf-8/utf8/;             # issue s70
+                $comm = '';                                    # issue s70
+             } else {
+                 logme('W', "Can't find decoder for '$1' encoding - ignoring specified encoding!");
+             }
          }
          $IntactLno = $. unless($IntactLine);       # issue s6
          while($IntactEndLno < $.) {         # issue s6
@@ -3376,6 +3432,7 @@ my $start_of_comment_zone=$zone_size+length($prefix); #  the start of comment_zo
 #                                                   So the total line length=180
 my $orig_tail_len=length($tailcomment);
 my $i;
+$tailcomment = $f_encodobj->encode($tailcomment, 0) if $tailcomment && defined $f_encodobj;   # issue s70
 my $orig_tail_comment = $tailcomment;
 
    $GeneratedCode = (scalar(@_) > 0 && $line);          # issue 96
@@ -3401,6 +3458,7 @@ my $orig_tail_comment = $tailcomment;
    if(  scalar(@_)<3){
       $line=($line=~/^\s+(.*)$/ )? $indent.$1 : $indent.$line;
    }
+   $line = $f_encodobj->encode($line, 0) if $line && defined $f_encodobj;   # issue s70
    if($orig_tail_comment) {     # SNOOPYJC
       say SYSOUT "$line    $orig_tail_comment";       # SNOOPYJC
    } else {
@@ -3409,6 +3467,7 @@ my $orig_tail_comment = $tailcomment;
    $line=$prefix.$line;
    $len=length($line); # new length woth prefix containing line no and nesting
 my (@lineblock,$filler);
+   $IntactLine = $f_encodobj->encode($IntactLine, 0) if $IntactLine && defined $f_encodobj;   # issue s70
    if( scalar(@_)==1){
       # no tailcomment
       if(  $IntactLine=~/^\s+(.*)$/ ){
@@ -3599,6 +3658,14 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     no warnings 'utf8';
     chomp(my @lines = <SYSOUT>);
     close SYSOUT;
+    my $preserve_output = 0;    # TEMP
+    if($preserve_output) {
+        open(TMPOUT, '>', $output_file . '.bak');
+        for my $line (@lines) {
+            say TMPOUT $line;
+        }
+        close(TMPOUT);
+    }
     #$DB::single = 1;
     $lno = 0;
     my @unsorted = ();
@@ -3615,20 +3682,27 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         # issue s126: if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ||
         # issue s126:    $line =~ /^(_[A-Za-z][A-Za-z0-9_]+) = _[A-Za-z][A-Za-z0-9_]/) {  # issue test coverage: handle _ArrayHashClass = _partialclass(_ArrayHash, ArrayHash) as a def
         # issue s126:                                                                    # but don't match _d = _d[0:-1]
-        if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/) {  # issue s126: Don't match _ArrayHashClass = _partialclass(...) as a def so we don't move it
+        if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ||
+           $line =~ /^(_(?:PACK_TO_STRUCT|TEMPLATE_LENGTH|decoding_map|encoding_map|fileinput_iter|finditer_pattern|finditer_string|finditer_iter)) =/ ||   # issue s270
+           $line =~ /^(Data\.Dumper\.[A-Za-z0-9_]+) =.*# InIt/      # issue s270
+          ) {  # issue s126: Don't match _ArrayHashClass = _partialclass(...) as a def so we don't move it
             my $i;
             my $func = $1;
             push @unsorted, $func;
             $dependencies{$func} = [];
-            for($i = $lno-1; $i >= 1; $i--) {
-                # Grab any prior blank lines or comments or decorators
-                if($lines[$i-1] =~ /^\s*$/ || $lines[$i-1] =~ /^\s*#/ || $lines[$i-1] =~ m'^@') {
-                    ;
-                } else {
-                    $i++;
-                    last;
+            if($line =~ /^(?:def|class) /) {            # issue s270: Only pull in blank lines or comments on real def/class statements, not special vars
+                for($i = $lno-1; $i >= 1; $i--) {
+                    # Grab any prior blank lines or comments or decorators
+                    if($lines[$i-1] =~ /^\s*$/ || $lines[$i-1] =~ /^\s*#/ || $lines[$i-1] =~ m'^@') {
+                        ;
+                    } else {
+                        $i++;
+                        last;
+                    }
                 }
-            }
+            } else {            # issue s270
+                $i = $lno;      # issue s270
+            }                   # issue s270
             $defs{$func} = $i;
         } elsif($line =~ /^\s+def ((?:$ANONYMOUS_SUB)[A-Za-z0-9_]+)/) {            # issue s3
             my $func = $1;
@@ -3664,6 +3738,10 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                $line =~ /^([A-Za-z0-9.]+)[.]$in_def = $in_def$/) {     # issue s18
                $def_package{$in_def} = $1;                             # issue s18
             }                                                          # issue s18
+            if($in_def eq '_encoding_map') {        # issue s270: This one is only 1 line
+                $in_def = $in_def2;                 # issue s270
+                $in_def = undef;                    # issue s270
+            }                                       # issue s270
             if($line !~ /^def / && $line !~ /^class / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/ && !$multiline_string_sep && # issue s126
                                $line !~ /^_[A-Za-z][A-Za-z0-9_]+ = $in_def\(/) {       # issue s126: still in_def on _ArrayHashClass = _partialclass(...)
                 # issue s155 $in_def = undef;
@@ -3674,7 +3752,9 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         }
         # issue s126 if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ||
         # issue s126    $line =~ /^(_[A-Za-z][A-Za-z0-9_]+) = _[A-Za-z][A-Za-z0-9_]/) {          # issue test coverage
-        if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/) {  # issue s126: Don't handle _ArrayHashClass = _partialclass(...) as a def
+        if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ||
+           $line =~ /^(_encoding_map) =/                                  # issue s270
+           ) {  # issue s126: Don't handle _ArrayHashClass = _partialclass(...) as a def
             $in_def2 = $in_def;             # issue s155
             $in_def = $1;
             #say STDERR "in_def $in_def on $line";	# TEMP
@@ -3683,7 +3763,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         next if($line =~ /^def / || $line =~ /^class /);
         next if($line =~ /^\s*#/);      # ignore comments
         #my @found = grep { $line =~ /\b$_\(/ } @words;  # Look for calls of this function only
-        my @found = grep { $line =~ /\b$_[(),]/ } @words;  # issue s3: Look for calls of this function and other references
+        # issue s270 my @found = grep { $line =~ /\b$_[(),]/ } @words;  # issue s3: Look for calls of this function and other references
+        my @found = grep { $line =~ /\b$_[(),:}=\] ]/ } @words;  # issue s3: Look for calls of this function and other references, issue s270: add ':}=] '
         #say STDERR "found @found in $lno: $line" if(@found);	# TEMP
         foreach $f (@found) {
             next if $line =~ /^\s+def $f/;      # issue test coverage: Not a ref of __add__ if this is a separate def of __add__ like in a different class
@@ -3891,6 +3972,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                         $lines[$i] =~ /[.]$func = types[.]MethodType\($func,/ ||     # issue s3
            # issue s216 $lines[$i] =~ /[.]$func = lambda \*_args: $func\(/ ||     # issue s154
                         $lines[$i] =~ /[.]$func = lambda \*_args.*tie_call\($func,/ ||     # issue s154, issue s216
+                        (($lines[$i] =~ /^_(?:PACK_TO_STRUCT|TEMPLATE_LENGTH|decoding_map|encoding_map|fileinput_iter|finditer_pattern|finditer_string|finditer_iter) =/ ||   # issue s270
+                          $lines[$i] =~ /^Data\.Dumper\.[A-Za-z0-9_]+ =.* # InIt/) && $i==$start_line-1) ||     # issue s270
                         $lines[$i] =~ /[.]$func = $func$/) {     # e.g. main.func = func
                         #say STDERR "Found def $func";   # TEMP
                     if(exists $moved_lines{$i+1}) {         # Don't include it twice

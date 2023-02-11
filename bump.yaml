@@ -1,31 +1,43 @@
 bump.yaml:
-  ^(.*)(1.024)(.*)$: replace
+  ^(.*)(1.025)(.*)$: replace
 pythonizer:
-  '^(# )(1.024)(  )(\d\d\d\d\/\d\d\/\d\d)(  SNOOPYJC)': append
-  ^(.*\$VERSION=')(1.024)(';): replace
+  '^(# )(1.025)(  )(\d\d\d\d\/\d\d\/\d\d)(  SNOOPYJC)': append
+  ^(.*\$VERSION=')(1.025)(';): replace
 setup.py:
-  ^(.*version=')(1.024)(',): replace
+  ^(.*version=')(1.025)(',): replace
 user_guide.html:
-  ^(.*Version )(1.024)( \()([A-Z][a-z][a-z] \d*, \d\d\d\d)(\).*)$: replace
+  ^(.*Version )(1.025)( \()([A-Z][a-z][a-z] \d*, \d\d\d\d)(\).*)$: replace
 HISTORY.rst:
-  ^(1.024)( \()(\d\d\d\d-\d\d-\d\d)(\))$: history
+  ^(1.025)( \()(\d\d\d\d-\d\d-\d\d)(\))$: history
 readme.md:
-  ^(###.*)(1.024)(.*)$: replace
+  ^(###.*)(1.025)(.*)$: replace
 charnames/__init__.py:
-  ^(__version__ =.')(1.024)(')$: replace
+  ^(__version__ =.')(1.025)(')$: replace
 Config/__init__.py:
-  ^(__version__ =.')(1.024)(')$: replace
+  ^(__version__ =.')(1.025)(')$: replace
 Math/Complex.py:
-  ^(__version__ =.')(1.024)(')$: replace
+  ^(__version__ =.')(1.025)(')$: replace
 Sys/Hostname.py:
-  ^(__version__ =.')(1.024)(')$: replace
+  ^(__version__ =.')(1.025)(')$: replace
 File/Path.py:
-  ^(__version__ =.")(1.024)(")$: replace
+  ^(__version__ =.")(1.025)(")$: replace
 FindBin/__init__.py:
-  ^(__version__ =.')(1.024)(')$: replace
+  ^(__version__ =.')(1.025)(')$: replace
 HTML/Entities.py:
-  ^(__version__ =.')(1.024)(')$: replace
+  ^(__version__ =.')(1.025)(')$: replace
 Class/Struct.py:
-  ^(__version__ =.')(1.024)(')$: replace
+  ^(__version__ =.')(1.025)(')$: replace
 Text/ParseWords.py:
-  ^(__version__ =.')(1.024)(')$: replace
+  ^(__version__ =.')(1.025)(')$: replace
+CGI/__init__.py:
+  ^(__version__ =.')(1.025)(')$: replace
+CGI/Cookie.py:
+  ^(__version__ =.')(1.025)(')$: replace
+CGI/File/Temp.py:
+  ^(__version__ =.')(1.025)(')$: replace
+CGI/Util.py:
+  ^(__version__ =.')(1.025)(')$: replace
+Encode/Encoding.py:
+  ^(__version__ =.')(1.025)(')$: replace
+Encode/MIME/Name.py:
+  ^(__version__ =.')(1.025)(')$: replace

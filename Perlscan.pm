@@ -60,6 +60,7 @@ use Carp qw(cluck);                     # SNOOPYJC
 use charnames qw/:full :short/;         # SNOOPYJC
 use File::Basename;                 # SNOOPYJC
 use File::Spec::Functions qw(file_name_is_absolute catfile);   # SNOOPYJC
+use Encode qw/find_encoding/;           # issue s70
 
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
@@ -3647,7 +3648,12 @@ my ($l,$m);
             $::Pyf{_set_breakpoint} = 1;                # issue s62
             $ValPy[$tno]='_set_breakpoint';             # issue s62
             $ValClass[$tno]='f';
-            $cut=index($source,';');
+            # issue s272 $cut=index($source,';');
+            if($source =~ /\s((?:if|unless))\b/) {       # issue s272
+                $cut = $-[1];                            # issue s272: start of first capture group
+            } else {                                     # issue s272
+                $cut=index($source,';');
+            }                                            # issue s272
             substr($source,0,$cut)='perl_trace()'; # remove non-tranlatable part.
             $cut=length('perl_trace');
          }else{
@@ -4324,6 +4330,8 @@ my ($l,$m);
             handle_use_Switch();                                                                # issue s129
         } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'use' && $ValPerl[1] eq 'parent') {       # issue s18
             handle_use_parent();                                                                # issue s18
+        } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'use' && $ValPerl[1] eq 'utf8') {         # issue s70
+            handle_use_utf8() if($Pythonizer::PassNo == &Pythonizer::PASS_1);                   # issue s70
         } elsif($ValClass[0] eq 'k' && ($ValPerl[0] eq 'use' || $ValPerl[0] eq 'require')) {    # issue names
             handle_use_require(0);                                                              # issue names
         } elsif($ValClass[0] eq 'C' && $ValPerl[0] eq 'do' && $#ValClass != 0) {    # issue s231
@@ -8328,6 +8336,14 @@ sub handle_use_Switch
     $TokenType{case} = $TokenType{when};
     $keyword_tr{switch} = 'given';
     $keyword_tr{case} = 'when';
+}
+
+sub handle_use_utf8       # issue s70
+# issue s70: for the use utf8 pragma in pass 1, change the decode method we are using for the input file to force utf8
+{
+    $Pythonizer::f_encoding = 'utf8';
+    $Pythonizer::f_decodobj = find_encoding('utf8') if !defined $Pythonizer::f_decodobj || $Pythonizer::f_decodobj->name ne 'utf8';
+    $Pythonizer::f_encodobj = find_encoding('utf8') unless defined $Pythonizer::f_encodobj;
 }
 
 sub get_mapped_names_for_package        # SNOOPYJC

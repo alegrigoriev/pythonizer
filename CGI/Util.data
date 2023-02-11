@@ -1,0 +1,33 @@
+
+=head1 NAME
+
+CGI::Util - Internal utilities used by CGI module
+
+=head1 SYNOPSIS
+
+none
+
+=head1 DESCRIPTION
+
+no public subroutines
+
+=head1 AUTHOR INFORMATION
+
+The CGI.pm distribution is copyright 1995-2007, Lincoln D. Stein. It is
+distributed under the Artistic License 2.0. It is currently
+maintained by Lee Johnson with help from many contributors.
+
+Address bug reports and comments to: https://github.com/leejo/CGI.pm/issues
+
+The original bug tracker can be found at: https://rt.cpan.org/Public/Dist/Display.html?Queue=CGI.pm
+
+When sending bug reports, please provide the version of CGI.pm, the version of
+Perl, the name and version of your Web server, and the name and version of the
+operating system you are using.  If the problem is even remotely browser
+dependent, please provide information about the affected browsers as well.
+
+=head1 SEE ALSO
+
+L<CGI>
+
+=cut

@@ -1,5 +1,5 @@
 # issue s70a: Handle different file encodings properly
-# This file is encoded using cp1250 (windows-1250), but it's not marked as such
+# -*- coding: cp1250 -*-
 use Carp::Assert;
 my $str = "–";      # en-dash
 assert(ord $str == 0x96);

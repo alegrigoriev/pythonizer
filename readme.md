@@ -1,5 +1,5 @@
 ## Translator from Perl to Python 
-### THIS IS AN ANNOUNCEMENT FOR VERSION 1.024 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
+### THIS IS AN ANNOUNCEMENT FOR VERSION 1.025 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
 
 This readme is for informational purposes only and is not intended to be updated often. 
 
@@ -67,6 +67,16 @@ Currently these user options are supported (pythonizer -h provides a list of opt
           $var will just map scalar to var_v, @var will just map array to var_a, %var will just map hash to var_h,
           :global will remap all global vars (default), :all will remap all variables, :none will remap no variables. 
     -a -- Add __author__, __email__, and __version__ strings to the generated code
+    -e input_encoding,output_encoding -- specify the encoding to use for the perl input file and the python output file
+          If this option is not specified, then Pythonzer attempts to discern the input encoding by looking for "use utf8;" in
+          the input file or a special coding comment like # -*- coding: latin1 -*-.  If neither are found, Pythonizer effectively uses
+          Encoding::FixLatin::fix_latin to read the input if there are any non-ascii characters present, which does a pretty good job
+          of reading any encoding.
+          If -e is specified, then the next argument is used to determine the input file encoding and the output file encoding.
+          If -e is specified and ",output_encoding" is not included, then the output encoding defaults to the same
+          as the input encoding.  If input_encoding is not included (and you only include ",output_encoding", then
+          Pythonizer attempts to detect the input encoding as if -e was not specified, but with the specified output encoding.
+          If the input_encoding is specified and is followed by only a comma, then the output_encoding defaults to utf8.
     -d    level of debugging  default is 0 -- production mode
           0 -- Production mode
           1 -- Testing mode. Program is autosaved in Archive (primitive versioning mechanism)

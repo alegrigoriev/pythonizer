@@ -5,7 +5,10 @@ def _import(globals, path, module=None, fromlist=None, version=None, is_do=False
     effectively added to the path, 'fromlist' is the list of desired functions to import.  'version'
     will perform a version check. 'is_do' handles a 'do EXPR;' statement."""
     global OS_ERROR, EVAL_ERROR
-    caller_package = builtins.__PACKAGE__
+    if not hasattr(builtins, '__PACKAGE__'):
+        caller_package = 'main'
+    else:
+        caller_package = builtins.__PACKAGE__
     pathname = None
     if module is not None:
         path = f'{path}/{module}'
@@ -158,8 +161,9 @@ def _import(globals, path, module=None, fromlist=None, version=None, is_do=False
                 actual_imports[i] = perl_name+'_'
 
     namespace = None
-    if hasattr(builtins, caller_package):
-        namespace = getattr(builtins, caller_package)
+    if not hasattr(builtins, caller_package):
+        _init_package(caller_package)
+    namespace = getattr(builtins, caller_package)
     for imp in actual_imports:
         if hasattr(mod, imp):
             mi = getattr(mod, imp)

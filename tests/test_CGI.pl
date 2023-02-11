@@ -1,5 +1,4 @@
 # Written mostly by chatGPT
-# pragma pythonizer pythonize stdlib
 # Import the CGI and Carp::Assert modules
 use CGI;
 use Carp::Assert;

@@ -2,6 +2,11 @@
 History
 =======
 
+1.025 (2023-02-05)
+------------------
+
+* Issue s269: Fix _import to handle the case where we haven't set our package yet.  Handle * for count in _pack.  Implement CGI, CGI::Cookie, CGI::Util.  Implement Encode via _encode, _decode, et.al. and Encode::Encoding, Encoding::MIME::Name.
+
 1.024 (2023-01-30)
 ------------------
 

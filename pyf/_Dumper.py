@@ -1,25 +1,25 @@
 
 _init_package('Data.Dumper')
 
-Data.Dumper.Indent_v = 2
-Data.Dumper.Trailingcomma_v = False
-Data.Dumper.Purity_v = 0
-Data.Dumper.Pad_v = ''
-Data.Dumper.Varname_v = "VAR"
-Data.Dumper.Useqq_v = 0
-Data.Dumper.Terse_v = False
-Data.Dumper.Freezer_v = ''
-Data.Dumper.Toaster_v = ''
-Data.Dumper.Deepcopy_v = 0
-Data.Dumper.Quotekeys_v = 1
-Data.Dumper.Bless_v = 'bless'
-Data.Dumper.Pair_v = ':'
-Data.Dumper.Maxdepth_v = 0
-Data.Dumper.Maxrecurse_v = 1000
-Data.Dumper.Useperl_v = 0
-Data.Dumper.Sortkeys_v = 0
-Data.Dumper.Deparse_v = False
-Data.Dumper.Sparseseen_v = False
+Data.Dumper.Indent_v = 2 # InIt
+Data.Dumper.Trailingcomma_v = False # InIt
+Data.Dumper.Purity_v = 0 # InIt
+Data.Dumper.Pad_v = '' # InIt
+Data.Dumper.Varname_v = "VAR" # InIt
+Data.Dumper.Useqq_v = 0 # InIt
+Data.Dumper.Terse_v = False # InIt
+Data.Dumper.Freezer_v = '' # InIt
+Data.Dumper.Toaster_v = '' # InIt
+Data.Dumper.Deepcopy_v = 0 # InIt
+Data.Dumper.Quotekeys_v = 1 # InIt
+Data.Dumper.Bless_v = 'bless' # InIt
+Data.Dumper.Pair_v = ':' # InIt
+Data.Dumper.Maxdepth_v = 0 # InIt
+Data.Dumper.Maxrecurse_v = 1000 # InIt
+Data.Dumper.Useperl_v = 0 # InIt
+Data.Dumper.Sortkeys_v = 0 # InIt
+Data.Dumper.Deparse_v = False # InIt
+Data.Dumper.Sparseseen_v = False # InIt
 
 def _Dumper(*args):
     """Implementation of Data::Dumper"""

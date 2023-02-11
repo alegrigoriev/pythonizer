@@ -30,7 +30,7 @@ def main():
     global_defs = eval(subprocess.run("""perl get_globals.pl""", capture_output=True,text=True,check=True, shell=True).stdout)
     files = [file for file in os.listdir() if file.endswith('.py') and file != "makelib.py" and not file.startswith('__')]
     under_functions_list = [file.replace('.py', '') for file in files if file.startswith('_')]
-    under_functions_regex = re.compile(r'\b(?:' + '|'.join(under_functions_list) + r')[(,]')
+    under_functions_regex = re.compile(r'\b(?:' + '|'.join(under_functions_list) + r')[(,.]')
     under_functions_return_regex = re.compile(r'return (' + '|'.join(under_functions_list) + r')$')
 
     def under_repl(m):
@@ -59,7 +59,8 @@ def main():
         print(f"___email__ = '{email}'", file=of)
         print(f"__version__ = '{version}'", file=of)
         print(file=of)
-        print('import sys,os,re,fileinput,subprocess,collections.abc,warnings,inspect,itertools,signal,traceback,io,tempfile,calendar,types,random,dataclasses,builtins,codecs,struct,pprint,functools,argparse,abc', file=of)
+        # NOTE: When adding to this list, also update the import in pythonizer around line 450, and the list of @PYTHON_PACKAGES in Pyconfig.pm
+        print('import sys,os,re,fileinput,subprocess,collections.abc,warnings,inspect,itertools,signal,traceback,io,tempfile,calendar,types,random,dataclasses,builtins,codecs,struct,pprint,functools,argparse,abc,copy', file=of)
         print('import time as tm_py', file=of)
         print('import stat as st_py', file=of)
         print('_str = lambda s: "" if s is None else str(s)', file=of)
