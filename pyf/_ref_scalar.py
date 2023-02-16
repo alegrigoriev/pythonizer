@@ -16,7 +16,7 @@ def _ref_scalar(r):
     if isinstance(r, type): # return '' for a class (not a class instance)
         return ''
     if hasattr(tr, '__name__'):
-        return tr.__name__
+        return tr.__name__.replace('.', '::')
     elif hasattr(r, 'TIEARRAY'):
         return 'ARRAY'
     elif hasattr(r, 'TIEHASH'):

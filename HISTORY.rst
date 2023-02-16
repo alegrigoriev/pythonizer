@@ -2,6 +2,11 @@
 History
 =======
 
+1.026 (2023-02-10)
+------------------
+
+* Fix _ref_scalar and _ref to change '.' to '::' when returning the __name__ attribute, then change _method_call to change '::' back to '.'.  Implement Time::localtime and Time::tm.  Retranslate Math::Complex with new Pythonizer.  Implement Time::HiRes.
+
 1.025 (2023-02-05)
 ------------------
 

@@ -248,6 +248,7 @@
 # 1.023  2023/01/18  SNOOPYJC test reverse: fix issue reversing a number, issue s241: Wantarray and other sub options need to be inherited, nested sub levels not properly maintained, issue s247: implement exec, fix exists on array element, issue s253: given/when doesn't work for objects that overload the smartmatch (~~) operator, issue s254: Empty list in scalar context should be changed to undef, issue s255: join with ? : to determine the join char generates bad code, issue s252: If a for(each) loop modifies the loop counter, that modification needs to update the array being iterated, issue s256: complex ? : expression with wantarray and grep generates bad code, issue s257: .= operator with || generates incorrect code, issue s258: use Package qw/function.../ needs to import the function into the local package's namespace, issue s259: caller() doesn't return the proper package name
 # 1.024  2023/01/30  SNOOPYJC issue s260: fix _caller and _callers, addl fixes for issue s244, issue s261: Assignment to arrayref and hashref changes the location of the object so the original object is not updated, implement Text::ParseWords and Class::Struct, issue s263: sub that has an if(/else) and ends with a for loop returns early, issue s264: incorrect int conversion of hashref in array subscript, issue s265: use XXX in a sub, where XXX defines an import sub generates code with a bad indent, issue s266: Bless with => instead of , generates bad code, issue s267: Regex pattern [\s\-_] should not be turned into a range, issue s268: shift->method(...) generates bad code
 # 1.025  2023/02/05  SNOOPYJC issue s70: Malformed UTF-8 character (fatal) at ../pythonizer/Pythonizer.pm, plus add -e flag and change how ord/chr work for non-utf8 encodings, issue s269: Naming a package 'bytes' should generate an escaped name, implement Encode, Encode::Encoding, Encode::MIME::Name, CGI, CGI::Cookie, CGI::Util, CGI::File::Temp, issue s272: Conditional $DB::single assignment generates unconditional call to pdb
+# 1.026  2023/02/10  SNOOPYJC implement use English and use integer, issue s273: Multi-assignment to an arrayref and a list of scalars generates bad code, issue s274: $+ without a subscript should give the $LAST_PAREN_MATCH.  Implement Time::localtime and Time::tm.  Retranslate Math::Complex and fix Pythonizer issues found. Implement Time::HiRes, issue s275: Global variable in package sometimes incorrectly replaced with loop-local variable, issue s276: Getting a reference to a function generates incorrect code
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -303,11 +304,12 @@ BEGIN {                                                 # SNOOPYJC
                  '%UseRequireOptionsDesired',           # issue names
                  'mapped_name',                         # issue names
                  '%UseSwitch',                          # issue s129
+                 'handle_block_scope_pragma',           # use integer, use English
                  '@ValType', '$TokenStr');
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub save_nest restore_nest for_loop_uses_default_var get_sub_attribute get_sub_attribute_at set_sub_attribute clone_sub_attributes debug_start_end); # SNOOPYJC
 
-   $VERSION='1.025';
+   $VERSION='1.026';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -382,6 +384,8 @@ BEGIN {                                                 # SNOOPYJC
    @Constants{values %CONSTANT_MAP} = values %CONSTANT_MAP;       # SNOOPYJC
    $modules_path_added = 0;                     # SNOOPYJC
    $uses_file_stat = 0;                         # SNOOPYJC
+   $uses_english = 0;                           # use English
+   $uses_integer = 0;                           # use integer
    $set_initial_package = 0;                    # SNOOPYJC
    if(!%Packages) {                             # SNOOPYJC
        $Packages{$DEFAULT_PACKAGE} = 1 unless($implicit_global_my);
@@ -2479,7 +2483,7 @@ sub operator_type
     if($cl eq '~') {
         # issue s151 return 'N' if($ValPerl[$p] eq '~');     # real int '~' operator, not a match
         # issue s151 return 'S' 
-        return 'N';             # issue s151: bitwise-not
+        return ($uses_integer ? 'I' : 'N');             # issue s151: bitwise-not, use integer
     } elsif($cl eq 'p') {       # issue s151: pattern match
         return 'S';             # issue s151
     }                           # issue s151
@@ -2498,6 +2502,7 @@ sub operator_type
         return 'S' if($cl eq '>' && $ValPerl[$p] =~ /^[a-z]/);  # e.g. ne, eq, le, cmp, ...
         return 'S' if($cl eq '=' && $ValPerl[$p] eq '.=');
         return undef if($cl eq '=' && $ValPerl[$p] eq '=');   # Regular assignment
+        return 'I' if $uses_integer;        # use integer
         return 'N';
     } elsif(index('&|', $cl) >= 0) {            # And/Or
         return 'I';
@@ -2796,6 +2801,7 @@ sub get_converter
     if($var_start == $var_end) {
        if($ValClass[$var_start] eq 'd') {
            if($type eq 'I') {
+               $ValPy[$var_start] =~ s/_//g;
                $ValPy[$var_start] = int($ValPy[$var_start]);
                return undef;
            } elsif($type eq 'F') {
@@ -9195,20 +9201,23 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
       } elsif($py_name eq "$PERLLIB.ref" && $ValClass[$start] eq 's' && $ValType[$start] ne 'ss') { # issue scalar ref
           $py_name = "$PERLLIB.ref_scalar";
       }
-      gen_chunk($py_name);
       if ( $bracketed==-1 || $end_pos < $start){        # issue paren
+         gen_chunk($py_name);
          # zero arguments -- special case
          gen_chunk('()');
       # issue 13 }elsif( $end_pos==$start ){
       # issue 13   # single argument                            # issue 13: int(PI) needs to call PI()!!
       # issue 13   gen_chunk('('.$ValPy[$start].')')
       }else{
+         gen_chunk('*') if $py_name eq '_method_call' && need_splat($start); # Promote the *
+         gen_chunk($py_name);
          gen_chunk('(');
          gen_chunk('*') if($py_name ne 'len' && $perl_name ne 'ref' && $perl_name ne 'each' && $py_name ne '_get_element' && 
              $py_name ne '_fetch_out_parameters' && # issue s184
              $py_name ne '_set_element' &&      # issue s148
              $py_name ne '_smartmatch' &&      # issue s251
              $py_name ne '_flatten' &&         # issue s251
+             $py_name ne '_method_call' && 
              $py_name ne 'min' && $py_name ne 'max' && $py_name ne 'math.prod' && $py_name ne 'sum' &&  # test list util
              need_splat($start)); # SNOOPYJC, issue s40
          my $add_bracket = 0;       # test list util
@@ -10307,9 +10316,20 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
             # issue 99 $cur_pos=regex_and_translate($start,$cur_pos,$split); # issue 90
             $cur_pos=regex_and_translate($cur_pos,$cur_pos,$split,$limit); # issue 90, issue 99, issue 106
          }elsif( $ValClass[$cur_pos] eq 'f'){
-             # issue s207 $cur_pos=function($cur_pos,$end_pos);
-            $cur_pos=function($cur_pos, $limit);        # issue s207
-            ($cur_pos<0) && return -255;
+            if($cur_pos != 0 && $ValClass[$cur_pos-1] eq '\\' &&
+               ($cur_pos+1 > $#ValClass || index('(dsah"fgijGqy!-', $ValClass[$cur_pos+1]) == -1)
+              ) {   # issue s276: ref function
+                my $py = $ValPy[$cur_pos];      # issue s276
+                $Pyf{$py} = 1 if $py =~ /^_[A-Za-z]/;    # issue s276
+                $py =~ s/^[.]//;                # issue s276
+                $py =~ tr/()//s;                # issue s276
+                gen_chunk($py);                 # issue s276
+                $cur_pos++;                     # issue s276
+            } else {
+                # issue s207 $cur_pos=function($cur_pos,$end_pos);
+                $cur_pos=function($cur_pos, $limit);        # issue s207
+                ($cur_pos<0) && return -255;
+            }
          }else{
             gen_chunk($ValPy[$cur_pos]);
             $cur_pos++;
@@ -10761,6 +10781,9 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
          $cur_pos++;                                            # issue s18
       }elsif($ValClass[$cur_pos] eq 'C' && $ValPerl[$cur_pos] eq 'do' && $cur_pos+1 <= $#ValClass) {    # issue s231
           $cur_pos = do_use_require($cur_pos);                  # issue s231
+      } elsif($ValClass[$cur_pos] eq '/' && $uses_integer) { # use integer
+          gen_chunk('//');          # use integer: Integer division
+          $cur_pos++;               # use integer
       }else{
          gen_chunk($ValPy[$cur_pos]);
          if(defined $ValCom[$cur_pos] && length($ValCom[$cur_pos]) > 1 && $cur_pos != $#ValClass && ok_to_break_line()) {  # issue s228: special case inline comments
@@ -12449,7 +12472,17 @@ sub do_use_require
             $uses_file_stat = 1;
             #$Perlscan::keyword_tr{lstat} = $LSTAT_SUB{$ValPerl[$pos+1]};  # Swap it out!
         }
-        if($ValPerl[$pos+1] eq 'autodie') {
+        if($ValPerl[$pos+1] eq 'English') { # use English
+            handle_block_scope_pragma($uses_english, 'english',
+                sub { $uses_english = $_[0]; }, 
+                ($ValPerl[$pos] eq 'no' ? 0 : 1));
+        } elsif($ValPerl[$pos+1] eq 'integer') { # use integer
+            handle_block_scope_pragma($uses_integer, 'integer',
+                sub { $uses_integer = $_[0];
+                      $CONVERTER_MAP{N} = ($uses_integer ? '_int' : '_num');
+                    }, 
+                ($ValPerl[$pos] eq 'no' ? 0 : 1));
+        } elsif($ValPerl[$pos+1] eq 'autodie') {
             $autodie = 1;
             if($import_perllib) {
                 gen_statement("$PERLLIB.AUTODIE = 1");
@@ -12458,6 +12491,34 @@ sub do_use_require
             }
         } elsif($ValPerl[$pos+1] eq 'autovivification') {
             $autovivification = (($ValPerl[$pos] eq 'no') ? 0 : 1);
+        } elsif($ValClass[$pos+1] eq 'i' && exists $PREDEFINED_PACKAGES{$ValPy[$pos+1]}) {
+            # test_Time_HiRes:
+            # For predefined packages such as Time::HiRes that overload existing functions,
+            # we defer replacing the function in the %Perlscan::keyword_tr hash to only replace
+            # it if they mention the function name in the import.  Handle that here and below 
+            # where we actually import, too.
+            my $package = $ValPy[$pos+1];
+            my @desired_imports = ();
+            for(my $i = $pos+2; $i <= $#ValClass; $i++) {
+                 if($ValClass[$i] eq '"') {
+                     push @desired_imports, $ValPerl[$i];
+                 } elsif($ValClass[$i] eq 'q') {        # qw
+                    if(index(q('"), substr($ValPy[$i],0,1)) >= 0) {
+                        push @desired_imports, unquote_string($ValPy[$i]);
+                    } else {
+                        push @desired_imports, split(' ', $ValPy[$i]);         # qw(...) on use stmt doesn't generate the split
+                    }
+                }
+            }
+            for my $desired (@desired_imports) {
+                my $fullname = $package . '::' . $desired;
+                if(exists $Perlscan::keyword_tr{$fullname}) {
+                    $Perlscan::keyword_tr{$desired} = $Perlscan::keyword_tr{$fullname};
+                    $Perlscan::TokenType{$desired} = 'f';       # promote it from 'F' (weak function)
+                    say STDERR "For builtin: Importing method $fullname as $desired, mapped to $Perlscan::keyword_tr{$desired}" if $debug >= 3;
+                }
+            }
+
         }
         if($pos != 0) {
             # issue s152 gen_chunk('0');
@@ -12599,7 +12660,7 @@ sub do_use_require
                 $comma = $#ValClass;
                 $comma++ if($ValClass[$comma] ne ')');
             }
-            if(($ValClass[$i] ne '"' && $ValClass[$i] ne 'i') || !exists $OVERLOAD_MAP{$ValPerl[$i]}) {
+            if(($ValClass[$i] ne 'd' && $ValClass[$i] ne '"' && $ValClass[$i] ne 'i') || !exists $OVERLOAD_MAP{$ValPerl[$i]}) {
                 logme('S', "use overload $ValPerl[$i] not supported");
                 $TrStatus = -255;
             } else {
@@ -12607,7 +12668,7 @@ sub do_use_require
                 $overloads{$ValPerl[$i]} = dclone($ovm);
                 my $normal = $ovm->{normal};
                 # For sqrt and friends, only generate code if their routine has a different name
-                $TrStatus = -255 if($ValClass[$comma-1] ne 'i' && $ValPerl[$i] ne 'fallback');
+                $TrStatus = -255 if($ValClass[$comma-1] ne 'i' && $ValClass[$comma-1] ne 'f' && $ValPerl[$i] ne 'fallback');
                 my $their_routine = escape_keywords($ValPy[$comma-1]);
                 $overloads{$ValPerl[$i]}->{theirs} = $their_routine;
                 if($ValPerl[$i] ne 'fallback') {            # issue test overload methods
@@ -12714,6 +12775,7 @@ sub do_use_require
             }
         }
         $result = $i+1;
+        $result = $#ValClass if $result > $#ValClass;
         say STDERR "do_use_require($pos) returns " . $result if($debug>=3);
         return $result;
     } elsif($pos+2 <= $#ValClass && $ValClass[$pos+1] eq 'i' && $ValPerl[$pos+1] eq 'open') {
@@ -13844,6 +13906,13 @@ sub expand_extras
             $glb = ('&' . $glb) if $desired =~ /^[A-Za-z_]/; # issue s244e: No sigil? Make it a &sub
             if(grep { $_ eq $glb } @global_vars) {          # issue s244e
                 $actual_imports{$desired} = 1;
+            } else {    # test_Time_HiRes: If this is a predefined function, define it for the imported name
+                my $fullname = $package . '::' . $desired;
+                if(exists $Perlscan::keyword_tr{$fullname}) {
+                    $Perlscan::keyword_tr{$desired} = $Perlscan::keyword_tr{$fullname};
+                    $Perlscan::TokenType{$desired} = 'f';       # promote it from 'F' (weak function)
+                    say STDERR "Importing method $fullname as $desired, mapped to $Perlscan::keyword_tr{$desired}" if $debug >= 3;
+                }
             }                                               # issue s244e
         }
     }
