@@ -23,6 +23,9 @@ sub bar { 'bar' }
     our @ISA = qw/My::BaseClass/;
     use Carp::Assert;
     assert(My::Class1->isa('My::BaseClass'));
+    my $obj = new My::Class1;
+    assert(UNIVERSAL::isa($obj, 'My::BaseClass'));
+    assert($obj->isa('My::BaseClass'));
 }
 
 # Test 2: Check that use parent correctly handles multiple parent classes

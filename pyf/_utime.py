@@ -27,5 +27,3 @@ def _utime(atime, mtime, *args):
             if AUTODIE:
                 raise
     return result
-
-

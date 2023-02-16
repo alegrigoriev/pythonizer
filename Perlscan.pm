@@ -65,7 +65,7 @@ use Encode qw/find_encoding/;           # issue s70
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw(Exporter);
-@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords unescape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence %SpecialVarsUsed @EndBlocks %SpecialVarR2L get_sub_vars_with_class %FileHandles add_package_to_mapped_name %FuncType %PyFuncType %UseRequireVars %UseRequireOptionsPassed %UseRequireOptionsDesired mapped_name %WHILE_MAGIC_FUNCTIONS %UseSwitch @BeginBlocks @InitBlocks @CheckBlocks @UnitCheckBlocks special_code_block_name ok_to_break_line);   # issue 41, issue 65, issue 74, issue 92, issue 93, issue 78, issue names, issue s40, issue s129, issue s155, issue s228
+@EXPORT = qw(gen_statement tokenize gen_chunk append replace destroy insert destroy autoincrement_fix @ValClass  @ValPerl  @ValPy @ValCom @ValType $TokenStr escape_keywords unescape_keywords %SPECIAL_FUNCTION_MAPPINGS save_code restore_code %token_precedence %SpecialVarsUsed @EndBlocks %SpecialVarR2L get_sub_vars_with_class %FileHandles add_package_to_mapped_name %FuncType %PyFuncType %UseRequireVars %UseRequireOptionsPassed %UseRequireOptionsDesired mapped_name %WHILE_MAGIC_FUNCTIONS %UseSwitch @BeginBlocks @InitBlocks @CheckBlocks @UnitCheckBlocks special_code_block_name ok_to_break_line handle_block_scope_pragma);   # issue 41, issue 65, issue 74, issue 92, issue 93, issue 78, issue names, issue s40, issue s129, issue s155, issue s228, use integer, use English
 #our (@ValClass,  @ValPerl,  @ValPy, $TokenStr); # those are from main::
 
   $VERSION = '0.93';
@@ -90,6 +90,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
   %UseRequireVars=();                   # issue names: map from fullpath to setref of perl varnames
   %UseRequireOptionsPassed=();          # issue names: map from fullpath to string of options that were sent to pythonizer
   %UseRequireOptionsDesired=();         # issue names: map from fullpath to string of options we want passed to pythonizer
+  %BlockScopePragmas=();                # use integer, use English
+  %StatementStartingLno=();             # issue s275: Map from line number to statement_starting_lno
 #
 # List of Perl special variables
 #
@@ -112,7 +114,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                 '"'=>'LIST_SEPARATOR',      # issue 46
                 '|'=>'OUTPUT_AUTOFLUSH',        # SNOOPYJC
                 '`'=>"$DEFAULT_MATCH.string[:$DEFAULT_MATCH.start()]",  # SNOOPYJC
-                "'"=>"$DEFAULT_MATCH.string[$DEFAULT_MATCH.end()]",     # SNOOPYJC
+                "'"=>"$DEFAULT_MATCH.string[$DEFAULT_MATCH.end():]",    # SNOOPYJC
                 '-'=>"$DEFAULT_MATCH.start",    # SNOOPYJC: Needs fixing at end to change [...] to (...)
                 '+'=>"$DEFAULT_MATCH.end",      # SNOOPYJC: Needs fixing at end to change [...] to (...)
                 '/'=>'INPUT_RECORD_SEPARATOR',','=>'OUTPUT_FIELD_SEPARATOR','\\'=>'OUTPUT_RECORD_SEPARATOR',
@@ -124,6 +126,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'T'=>'OS_BASETIME', 'V'=>'sys.version[0]', 'X'=>'sys.executable', # $^O and friends
                   'L'=>'FORMAT_FORMFEED',                       # SNOOPYJC
                   'T'=>'BASETIME',                         # SNOOPYJC
+                  'F'=>2,                       # SNOOPYJC
                   'W'=>'WARNING');              # SNOOPYJC
 
    %SPECIAL_VAR_FULL=(TAINT=>'False', SAFE_LOCALES=>'False', UNICODE=>'0', UTF8CACHE=>'True', UTF8LOCALE=>'True');      # issue s23
@@ -698,8 +701,13 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
         for my $pkg (keys %PREDEFINED_PACKAGES) {       # See Pyconfig.pm
             # test overload methods $BUILTIN_LIBRARY_SET{$pkg} = 1;
-            $BUILTIN_LIBRARY_SET{$pkg} = 1 unless $pkg eq 'overload';   # test overload methods
+            #$BUILTIN_LIBRARY_SET{$pkg} = 1 unless $pkg eq 'overload';   # test overload methods
+            $BUILTIN_LIBRARY_SET{$pkg} = 1;
             for my $func_info (@{$PREDEFINED_PACKAGES{$pkg}}) {
+                if(exists $func_info->{import_it}) {        # Needed for Time::HiRes (and overload)
+                    delete $BUILTIN_LIBRARY_SET{$pkg};
+                    next;
+                }
                 my $perl = $func_info->{perl};
                 my $type = $func_info->{type};
                 my $python = "_$perl";
@@ -727,7 +735,16 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                     $FuncType{$perl} = $type;
                     # issue s190 $TokenType{$perl} = 'f';
                     $TokenType{$perl} = 'F';    # issue s190: 'F' is a weak function, in other words, if there is a local sub of the same name it overrides it
-                    $keyword_tr{$perl} = $python;
+                    if (exists $keyword_tr{$perl}) { # test_Time_HiRes: We will override this if the user imports the method
+                        # NOTE: $::debug hasn't been set yet!!
+                        #say STDERR "Found existing definition for $perl as $keyword_tr{$perl} as we're trying to set it to $python";
+                        if($keyword_tr{$perl} ne $python) {
+                            #say STDERR "Not overriding built-in $perl ($keyword_tr{$perl}) for new definition in $pkg ($python) unless it's imported";
+                            ;
+                        }
+                    } else {
+                        $keyword_tr{$perl} = $python;
+                    }
                 }
                 $PyFuncType{$python} = $type;
                 $TokenType{$fullname} = 'f';
@@ -1665,6 +1682,7 @@ sub exit_block                  # issue 94
         }
         return;
     }
+    undo_block_scope_pragmas();     # use integer, use English
     $nesting_last = pop @nesting_stack;
     if(($::debug >= 3 && $Pythonizer::PassNo != &Pythonizer::PASS_0) || $::debug >= 6) {
         say STDERR "exit_block at line $., prior nesting_level=$nesting_level, nesting_last->{type} is now $nesting_last->{type}";
@@ -1683,8 +1701,8 @@ sub exit_block                  # issue 94
         $delayed_block_closure = $nesting_last->{delayed_block_closure};            # issue s35: Unstack it
     } elsif($nesting_last->{type} eq 'foreach' && exists $nesting_last->{loop_ctr}) { # issue s100
         unmap_loop_var($nesting_last->{loop_ctr});                                  # issue s100
-    } elsif($line_contains_local_for_loop_counter{$nesting_last->{lno}}) {          # issue s100
-        for my $ctr (keys %{$line_contains_local_for_loop_counter{$nesting_last->{lno}}}) {    # issue s100
+    } elsif($line_contains_local_for_loop_counter{$StatementStartingLno{$nesting_last->{lno}}}) {          # issue s100, issue s275
+        for my $ctr (keys %{$line_contains_local_for_loop_counter{$StatementStartingLno{$nesting_last->{lno}}}}) {    # issue s100, issue s275
             unmap_loop_var('$' . $ctr);                                             # issue s100
         }                                                                           # issue s100
     } elsif($Pythonizer::PassNo == &Pythonizer::PASS_1 && $nesting_last->{type} eq 'if ') {         # issue implicit conditional return
@@ -1709,7 +1727,7 @@ sub exit_block                  # issue 94
         { no warnings 'uninitialized';
           say STDERR "At end of $nesting_last->{type} on line $. at level $nesting_level, sub_lines_contain_potential_last_expression = $sub_lines_contain_potential_last_expression{$cs}, last_expression_lno = $last_expression_lno, level_block_lnos = " . Dumper(\%level_block_lnos) if($::debug >= 5);
         }
-    } elsif($Pythonizer::PassNo == &Pythonizer::PASS_1 && $nesting_last->{type} =~ /sub|def/) {
+    } elsif($Pythonizer::PassNo == &Pythonizer::PASS_1 && $nesting_last->{type} =~ /^(?:sub|def)$/) {
         my $cs = $nesting_last->{cur_sub};
         # issue s79 if($last_expression_lno =~ /,/ || $last_expression_lno > $nesting_last->{lno}) {
         if($last_expression_lno =~ /,/ || $last_expression_lno >= $nesting_last->{lno}) {        # issue s79: Handle s/.../.../e all on same line
@@ -2611,10 +2629,12 @@ my ($l,$m);
        @ValClass=@ValCom=@ValPerl=@ValPy=@ValType=(); # "Token Type", token comment, Perl value, Py analog (if exists)
        $TokenStr='';
        $statement_starting_lno = $.;                      # issue 116
+       $StatementStartingLno{$.} = $. unless exists $StatementStartingLno{$.};   # issue s275
        capture_statement_starting_varclasses();           # issue s110
    } else {
        $tno = scalar(@ValClass);
        $TokenStr=join('', @ValClass);
+       $StatementStartingLno{$.} = $statement_starting_lno unless exists $StatementStartingLno{$.};    # issue s275
    }
    $ExtractingTokensFromDoubleQuotedTokensEnd = -1;     # SNOOPYJC
    $ExtractingTokensFromDoubleQuotedStringEnd = 0;      # SNOOPYJC
@@ -2705,6 +2725,7 @@ my ($l,$m);
          } else {                                 # issue s228
             $source=Pythonizer::getline();
          }
+         $StatementStartingLno{$.} = $statement_starting_lno;    # issue s275
          @BufferValClass = @tmpBuffer;  # SNOOPYJC
      # SNOOPYJC last if( $source=~/^\s*[;{}]\s*(#.*)?$/); # single closing statement symnol on the line.
          next;
@@ -3415,6 +3436,7 @@ my ($l,$m);
                             my @tmpBuffer = @BufferValClass;    # SNOOPYJC: Must get a real line even if we're buffering stuff
                             @BufferValClass = ();               # SNOOPYJC
                             $line = Pythonizer::getline();      # issue 39
+                            $StatementStartingLno{$.} = $statement_starting_lno;    # issue s275
                             @BufferValClass = @tmpBuffer;   # SNOOPYJC
                             $line =~ s/^\s*//;                  # SNOOPYJC
                             $source .= $line;
@@ -3773,6 +3795,7 @@ my ($l,$m);
          if($s2 eq '' || $s2 =~ /\s/) {               # issue ws after sigil
             $source = get_rest_of_variable_name($source,0);
          }
+         $source = handle_use_english($source, \%ENGLISH_ARRAY) if $::uses_english;    # use English
          if( substr($source,1)=~/^(\:?\:?\'?\w+((?:(?:\:\:)|\')\w+)*)/ ){       # SNOOPYJC: Allow ' from old perl
             $arg1=$1;
             my $cs = cur_sub();
@@ -3821,6 +3844,7 @@ my ($l,$m);
          if($s2 eq '' || $s2 =~ /\s/) {               # issue ws after sigil
             $source = get_rest_of_variable_name($source,0);
          }
+         $source = handle_use_english($source, \%ENGLISH_HASH) if $::uses_english;    # use English
          # SNOOPYJC if( substr($source,1)=~/^(\:?\:?[_a-zA-Z]\w*(\:\:[_a-zA-Z]\w*)*)/ ){
          if( substr($source,1)=~/^(\:?\:?\'?[_a-zA-Z]\w*((?:(?:\:\:)|\')[_a-zA-Z]\w*)*)/ && # old perl used ' for ::
              ($tno == 0 || index('dsha)"', $ValClass[$tno-1]) == -1)){                 # issue s246: "...) % scalar(..." is a mod operator
@@ -4471,6 +4495,7 @@ my $original;
        } else {                                 # issue s228
            $source=Pythonizer::getline();
        }
+       $StatementStartingLno{$.} = $statement_starting_lno;    # issue s275
        @BufferValClass = @tmpBuffer;    # Issue 7
        my $st_source = '';              # issue s6
        $st_source = $source =~ s/^\s*//r if(defined $source);    # issue s6
@@ -4660,6 +4685,8 @@ my $rc=-1;
    if ( $update  ){
       $ValClass[$tno]='s'; # we do not need to set it if we are analysing double wuoted literal
    }
+   my $cut_adjust = 0;      # use English
+   ($source, $cut_adjust) = handle_use_english($source, \%ENGLISH_SCALAR) if $::uses_english;
    my $s2=substr($source,1,1);
    my $specials = q(!?<>()!;]&`'+-"@$|/,\\%=~^:*);             # issue 50, SNOOPYJC, issue s140
    if(($s2 eq '$' || $s2 eq '%') && substr($source,2,1) =~ /[\w:']/) {   # issue 50: $$ is a special var, but not $$a or $$: or $$'
@@ -4682,17 +4709,17 @@ my $rc=-1;
        my $cs = cur_sub();
        $SpecialVarsUsed{$vn}{$cs} = 1;                       # SNOOPYJC
        $ValPerl[$tno]=$vn if($update);                  # SNOOPYJC
-       $cut=2
+       $cut=2+$cut_adjust;                  # use English
    }elsif( $s2 eq '^'  && substr($source,2,1) =~ /[A-Z]/ ){     # SNOOPYJC
        $s3=substr($source,2,1);
-       $cut=3;
+       $cut=3+$cut_adjust;      # use English
        $ValType[$tno]="X";
        my $vn = substr($source,0,3);                    # SNOOPYJC
        my $full = 0;
        if($source =~ /^..(\w+)/ && exists $SPECIAL_VAR_FULL{$1}) {                      # issue s23
            $ValPy[$tno] = $SPECIAL_VAR_FULL{$1};
            $vn = '$^' . $1;
-           $cut = length($vn);
+           $cut = length($vn)+$cut_adjust;      # use English
            $full = 1;
        }
        my $cs = cur_sub();
@@ -4715,7 +4742,7 @@ my $rc=-1;
    # issue 46 }elsif( index(q(!?<>()!;]&`'+"),$s2) > -1  ){
    }elsif( index($specials,$s2) > -1 && substr($source,1,2) ne '::' ){  # issue 46, issue 50, SNOOPYJC ($:: is not $:)
       $ValPy[$tno]=$SPECIAL_VAR{$s2};
-      $cut=2;
+      $cut=2+$cut_adjust;       # use English
       $ValType[$tno]="X";
       my $vn = substr($source,0,2);                     # SNOOPYJC
       my $svar = $vn;                                   # SNOOPYJC
@@ -4724,6 +4751,8 @@ my $rc=-1;
       $svar = '%' . substr($svar,1) if($nxc eq '{');    # SNOOPYJC
       if($svar eq '%+') {          # issue s16
           $ValPy[$tno] = "$DEFAULT_MATCH.group";        # issue s16: %+ is different than @+
+      } elsif($svar eq '$+') {      # issue s274: $+ is different than @+
+          $ValPy[$tno] = "$DEFAULT_MATCH.group($DEFAULT_MATCH.lastindex)";  # issue s274
       }
       my $cs = cur_sub();
       $SpecialVarsUsed{$svar}{$cs} = 1;                      # SNOOPYJC: Capture the actual var referenced, e.g. $-[0] => @-
@@ -4745,7 +4774,7 @@ my $rc=-1;
           $ValType[$tno]="X";
           $ValPy[$tno]="$DEFAULT_MATCH.group($1)";      # issue 32
        }
-       $cut=length($1)+1;
+       $cut=length($1)+1+$cut_adjust;   # use English
    } elsif( $s2 eq '#' ){
       #$source=~/^..(\w+)/;
       # issue s14 $source=~/^..\{(\w+)\}/ or $source=~/^..\$?(\w+)/ or $source=~/^..\{\$(\w+)\}/;  # Handle $#{var} $#var $#$var $#{$var}
@@ -4915,15 +4944,15 @@ my $rc=-1;
             my $cs = cur_sub();
             if( $source=~/^(._\s*\[\s*(\d+)\s*\])/  ){
                $ValPy[$tno]="$PERL_ARG_ARRAY".'['.$2.']';   # issue 32
-               $cut=length($1);
+               $cut=length($1)+$cut_adjust;     # use English
                $SpecialVarsUsed{'@_'}{$cs} = 1;                      # SNOOPYJC
             }elsif(substr($source,2,1) eq '[' && (!$in_regex || substr($source,3,1) =~ m'[\d$]')) { # issue 107: Vararg, issue bootstrap
                $ValPy[$tno]=$PERL_ARG_ARRAY;                    # issue 107
-               $cut=2;                                          # issue 107
+               $cut=2+$cut_adjust;                                          # issue 107, use English
                $SpecialVarsUsed{'@_'}{$cs} = 1;                      # issue 107
             }else{
                $ValPy[$tno]="$DEFAULT_VAR";         # issue 32
-               $cut=2;
+               $cut=2+$cut_adjust;      # use English
                $SpecialVarsUsed{'$_'}{$cs} = 1;                      # SNOOPYJC
             }
          }elsif( $s2 eq 'a' || $s2 eq 'b' ){
@@ -5196,6 +5225,7 @@ my ($m,$sym);
         my @tmpBuffer = @BufferValClass;    # SNOOPYJC: Must get a real line even if we're buffering stuff
         @BufferValClass = ();               # SNOOPYJC
         $line = Pythonizer::getline(2);     # issue 39, issue s73: 2 means we're in a string
+        $StatementStartingLno{$.} = $statement_starting_lno;    # issue s275
         @BufferValClass = @tmpBuffer;           # SNOOPYJC
         # issue s149 if(!$line) {                # issue 39
         if(!defined $line) {                # issue 39, issue s149
@@ -6325,7 +6355,8 @@ sub remove_escaped_delimiters            # issue 51
 sub decode_array                # issue 47
 {
     my $source = shift;
-
+    my $cut_adjust = 0;
+    ($source, $cut_adjust) = handle_use_english($source, \%ENGLISH_ARRAY) if $::uses_english;    # use English
      if( substr($source,1)=~/^(\:?\:?\'?\w+((?:(?:\:\:)|\')\w+)*)/ ){
         $arg1=$1;
         if($arg1 =~ /^\d/ && $Pythonizer::PassNo == &Pythonizer::PASS_2) {            # like @2017
@@ -6361,7 +6392,7 @@ sub decode_array                # issue 47
            $ValPy[$tno] = remap_conflicting_names($ValPy[$tno], '@', '');     # issue 92
            $ValPy[$tno] = escape_keywords($ValPy[$tno]);        # issue 41
         }
-        $cut=length($arg1)+1;
+        $cut=length($arg1)+1+$cut_adjust;       # use English
         #$ValPerl[$tno]=substr($source,$cut);
         #$ValClass[$tno]='a'; #array
      }else{
@@ -6372,6 +6403,8 @@ sub decode_array                # issue 47
 sub decode_hash                 # issue 47
 {
     my $source = shift;
+    my $cut_adjust = 0;
+    ($source, $cut_adjust) = handle_use_english($source, \%ENGLISH_HASH) if $::uses_english;    # use English
 
      if( substr($source,1)=~/^(\:?\:?\'?[_a-zA-Z]\w*((?:(?:\:\:)|\')[_a-zA-Z]\w*)*)/ ){
         $cut=length($1)+1;
@@ -7910,6 +7943,7 @@ sub get_rest_of_variable_name   # issue ws after sigil
         my @tmpBuffer = @BufferValClass;    # Must get a real line even if we're buffering stuff
         @BufferValClass = ();
         my $line = Pythonizer::getline();
+        $StatementStartingLno{$.} = $statement_starting_lno;    # issue s275
         @BufferValClass = @tmpBuffer;
         if(!$line) {
             logme('S', "Unexpected end of file in '$source' variable name");
@@ -8608,6 +8642,17 @@ sub handle_use_require          # issue names
          ($ValClass[$pos+1] eq 'd' ||           # use Carp::Assert (something built-in)
          ($ValClass[$pos+1] eq '"' && substr($ValPy[$pos+1],0,3) eq "'\\x") || 
          ($ValClass[$pos+1] eq 'i' && exists $BUILTIN_LIBRARY_SET{$ValPerl[$pos+1]}))) {
+         if($ValPerl[$pos+1] eq 'English') { # use English
+            handle_block_scope_pragma($::uses_english, 'english',
+                sub { $::uses_english = $_[0]; }, 
+                ($ValPerl[$pos] eq 'no' ? 0 : 1));
+         } elsif($ValPerl[$pos+1] eq 'integer') { # use integer
+            handle_block_scope_pragma($::uses_integer, 'integer',
+                sub { $::uses_integer = $_[0];
+                      $CONVERTER_MAP{N} = ($::uses_integer ? '_int' : '_num');
+                    }, 
+                ($ValPerl[$pos] eq 'no' ? 0 : 1));
+         }
          return;
      } elsif($pos+1 <= $#ValClass && $ValClass[$pos+1] eq 'i' && ($ValPerl[$pos+1] eq 'constant' || $ValPerl[$pos+1] eq 'open' || $ValPerl[$pos+1] eq 'overload')) {    # issue s3
          return;
@@ -9412,5 +9457,52 @@ sub handle_pP_unicode               # issue s240
     say STDERR "handle_pP_unicode($regex) = $result" if $::debug;
     return $result;
 }
+
+sub handle_block_scope_pragma       # use integer, use English
+{
+    my ($cur_value, $name, $setter, $new_value) = @_;
+
+    say STDERR "handle_block_scope_pragma($cur_value, $name, setter, $new_value)" if $::debug;
+    &$setter($new_value);
+    return if(!@nesting_stack);
+    $top = $nesting_stack[-1];
+    $BlockScopePragmas{$name} = 1;
+    $top->{$name} = $cur_value;
+    $top->{$name.'setter'} = $setter;
+}
+
+sub undo_block_scope_pragmas        # use integer, use English
+{
+    return if(!@nesting_stack);
+    $top = $nesting_stack[-1];
+    for my $pragma (keys %BlockScopePragmas) {
+        next if !exists($top->{$pragma});
+        my $old_value = $top->{$pragma};
+        my $setter = $top->{$pragma.'setter'};
+        say STDERR "undo_block_scope_pragmas: calling ${pragma}setter($old_value)" if $::debug;
+        &$setter($old_value);
+    }
+}
+
+sub handle_use_english          # use English
+{
+    my $source = $_[0];
+    my $hashref = $_[1];
+
+    my $cut_adjust = 0;
+
+    if($source =~ /^.(\w+)/) {
+        my $len = length($1);
+        if(exists $hashref->{$1}) {
+            my $replacement = $hashref->{$1};
+            say STDERR "handle_use_english($source): found $1, replacing with $replacement" if($::debug >= 5);
+            substr($source,1, $len) = $replacement;
+            $cut_adjust = $len - length($replacement);
+        }
+    }
+    say STDERR "handle_use_english: new source: $source, cut_adjust: $cut_adjust" if($::debug >= 5);
+    return wantarray ? ($source, $cut_adjust) : $source;
+}
+
 1;
 

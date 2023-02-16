@@ -14,5 +14,5 @@ def _ref(r):
     if isinstance(r, type): # return '' for a class (not a class instance)
         return ''
     if hasattr(tr, '__name__'):
-        return tr.__name__
+        return tr.__name__.replace('.', '::')
     return t.replace("<class '", '').replace("'>", '').replace('.', '::')

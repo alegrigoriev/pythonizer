@@ -1203,6 +1203,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        }
        print STDERR "sub_lines_contain_potential_last_expression = ";	# issue implicit conditional return
        say STDERR Dumper(\%Perlscan::sub_lines_contain_potential_last_expression); # issue implicit conditional return
+       print STDERR "StatementStartingLno = ";	# issue s275
+       say STDERR Dumper(\%Perlscan::StatementStartingLno); # issue s275
 =pod    # issue s4 - we don't do this any more
        if(\%UseRequireVars) {
            print STDERR "UseRequireVars = ";
@@ -1374,7 +1376,9 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
            $packname !~ /^len\(/ && $packname !~ /^builtins\b/ && 
            $packname !~ /^\(/ && $packname !~ /^\d/ &&
            $packname !~ /^$DEFAULT_MATCH\b/ && $packname !~ /^$PERLLIB\b/) {
-            $Packages{$packname} = 2;           # 2 means we reference it but don't define it here
+            if($packname =~ /^[\w.]+$/) {   # Don't put things like '" ".join(map(str, os.getgrouplist(os.getuid(), os' in %Packages!
+                $Packages{$packname} = 2;           # 2 means we reference it but don't define it here
+            }
         }
     }
 
@@ -2700,11 +2704,12 @@ sub fix_scalar_context                          # issue 37
 
     # issue 13: Handle the ',' operator in scalar context
     $j = 0;
+    # issue s273: Check ValType to make sure we don't have @$var or %$var:
     if(($ValClass[0] eq 'c' && $ValPerl[0] =~ /if|while|until/ && $ValClass[1] ne 'a' && ($ValClass[1] eq '(' && $ValClass[2] ne 'a')) ||
        ($ValClass[0] eq 'C' && $ValPerl[0] eq 'elsif' && $ValClass[1] ne 'a' && ($ValClass[1] eq '(' && $ValClass[2] ne 'a')) ||
-       ($#ValClass > 1 && $ValClass[0] eq 's' && $ValClass[1] eq '=') ||
-       ($#ValClass > 2 && $ValClass[0] eq 't' && $ValClass[1] eq 's' && $ValClass[2] eq '=') ||
-       ($#ValClass > 3 && $ValClass[0] eq 's' && $ValClass[1] eq '(' && ($j=&::end_of_variable(0)+1) < $#ValClass &&
+       ($#ValClass > 1 && $ValClass[0] eq 's' && $ValClass[1] eq '=' && (!defined $ValType[0] || $ValType[0] !~ /[@%]s/)) ||
+       ($#ValClass > 2 && $ValClass[0] eq 't' && $ValClass[1] eq 's' && $ValClass[2] eq '=' && (!defined $ValType[1] || $ValType[1] !~ /[@%]s/)) ||
+       ($#ValClass > 3 && $ValClass[0] eq 's' && (!defined $ValType[0] || $ValType[0] !~ /[@%]s/) && $ValClass[1] eq '(' && ($j=&::end_of_variable(0)+1) < $#ValClass &&
         $ValClass[$j] eq '=')) {
         $j = next_same_level_token('(', 1, $#ValClass) - 1 if($j == 0);
         if($ValClass[$j] =~ /[cC=]/ && $j+1 <= $#ValClass && $ValClass[$j+1] eq '(' && $ValPerl[$j+1] eq '(') {
@@ -3035,7 +3040,7 @@ sub debug_start_end
     say STDERR substr($msg, 0, $pos) . $TokenStr . substr($msg, $pos+1);
     return unless $::debug >= 3;
     my $spaces = ' ' x ($pos + $start);
-    if(!defined $end || $end == $start) {
+    if(!defined $end || $end <= $start) {
         say STDERR "$spaces^";
     } else {
         my $spaces2 = ' ' x ($end-$start-1);

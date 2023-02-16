@@ -108,6 +108,7 @@ no warnings 'syntax';  # To avoid the (_) warnings.
 #SNOOPYJC         set_prototype \&sqrt, '_';
 #SNOOPYJC     }
 #SNOOPYJC }
+use subs qw/abs cos exp log sin sqrt atan2/; # SNOOPYJC
 
 my $i;
 my %LOGN;

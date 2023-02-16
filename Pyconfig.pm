@@ -9,7 +9,7 @@ package Pyconfig;
 
 require Exporter;
 our @ISA = qw(Exporter);
-our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name loop_var_name generic_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $KEY_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS %PYF_OUT_PARAMETERS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER $SHEBANG %OVERLOAD_MAP %CLASS_METHOD_SET $AUTHORS_FILE $SWITCH_VAR $SWITCH_LABEL $NON_REGEX_CHARS %STATEMENT_FUNCTIONS %TIE_MAP %TIE_CONSTRUCTORS %PYTHON_PACKAGES_SET);
+our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $PERL_ARG_ARRAY $PERL_SORT_ $GLOB_LIST $ARG_PARSER $DIAMOND $EVAL_RESULT $EVAL_RETURN_EXCEPTION $SUBPROCESS_RC $SCRIPT_START $DO_CONTROL $ANONYMOUS_SUB $DIE_TRACEBACK %CONSTANT_MAP %GLOBALS %GLOBAL_TYPES %PYTHON_KEYWORD_SET %PYTHON_RESERVED_SET array_var_name hash_var_name scalar_var_name loop_var_name generic_var_name label_exception_name state_flag_name $ELSIF_TEMP $INDEX_TEMP $KEY_TEMP $SUBSCRIPT_TEMP %CONVERTER_MAP $LOCALS_STACK %SIGIL_MAP $MAIN_MODULE %BUILTIN_LIBRARY_SET $IMPORT_PATH_TEMP $IMPORT_MODULE_TEMP $MODULES_DIR $SUBPROCESS_OPTIONS $PERL_VERSION %PYF_CALLS %PYF_OUT_PARAMETERS $FUNCTION_RETURN_EXCEPTION %STAT_SUB %LSTAT_SUB %DASH_X $MAX_CHUNKS $MAX_DEPTH $DEFAULT_PACKAGE %ARRAY_INDEX_FUNCS %AUTOVIVIFICATION_CONVERTER_MAP $PERLLIB %PREDEFINED_PACKAGES @STANDARD_LIBRARY_DIRS $PRETTY_PRINTER $SHEBANG %OVERLOAD_MAP %CLASS_METHOD_SET $AUTHORS_FILE $SWITCH_VAR $SWITCH_LABEL $NON_REGEX_CHARS %STATEMENT_FUNCTIONS %TIE_MAP %TIE_CONSTRUCTORS %PYTHON_PACKAGES_SET %ENGLISH_SCALAR %ENGLISH_ARRAY %ENGLISH_HASH);
 
 # use Readonly;                # Readonly is not installed by default so skip it!
 
@@ -188,7 +188,7 @@ our %SIGIL_MAP = ('$'=>'s', '%'=>'h', '@'=>'a', ''=>'H');
 our $MAIN_MODULE = 'sys.modules["__main__"]';        # Note this is changed to $DEFAULT_PACKAGE if the -m option is NOT passed (in Pythonizer.pm)
 
 # List of libraries that pythonizer knows about and handles as built-ins:
-our @BUILTIN_LIBRARIES = qw(strict warnings vars feature autodie utf8 autovivification subs Getopt::Long Getopt::Std Time::Local File::Basename Fcntl Carp::Assert Exporter Carp File::stat);
+our @BUILTIN_LIBRARIES = qw(strict warnings vars feature autodie utf8 autovivification subs Getopt::Long Getopt::Std Time::Local File::Basename Fcntl Carp::Assert Exporter Carp File::stat English integer);
 our %BUILTIN_LIBRARY_SET = map { $_ => 1 } @BUILTIN_LIBRARIES;
 
 our $MODULES_DIR = "PyModules"; # Where we copy system modules to run pythonizer on them (for use/require)
@@ -391,6 +391,26 @@ $GLOBALS{_TIE_MAP} = $python_tie_map;                                      # iss
 our @CLASS_METHODS = qw/new make TIEHASH TIEARRAY/;        # These names will become class methods, issue s154
 our %CLASS_METHOD_SET = map { $_ => 1 } @CLASS_METHODS;
 
+# for 'use English':
+# NOTE: Not all of these are supported, but they are included here for completeness!
+# See https://perldoc.perl.org/perlvar
+our %ENGLISH_SCALAR = (ARG=>'_', LIST_SEPARATOR=>'"', PROCESS_ID=>'$', PID=>'$', PROGRAM_NAME=>'0',
+                       REAL_GROUP_ID=>'(', GID=>'(', EFFECTIVE_GROUP_ID=>')', EGID=>')',
+                       REAL_USER_ID=>'<', UID=>'<', EFFECTIVE_USER_ID=>'>', EUID=>'>',
+                       SUBSCRIPT_SEPARATOR=>';', SUBSEP=>';', SYSTEM_FD_MAX=>'^F',
+                       INPLACE_EDIT=>'^I', OSNAME=>'^O', BASETIME=>'^T', PERL_VERSION=>'^V',
+                       EXECUTABLE_NAME=>'^X', MATCH=>'&', PREMATCH=>'`', POSTMATCH=>"'",
+                       LAST_PAREN_MATCH=>'+', LAST_SUBMATCH_RESULT=>'^N', LAST_REGEXP_CODE_RESULT=>'^R',
+                       LAST_MATCH_END=>'+', LAST_MATCH_START=>'-',  # in case of $LAST_MATCH_END[$ndx], etc
+                       OUTPUT_FIELD_SEPARATOR=>',', OFS=>',', INPUT_LINE_NUMBER=>'.', NR=>'.',
+                       INPUT_RECORD_SEPARATOR=>'/', RS=>'/', OUTPUT_RECORD_SEPARATOR=>'\\', ORS=>'\\',
+                       OUTPUT_AUTOFLUSH=>'|', ACCUMULATOR=>'^A', FORMAT_FORMFEED=>'^L', FORMAT_PAGE_NUMBER=>'%',
+                       FORMAT_LINES_LEFT=>'-', FORMAT_LINE_BREAK_CHARACTERS=>':', FORMAT_LINES_PER_PAGE=>'=',
+                       FORMAT_TOP_NAME=>'^', FORMAT_NAME=>'~', EXTENDED_OS_ERROR=>'^E', EXCEPTIONS_BEING_CAUGHT=>'^S',
+                       WARNING=>'^W', OS_ERROR=>'!', ERRNO=>'!', CHILD_ERROR=>'?', EVAL_ERROR=>'@');
+our %ENGLISH_ARRAY = (ARG=>'_', LAST_MATCH_END=>'+', LAST_MATCH_START=>'-');
+our %ENGLISH_HASH = (LAST_PAREN_MATCH=>'+', OS_ERROR=>'!', ERRNO=>'!');
+
 # Predefined package with function implementation.  The default python name
 # for the function is "_perlName", unless python=>'...' is specified.  In perllib,
 # the '_' is removed.  Specify the argument and result type with type=>"...". 
@@ -494,7 +514,8 @@ our %PREDEFINED_PACKAGES = (
                  {perl=>'native_to_unicode', type=>'I:I', python=>'_utf8_native_to_unicode'},
                  {perl=>'unicode_to_native', type=>'I:I', python=>'_utf8_unicode_to_native'},
                 ],
-        'overload'=>[{perl=>'StrVal', type=>'m:S', python=>'_overload_StrVal', calls=>'_ref_scalar'},
+        'overload'=>[{import_it=>1},    # Don't suppress the import statment
+                     {perl=>'StrVal', type=>'m:S', python=>'_overload_StrVal', calls=>'_ref_scalar'},
                      {perl=>'Overloaded', type=>'m:B', python=>'_overload_Overloaded'},
                      {perl=>'Method', type=>'mS:C', python=>'_overload_Method'},
                  ],
@@ -527,6 +548,30 @@ our %PREDEFINED_PACKAGES = (
                 {perl=>'perlio_ok', type=>'S:B'},
                 {perl=>'resolve_alias', type=>'S:S'},
                     ],
+         'Time::HiRes'=>[
+                {import_it=>1}, # Don't suppress the import statment
+                {perl=>'usleep', type=>'N:', python=>'_hires_usleep'},
+                {perl=>'sleep', type=>'N:', python=>'tm_py.sleep'},
+                {perl=>'ualarm', type=>'NN?:', python=>'_hires_ualarm', calls=>'_hires_alarm'},
+                {perl=>'alarm', type=>'NN?:', python=>'_hires_alarm'},
+                {perl=>'gettimeofday', type=>':a of I', python=>'_hires_gettimeofday', 
+                                                        scalar=>'tm_py.time', scalar_type=>':F'},
+                {perl=>'time', type=>':F', python=>'tm_py.time'},
+                {perl=>'tv_interval', type=>'mm?:F', python=>'_hires_tv_interval', calls=>'_hires_gettimeofday'},
+                {perl=>'getitimer', type=>'I:a of F', python=>'signal.getitimer',
+                                                 scalar=>'_hires_getitimer_s', scalar_type=>'I:F'},
+                {perl=>'setitimer', type=>'IFF?:a of F', python=>'signal.setitimer',
+                                                         scalar=>'_hires_setitime_s', scalar_type=>'IFF?:F'},
+                {perl=>'nanosleep', type=>'N:', python=>'_hires_nanosleep'},
+                {perl=>'clock_gettime', type=>'I:F', python=>'_hires_clock_gettime'},
+                {perl=>'clock_getres', type=>'I:F', python=>'_hires_clock_getres'},
+                {perl=>'clock', type=>':F', python=>'_hires_clock'},
+                {perl=>'clock_nanosleep', type=>'INI?:', python=>'_hires_clock_nanosleep'},
+                {perl=>'stat', type=>'m?:a of I', python=>'_hires_stat'},
+                {perl=>'lstat', type=>'m?:a of I', python=>'_hires_lstat'},
+                {perl=>'utime', type=>'NNa:', python=>'_hires_utime', calls=>'_cluck'},
+                    ],
+
                );
 
 
