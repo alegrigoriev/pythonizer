@@ -1,7 +1,8 @@
 
-def _readline_full(fh):
+def _readline_full(fh, fhname=''):
     """Reads a line from a file, handles perl $/ and sets $. """
     global INPUT_RECORD_SEPARATOR, INPUT_LINE_NUMBER
+    global _INPUT_FH_NAME
     if INPUT_RECORD_SEPARATOR == "\n":
         result = fh.readline()
         if not result:
@@ -37,6 +38,7 @@ def _readline_full(fh):
         fh._at_eof = False
     if not hasattr(fh, '_lno'):
         INPUT_LINE_NUMBER = fh._lno = 1
+        _INPUT_FH_NAME = fhname
     else:
         fh._lno += 1
         INPUT_LINE_NUMBER = fh._lno

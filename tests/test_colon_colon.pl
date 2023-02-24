@@ -1,4 +1,5 @@
 # test the "::" operator (gets the symbol table)
+# pragma pythonizer -M
 
 use Carp::Assert;
 use lib '.';

@@ -8,10 +8,10 @@ def _kill(sig, *args):
             neg = -1
         if not sig.startswith('SIG'):
             sig = f"SIG{sig}"
-        if not sig in signal.Signals:
+        if not sig in signal.Signals.__members__:
             _carp(f'Unrecognized signal name "{sig}"')
             return 0
-        sig = signal.Signals[sig] * neg
+        sig = signal.Signals.__members__[sig] * neg
     result = 0
     for pid in args:
         try:

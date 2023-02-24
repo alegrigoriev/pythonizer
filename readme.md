@@ -1,5 +1,5 @@
 ## Translator from Perl to Python 
-### THIS IS AN ANNOUNCEMENT FOR VERSION 1.026 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
+### THIS IS AN ANNOUNCEMENT FOR VERSION 1.027 of the "pythonizer"  TRANSLATOR FROM PERL TO PYTHON 
 
 This readme is for informational purposes only and is not intended to be updated often. 
 
@@ -77,6 +77,8 @@ Currently these user options are supported (pythonizer -h provides a list of opt
           as the input encoding.  If input_encoding is not included (and you only include ",output_encoding", then
           Pythonizer attempts to detect the input encoding as if -e was not specified, but with the specified output encoding.
           If the input_encoding is specified and is followed by only a comma, then the output_encoding defaults to utf8.
+    -f -- Fully qualify method calls.  If not specified, and -M is specified or implied, then this is turned on
+    -F -- Turn off -f.  If not specified, and -m is specified or implied, then -f is turned off
     -d    level of debugging  default is 0 -- production mode
           0 -- Production mode
           1 -- Testing mode. Program is autosaved in Archive (primitive versioning mechanism)

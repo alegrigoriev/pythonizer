@@ -46,6 +46,14 @@ Encode
 
    Encode
 
+Exporter
+========
+
+.. toctree::
+   :maxdepth: 4
+
+   Exporter
+
 File
 ====
 

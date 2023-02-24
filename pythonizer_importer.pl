@@ -220,6 +220,28 @@ eval {
         my %wantarrays = ();
         my %out_parameters = ();            # issue s184
         my $CurShift = 0;                   # issue s184
+        my %SpecialVarsUsed = ();           # issue s282
+        my %ENGLISH_SCALAR = (ARG=>'_', LIST_SEPARATOR=>'"', PROCESS_ID=>'$', PID=>'$', PROGRAM_NAME=>'0',
+                       REAL_GROUP_ID=>'(', GID=>'(', EFFECTIVE_GROUP_ID=>')', EGID=>')',
+                       REAL_USER_ID=>'<', UID=>'<', EFFECTIVE_USER_ID=>'>', EUID=>'>',
+                       SUBSCRIPT_SEPARATOR=>';', SUBSEP=>';', SYSTEM_FD_MAX=>'^F',
+                       INPLACE_EDIT=>'^I', OSNAME=>'^O', BASETIME=>'^T', PERL_VERSION=>'^V',
+                       EXECUTABLE_NAME=>'^X', MATCH=>'&', PREMATCH=>'`', POSTMATCH=>"'",
+                       LAST_PAREN_MATCH=>'+', LAST_SUBMATCH_RESULT=>'^N', LAST_REGEXP_CODE_RESULT=>'^R',
+                       LAST_MATCH_END=>'+', LAST_MATCH_START=>'-',  # in case of $LAST_MATCH_END[$ndx], etc
+                       OUTPUT_FIELD_SEPARATOR=>',', OFS=>',', INPUT_LINE_NUMBER=>'.', NR=>'.',
+                       INPUT_RECORD_SEPARATOR=>'/', RS=>'/', OUTPUT_RECORD_SEPARATOR=>'\\', ORS=>'\\',
+                       OUTPUT_AUTOFLUSH=>'|', ACCUMULATOR=>'^A', FORMAT_FORMFEED=>'^L', FORMAT_PAGE_NUMBER=>'%',
+                       FORMAT_LINES_LEFT=>'-', FORMAT_LINE_BREAK_CHARACTERS=>':', FORMAT_LINES_PER_PAGE=>'=',
+                       FORMAT_TOP_NAME=>'^', FORMAT_NAME=>'~', EXTENDED_OS_ERROR=>'^E', EXCEPTIONS_BEING_CAUGHT=>'^S',
+                       WARNING=>'^W', OS_ERROR=>'!', ERRNO=>'!', CHILD_ERROR=>'?', EVAL_ERROR=>'@');    # issue s282
+        my %ENGLISH_ARRAY = (ARG=>'_', LAST_MATCH_END=>'+', LAST_MATCH_START=>'-'); # issue s282
+        my %ENGLISH_HASH = (LAST_PAREN_MATCH=>'+', OS_ERROR=>'!', ERRNO=>'!');  # issue s282
+        my $SPECIAL_VAR_PATTERN = '((?:\$(?:' . join('|', keys %ENGLISH_SCALAR) . '))|' .
+                               '(?:\@(?:' . join('|', keys %ENGLISH_ARRAY) . '))|' .
+                               '(?:\%(?:' . join('|', keys %ENGLISH_HASH) . '))|' .
+                               '[$%@](?:(?:\^\w+\b)|[^\w\s#=]|[0-9_])' .
+                              ')\b';            # issue s282
         my @specific_prop_patterns = (
             '(?:\\$_\\[(?<I>\\d+)\\]\\s*=[^~])',
             '(?:\\$_\\[(?<I>\\d+)\\]\\s*=~\\s*s\\b)',
@@ -454,6 +476,19 @@ eval {
                     }
                 }
             }
+            while(/$SPECIAL_VAR_PATTERN/g) {
+                my $var = $1;
+                my $sigil = substr($var, 0, 1);
+                my $rest = substr($var, 1);
+                if($sigil eq '$' && exists $ENGLISH_SCALAR{$rest}) {
+                    $var = '$' . $ENGLISH_SCALAR{$rest};
+                } elsif($sigil eq '@' && exists $ENGLISH_ARRAY{$rest}) {
+                    $var = '@' . $ENGLISH_ARRAY{$rest};
+                } elsif($sigil eq '%' && exists $ENGLISH_HASH{$rest}) {
+                    $var = '%' . $ENGLISH_HASH{$rest};
+                }
+                $SpecialVarsUsed{$var} = 1;
+            }
         }
         close(SRC);
         if(!defined $package) {
@@ -515,6 +550,8 @@ eval {
         # issue s236 say '$blesses=1' if($blesses);          # issue s18
         my @blesses = keys %blesses;                         # issue s236
         say '@blesses=' . (@blesses ? "qw/@blesses/;" : '();'); # issue s236
+        my @specialvarsused = keys %SpecialVarsUsed;                         # issue s282
+        say '@specialvarsused=' . (@specialvarsused ? "qw=@specialvarsused=;" : '();'); # issue s282
 
         #say STDERR "expand_extras: package=$package, version=$version, export=@export, export_ok=@export_ok, export_tags=@{[%export_tags]}" if($debug);
 };

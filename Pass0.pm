@@ -220,6 +220,7 @@ sub handle_pragma_pythonizer
     my $UFlag = undef;
     my $KFlag = undef;
     my $YFlag = undef;
+    my $FFlag = undef;          # issue s284
     my $v0Flag = undef;
     my $v1Flag = undef;
     my $v2Flag = undef;
@@ -230,6 +231,7 @@ sub handle_pragma_pythonizer
 	    	     n=>\$::trace_run, k=>\$::black, K=>\$KFlag, u=>\$::replace_usage, U=>\$UFlag,
                  a=>\$::gen_author,	# issue s19
                  y=>\$::replace_run, Y=>\$YFlag,	# issue s87
+                 f=>\$::fully_qualify_calls, F=>\$FFlag,	# issue s284
                  e=>\$Pythonizer::e_option,         # issue s70
                  v0=>\$v0Flag, v1=>\$v1Flag, v2=>\$v2Flag, v3=>\$v3Flag,
                  S=>\$SFlag, p=>$::import_perllib, P=>\$PFlag, N=>\$NFlag);     # issue s132
@@ -237,6 +239,7 @@ sub handle_pragma_pythonizer
                    pythonize=>\$::pythonize_standard_library, import=>\$::import_perllib, 
 		           trace=>\$::trace_run, black=>\$::black, replace=>\$::replace_usage,
 		           pl_to_py=>\$::replace_run,
+		           fully=>\$::fully_qualify_calls,      # issue s284
 		           author=>\$::gen_author,	# issue s19
                    verbose=>\$v2Flag,
                    verbosity=>\$v2Flag,
@@ -270,6 +273,10 @@ sub handle_pragma_pythonizer
             $::replace_usage = $val;
         } elsif($flag eq 'U') {
             $UFlag = $val;
+        } elsif($flag eq 'f') {		# issue s274
+            $::fully_qualify_calls = $val;	# issue s274
+        } elsif($flag eq 'F') {		# issue s274
+            $FFlag = $val;		# issue s274
         } elsif($flag eq 'y') {		# issue s87
             $::replace_run = $val;	# issue s87
         } elsif($flag eq 'Y') {		# issue s87
@@ -296,11 +303,13 @@ sub handle_pragma_pythonizer
     my %option_flags = (traceback=>'T', autodie=>'A', implicit=>'m', trace=>'n', black=>'k',
 	    	       author=>'a',		# issue s19
                    pl_to_py=>'y',	# issue s87
+                   fully=>'f',	    # issue s284
                    encoding=>'e',   # issue s70
                    verbose=>'v2', verbosity=>'v2',
                    pythonize=>'s', import=>'p', replace=>'u');
     my %option_no_flags = (implicit=>'M', pythonize=>'S', import=>'P', autovivification=>'N', black=>'K', replace=>'U', # issue s132
-	    		   pl_to_py=>'Y',	# issue s87
+                   pl_to_py=>'Y',   # issue s87
+	    		   fully=>'F',	# issue s284
                    verbose=>'v0', verbosity=>'v0',
     			   convert=>undef,	# issue s64 - use special processing
 		   	  );
@@ -370,6 +379,7 @@ sub handle_pragma_pythonizer
     $::autovivification = 0 if($NFlag);     # issue s132
     $::replace_usage = 0 if($UFlag);
     $::replace_run = 0 if($YFlag);	# issue s87
+    $::fully_qualify_calls = 0 if($FFlag);	# issue s284
     $::black = 0 if($KFlag);
     &Softpano::set_verbosity(0) if($v0Flag);
     &Softpano::set_verbosity(1) if($v1Flag);

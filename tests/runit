@@ -25,7 +25,7 @@ do
    elif [ -e ${f}.pm ]; then
        f=${f}.pm
        pyf=${f%.pm}.py
-       pyopt=-m py_compile
+       pyopt=-mpy_compile
    elif [ -e ${f}.pln ]; then
        f=${f}.pln
        pyf=${f%.pln}.py
