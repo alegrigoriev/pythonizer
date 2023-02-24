@@ -51,6 +51,10 @@ my $stamp='[stamp]';
 $message =~ s/^/$stamp/gm;
 assert($message eq "[stamp]message\n", "Original sub failed");
 
+$message = "message\n";
+$message =~ s/(?m)^/$stamp/g;   # Specify the 'm' flag in the pattern
+assert($message eq "[stamp]message\n", "Original sub with (?m) failed");
+
 $message = "message\n\nmes\nmmm";
 $message =~ s/^/$stamp/gm;
 assert($message eq "[stamp]message\n[stamp]\n[stamp]mes\n[stamp]mmm", "Main sub failed");
@@ -76,5 +80,8 @@ $message = "message\n\nmes\nmmm";
 $message =~ s/$pattern/$stamp/g;
 assert($message eq "[stamp]message\n[stamp]\n[stamp]mes\n[stamp]mmm", "Sub with qr failed");
 
+$message = "message\n\nmes\nmmm";
+$message =~ s/[^m]/x/mg;        # Put the '^' in a char class - shouldn't modify it
+assert($message eq "mxxxxxxxxmxxxmmm", "Sub with char class failed");
 
 print "$0 - test passed!\n";

@@ -1,6 +1,17 @@
 
 def _init_package(name, is_class=False, isa=(), autovivification=True):
     """Initialize a package by creating a namespace for it"""
+    global TRACEBACK, AUTODIE, TRACE_RUN, WARNING
+    if name == 'main':
+        if (v := os.environ.get('PERLLIB_TRACEBACK')) is not None:
+            TRACEBACK = int(v) if v.isdecimal() else 1
+        if (v := os.environ.get('PERLLIB_AUTODIE')) is not None:
+            AUTODIE = int(v) if v.isdecimal() else 1
+        if (v := os.environ.get('PERLLIB_TRACE_RUN')) is not None:
+            TRACE_RUN = int(v) if v.isdecimal() else 1
+        if (v := os.environ.get('PERLLIB_WARNING')) is not None:
+            WARNING = int(v) if v.isdecimal() else 1
+
     pieces = name.split('.')
     parent = builtins
     parent_name = ''
@@ -75,8 +86,9 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
                         if isinstance(getattr(namespace, key), types.MethodType):
                             setattr(namespace, key, types.MethodType(getattr(namespace, key).__func__, namespace))
 
-                namespace.__class__ = perllibMeta
-                namespace.__eq__ = lambda self, other: self is other
+                if is_class or any_parent_is_class:
+                    namespace.__class__ = perllibMeta
+                    namespace.__eq__ = lambda self, other: self is other
                 if prior_namespace is not None:
                     for k, v in prior_namespace.__dict__.items():
                         setattr(namespace, k, v)

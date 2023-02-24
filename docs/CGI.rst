@@ -4,6 +4,14 @@ CGI package
 Submodules
 ----------
 
+CGI.Carp module
+---------------
+
+.. automodule:: CGI.Carp
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 CGI.Cookie module
 -----------------
 

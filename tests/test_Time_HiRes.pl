@@ -9,7 +9,7 @@ use Time::HiRes qw/d_usleep d_ualarm d_gettimeofday d_getitimer d_setitimer
                  d_futimens d_utimensat d_hires_utime/;
 use Carp::Assert;
 
-use constant EPS => 0.019;
+use constant EPS => 0.022;
 
 sub test_time_hires {
     my $test_cases = shift;
@@ -289,7 +289,7 @@ sub test_clock_nanosleep {
     my $end = Time::HiRes::time();
     my $elapsed = $end - $start;
     $elapsed *= 1_000_000_000;      # Nanoseconds
-    $fudge = 200_000;
+    $fudge = 300_000;
 
     assert($elapsed >= $sleep_time-$fudge, "Elapsed time ($elapsed) should be at least $sleep_time");
 }

@@ -25,4 +25,7 @@ sub subtest {
 
 subtest();
 
+# Check that the 'local' worked
+assert(&main::test_sub() == 1);
+
 print "$0 - test passed!\n";

@@ -18,6 +18,11 @@ def _isa(self, classname):
         return 1 if isinstance(self, io.IOBase) else ''
     elif classname == 'UNIVERSAL':
         return 1
+    elif classname == 'GLOB':
+        # Assume all file handles and subs are globs
+        return 1 if isinstance(self, io.IOBase) or callable(self) else ''
+    elif classname == 'CODE':
+        return 1 if callable(self) else ''
     classname = classname.replace("'", '.').replace('::', '.')
     if hasattr(builtins, classname):
         the_class = getattr(builtins, classname)

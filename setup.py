@@ -38,10 +38,10 @@ setup(
     name='perllib',
     packages=find_packages(include=['perllib', 'perllib.*', 'charnames', 'Config', 'Sys', 'Sys.*', 'Math', 'Math.*', 
                                     'File', 'File.*', 'FindBin', 'HTML', 'HTML.*', 'Class', 'Class.*', 'Text', 'Text.*',
-                                    'Time', 'Time.*', 'CGI', 'CGI.*', 'Encode', 'Encode.*']),
+                                    'Time', 'Time.*', 'CGI', 'CGI.*', 'Encode', 'Encode.*', 'Exporter']),
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/snoopyjc/pythonizer',
-    version='1.026',
+    version='1.027',
     zip_safe=False,
 )

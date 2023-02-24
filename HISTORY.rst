@@ -2,6 +2,11 @@
 History
 =======
 
+1.027 (2023-02-16)
+------------------
+
+* Issue s281: UNIVERSAL::isa(\*FH,'GLOB') should return 1.  Issue s295: `script.py` on windows will launch an editor if that's the associated program.  Issue s297: Set CHILD_ERROR properly in _run, _run_s, and _system.  Properly look up signal names in __members__ in _kill.  Issue s296: Create environment variables to set perllib.TRACKBACK, perllib.AUTODIE, perllib.TRACE_RUN, perllib.WARNING.  Implement in _init_package for main.  Issue s280: Don't try to set the __class__ attribute in _init_package on a non-class.  Issue 288: Implement new _warn.  Issue s292: Reimplement _die.  Implement CGI::Carp.
+
 1.026 (2023-02-10)
 ------------------
 

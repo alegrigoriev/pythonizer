@@ -7,7 +7,7 @@ def _system(*args):
     try:
         sp = subprocess.run(args,text=True,stdin=sys.stdin,stdout=sys.stdout,stderr=sys.stderr,shell=_need_sh(args))
     except FileNotFoundError:   # can happen on windows if shell=False
-        sp = subprocess.CompletedProcess(args, 127)
+        sp = subprocess.CompletedProcess(args, -1)
     except OSError:             # check if we're trying to run a perl or python script on Windows
         if isinstance(args, str):
             args = [args]
@@ -21,7 +21,7 @@ def _system(*args):
         sp = subprocess.run(args,text=True,stdin=sys.stdin,stdout=sys.stdout,stderr=sys.stderr,shell=_need_sh(args))
     if TRACE_RUN:
         _carp(f'trace system({args}): {repr(sp)}', skip=2)
-    CHILD_ERROR = sp.returncode
+    CHILD_ERROR = -1 if sp.returncode == -1 else ((sp.returncode<<8) if sp.returncode >= 0 else -sp.returncode)
     if CHILD_ERROR:
         if AUTODIE:
             raise Die(f'system({args}): failed with rc {CHILD_ERROR}')

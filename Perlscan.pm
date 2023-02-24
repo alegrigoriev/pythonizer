@@ -127,6 +127,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'L'=>'FORMAT_FORMFEED',                       # SNOOPYJC
                   'T'=>'BASETIME',                         # SNOOPYJC
                   'F'=>2,                       # SNOOPYJC
+                  'S'=>'EXCEPTIONS_BEING_CAUGHT',   # issue s282
                   'W'=>'WARNING');              # SNOOPYJC
 
    %SPECIAL_VAR_FULL=(TAINT=>'False', SAFE_LOCALES=>'False', UNICODE=>'0', UTF8CACHE=>'True', UTF8LOCALE=>'True');      # issue s23
@@ -325,7 +326,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                    'utime'=>'_utime',   # issue s32
                 'values'=>'.values()',  # SNOOPYJC
                 # issue s101 'warn'=>'print',
-                 'warn'=>'wprint',      # issue s101: problem with PyFuncType clash - wprint isn't actually called
+                 'warn'=>'_warn',      # issue s101, issue s288
                  'wait'=>'_wait',       # SNOOPYJC
                  'waitpid'=>'_waitpid',         # SNOOPYJC
                  'xor'=>'_logical_xor',         # issue s237
@@ -465,7 +466,8 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'dirname'=>'f',     # SNOOPYJC
                   'do'=>'C',            # SNOOPYJC
                   'each'=>'f',          # SNOOPYJC
-                  'else'=>'C', 'elsif'=>'C', 'exists'=>'f', 'exit'=>'f', 'export'=>'f',
+                  'else'=>'C', 'elsif'=>'C', 'exists'=>'f', 'exit'=>'f', 
+                  # issue s280: No such function!!! 'export'=>'f',
                   'exec'=>'f',          # issue s247
                   '__expand'=>'f',      # issue s131
                   'exp'=>'f',           # issue s3
@@ -583,8 +585,12 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   # issue s238 'cmp'=>'SS:I', 
                   'cmp'=>'mm:I',        # issue s238: Don't convert to str here because it could be an object
                   '<=>'=>'NN:I',
-                  '~~'=>'mm:I',         # issue s251
-                  'delete'=>'u:a', 'defined'=>'u:I','die'=>'S:m', 'dirname'=>'S:S', 'each'=>'h:a', 'exists'=>'m:I', 
+                  # issue s262 '~~'=>'mm:I',         # issue s251
+                  '~~'=>'aa:I',         # issue s251, issue s262: use list context for smartmatch
+                  'delete'=>'u:a', 'defined'=>'u:I',
+                  # issue s283 'die'=>'S:m', 
+                  'die'=>'a:m',         # issue s283
+                  'dirname'=>'S:S', 'each'=>'h:a', 'exists'=>'m:I', 
                   # 'exec'=>'s?a:',          # issue s247
                   'exec'=>'a:',          # issue s247
                   'exit'=>'I?:u', 'fc'=>'S:S', 'flock'=>'HI:I', 'fork'=>':m', 'fileno'=>'H:I',
@@ -782,6 +788,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 # issue 39 my ($source,$cut,$tno)=('',0,0);
 my $source='';                  # issue 39, issue 108
+@lines_of_statement = ();       # issue s278
 $cut=0;                         # issue 39
 $tno=0;                         # issue 108
 @PythonCode=(); # array for generated code chunks
@@ -932,14 +939,17 @@ sub add_package_name_sub
 
     my $perl_name = $ValPerl[$tno];
     my $py = $ValPy[$tno];
-    return if($::implicit_global_my);
+    # issue s282 return if($::implicit_global_my);
     return if(index($py, '.') >= 0);
     return if(substr($perl_name,0,1) eq '$');          # issue 117: Is a sub-ref, not a regular sub
     return if($tno != 0 && $ValPy[$tno-1] eq '.');
     # Here we check if it's actually defined locally (LocalSub == 1) or if
     # it's imported by name (LocalSub == 2).  It could also have the "8" value bit turned on,
     # which only means it was referenced with a '&':
-    return if(exists $Pythonizer::LocalSub{$py} && ($Pythonizer::LocalSub{$py} & 3));
+    if($::fully_qualify_calls == 0) {           # issue s284
+        return if(exists $Pythonizer::LocalSub{$py} && ($Pythonizer::LocalSub{$py} & 3));
+    }
+    return if $py =~ /^$ANONYMOUS_SUB\d+[a-z]?$/;       # issue s284
     $ValPy[$tno] = cur_package() . '.' . $ValPy[$tno];         # Add the package name
     $Pythonizer::LocalSub{$ValPy[$tno]} = $Pythonizer::LocalSub{$py} if exists $Pythonizer::LocalSub{$py};                        # issue s3
     # issue s241  $Pythonizer::SubAttributes{$ValPy[$tno]} = $Pythonizer::SubAttributes{$py} if exists $Pythonizer::SubAttributes{$py};         # issue s3
@@ -2377,6 +2387,11 @@ sub handle_local                        # issue 108
             my $real_name = "$ValPy[$i]($ValPy[$i+2])";
             push @locals, $real_name;
             last;
+        } elsif($ValClass[$i] eq 'f' && $ValPerl[$i] eq '%SIG' && $ValClass[$i+1] eq '(' &&
+                $ValClass[$i+2] eq '"') {       # issue s277: Special handling for local $SIG{XXX}
+            my $real_name = "$ValPy[$i](" . &::unquote_string($ValPy[$i+2]) . ")";  # issue s277
+            push @locals, $real_name;           # issue s277
+            last;                               # issue s277
         }
     }
     return if(!@nesting_stack);       # Local at the outermost file level is treated like "my" so we can skip them
@@ -2415,6 +2430,8 @@ sub prepare_local
         decode_array($quote);
     } elsif($sigil eq '%') {
         decode_hash($quote);
+    } elsif($sigil eq '&') {        # issue s284
+        decode_bare(substr($quote,1));   # issue s284
     } elsif($sigil =~ /[A-Za-z_]/) {
         decode_bare($quote);
         $bare = 1 if($FileHandles{$quote});
@@ -2460,10 +2477,16 @@ sub prepare_locals              # issue 108
             prepare_local($quote, $lno);
             if($sigil eq '*') {
                 my $id = substr($quote,1);
+                # issue s284: In this case $id is 'main::test_sub' and $NameMap contains an entry for main.test_sub with '&'
                 $line_locals{$lno}->[$i] .= ',';
-                if(exists $NameMap{$id}) {
-                    for my $sig (keys %{$NameMap{$id}}) {
-                        next if($sig eq '&');
+                my $id_dot = $id;               # issue s284
+                $id_dot =~ tr/::/./s;           # issue s284
+                $id_dot =~ tr/'/./;             # issue s284
+                # issue s284 if(exists $NameMap{$id}) {
+                # issue s284     for my $sig (keys %{$NameMap{$id}}) {
+                if(exists $NameMap{$id_dot}) {      # issue s284
+                    for my $sig (keys %{$NameMap{$id_dot}}) {   # issue s284
+                        # issue s284 next if($sig eq '&');
                         #push @{$line_locals{$lno}}, ($sig . $id);
                         prepare_local("$sig$id", $lno);
                         $sig = '^' if(!$sig);
@@ -2553,7 +2576,7 @@ sub init_local_typeglobs                         # issue 108
         if($ValClass[$i] eq 'G') { # typeglob
             my $id = substr($ValPerl[$i],1);
             for my $sig (keys %{$NameMap{$id}}) {
-                next if($sig eq '&');
+                # issue s284 next if($sig eq '&');
                 my $pyname = $line_locals_map{$lno}{$sig.$id};
                 say STDERR "ERROR: Can't find line_locals_map{$lno}{$sig$id}!!" if(!defined $pyname);
                 # Initialize typeglobs
@@ -2630,11 +2653,14 @@ my ($l,$m);
        $TokenStr='';
        $statement_starting_lno = $.;                      # issue 116
        $StatementStartingLno{$.} = $. unless exists $StatementStartingLno{$.};   # issue s275
+       @lines_of_statement = ();                          # issue s278
+       push @lines_of_statement, $line;                   # issue s278
        capture_statement_starting_varclasses();           # issue s110
    } else {
        $tno = scalar(@ValClass);
        $TokenStr=join('', @ValClass);
        $StatementStartingLno{$.} = $statement_starting_lno unless exists $StatementStartingLno{$.};    # issue s275
+       push @lines_of_statement, $line;                   # issue s278
    }
    $ExtractingTokensFromDoubleQuotedTokensEnd = -1;     # SNOOPYJC
    $ExtractingTokensFromDoubleQuotedStringEnd = 0;      # SNOOPYJC
@@ -2716,6 +2742,7 @@ my ($l,$m);
             (3 <= $#ValClass && $ValClass[0] eq 't' && $ValClass[1] eq 'h' && $ValClass[2] eq '=' && $ValClass[3] eq '(')) {     # issue s228
             # issue s228: In hash assignments only, which could be long, try to keep the comments where they were
             while(defined ($source=Pythonizer::getline(2))) {
+                push @lines_of_statement, $source;          # issue s278
                 if($source =~ /^\s*$/ || $source =~ /^\s*#/) {            # blank or comment only line
                     $ValCom[$tno-1] .= "\n$source";
                 } else {
@@ -2724,6 +2751,7 @@ my ($l,$m);
             }
          } else {                                 # issue s228
             $source=Pythonizer::getline();
+            push @lines_of_statement, $source if defined $source;     # issue s278
          }
          $StatementStartingLno{$.} = $statement_starting_lno;    # issue s275
          @BufferValClass = @tmpBuffer;  # SNOOPYJC
@@ -2976,7 +3004,8 @@ my ($l,$m);
             $TokenStr=join('',@ValClass);       # issue 50
             $tno--;             # issue 50 - no need to keep arrow operator in python
             $ValPerl[$tno]=$ValPy[$tno]=$s; # issue 50
-         } elsif($s eq '{' && $ValClass[$tno-1] eq 'f' && semicolon_in_block($source)) {     # issue s39
+         # issue s262 } elsif($s eq '{' && $ValClass[$tno-1] eq 'f' && semicolon_in_block($source)) {     # issue s39
+         } elsif($s eq '{' && $ValClass[$tno-1] eq 'f' && !safe_for_lambda($source)) {     # issue s39, issue s262
              # issue s39: for functions like map with a block of code, if we have multiple statements in that code,
              # then insert an anonymous sub, which we will pull out during code generation.  For example:
              # input line: @files = map { /\A(.*)\z/s; $1 } readdir $d;
@@ -3036,14 +3065,14 @@ my ($l,$m);
             my $has_squiggle = ($ValPerl[$tno-1] eq '~');
             $tno--; # overwrite previous token; Dec 20, 2019 --NNB
             $tno-- if($has_squiggle);
-        # issue 39 $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno]);
-        $ValClass[$tno]='"';
+            # issue 39 $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno]);
+            $ValClass[$tno]='"';
             $ValPerl[$tno]=substr($source,1,$cut-2);
             $ValPy[$tno]=Pythonizer::get_here($ValPerl[$tno], $has_squiggle);   # issue 39
-        popup();                            # issue 39
+            popup();                            # issue 39
             popup() if($has_squiggle);
             # issue 39 $cut=length($source);
-     }elsif(index($ValPerl[$tno], "\n") >= 0) {     # issue 39 - multi-line string
+         }elsif(index($ValPerl[$tno], "\n") >= 0) {     # issue 39 - multi-line string
             $ValPy[$tno]="'''".escape_non_printables(escape_backslash($ValPerl[$tno], "'"),0)."'''"; # only \n \t \r, etc needs to be  escaped # issue 39
          }else{
             $ValPy[$tno]="'".escape_non_printables(escape_backslash($ValPerl[$tno], "'"),0)."'"; # only \n \t \r, etc needs to be  escaped
@@ -3134,6 +3163,10 @@ my ($l,$m);
              } elsif($w =~ /__UNITCHECK/) {                   # issue s155
                 push @UnitCheckBlocks, $w if($Pythonizer::PassNo == &Pythonizer::PASS_1);   # issue s155
              }                                              # issue s155
+         } elsif($tno != 0 && $ValClass[$tno-1] eq 'P') {   # issue s284: '::' => 'P'
+             popup();               # issue s284
+             $tno--;                # issue s284
+             $w = 'main::' . $w;    # issue s284
          }
          my $pq;
          if(($pq = index($w, "'")) > 0 && exists $TokenType{substr($w,0,$pq)} &&
@@ -3179,6 +3212,10 @@ my ($l,$m);
          }
          if( exists($keyword_tr{$w}) ){
             $ValPy[$tno]=$keyword_tr{$w};
+            if($w eq 'warn' || $w eq 'die') {       # issue s288: Keep track if we call warn or die
+                my $cs = cur_sub();                 # issue s288
+                $SpecialVarsUsed{$w}{$cs} = 1;      # issue s288
+            }                                       # issue s288
          }
          if( exists($CONSTANT_MAP{$w}) ) {      # SNOOPYJC
              $ValPy[$tno] = $CONSTANT_MAP{$w};  # SNOOPYJC
@@ -3228,6 +3265,8 @@ my ($l,$m);
                     $tno--;
                     $Pythonizer::LocalSub{$ValPy[$tno]} = 1;
                     $Pythonizer::LocalSub{cur_package() . '.' . $ValPy[$tno]} = 1;          # issue s3
+                    my $cs = cur_sub();
+                    $Pythonizer::initialized{$cs}{$ValPy[$tno]} = 1;            # issue s281
                 }
             } elsif($tno != 0 && ($ValClass[$tno-1] eq 'D' || 
                 ($ValClass[$tno-1] eq 'c' && $ValPerl[$tno-1] eq 'package') ||  # SNOOPYJC: package name
@@ -3409,10 +3448,11 @@ my ($l,$m);
                       ($modifier,undef)=is_regex($arg1,0); # modifies $source as a side effect, issue s131
                       if( length($modifier) > 1 ){
                         #regex with modifiers
-                         $quoted_regex='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex, x_flag($modifier))."$modifier)";   # issue 111, issue s80
+                        # issue s286 $quoted_regex='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex, x_flag($modifier))."$modifier)";   # issue 111, issue s80
+                         $quoted_regex='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex, $modifier)."$modifier)";   # issue 111, issue s80, issue s286
                       }else{
                         # No modifier
-                        $quoted_regex=put_regex_in_quotes($arg1, $delim, $original_regex, 0);       # issue 111, issue s80
+                        $quoted_regex=put_regex_in_quotes($arg1, $delim, $original_regex, $modifier);       # issue 111, issue s80, issue s286
                       }
                       $ValPy[$tno]=$quoted_regex;
                   # issue s151 } elsif( $w eq 'm' || ($w eq 'qr' &&  $ValClass[$tno-1] eq '~') ){
@@ -3436,6 +3476,7 @@ my ($l,$m);
                             my @tmpBuffer = @BufferValClass;    # SNOOPYJC: Must get a real line even if we're buffering stuff
                             @BufferValClass = ();               # SNOOPYJC
                             $line = Pythonizer::getline();      # issue 39
+                            push @lines_of_statement, $line if defined $line;     # issue s278
                             $StatementStartingLno{$.} = $statement_starting_lno;    # issue s275
                             @BufferValClass = @tmpBuffer;   # SNOOPYJC
                             $line =~ s/^\s*//;                  # SNOOPYJC
@@ -3464,10 +3505,11 @@ my ($l,$m);
                      }                                                          # issue s131
                      if( length($modifier) > 1 ){
                         #regex with modifiers
-                         $quoted_regex='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex, x_flag($modifier))."$modifier)";   # issue 111, issue s80
+                        # issue s286 $quoted_regex='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex, x_flag($modifier))."$modifier)";   # issue 111, issue s80
+                         $quoted_regex='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex, $modifier)."$modifier)";   # issue 111, issue s80, issue s286
                      }else{
                         # No modifier
-                        $quoted_regex=put_regex_in_quotes($arg1, $delim, $original_regex, 0);       # issue 111, issue s80
+                        $quoted_regex=put_regex_in_quotes($arg1, $delim, $original_regex, $modifier);       # issue 111, issue s80, issue s286
                      }
                      if( length($modifier)>0 ){
                         #this is regex
@@ -3503,9 +3545,11 @@ my ($l,$m);
                   } elsif( $w eq 'qr' ) {               # SNOOPYJC: qr in other context
                      ($modifier,$groups_are_present)=is_regex($arg1,0);                           # SNOOPYJC, issue s131
                      $modifier='' if($modifier eq 'r');                                         # SNOOPYJC
-                     my $x_flag = x_flag($modifier);                     # issue s80
+                     # issue s286 my $x_flag = x_flag($modifier);                     # issue s80
+                     my $original_modifier = $modifier;                     # issue s80, issue s286
                      ($arg1, $modifier) = build_in_qr_flags($arg1, $modifier);          # issue s3
-                     $ValPy[$tno]='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex, $x_flag).$modifier.')';       # SNOOPYJC, issue 111
+                     # issue s286 $ValPy[$tno]='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex, $x_flag).$modifier.')';       # SNOOPYJC, issue 111
+                     $ValPy[$tno]='re.compile('.put_regex_in_quotes($arg1, $delim, $original_regex, $original_modifier).$modifier.')';       # SNOOPYJC, issue 111, issue s286
                      my $cs = cur_sub();                # issue bootstrap
                      $SpecialVarsUsed{qr}{$cs} = 1;     # issue bootstrap
                   }else{
@@ -3628,12 +3672,19 @@ my ($l,$m);
                    if( $ValPerl[0] eq 'use' && $ValPerl[1] ne 'constant' ){     # SNOOPYJC
                       $ValPy[$tno]=$ValPerl[$tno];
                    }else{
-              # issue 44 $ValPy[$tno]='"'.$ValPerl[$tno].'".split(r"\s+")';
+                      # issue 44 $ValPy[$tno]='"'.$ValPerl[$tno].'".split(r"\s+")';
                       my $python = $ValPerl[$tno];           # SNOOPYJC
                       $python =~ s/\s+/ /g;             # SNOOPYJC: Change newlines or multiple spaces to single spaces
                       $python =~ s/^\s+//;              # SNOOPYJC: Remove leading spaces
                       $python =~ s/\s+$//;              # SNOOPYJC: Remove trailing spaces
                       # issue 44 $ValPy[$tno]='"'.$python.'".split()';  # issue 44: python split doesn't take a regex!
+                      if($::replace_run) {                      # issue s294
+                          my @words = split(/ /, $python);      # issue s294
+                          for my $word (@words) {               # issue s294
+                             $word = &::unquote_string(replace_run("'" . $word . "'")); # issue s294: Replaces the word in @words
+                          }                                     # issue s294
+                          $python = join(' ', @words);          # issue s294
+                      }                                         # issue s294
                       $ValPy[$tno]=escape_quotes($python) . '.split()'; # issue 44
                    }
                }
@@ -3750,22 +3801,37 @@ my ($l,$m);
                    $ValPerl[$tno] = '%SIG';
                    if($source =~ /\{\s*__DIE__/) {
                        $ValClass[$tno] = 's';
-                       if($source =~ /(?:Carp::)?confess/) {
-                           $ValPy[$tno] = $DIE_TRACEBACK;
-                           $ValPy[$tno] = "$PERLLIB.$DIE_TRACEBACK" if($::import_perllib);
-                           $source =~ s/\{\s*__DIE__\s*\}\s*=.*$/=1;/;
-                       } else {
-                           $ValPy[$tno] = $DIE_TRACEBACK;
-                           $ValPy[$tno] = "$PERLLIB.$DIE_TRACEBACK" if($::import_perllib);
-                           $source =~ s/\{\s*__DIE__\s*\}\s*=.*$/=0;/;
-                           $source =~ s/\{\s*__DIE__\s*\}\s*;/=0;/;  # issue ddts: Handle "local $SIG{__DIE__};"
-                       }
-                       $ValPerl[$tno] = '$' . $ValPy[$tno];          # issue ddts: add '$' so we don't get 'erllib.TRACEBACK'
-                       $ValPerl[$tno] =~ s/[.]/::/g;                 # issue ddts
+# issue s292                       if($source =~ /(?:Carp::)?confess/) {
+# issue s292                           $ValPy[$tno] = $DIE_TRACEBACK;
+# issue s292                           $ValPy[$tno] = "$PERLLIB.$DIE_TRACEBACK" if($::import_perllib);
+# issue s292                           $source =~ s/\{\s*__DIE__\s*\}\s*=.*$/=1;/;
+# issue s292                       } elsif($source =~ /;\s*$/ || $source =~ /;\s+#/) {  # issue s277
+# issue s292                           $ValPy[$tno] = $DIE_TRACEBACK;
+# issue s292                           $ValPy[$tno] = "$PERLLIB.$DIE_TRACEBACK" if($::import_perllib);
+# issue s292                           $source =~ s/\{\s*__DIE__\s*\}\s*=.*$/=0;/;
+# issue s292                           $source =~ s/\{\s*__DIE__\s*\}\s*;/=0;/;  # issue ddts: Handle "local $SIG{__DIE__};"
+# issue s292                       } else {         # issue s277
+# issue s292                           $ValPy[$tno] = $DIE_TRACEBACK;       # issue s277
+# issue s292                           $ValPy[$tno] = "$PERLLIB.$DIE_TRACEBACK" if($::import_perllib);      # issue s277
+# issue s292                           $source =~ s/\{\s*__DIE__\s*\}\s*=/=/;      # issue s277
+# issue s292                       }
+                       $ValPy[$tno] = 'SIG_DIE_HANDLER'; # issue s292
+                       $ValPy[$tno] = "$PERLLIB.SIG_DIE_HANDLER" if($::import_perllib);  # issue s292
+                       $ValPerl[$tno] = '$' . $ValPy[$tno];          # issue s292: add '$' so we don't get 'erllib.SIG_DIE_HANDLER'
+                       $ValPerl[$tno] =~ s/[.]/::/g;                 # issue s292
+                       $source =~ s/\{\s*__DIE__\s*\}\s*=/=/;        # issue s292
+                       $source =~ s/\{\s*__DIE__\s*\}\s*;/=undef;/;  # issue s292: Handle "local $SIG{__DIE__};"
+                       #  issue s292 $ValPerl[$tno] = '$' . $ValPy[$tno];          # issue ddts: add '$' so we don't get 'erllib.TRACEBACK'
+                       #  issue s292 $ValPerl[$tno] =~ s/[.]/::/g;                 # issue ddts
                    } elsif($source =~ /\{\s*__WARN__/) {
                        $ValClass[$tno] = 's';
-                       $ValPerl[$tno] = $ValPy[$tno] = 'warnings.showwarning';
+                       # issue s288 $ValPerl[$tno] = $ValPy[$tno] = 'warnings.showwarning';
+                       $ValPy[$tno] = 'SIG_WARN_HANDLER'; # issue s288
+                       $ValPy[$tno] = "$PERLLIB.SIG_WARN_HANDLER" if($::import_perllib);  # issue s288
+                       $ValPerl[$tno] = '$' . $ValPy[$tno];          # issue s277: add '$' so we don't get 'erllib.SIG_WARN_HANDLER'
+                       $ValPerl[$tno] =~ s/[.]/::/g;                 # issue s277
                        $source =~ s/\{\s*__WARN__\s*\}\s*=/=/;
+                       $source =~ s/\{\s*__WARN__\s*\}\s*;/=undef;/;  # issue s277: Handle "local $SIG{__WARN__};"
                    } else {
                        # Change to signal.signal(SIG, RHS);
                        $ValPy[$tno] = 'signal.signal';
@@ -3778,6 +3844,23 @@ my ($l,$m);
                 } else {
                    #$ValPy[$tno] = '_getsignal';        # Not sure to use this or that based on what the user's gonna do!
                    $ValPy[$tno] = 'signal.getsignal';   # This choice allows the user to save/restore the value but not compare it to 'DEFAULT' or 'IGNORE'
+                   if($source =~ /\{\s*__DIE__/) {              # issue s277
+                       $ValClass[$tno] = 's';
+                       # issue s292 $ValPy[$tno] = $DIE_TRACEBACK;       # issue s277
+                       # issue s292 $ValPy[$tno] = "$PERLLIB.$DIE_TRACEBACK" if($::import_perllib);      # issue s277
+                       $ValPy[$tno] = 'SIG_DIE_HANDLER';       # issue s292
+                       $ValPy[$tno] = "$PERLLIB.SIG_DIE_HANDLER" if($::import_perllib);      # issue s292
+                       $source =~ s/\{\s*__DIE__\s*\}//;      # issue s277
+                       $ValPerl[$tno] = '$' . $ValPy[$tno];          # issue s277: add '$' so we don't get 'erllib.TRACEBACK'
+                       $ValPerl[$tno] =~ s/[.]/::/g;                 # issue s277
+                   } elsif($source =~ /\{\s*__WARN__/) {             # issue s277
+                       $ValClass[$tno] = 's';
+                       $ValPy[$tno] = 'SIG_WARN_HANDLER'; # issue s288
+                       $ValPy[$tno] = "$PERLLIB.SIG_WARN_HANDLER" if($::import_perllib);  # issue s288
+                       $ValPerl[$tno] = '$' . $ValPy[$tno];          # issue s277: add '$' so we don't get 'erllib.SIG_WARN_HANDLER'
+                       $ValPerl[$tno] =~ s/[.]/::/g;                 # issue s277
+                       $source =~ s/\{\s*__WARN__\s*\}//;            # issue s277
+                   }
                    $source =~ tr/{}/()/;
                 }
                 if($::debug >= 3 && $Pythonizer::PassNo!=&Pythonizer::PASS_0) {
@@ -4171,7 +4254,11 @@ my ($l,$m);
                        # issue 66 $ValPy[$tno]="next($DIAMOND, None)";        # issue 66: Allows for $.
                        my $rl = select_readline();                      # issue 66
                        my $escaped = escape_keywords($fh);              # issue s25
-                       $ValPy[$tno]="$rl($escaped)";                         # issue 66, issue s25
+                       if($rl =~ /readline_full/) {     # issue s288
+                           $ValPy[$tno]="$rl($escaped, '$fh')";   # issue 66, issue s25, issue s288
+                       } else {
+                           $ValPy[$tno]="$rl($escaped)";                         # issue 66, issue s25
+                       }
                    }
                }else{           # we're just reading one line so we can't use the context manager as it closes the file handle
                    if(length($fh)==0){         # issue 66
@@ -4183,14 +4270,23 @@ my ($l,$m);
                        # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
                        # issue 66 $ValPy[$tno]='sys.stdin().readline()';
                        my $rl = select_readline();                      # issue 66
-                       $ValPy[$tno]="$rl(sys.stdin)";                 # issue 66: support $/, issue s188: Remove the extra ()
+                       if($rl =~ /readline_full/) {     # issue s288
+                           $ValPy[$tno]="$rl(sys.stdin, 'stdin')";      # issue 66: support $/, issue s188: Remove the extra ()
+                       } else {
+                           $ValPy[$tno]="$rl(sys.stdin)";                 # issue 66: support $/, issue s188: Remove the extra ()
+                       }
                        # $ValPy[$tno]="next(with fileinput.input('-'), None)";        # issue 66: Allows for $.
                    }else{
                        # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
                        # issue 66 $ValPy[$tno]="$fh.readline()";
                        my $rl = select_readline();                      # issue 66
                        my $escaped = escape_keywords($fh);              # issue s25
-                       $ValPy[$tno]="$rl($escaped)";           # issue 66: support $/, issue s25
+                       if($rl =~ /readline_full/) {     # issue s288
+                           $ValPy[$tno]="$rl($escaped, '$fh')";           # issue 66: support $/, issue s25, issue s288
+                       } else {
+
+                           $ValPy[$tno]="$rl($escaped)";           # issue 66: support $/, issue s25
+                       }
                        #insert(0, 'W', "<$fh>", qq{with fileinput.input("<$fh>",openhook=lambda _,__:$fh) as $DIAMOND:});    # issue 66
                        #$tno++;                                     # issue 66
                        #$ValPy[$tno]=qq{next(with fileinput.input("<$fh>",openhook=lambda _,__:$fh), None)};        # issue 66: Allows for $.
@@ -4214,14 +4310,22 @@ my ($l,$m);
                    my $rl = select_readline();                      # issue 66
                    my $mapped_name = remap_conflicting_names($1, '$', '');      # issue s25
                    my $escaped = escape_keywords($mapped_name);                 # issue s25
-                   $ValPy[$tno]="$rl($escaped)";                # issue 66: Support $/, $., issue s25
+                   if($rl =~ /readline_full/) {     # issue s288
+                       $ValPy[$tno]="$rl($escaped, '$mapped_name')";                # issue 66: Support $/, $., issue s25, issue s288
+                   } else {
+                       $ValPy[$tno]="$rl($escaped)";                # issue 66: Support $/, $., issue s25
+                   }
                }else{
                    # Here we choose between not supporting $. and possibly getting an error for trying use fileinput twice
                    # issue 66 $ValPy[$tno]="$1.readline()";
                    my $rl = select_readline();                      # issue 66
                    my $mapped_name = remap_conflicting_names($1, '$', '');      # issue s25
                    my $escaped = escape_keywords($mapped_name);                 # issue s25
-                   $ValPy[$tno]="$rl($escaped)";                # issue 66: Support $/, $., issue s25
+                   if($rl =~ /readline_full/) {     # issue s288
+                       $ValPy[$tno]="$rl($escaped, '$mapped_name')";                # issue 66: Support $/, $., issue s25, issue s288
+                   } else {
+                       $ValPy[$tno]="$rl($escaped)";                # issue 66: Support $/, $., issue s25
+                   }
                    # issue 66: use a context manager so it's automatically closed
                    #insert(0, 'W', "<$1>", qq{with fileinput.input("<$1>",openhook=lambda _,__:$1) as $DIAMOND:});    # issue 66
                    #$tno++;                                     # issue 66
@@ -4486,6 +4590,7 @@ my $original;
           (3 <= $#ValClass && $ValClass[0] eq 't' && $ValClass[1] eq 'h' && $ValClass[2] eq '=' && $ValClass[3] eq '(')) {     # issue s228
           # issue s228: In hash assignments only, which could be long, try to keep the comments where they were
           while(defined ($source=Pythonizer::getline(2))) {
+              push @lines_of_statement, $source;          # issue s278
               if($source =~ /^\s*$/ || $source =~ /^\s*#/) {            # blank or comment only line
                   $ValCom[$#ValClass] .= "\n$source";
               } else {
@@ -4494,6 +4599,7 @@ my $original;
           }
        } else {                                 # issue s228
            $source=Pythonizer::getline();
+           push @lines_of_statement, $source if defined $source;     # issue s278
        }
        $StatementStartingLno{$.} = $statement_starting_lno;    # issue s275
        @BufferValClass = @tmpBuffer;    # Issue 7
@@ -4568,7 +4674,8 @@ sub select_readline
 # Select either the simple or the full version of readline depending on if $. and $/ are used or not
 {
     my $rl = "_readline";
-    $rl = "_readline_full" if(exists $SpecialVarsUsed{'$/'} || exists $SpecialVarsUsed{'$.'});
+    $rl = "_readline_full" if(exists $SpecialVarsUsed{'$/'} || exists $SpecialVarsUsed{'$.'} ||
+                              exists $SpecialVarsUsed{warn} || exists $SpecialVarsUsed{die});   # issue s288
     $::Pyf{$rl} = 1; 
     if($::import_perllib) {
         $rl = $PERLLIB . '.' . substr($rl, 1);
@@ -5114,12 +5221,13 @@ my  $groups_are_present;
    }                                            # issue s131
    if( length($modifier) > 1 ){
       #regex with modifiers
-      $quoted_regex='re.compile('.put_regex_in_quotes($myregex, $delim, $original_regex, x_flag($modifier), $s_rhs).$modifier.')';  # issue 111, issue s80, issue s131
+      # issue s286 $quoted_regex='re.compile('.put_regex_in_quotes($myregex, $delim, $original_regex, x_flag($modifier), $s_rhs).$modifier.')';  # issue 111, issue s80, issue s131
+      $quoted_regex='re.compile('.put_regex_in_quotes($myregex, $delim, $original_regex, $modifier, $s_rhs).$modifier.')';  # issue 111, issue s80, issue s131
       return $quoted_regex if($ValClass[0] eq 'c' && $ValPy[0] eq 'when');           # issue s129
       return $quoted_regex if $tno >= 1 && $ValClass[$tno-1] eq 'M';                # issue s251: ~~
    }else{
       # No modifier
-      $quoted_regex=put_regex_in_quotes($myregex, $delim, $original_regex, 0, $s_rhs);      # issue 111, issue s131
+      $quoted_regex=put_regex_in_quotes($myregex, $delim, $original_regex, $modifier, $s_rhs);      # issue 111, issue s131, issue s286
       if($ValClass[0] eq 'c' && $ValPy[0] eq 'when') {           # issue s129
           return "re.compile($quoted_regex)";                    # issue s129
       }                                                          # issue s129
@@ -5225,6 +5333,7 @@ my ($m,$sym);
         my @tmpBuffer = @BufferValClass;    # SNOOPYJC: Must get a real line even if we're buffering stuff
         @BufferValClass = ();               # SNOOPYJC
         $line = Pythonizer::getline(2);     # issue 39, issue s73: 2 means we're in a string
+        push @lines_of_statement, $line if defined $line;       # issue s278
         $StatementStartingLno{$.} = $statement_starting_lno;    # issue s275
         @BufferValClass = @tmpBuffer;           # SNOOPYJC
         # issue s149 if(!$line) {                # issue 39
@@ -6666,11 +6775,13 @@ sub put_regex_in_quotes
 my $string=$_[0];
 my $delim=$_[1];        # issue 111
 my $original_regex=$_[2]; # issue 111
-my $x_flag=$_[3];       # issue s80
+# issue s286 my $x_flag=$_[3];       # issue s80
+my $modifier=$_[3];       # issue s80, issue s286
 my $s_rhs = (scalar(@_) > 4 ? $_[4] : 0);       # issue bootstrap: Is this on the RHS of a s/// ?
    if($::debug > 4 && $Pythonizer::PassNo != &Pythonizer::PASS_0) {
-       say STDERR "put_regex_in_quotes($string, $delim, $original_regex)";
+       say STDERR "put_regex_in_quotes($string, $delim, $original_regex, $modifier)";
    }
+   my $x_flag = x_flag($modifier);      # issue s286
    if($x_flag == 2) {           # double 'x' flag
        $string = squash_double_x_flag_regex($string);
    }
@@ -6685,12 +6796,12 @@ my $s_rhs = (scalar(@_) > 4 ? $_[4] : 0);       # issue bootstrap: Is this on th
        $ValPy[$tno] = $string;                           # issue 111
        interpolate_strings($string, $original_regex, 0, 0, 1, $x_flag);          # issue 111, issue s80
        $ValPy[$tno] = escape_re_sub($ValPy[$tno],$delim) if($s_rhs);   # issue bootstrap
-       $ValPy[$tno] = perl_regex_to_python($ValPy[$tno], 1) unless($s_rhs);          # issue 111, issue bootstrap, issue s81
+       $ValPy[$tno] = perl_regex_to_python($ValPy[$tno], $modifier, 1) unless($s_rhs);          # issue 111, issue bootstrap, issue s81, issue s286
        return 'r'.$ValPy[$tno];                                         # issue 111
    }
    # SNOOPYJC return 'r'.escape_quotes($string);
    return 'r'.escape_quotes(escape_re_sub($string,$delim)) if($s_rhs);   # issue bootstrap
-   return 'r'.escape_quotes(perl_regex_to_python($string));   # SNOOPYJC
+   return 'r'.escape_quotes(perl_regex_to_python($string, $modifier));   # SNOOPYJC
 }
 
 sub perl_regex_to_python
@@ -6698,6 +6809,7 @@ sub perl_regex_to_python
 {
     #$DB::single = 1;
     my $regex = shift;
+    my $modifier = shift;                       # issue s286
     my $quoted = scalar(@_) ? $_[0] : 0;        # issue s81
 
     return $regex if(exists $Pass0::line_no_convert_regex{$.});        # issue s64
@@ -6740,6 +6852,10 @@ sub perl_regex_to_python
     $regex =~ s/\|\{/|\\{/g unless $quoted && $regex =~ /^f/;   # issue s81
     $regex =~ s/\(\{/(\\{/g unless $quoted && $regex =~ /^f/;   # issue s81
     $regex =~ s/\(\?:\{/(?:\\{/g unless $quoted && $regex =~ /^f/;      # issue s81
+
+    if(m_flag($regex, $modifier)) {                             # issue s286
+        $regex = fixup_carat_in_m_flag_regex($regex);           # issue s286
+    }                                                           # issue s286
 
     if($Pythonizer::PassNo==&Pythonizer::PASS_2) {
         if($regex =~ /(?:(?<=[\\][\\])|(?<![\\]))\\G/) {
@@ -7410,14 +7526,14 @@ sub escape_keywords     # issue 41
     state %Pyf;             # issue s126
 
     if(!keys %Pyf) {                    # issue s126
-        if(!$::import_perllib) {
+        # issue s300 if(!$::import_perllib) {
             my @py_files = glob("$::Pyf_dir/*.py");
             foreach my $py (@py_files) {
                 my $bn = basename($py);
                 $bn =~ s/\.py$//;
                 $Pyf{$bn} = 1;
             }
-        }
+        # issue s300 }
         $Pyf{_str} = 1; $Pyf{_bn} = 1; $Pyf{_pb} = 1;
     }
 
@@ -7430,12 +7546,14 @@ sub escape_keywords     # issue 41
              $id = $id.'_';
           }
        } elsif(exists $PYTHON_RESERVED_SET{$id} || ($id eq $DEFAULT_PACKAGE && ($i != 0 || $id eq $name) && !$is_package_name && !$::implicit_global_my)) {
-           if(scalar(@ids) == 1 || !exists $PYTHON_PACKAGES_SET{$id}) {           # issue s200: Don't change sys. to sys_., don't change perllib.stat to perllib.stat_
+           # issue s284 if(scalar(@ids) == 1 || !exists $PYTHON_PACKAGES_SET{$id}) {           # issue s200: Don't change sys. to sys_., don't change perllib.stat to perllib.stat_
+           if(scalar(@ids) == 1 || !exists $PYTHON_PACKAGES_SET{$ids[0]}) {           # issue s200: Don't change sys. to sys_., don't change perllib.stat to perllib.stat_, issue s284
                $id = $id.'_';
            }
        } elsif(substr($id,0,1) =~ /\d/) {   # issue ddts: @1234 => _1234
            $id = '_'.$id;
-       } elsif($i == 0 && substr($id,0,1) eq '_' && substr($id,0,5) ne '__END' && $id !~ /^_f\d/ && exists $Pyf{$id}) {    # issue s126
+       # issue s300 } elsif($i == 0 && substr($id,0,1) eq '_' && substr($id,0,5) ne '__END' && $id !~ /^_f\d/ && exists $Pyf{$id}) {    # issue s126
+       } elsif($i == $#ids && substr($id,0,1) eq '_' && substr($id,0,5) ne '__END' && $id !~ /^_f\d/ && exists $Pyf{$id}) {    # issue s126, issue s300
            $id = $id.'_';                   # issue s126
        }
        $reverse_escaped_names{$id} = $ids[$i];      # issue s18
@@ -7943,6 +8061,7 @@ sub get_rest_of_variable_name   # issue ws after sigil
         my @tmpBuffer = @BufferValClass;    # Must get a real line even if we're buffering stuff
         @BufferValClass = ();
         my $line = Pythonizer::getline();
+        push @lines_of_statement, $line if defined $line;       # issue s278
         $StatementStartingLno{$.} = $statement_starting_lno;    # issue s275
         @BufferValClass = @tmpBuffer;
         if(!$line) {
@@ -8975,16 +9094,31 @@ sub replace_escape_with_chr             # issue s28
     }
 }
 
-sub semicolon_in_block          # issue s39
-# Return 1 if there is a semicolon in a {...} block like in a map/grep function
+#sub semicolon_in_block          # issue s39
+sub safe_for_lambda          # issue s39, issue s262
+# Return 1 if everything in {...} block like in a map/grep function is safe for a python lambda function
 {
     my $source = shift;
 
     my $end_br = matching_curly_br($source, 0);
-    return 1 if($end_br < 0);                           # issue s78: assume any multi-line block needs to be pulled out
+    return 0 if($end_br < 0);                           # issue s78: assume any multi-line block needs to be pulled out
     $end_br = length($source) if $end_br < 0;
-    return 1 if(index(substr($source,0,$end_br),';') > 0);
-    return 0;
+    $source = substr($source,0,$end_br);
+    return 0 if(index($source,';') >= 0);        # No good if multiple statements
+    return 0 if(index($source,'++') >= 0);       # No good if incr
+    return 0 if(index($source,'--') >= 0);       # No good if decr
+    my $peq = 0;
+    while(($peq = index($source, '=', $peq)) != -1) {   # No good if assignment, but != and == are ok
+        if(index('=>~', substr($source, $peq+1, 1)) != -1) {    # ==, =>, =~ are all good, except:
+            return 0 if substr($source, $peq) =~ /=~\s*(?:s|tr)/;  # =~ s/// -or- =~ tr/// is no good!
+            $peq++;
+        } else {
+            return 0 if $peq == 0 || index('!<>', substr($source, $peq-1, 1)) == -1 # bad unless !=, <=, >=
+        }
+    } continue {
+        $peq++;
+    }
+    return 1;
 }
 
 sub handle_while_magic_function                 # issue s40
@@ -9073,6 +9207,45 @@ sub x_flag                      # issue s80
     return 2 if(index($modifier, 're.X|re.X') >= 0);
     return 1 if(index($modifier, 're.X') >= 0);
     return 0;
+}
+
+sub m_flag                      # issue s286
+# Return 1 if this regex modifier has an x flag, return 2 if it has 2 x flags
+{
+    my $regex = $_[0];
+    my $modifier = $_[1];
+
+    #say STDERR "m_flag($modifier)";
+    return 1 if(index($modifier, 're.M') >= 0);
+    return 1 if $regex =~ /\(\?\^?[a-ln-z]*m[a-ln-z]*/;       # Look for (?m -or- (?^m -or like- (?smi -or like- (?^smi
+    return 0;
+}
+
+sub fixup_carat_in_m_flag_regex     # issue s286
+#  Fixup '^' in regex with m flag to be the same as what perl does - see https://github.com/snoopyjc/pythonizer/issues/286 for details 
+{
+    my $regex = shift;
+    return $regex if $regex !~ /\^/;        # quick exit if we don't have a carat char at all in the regex
+    my $in_char_class = 0;
+    my @result = ();
+    for(my $i = 0; $i < length($regex); $i++) {
+        my $c = substr($regex, $i, 1);
+        if($in_char_class) {
+            $in_char_class = 0 if $c eq ']';
+            push @result, $c;
+            next;
+        } elsif($c eq '[') {
+            $in_char_class = 1;
+        }
+        if($c eq '^') {
+            push @result, '^(?=.|\\n)';
+        } else {
+            push @result, $c;
+        }
+    }
+    my $result = join('', @result);
+    say STDERR "fixup_carat_in_m_flag_regex($regex) = $result" if $::debug >= 5;
+    return $result;
 }
 
 sub squash_double_x_flag_regex  # issue s80

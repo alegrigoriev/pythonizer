@@ -64,11 +64,11 @@ sub test_trace_run
 
 	say STDERR "---------- backtick ----------";
 	`badcommand`;
-	check(qr/badcommand.*returncode=1/);
+	check(qr/badcommand.*returncode=-1/);
 
 	say STDERR "---------- backtick2 ----------";
 	my $result = `badcommand`;
-	check(qr/badcommand.*returncode=1/);
+	check(qr/badcommand.*returncode=-1/);
 
 	say STDERR "---------- backtick3 ----------";
 	$result = `echo def`;
@@ -83,7 +83,7 @@ sub test_trace_run
 	say STDERR "---------- system ----------";
 	my $bad = "badcommand";
 	system "$bad";
-	check(qr/badcommand.*returncode=1/);
+	check(qr/badcommand.*returncode=-1/);
 
 	say STDERR "---------- system2 ----------";
 	my $good = "echo ghi";
@@ -93,7 +93,7 @@ sub test_trace_run
 	say STDERR "---------- qx ----------";
 	$bad = "badcommand";
 	qx/$bad/;
-	check(qr/badcommand.*returncode=1/);
+	check(qr/badcommand.*returncode=-1/);
 
 	say STDERR "---------- qx2 ----------";
 	$good = "echo jkl";

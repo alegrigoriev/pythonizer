@@ -81,6 +81,7 @@ our %GLOBALS = ($SCRIPT_START=>'tm_py.time()',
                 INPUT_RECORD_SEPARATOR=>'"\n"',
                 OS_ERROR=>"''", 
                 EVAL_ERROR=>"''",
+                EXCEPTIONS_BEING_CAUGHT=>"''",      # issue s282
                 OUTPUT_AUTOFLUSH=>0,
                 INPUT_LAYERS=>"''",
                 OUTPUT_LAYERS=>"''",
@@ -91,8 +92,11 @@ our %GLOBALS = ($SCRIPT_START=>'tm_py.time()',
                 WARNING=>0,                # issue s45
                 AUTODIE=>0, 
                 TRACEBACK=>0, 
+                SIG_WARN_HANDLER=>"None",           # issue s288
+                SIG_DIE_HANDLER=>"None",            # issue s292
                 TRACE_RUN=>0,
                 $LOCALS_STACK=>'[]',            # issue 108
+                _INPUT_FH_NAME=>"None",         # issue s288
                 _OPEN_MODE_MAP=>$open_mode_map, 
                 _DUP_MAP=>$dup_map);
 our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_LINE_NUMBER=>'I', 
@@ -100,6 +104,7 @@ our %GLOBAL_TYPES = ($SCRIPT_START=>'I', LIST_SEPARATOR=>'S', INPUT_LINE_NUMBER=
                     INPUT_LAYERS=>'S', OUTPUT_LAYERS=>'S', OUTPUT_FIELD_SEPARATOR=>'S', OUTPUT_RECORD_SEPARATOR=>'S',
                     $SUBPROCESS_RC=>'I', WARNING=>'I', _OPEN_MODE_MAP=>'h of S', _DUP_MAP=>'h of I',
                     $LOCALS_STACK=>'h of S',            # issue 108
+                    EXCEPTIONS_BEING_CAUGHT=>'B',       # issue s282
                     TRACE_RUN=>'I', AUTODIE=>'I', TRACEBACK=>'I');
 
 sub hash_var_name                       # issue 92
@@ -188,7 +193,8 @@ our %SIGIL_MAP = ('$'=>'s', '%'=>'h', '@'=>'a', ''=>'H');
 our $MAIN_MODULE = 'sys.modules["__main__"]';        # Note this is changed to $DEFAULT_PACKAGE if the -m option is NOT passed (in Pythonizer.pm)
 
 # List of libraries that pythonizer knows about and handles as built-ins:
-our @BUILTIN_LIBRARIES = qw(strict warnings vars feature autodie utf8 autovivification subs Getopt::Long Getopt::Std Time::Local File::Basename Fcntl Carp::Assert Exporter Carp File::stat English integer);
+# issue s280 our @BUILTIN_LIBRARIES = qw(strict warnings vars feature autodie utf8 autovivification subs Getopt::Long Getopt::Std Time::Local File::Basename Fcntl Carp::Assert Exporter Carp File::stat English integer);
+our @BUILTIN_LIBRARIES = qw(strict warnings vars feature autodie utf8 autovivification subs Getopt::Long Getopt::Std Time::Local File::Basename Fcntl Carp::Assert Carp File::stat English integer);    # issue s280: Remove Exporter
 our %BUILTIN_LIBRARY_SET = map { $_ => 1 } @BUILTIN_LIBRARIES;
 
 our $MODULES_DIR = "PyModules"; # Where we copy system modules to run pythonizer on them (for use/require)
@@ -219,6 +225,8 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
                 _execp=>'_cluck',                   # issue s247
                 _caller_s=>'_caller',               # issue s259
                 _import=>'_init_package',           # issue s269
+                _warn=>'_caller',                   # issue s288
+                _die=>'_caller',                    # issue s292
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
 our %PYF_OUT_PARAMETERS=();                        # Functions with out parameters - which parameter (counting from 1) is "out"?
 our %STATEMENT_FUNCTIONS=(getopts=>1, GetOptions=>1, chop=>1, chomp=>1);    # issue s150: These functions generate statements and must be pulled out of expressions/conditions, issue s167: Add chop/chomp
@@ -394,6 +402,7 @@ our %CLASS_METHOD_SET = map { $_ => 1 } @CLASS_METHODS;
 # for 'use English':
 # NOTE: Not all of these are supported, but they are included here for completeness!
 # See https://perldoc.perl.org/perlvar
+# NOTE: There is an exact copy of this table in pythonizer_importer.pl
 our %ENGLISH_SCALAR = (ARG=>'_', LIST_SEPARATOR=>'"', PROCESS_ID=>'$', PID=>'$', PROGRAM_NAME=>'0',
                        REAL_GROUP_ID=>'(', GID=>'(', EFFECTIVE_GROUP_ID=>')', EGID=>')',
                        REAL_USER_ID=>'<', UID=>'<', EFFECTIVE_USER_ID=>'>', EUID=>'>',

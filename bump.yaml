@@ -1,49 +1,53 @@
 bump.yaml:
-  ^(.*)(1.026)(.*)$: replace
+  ^(.*)(1.027)(.*)$: replace
 pythonizer:
-  '^(# )(1.026)(  )(\d\d\d\d\/\d\d\/\d\d)(  SNOOPYJC)': append
-  ^(.*\$VERSION=')(1.026)(';): replace
+  '^(# )(1.027)(  )(\d\d\d\d\/\d\d\/\d\d)(  SNOOPYJC)': append
+  ^(.*\$VERSION=')(1.027)(';): replace
 setup.py:
-  ^(.*version=')(1.026)(',): replace
+  ^(.*version=')(1.027)(',): replace
 user_guide.html:
-  ^(.*Version )(1.026)( \()([A-Z][a-z][a-z] \d*, \d\d\d\d)(\).*)$: replace
+  ^(.*Version )(1.027)( \()([A-Z][a-z][a-z] \d*, \d\d\d\d)(\).*)$: replace
 HISTORY.rst:
-  ^(1.026)( \()(\d\d\d\d-\d\d-\d\d)(\))$: history
+  ^(1.027)( \()(\d\d\d\d-\d\d-\d\d)(\))$: history
 readme.md:
-  ^(###.*)(1.026)(.*)$: replace
+  ^(###.*)(1.027)(.*)$: replace
 charnames/__init__.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 Config/__init__.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 Math/Complex.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 Sys/Hostname.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 File/Path.py:
-  ^(__version__ =.")(1.026)(")$: replace
+  ^(__version__ =.")(1.027)(")$: replace
 FindBin/__init__.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 HTML/Entities.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 Class/Struct.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 Text/ParseWords.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 CGI/__init__.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 CGI/Cookie.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 CGI/File/Temp.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 CGI/Util.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 Encode/Encoding.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 Encode/MIME/Name.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 Time/HiRes.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 Time/localtime.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
 Time/tm.py:
-  ^(__version__ =.')(1.026)(')$: replace
+  ^(__version__ =.')(1.027)(')$: replace
+Exporter/__init__.py:
+  ^(__version__ =.')(1.027)(')$: replace
+CGI/Carp.py:
+  ^(__version__ =.')(1.027)(')$: replace

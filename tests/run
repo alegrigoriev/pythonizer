@@ -9,7 +9,7 @@ export PYTHONPATH=/c/pythonizer/pythonizer
 cd ../tests
 
 echo "Cleaning .py files"
-rm -f *.py subdir/*.py subdir/subsubdir/*.py My/*.py
+rm -f *.py subdir/*.py subdir/subsubdir/*.py My/*.py testdie/*.py
 rm -fr PyModules
 status=0
 failed=0
@@ -100,7 +100,7 @@ fi
 
 echo
 echo "Generating subdir files"
-for f in subdir/*.pl
+for f in subdir/*.pl testdie/*.pl
 do
 	if [ $ctrlc -eq 1 ]; then
 	   break
