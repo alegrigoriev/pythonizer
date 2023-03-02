@@ -10,6 +10,8 @@ def _caller(expr=None):
             fr = sys._getframe(get_level)
             if fr.f_code.co_name != '_tie_call' and \
                fr.f_code.co_name != 'tie_call' and \
+               fr.f_code.co_name != '_tie_call_func' and \
+               fr.f_code.co_name != 'tie_call_func' and \
                fr.f_code.co_name != '<lambda>' and \
                not '__goto_sub__' in fr.f_locals and \
                not re.match(r'^_f\d+[a-z]?$', fr.f_code.co_name):
@@ -20,14 +22,22 @@ def _caller(expr=None):
             get_level += 1
 
         def get_package(fr, get_level):
-            fr_lambda = None
+            fr_tcf = None
             try:
                 nfr = sys._getframe(get_level+2)
                 if nfr.f_code.co_name == '_tie_call' or \
                    nfr.f_code.co_name == 'tie_call':
                     nfr = sys._getframe(get_level+3)
-                    if nfr.f_code.co_name == '<lambda>':
-                        fr_lambda = nfr
+                    if nfr.f_code.co_name == '_tie_call_func' or \
+                       nfr.f_code.co_name == 'tie_call_func' or \
+                       nfr.f_code.co_name == '<lambda>':
+                        if '__package__' in nfr.f_locals:
+                            # We have a variable __package__ defined in _tie_call_func for this purpose
+                            # The reason we have that is that all _tie_call_func's code pointers are
+                            # the same and we can't tell them apart.
+                            if hasattr(nfr.f_locals['__package__'], '__PACKAGE__'):
+                                return nfr.f_locals['__package__'].__PACKAGE__
+                        fr_tcf = nfr
             except Exception as e:
                 pass
             package = None
@@ -43,7 +53,7 @@ def _caller(expr=None):
                             if code == callable_obj:
                                 package = pack
                                 break
-                            if fr_lambda and code == fr_lambda.f_code:
+                            if fr_tcf and code == fr_tcf.f_code:
                                 package = pack
                                 break
                         if hasattr(func, '__func__'):   # e.g. MethodType

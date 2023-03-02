@@ -70,7 +70,7 @@ sub message_displayed {
 }
 
 sub good_timestamp {
-      if($_[0] =~ /^(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat) (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d+ \d\d:\d\d:\d\d 2\d\d\d/) {
+      if($_[0] =~ /^(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat) (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [\s\d]\d \d\d:\d\d:\d\d 2\d\d\d/) {
           return 1;
       }
       #print "$_[0] is not a good timestamp!";

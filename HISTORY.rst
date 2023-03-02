@@ -2,6 +2,11 @@
 History
 =======
 
+1.028 (2023-02-24)
+------------------
+
+* Issue s301: Add _assign_meta, _store_perl_meta, and _unassign_meta to support tie/untie of scalars.  Update _add_tie_methods to support tie scalar.  Implement use Env.  Issue s304: Add _add_tie_call.  Update _add_tie_methods to handle FIRSTKEY and NEXTKEY returning the list value from _each.
+
 1.027 (2023-02-16)
 ------------------
 

@@ -252,6 +252,7 @@
 # 1.025  2023/02/05  SNOOPYJC issue s70: Malformed UTF-8 character (fatal) at ../pythonizer/Pythonizer.pm, plus add -e flag and change how ord/chr work for non-utf8 encodings, issue s269: Naming a package 'bytes' should generate an escaped name, implement Encode, Encode::Encoding, Encode::MIME::Name, CGI, CGI::Cookie, CGI::Util, CGI::File::Temp, issue s272: Conditional $DB::single assignment generates unconditional call to pdb
 # 1.026  2023/02/10  SNOOPYJC implement use English and use integer, issue s273: Multi-assignment to an arrayref and a list of scalars generates bad code, issue s274: $+ without a subscript should give the $LAST_PAREN_MATCH.  Implement Time::localtime and Time::tm.  Retranslate Math::Complex and fix Pythonizer issues found. Implement Time::HiRes, issue s275: Global variable in package sometimes incorrectly replaced with loop-local variable, issue s276: Getting a reference to a function generates incorrect code
 # 1.027  2023/02/16  SNOOPYJC issue s281: UNIVERSAL::isa(\*FH,'GLOB') should return 1, issue s286: Regex with m flag gives different results in perl vs python, issue s285: Use of uninitialized value $ValClass[1] in string eq at ../pythonizer, issue s282: Implement $^S, addl fix for issue s252 - update the var type on functions with out parameters, issue s278: Any multi-line statement as the last statement of a sub causes bad code to be generated, issue s283: Bad code generated for CORE::die(@_), issue s291: Pushing to @ARGV doesn't work properly, issue s288: warn doesn't work like perl, issue s277: If a signal handler is more than 1 line, bad code is generated, issue s293: goto &mySub inside an anonymous sub gives a Pythonizer error message, issue s295: (backtick)script.py(backtick) on windows will launch an editor if that's the associated program, issue s292: die doesn't work like perl, issue s289: Setting *CORE::GLOBAL::func doesn't do anything, issue s298: Setting an environment variable to an integer causes an exception, issue s279: grep thru multiple arrays generates bad code, issue s280: Explicitly calling Exporter::import doesn't work, issue s300: Subs that start with an '_' and the name is the same as a perllib function causes bad code to be generated, issue s299: foreach as statement modifier with a , expression generates bad code, issue s297: $? ($CHILD_ERROR) is not set properly, issue s296: Create environment variables to set perllib.TRACEBACK, perllib.AUTODIE, perllib.TRACE_RUN, perllib.WARNING, issue s294: -y option (replace run) should also work in qw/lists.pl of.pl perl.pl scripts.pl/, issue s292: die doesn't work like perl, issue s290: assert statement with side-effect generates assert that's always True, issue s284: Add an option to make all calls via the full qualified sub name, issue s262: map that updates a variable in the function generates incorrect code
+# 1.028  2023/02/24  SNOOPYJC issue s301: Implement tie scalar, Implement use Env, issue s302: Goatse idiom to count the # of matches generates bad code, issue s303: Need to use os.environ.get(...) on fetch from $ENV{...}, not os.environ[...], issue s304: If a file implements multiple packages with different tie operations, the wrong FETCH/STORE will be called, issue s306: If a function has a replacement in scalar context, it shouldn't be replaced if it's being indexed, issue s305: Calling keys (or values) on a hash should reset the 'each' iterator
 #!start ===============================================================================================================================
 
    use v5.10.1;
@@ -312,7 +313,7 @@ BEGIN {                                                 # SNOOPYJC
 
    use Pythonizer qw(correct_nest getline prolog output_line %LocalSub %PotentialSub %GlobalVar %VarType %InitVar init_val matching_br reverse_matching_br next_matching_token last_matching_token next_matching_tokens next_same_level_token next_same_level_tokens next_lower_or_equal_precedent_token fix_scalar_context %SubAttributes %Packages @Packages arg_type_from_pos in_sub_call end_of_function new_anonymous_sub save_nest restore_nest for_loop_uses_default_var get_sub_attribute get_sub_attribute_at set_sub_attribute clone_sub_attributes debug_start_end); # SNOOPYJC
 
-   $VERSION='1.027';
+   $VERSION='1.028';
    $SCRIPT_NAME='pythonizer';
 #
 # options
@@ -1113,13 +1114,21 @@ my ($start,$token_buffer_active);
                     # listed in overloads:
                     gen_statement("$p_escaped.$escaped = types.MethodType($escaped, $p_escaped)");      # issue s3
                 } elsif($CurSub ne 'import' && ((exists $LocalSub{TIEHASH} && $LocalSub{TIEHASH} == 1) || 
+                        # (exists $LocalSub{TIESCALAR} && $LocalSub{TIESCALAR} == 1) ||      # issue s301: Not needed for TIESCALAR
                         (exists $LocalSub{TIEARRAY} && $LocalSub{TIEARRAY} == 1))) {      # issue s154
                     # issue s216 gen_statement("$p_escaped.$escaped = lambda *_args: $escaped(_args[0].__dict__, *_args[1:])");  # issue s154
-                    $Pyf{_tie_call} = 1;        # issue s216
+                    # issue s304 $Pyf{_tie_call} = 1;        # issue s216
+                    $Pyf{_add_tie_call} = 1;        # issue s304
+                    #
+                    # NOTE: Whatever you put here, you have to match in 2 places in Pythonizer.pm so the line gets moved along with
+                    # the def above it:
+                    #
                     if($import_perllib) {       # issue s216
-                        gen_statement("$p_escaped.$escaped = lambda *_args, **_kwargs: $PERLLIB.tie_call($escaped, _args, _kwargs)");
+                        # issue s304 gen_statement("$p_escaped.$escaped = lambda *_args, **_kwargs: $PERLLIB.tie_call($escaped, _args, _kwargs)");
+                        gen_statement("$p_escaped.$escaped = $PERLLIB.add_tie_call($escaped, $p_escaped)");     # issue s304
                     } else {
-                        gen_statement("$p_escaped.$escaped = lambda *_args, **_kwargs: _tie_call($escaped, _args, _kwargs)");
+                        # issue s304 gen_statement("$p_escaped.$escaped = lambda *_args, **_kwargs: _tie_call($escaped, _args, _kwargs)");
+                        gen_statement("$p_escaped.$escaped = _add_tie_call($escaped, $p_escaped)");     # issue s304
                     }
                 } else {
                     gen_statement("$p_escaped.$escaped = $escaped");
@@ -3876,12 +3885,39 @@ sub fix_expression_issues
    while(($pos = next_matching_token('o', $st, $limit)) >= 0) {
        if($ValPerl[$pos] eq 'xor') {
            my $adjust = handle_xor($start, $pos, $limit);
+           $st = $pos+1+$adjust;
            $end_pos += $adjust;
            $limit += $adjust;
        } else {
            $st = $pos+1;
        }
    }
+   # issue s287: Implement isa operator
+   $st = $start;
+   while(($pos = next_matching_token('S', $st, $limit)) >= 0) {
+       my $adjust = handle_isa($start, $pos, $limit);
+       $st = $pos + $adjust + 1;
+       $end_pos += $adjust;
+       $limit += $adjust;
+   }
+   # issue s305: Handle resetting 'each' on keys/values
+   my $cs = &Perlscan::cur_sub();
+   if(exists $SpecialVarsUsed{'each'} && exists $SpecialVarsUsed{'each'}{$cs}) {
+       $st = $start;
+       my $perl = $SpecialVarsUsed{'each'}{$cs};
+       while(($pos = next_matching_token('f', $st, $limit)) >= 0) {
+           next if $ValPerl[$pos] ne 'keys' && $ValPerl[$pos] ne 'values';
+           my $sta = $pos+1;
+           $sta++ if $ValPerl[$sta] eq '(';
+           next if $ValPerl[$sta] ne $perl;
+           my $adjust = handle_reset_each_on_keys_or_values($start, $pos, $limit);
+           $pos += $adjust;
+           $end_pos += $adjust;
+           $limit += $adjust;
+       } continue {
+           $st = $pos+1;
+       }
+   }                                                    # issue 52
    # issue 52: handle ? : operator
    while(($pos = next_matching_token('?', $start, $limit)) >= 0) {  # issue 52
        my $adjust = handle_question_mark_colon($start, $pos, $limit); # issue 52
@@ -4565,7 +4601,7 @@ sub finish
             #say STDERR "PythonCode[0] = $Perlscan::PythonCode[0]";  # TEMP
 
             if($return) {
-                if($CurSub eq 'TIEHASH' || $CurSub eq 'TIEARRAY') {    # issue s216
+                if($CurSub eq 'TIEHASH' || $CurSub eq 'TIEARRAY' || $CurSub eq 'TIESCALAR') {    # issue s216, issue s301
                     $Pyf{_add_tie_methods} = 1;             # issue s216
                     my $atm = $import_perllib ? "$PERLLIB.add_tie_methods" : '_add_tie_methods';    # issue s216
                     unshift @Perlscan::PythonCode, '(';     # issue s216
@@ -9215,6 +9251,21 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
           }
        }
        return $begin+1;
+   } elsif($py_name eq '_isa_op') {             # issue s287
+       gen_chunk($py_name, '(');
+       my $comma = next_same_level_token(',', $start, $end_pos);
+       if($ValClass[$start] eq 'i') {
+           gen_chunk($ValPy[$start]);
+       } else {
+           $TrStatus = expression($start, $comma-1);
+       }
+       gen_chunk(',');
+       if($ValClass[$comma+1] eq 'i') {
+           gen_chunk($ValPy[$comma+1]);
+       } else {
+           $TrStatus = expression($comma+1, $end_pos);
+       }
+       gen_chunk(')');
    }elsif( substr($py_name,0,1) eq '.' ){
       #Generic Perl built-in function which is a method in Python
       my $context=-1;
@@ -9295,35 +9346,86 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
        gen_chunk(')');
    } elsif($perl_name eq 'tie') {               # issue s154
        my $class = $ValClass[$start];
+       # FIXME: Handle: 
+       # tie ${"${callpack}::$name"}, Env, $name; 
+       # for use Env;
+       # =|ff("."),i,s|= ValPerl=tie _fetch_perl_global ( ${pkg}::$name . _v ) , TiedScalar , $name
+       my $add_paren = 0;                   # issue s301
+       if($class eq 'f' && $ValPy[$start] eq '_fetch_perl_global') {        # issue s301
+           my $close = matching_br($start+1);
+           if($ValPerl[$close-1] eq '_v') { # scalar
+               $class = 's';
+               $Pyf{_store_perl_meta} = 1;
+               $ValPy[$start] = '_store_perl_meta';
+           } elsif($ValPerl[$close-1] eq '_a') {    #  array
+               $class = 'a';
+               $Pyf{_store_perl_global} = 1;
+               $ValPy[$start] = '_store_perl_global';
+           } else {
+               $class = 'h';
+               $Pyf{_store_perl_global} = 1;
+               $ValPy[$start] = '_store_perl_global';
+           }
+           $add_paren = 1;
+       }
        if(!exists $TIE_CONSTRUCTORS{$class}) {
-           logme('S', "tie is only supported for arrays and hashes");
+           logme('S', "tie is only supported for arrays, hashes, and scalars");     # issue s301
            return $#ValClass+1;
        }
        my $constructor = $TIE_CONSTRUCTORS{$class};
        my $eq_ok = ($begin == 0);
+       $eq_ok = 0 if $class eq 's' && !$add_paren;         # issue s301: We always need _assign_meta
        gen_chunk('(') unless($eq_ok);
-       my $dot = rindex($ValPy[$start], '.');
-       my $add_paren = 0;
-       if($dot >= 0 && !$eq_ok) {
-           my $a = substr($ValPy[$start], 0, $dot);
-           my $b = substr($ValPy[$start], $dot+1);
-           $Pyf{_assign_global} = 1;
-           gen_chunk('_assign_global', '(', "'$a'", ',', "'$b'", ',');
-           $add_paren = 1;
-       } else {
-           gen_chunk($ValPy[$start]);
-           gen_chunk($eq_ok ? '=' : ':=');
+       if($add_paren) {                     # issue s301
+           gen_chunk($ValPy[$start], '(');
+           $TrStatus = expression($start+2, matching_br($start+1)-1, 0);        # issue s301
+           gen_chunk(',');                  # issue s301
+       } else {                             # issue s301
+           my $dot = rindex($ValPy[$start], '.');
+           # issue s301 my $add_paren = 0;
+           if($dot >= 0 && !$eq_ok) {
+               my $a = substr($ValPy[$start], 0, $dot);
+               my $b = substr($ValPy[$start], $dot+1);
+               if($class eq 's') {              # issue s301
+                   $Pyf{_assign_meta} = 1;      # issue s301
+                   gen_chunk('_assign_meta', '(', "'$a'", ',', "'$b'", ',');    # issue s301
+               } else {                         # issue s301
+                   $Pyf{_assign_global} = 1;
+                   gen_chunk('_assign_global', '(', "'$a'", ',', "'$b'", ',');
+               }
+               $add_paren = 1;
+           } else {
+               logme('S', "tie is not supported for scalars declared as 'my' or implicitly declared as 'my' with the -m option") if $class eq 's';   # issue s301
+               gen_chunk($ValPy[$start]);
+               gen_chunk($eq_ok ? '=' : ':=');
+           }
        }
-       my $pkg = $ValPy[$start+2];
-       if($ValClass[$start+2] eq 'i') {         # issue s175
+       my $comma = next_same_level_token(',', $start+1, $end_pos);      # issue s301
+       my $pkg = $ValPy[$comma+1];                                      # issue s301
+       my $comma2 = next_same_level_token(',', $comma+1, $end_pos);     # issue s301
+       if($comma2 < 0) {                        # issue s301
+           $comma2 = $end_pos+1;                # issue s301
+       }                                        # issue s301
+       if($ValClass[$comma+1] eq 'i') {         # issue s175
            ;                                    # issue s175
-       } elsif($ValClass[$start+2] ne '"' || substr($ValPy[$start+2],0,1) eq 'f') {
-           logme('S', "tie is only supported with a constant package specified");
+       } elsif($ValClass[$comma+1] ne '"' || substr($ValPy[$comma+1],0,1) eq 'f') {
+           #logme('S', "tie is only supported with a constant package specified");
+           $pkg = undef;
        } else {
-           $pkg = unquote_string($ValPy[$start+2]);
+           $pkg = unquote_string($ValPy[$comma+1]);
        }
-       gen_chunk($pkg, '.', $constructor, '(');
-       $TrStatus = expression($start+4, $end_pos, 0) if($start+4 <= $end_pos);
+       if(defined $pkg) {
+           $pkg = escape_keywords($pkg, 1); # issue s301
+           gen_chunk($pkg, '.', $constructor, '(');
+       } else {                             # issue s301: Support non-constant package
+           gen_chunk('getattr(main', ',');
+           $TrStatus = expression($comma+1, $comma2-1, 0);
+           gen_chunk(')');
+           gen_chunk('.', $constructor, '(');
+       }
+
+       # issue s301 $TrStatus = expression($start+4, $end_pos, 0) if($start+4 <= $end_pos);
+       $TrStatus = expression($comma2+1, $end_pos, 0) if($comma2+1 <= $end_pos);      # issue s301
        gen_chunk(')');
        gen_chunk(')') unless($eq_ok);
        gen_chunk(')') if($add_paren);
@@ -9334,7 +9436,18 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
        #correct_nest(-1,-1);
        #gen_statement("$ValPy[$start] = None");
        #gen_statement("$ValPy[$start] = $ValPy[$start].__untie__()");
-       gen_statement("$ValPy[$start].__untie__()");
+       if($ValClass[$start] eq 's') {
+           $Pyf{_unassign_meta} = 1;
+           my $pdot = rindex($ValPy[$start],'.');
+           my $pkg = substr($ValPy[$start],0,$pdot);
+           $pkg = escape_keywords($pkg, 1); # issue s301
+           my $var = substr($ValPy[$start],$pdot+1);
+           gen_statement($pkg . '.__class__.__dict__[' . "'$var'" . '].__untie__()');
+           gen_chunk('_unassign_meta', '(', "'$pkg'", ',', "'$var'", ')');
+           gen_statement();
+       } else {
+           gen_statement("$ValPy[$start].__untie__()");
+       }
        gen_chunk($ValPy[$start], '=');
        if($ValClass[$start] eq 'a') {
            if($autovivification) {
@@ -9343,6 +9456,8 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
            } else {
                gen_chunk('[]');
            }
+       } elsif($ValClass[$start] eq 's') {
+           gen_chunk('None');
        } else {
            if($autovivification) {
                $Pyf{Hash} = 1;
@@ -9446,6 +9561,12 @@ my ($split, $split2, $delta, $dict, $incr, $arg1, $arg2, $perl_name, $py_name);
          # the argument already has a len function on it
          $TrStatus=expression($start,$end_pos,0) if $start <= $end_pos;     # issue s254
          return -255 if ($TrStatus<0);                                      # issue s254
+   }elsif($perl_name eq 'scalar' && $ValPerl[$start] eq '(' && $start+3 <= $#ValClass &&
+          $ValPerl[$start+1] eq ')' && $ValClass[$start+2] eq '=' &&
+          $ValClass[$start+3] eq 'f' && $ValPy[$start+3] eq 'lena') {       # issue s302
+         # issue s302: Generate no code for scalar(() = lena(...)) since we already applied the len function
+         $TrStatus=expression($start,$end_pos,0) if $start <= $end_pos;     # issue s302
+         return -255 if ($TrStatus<0);                                      # issue s302
    }else{
       $py_name = 'len' if($py_name eq 'lens');          # SNOOPYJC: string len has a different type but same function
       $py_name = 'len' if($py_name eq 'lena');          # issue s254: goatse uses 'scalar' mapped to this len function
@@ -10381,7 +10502,8 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
    my $f;
    for(my $i = $begin; $i <= $limit; $i++) {    # issue 53
        if($ValClass[$i] eq '(' && $ValPy[$i] eq '[' && $ValPerl[$i] eq '{' &&
-           $i-1 != 0 && $ValClass[$i-1] ne 'f'                 # issue s3: not "sort {...} @arr" or "map {...} @arr" or "bless {}, $pkg"
+           # issue s303 $i-1 != 0 && $ValClass[$i-1] ne 'f'                 # issue s3: not "sort {...} @arr" or "map {...} @arr" or "bless {}, $pkg"
+           !($i-1 != 0 && $ValClass[$i-1] eq 'f')                 # issue s3: not "sort {...} @arr" or "map {...} @arr" or "bless {}, $pkg", issue s303
          ) {  # issue 53
            $l = matching_br($i);                        # issue 53
            next if($l < 0);                             # issue 53
@@ -10396,6 +10518,7 @@ my ($bracketed,$cur_pos,$limit,$mode,$split,$start,$prev_k,$end_pos,$pos);
                next;
            }
            next if(index($TokenStr, '=') > $l);         # issue 53: skip if on lhs of assignment
+           next if(next_same_level_token('=', $l+1, $#ValClass) != -1);  # issue s303: the above check may find an '=' inside the parens, make sure there is none after them
            next if((($f=index($TokenStr,'f')) != -1) && 
                ($ValPerl[$f] =~ /keys|values/ ||
                ($ValPerl[$f] =~ /push|unshift/ && $l < next_same_level_token(',',$f,$#ValClass))));
@@ -11563,6 +11686,77 @@ sub handle_smartmatch                    # issue s251: Implement ~~
         say STDERR "handle_smartmatch($start, $op_pos, $limit): a[$a_start:$a_end], b[$b_start:$b_end] = $adjust (=|$TokenStr|=)";
     }
     return $adjust;           # How many things we added
+}
+
+sub handle_isa                    # issue s287: Implement isa
+{
+    my $start = shift;
+    my $op_pos = shift;
+    my $limit = shift;
+
+    # Replace a isa b with _isa_op(a,b)
+    # We determine where to stop by looking at the operator precedence chart here: https://perldoc.perl.org/perlop
+
+    my ($a_start, $a_end, $b_start, $b_end);
+    $a_end = $op_pos-1;
+    for($a_start=$a_end; $a_start >= $start; $a_start--) {
+        if($ValClass[$a_start] eq ')') {
+            $a_start = reverse_matching_br($a_start);
+        } elsif(index('ko,A=?:r0|&M>(', $ValClass[$a_start]) >= 0) {
+            last;
+        }
+    }
+    $a_start++;
+    $b_start = $op_pos+1;
+    for($b_end=$b_start; $b_end <= $limit; $b_end++) {
+        if($ValClass[$b_end] eq '(') {
+            $b_end = matching_br($b_end);
+        } elsif(index('o,A=?:r0|&M>)', $ValClass[$b_end]) >= 0) {
+            last;
+        }
+    }
+    $b_end--;
+    insert($b_end+1, ')', ')', ')');
+    my $pl = $ValPerl[$op_pos];
+    my $py = $ValPy[$op_pos];
+    my $adjust = 3;
+    if($ValClass[$a_start] =~ /[if]/ && $ValClass[$a_start+1] ne '(' && $a_start+1 != $op_pos) { # Unparenthesized sub or function call
+        # We have to add parens to it, else we don't know where the argument list ends
+        insert($op_pos, ')', ')', ')');
+        insert($a_start+1, '(', '(', '(');
+        $adjust += 2;
+        $op_pos += 2;
+    }
+    replace($op_pos, ',', ',', ',');
+    insert($a_start, '(', '(', '(');
+    insert($a_start, 'f', $pl, $py);
+    $Pyf{$py} = 1;      # Causes it to load the function from our library into the generated code
+    if($debug >= 3) {
+        say STDERR "handle_isa($start, $op_pos, $limit): a[$a_start:$a_end], b[$b_start:$b_end] = $adjust (=|$TokenStr|=)";
+    }
+    return $adjust;           # How many things we added
+}
+
+sub handle_reset_each_on_keys_or_values         # issue s305
+{
+    my($start, $pos, $limit) = @_;
+
+    my $st = $pos+1;
+    my $en = $pos+1;
+    if($ValPerl[$st] eq '(') {
+        $en = matching_br($st);
+        $st++;
+    }
+    insert($en+1,'y','','[0]');
+    insert($en+1, ')', ')', ')');
+    insert($en+1, ')', ')', ')');
+    insert($en+1, $ValClass[$st], $ValPerl[$st], $ValPy[$st]);
+    insert($en+1, '(', '(', '(');
+    $Pyf{_reset_each} = 1;
+    insert($en+1, 'f', '_reset_each', '_reset_each');
+    insert($en+1, ',', ',', ',');
+    insert($pos, '(', '(', '(');
+    return 8;
 }
 
 sub handle_question_mark_colon                    # issue 52 handle ? : in expressions
@@ -14722,7 +14916,7 @@ sub convert_return_expression           # issue s9, issue s3
                 return ')';
             }
         }
-    } elsif($cs eq 'TIEHASH' || $cs eq 'TIEARRAY') {    # issue s216
+    } elsif($cs eq 'TIEHASH' || $cs eq 'TIEARRAY' || $cs eq 'TIESCALAR') {    # issue s216, issue s301
         $Pyf{_add_tie_methods} = 1;             # issue s216
         gen_chunk('_add_tie_methods', '(');     # issue s216
         return ')';                               # issue s216

@@ -5,12 +5,14 @@ def _add_tie_methods(obj):
         cls = obj.__class__
     except Exception:       # Not an object, so just ignore
         return obj
-    is_hash = is_array = False
+    is_scalar = is_hash = is_array = False
+    if hasattr(cls, 'TIESCALAR'):
+        is_scalar = True
     if hasattr(cls, 'TIEARRAY'):
         is_array = True
     if hasattr(cls, 'TIEHASH'):
         is_hash = True
-    if not is_array and not is_hash:
+    if not is_array and not is_hash and not is_scalar:
         return obj
     elif hasattr(cls, '__TIE_subclass__'):
         obj.__class__ = cls.__TIE_subclass__
@@ -18,6 +20,23 @@ def _add_tie_methods(obj):
 
     classname = cls.__name__
     result = type(classname, (cls,), Hash() if hasattr(cls, 'isHash') else dict())
+
+    if is_scalar:
+        def __get__(self, obj, objtype=None):
+            return self.FETCH()
+        result.__get__ = __get__
+        def __set__(self, obj, value):
+            return self.STORE(value)
+        result.__set__ = __set__
+        if hasattr(result, 'DELETE'):
+            setattr(result, _TIE_MAP['DELETE'], getattr(result, 'DELETE'))
+        if hasattr(result, 'UNTIE'):
+            setattr(result, _TIE_MAP['UNTIE'], getattr(result, 'UNTIE'))
+        else:
+            setattr(result, _TIE_MAP['UNTIE'], lambda self: None)
+        cls.__TIE_subclass__ = result
+        obj.__class__ = result
+        return obj
 
     for m, p in _TIE_MAP.items():
         if hasattr(result, m):
@@ -57,9 +76,20 @@ def _add_tie_methods(obj):
             def __iter__(self):
                 if self.isHash:
                     current_key = self.FIRSTKEY()
+                    # Handle FIRSTKEY being implemented using each
+                    if isinstance(current_key, collections.abc.Sequence) and not isinstance(current_key, str):
+                        if len(current_key) == 0:
+                            current_key = None
+                        else:
+                            current_key = current_key[0]
                     while current_key is not None:
                         yield current_key
                         current_key = self.NEXTKEY()
+                        if isinstance(current_key, collections.abc.Sequence) and not isinstance(current_key, str):
+                            if len(current_key) == 0:
+                                current_key = None
+                            else:
+                                current_key = current_key[0]
                 else:
                     for i in range(self.SCALAR() if hasattr(self, "SCALAR") else self.FETCHSIZE()):
                         yield self.FETCH(i)
@@ -68,9 +98,20 @@ def _add_tie_methods(obj):
         else:
             def __iter__(self):
                 current_key = self.FIRSTKEY()
+                # Handle FIRSTKEY being implemented using each
+                if isinstance(current_key, collections.abc.Sequence) and not isinstance(current_key, str):
+                    if len(current_key) == 0:
+                        current_key = None
+                    else:
+                        current_key = current_key[0]
                 while current_key is not None:
                     yield current_key
                     current_key = self.NEXTKEY()
+                    if isinstance(current_key, collections.abc.Sequence) and not isinstance(current_key, str):
+                        if len(current_key) == 0:
+                            current_key = None
+                        else:
+                            current_key = current_key[0]
             result.__iter__ = __iter__
 
         if is_array:
