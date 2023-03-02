@@ -81,6 +81,9 @@ sub pass_0
                 $use_implicit_my = 0;
                 say STDERR "Using -M due to require" if($say_why);
             }
+        } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'use' && $#ValClass >= 1 && $ValPerl[1] eq 'Env') {    # use Env
+            $use_implicit_my = 0;   # use Env
+            say STDERR "Using -M due to use Env" if($say_why);  # use Env
         } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'return' && $CurSub eq '__main__' &&
                 !&Perlscan::in_eval()) {
             $use_implicit_my = 0;   # will die if in a script
@@ -142,6 +145,15 @@ sub pass_0
                     $looks_like_script = 1;
                 } elsif($ValClass[$i] eq 'a' && $ValPerl[$i] eq '@ARGV') {
                     $looks_like_script = 1;
+                } elsif($ValClass[$i] eq 'f' && $ValPerl[$i] eq 'tie') {    # issue s301
+                    my $j = $i+1;
+                    $j++ if($ValClass[$i] eq 't');
+                    if($ValClass[$j] eq 's') {      # Tie scalar
+                        $use_implicit_my = 0;
+                        say STDERR "Using -M due to tie scalar" if($say_why);
+                        last;
+                    }
+
                 }
             }
         }

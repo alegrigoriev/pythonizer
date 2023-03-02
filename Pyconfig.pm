@@ -227,6 +227,10 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
                 _import=>'_init_package',           # issue s269
                 _warn=>'_caller',                   # issue s288
                 _die=>'_caller',                    # issue s292
+                _assign_meta=>'_init_package,ArrayHash,Hash,_ArrayHash,_ArrayHashClass,_partialclass',           # issue s301
+                _store_perl_meta=>'_assign_meta,_init_package,ArrayHash,Hash,_ArrayHash,_ArrayHashClass,_partialclass',           # issue s301
+                _isa_op=>'_isa',                # issue s287
+                _add_tie_call=>'_tie_call',     # issue s304
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
 our %PYF_OUT_PARAMETERS=();                        # Functions with out parameters - which parameter (counting from 1) is "out"?
 our %STATEMENT_FUNCTIONS=(getopts=>1, GetOptions=>1, chop=>1, chomp=>1);    # issue s150: These functions generate statements and must be pulled out of expressions/conditions, issue s167: Add chop/chomp
@@ -380,7 +384,7 @@ our %OVERLOAD_MAP =         (
         );
 
 # issue s154: Implement tie
-our %TIE_CONSTRUCTORS = (a=>'TIEARRAY', h=>'TIEHASH');
+our %TIE_CONSTRUCTORS = (a=>'TIEARRAY', h=>'TIEHASH', s=>'TIESCALAR');
 our %TIE_MAP = (FETCH=>'__getitem__',
                 STORE=>'__setitem__',
                 CLEAR=>'clear',
@@ -396,7 +400,7 @@ our %TIE_MAP = (FETCH=>'__getitem__',
 my $python_tie_map = '{' . (join(',', map { "'" . $_ . "': '" . $TIE_MAP{$_} . "'" } keys %TIE_MAP)) . '}';   # issue s216
 $GLOBALS{_TIE_MAP} = $python_tie_map;                                      # issue s216
 
-our @CLASS_METHODS = qw/new make TIEHASH TIEARRAY/;        # These names will become class methods, issue s154
+our @CLASS_METHODS = qw/new make TIEHASH TIEARRAY TIESCALAR/;        # These names will become class methods, issue s154, issue s301
 our %CLASS_METHOD_SET = map { $_ => 1 } @CLASS_METHODS;
 
 # for 'use English':

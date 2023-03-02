@@ -467,14 +467,14 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
       }
 
       fix_scalar_context();                             # issue 37
-      if( $ValClass[0] eq 't' && $ValPerl[0] eq 'my' ){
+      if( $ValClass[0] eq 't' && ($ValPerl[0] eq 'my' || $ValPerl[0] eq 'state') ){     # issue s306: Treat 'state' like 'my' in a sub
          for($i=1; $i<=$#ValClass; $i++ ){
             last if( $ValClass[$i] eq '=' );
             if( $ValClass[$i] =~/[sah]/ ){
                check_ref($CurSubName, $i);              # SNOOPYJC
                # issue s155 $DeclaredVarH{$ValPy[$i]}=1; # this hash is need only for particular sub
                $DeclaredVarH{$ValPy[$i]}=1 # this hash is need only for particular sub
-                  unless(special_code_block_name($CurSubName));     # issue s155: 'my' is like 'myfile' in BEGIN, etc subs
+                  unless($CurSubName eq '__main__' || special_code_block_name($CurSubName));     # issue s155: 'my' is like 'myfile' in BEGIN, etc subs, issue s306
             }
          }
          my $possible_parameter = 0;                  # issue s185
@@ -2447,7 +2447,25 @@ sub _expr_type           # Attempt to determine the type of the expression
         } elsif(($ma-$k) == 1) {            # issue s197: () =  empty array
             return 'a';                     # issue s197
         } else {        # Not a list, just a parenthesized expression
-            return expr_type($k+1, $ma-1, $CurSub);           # Just get the type of the expression in the (...)
+            # issue s306 return expr_type($k+1, $ma-1, $CurSub);           # Just get the type of the expression in the (...)
+            my $typ = expr_type($k+1, $ma-1, $CurSub);           # Just get the type of the expression in the (...), issue s306
+            return $typ if $ma == $e;               # issue s306
+            if($ma+3 <= $e && $ValClass[$ma+1] eq '(') {    # issue s306: Case in test is (split(/ /, $in))[0]
+                if($ValPerl[$ma+1] eq '[') {        # issue s306: Being subscripted
+                    if($typ =~ /a of (.*)$/) {      # issue s306
+                        return $1;                  # issue s306
+                    } else {                        # issue s306
+                        return 'm';                 # issue s306
+                    }                               # issue s306
+                } elsif($ValPerl[$ma+1] eq '{') {   # issue s306: Being hash keyed
+                    if($typ =~ /h of (.*)$/) {      # issue s306
+                        return $1;                  # issue s306
+                    } else {                        # issue s306
+                        return 'm';                 # issue s306
+                    }                               # issue s306
+                }                                   # issue s306
+            }                                       # issue s306
+            return $typ;                            # issue s306
         }
     }
 }
@@ -2810,7 +2828,11 @@ sub fix_scalar_context                          # issue 37
             my $found_comma = ($ValClass[$end_pos+1] eq ',');
             while($end_pos >= $pos) {
                 if($ValClass[$pos] =~ /[ahf]/) {        # issue 30
-                    $did_something |= apply_scalar_context($pos);
+                    if(!$found_comma && $end_pos+4 <= $#ValClass && $ValPerl[$end_pos+2] eq '[') {  # issue s306: Being subscripted
+                        ;
+                    }  else {
+                        $did_something |= apply_scalar_context($pos);
+                    }
                 }
                 last if($ValClass[$end_pos+1] eq ')');
                 $pos = $end_pos+2;
@@ -3827,7 +3849,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
             # issue s126 $in_def = undef if($line !~ /^def / && $line !~ /^class / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/ && !$multiline_string_sep);
             if($line =~ /^([A-Za-z0-9.]+)[.]$in_def = types[.]MethodType\($in_def,/ ||
   # issue s216 $line =~ /^([A-Za-z0-9.]+)[.]$in_def = lambda \*_args: $in_def\(/ ||
-               $line =~ /^([A-Za-z0-9.]+)[.]$in_def = lambda \*_args.*tie_call\($in_def,/ ||   # issue s216
+  # issue s304 $line =~ /^([A-Za-z0-9.]+)[.]$in_def = lambda \*_args.*tie_call\($in_def,/ ||   # issue s216
+               $line =~ /^([A-Za-z0-9.]+)[.]$in_def = .*add_tie_call\($in_def,/ ||   # issue s304
                $line =~ /^([A-Za-z0-9.]+)[.]$in_def = $in_def$/) {     # issue s18
                $def_package{$in_def} = $1;                             # issue s18
             }                                                          # issue s18
@@ -4064,7 +4087,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
 			            $lines[$i] =~ /^${func}_[\w]+ =/ ||	 # state variable like func_var = init
                         $lines[$i] =~ /[.]$func = types[.]MethodType\($func,/ ||     # issue s3
            # issue s216 $lines[$i] =~ /[.]$func = lambda \*_args: $func\(/ ||     # issue s154
-                        $lines[$i] =~ /[.]$func = lambda \*_args.*tie_call\($func,/ ||     # issue s154, issue s216
+           # issue s304 $lines[$i] =~ /[.]$func = lambda \*_args.*tie_call\($func,/ ||     # issue s154, issue s216
+                        $lines[$i] =~ /[.]$func = .*add_tie_call\($func,/ ||     # issue s154, issue s216, issue s304
                         (($lines[$i] =~ /^_(?:PACK_TO_STRUCT|TEMPLATE_LENGTH|decoding_map|encoding_map|fileinput_iter|finditer_pattern|finditer_string|finditer_iter) =/ ||   # issue s270
                           $lines[$i] =~ /^Data\.Dumper\.[A-Za-z0-9_]+ =.* # InIt/) && $i==$start_line-1) ||     # issue s270
                         $lines[$i] =~ /[.]$func = $func$/) {     # e.g. main.func = func

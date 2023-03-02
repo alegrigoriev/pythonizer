@@ -95,6 +95,7 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
 
             else:
                 namespace = types.SimpleNamespace()
+                namespace.__autovivification__ = autovivification
             if parent_name:
                 package_name = parent_name + '.' + piece
             else:

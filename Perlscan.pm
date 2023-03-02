@@ -371,7 +371,9 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
        # M => ~~ (smartMatch)
        # N, O
        # P => :: (package reference)
-       # Q..V
+       # Q, R
+       # S => isa (as operator)     # issue s287
+       # T..V
        # W => Context manager (with)
        # X..Z
        # 0 => &&, ||
@@ -411,6 +413,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
             # 16      nonassoc    f           named unary operators
                         F=>16,      # Used in a call to next_lower_or_equal_precedent_token; issue s190: also used for weak functions
             # 15      nonassoc    N/A         isa
+                        S=>15,      # issue s287
             # 14      chained     >           < > <= >= lt gt le ge
                         '>'=>14,
             # 13      chain/na    >           == != eq ne <=> cmp ~~
@@ -480,7 +483,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   'glob'=>'f',      # SNOOPYJC
                   'if'=>'c',  'index'=>'f',
                   'int'=>'f',       # issue int
-                  'isa'=>'f',           # issue s54
+                  'isa'=>'f',           # issue s54, issue s287: This could also be 'S' when it's an operator
                   'for'=>'c', 'foreach'=>'c',
                   'getopt'=>'f', 'getopts'=>'f',    # issue s67
                   'GetOptions'=>'f',    # issue 48
@@ -694,6 +697,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
         $PyFuncType{_method_call} = 'mSa?:m';       # issue s236
         $PyFuncType{_raise} = 'm:';
         $PyFuncType{lena} = 'a:I';                  # issue s254: We put in this version of 'scalar' if they use a goatse to make sure the arg is in list context
+        $PyFuncType{_isa_op} = 'mS:B';              # issue s287
 
         for my $d (keys %DASH_X) {
             if($d =~ /[sMAC]/) {            # issue s124
@@ -1146,7 +1150,11 @@ sub capture_varclass                    # SNOOPYJC: Only called in the first pas
         $class = $ValPerl[2];
         $declared_here = 1;
     } elsif($tno != 0 && $ValClass[$tno-1] eq 't') {    # issue s3: for(my $i, my $j...)
-        $class = $ValPerl[$tno-1];
+        if($ValClass[$tno] eq 's' && $tno-2 >= 0 && $ValClass[$tno-2] eq 'f' && $ValPerl[$tno-2] eq 'tie') {    # issue s301
+            logme('W', "tie scalar is not supported with 'my' - the 'my' will be ignored");        # issue s301
+        } else {
+            $class = $ValPerl[$tno-1];
+        }
         $declared_here = 1;
     }
     my $cs = cur_sub();                 # issue s252
@@ -3205,10 +3213,13 @@ my ($l,$m);
          # issue s233 } elsif(substr($w,0,6) eq 'Carp::' && $w =~ /carp|confess|croak|cluck/) {      # SNOOPYJC
          # issue s233 $w = substr($w,6);
          # issue s233 }
+         my $universal = 0;                 # issue s287
          if(substr($w,0,10) eq "UNIVERSAL'" && $w =~ /isa/) {    # issue s54
              $w = substr($w,10);
+             $universal = 1;                # issue s287
          } elsif(substr($w,0,11) eq 'UNIVERSAL::' && $w =~ /isa/) {      # issue s54
              $w = substr($w,11);
+             $universal = 1;                # issue s287
          }
          if( exists($keyword_tr{$w}) ){
             $ValPy[$tno]=$keyword_tr{$w};
@@ -3245,6 +3256,9 @@ my ($l,$m);
             } elsif($class eq 'f' && $core) {           # issue s178: Remove the "CORE." prefix
                 $ValPy[$tno] = $ValPerl[$tno] = $w;     # issue s178
                 $ValPy[$tno]=$keyword_tr{$w} if exists $keyword_tr{$w}; # issue s178
+            } elsif($class eq 'f' && !$universal && $w eq 'isa' && $tno != 0 && index('ihaGfs)', $ValClass[$tno-1]) != -1) { # issue s287
+                $class = 'S';           # issue s287: Implement isa operator
+                $ValPy[$tno] = '_isa_op';   # issue s287
             }
             if($tno != 0 && (($ValPerl[$tno-1] eq '{' && $source =~ /^[a-z0-9]+}/) ||   # issue 89: keyword in a hash like $hash{delete} or $hash{q}
                 (index('{(,', $ValPerl[$tno-1])>=0 && $source =~ /^[a-z0-9]+\s*=>/))) {  # issue 89: keyword in hash def like (qw=>14, use=>15)
@@ -3918,6 +3932,10 @@ my ($l,$m);
             # SNOOPYJC $ValPerl[$tno]=substr($source,$cut);
             $ValPerl[$tno]=substr($source,0,$cut);      # SNOOPYC
             $ValClass[$tno]='a'; #array
+            if($tno != 0 && $ValClass[$tno-1] eq 'f' && $ValPerl[$tno-1] eq 'each') {        # issue s305
+                my $cs = cur_sub();                         # issue s305
+                $SpecialVarsUsed{'each'}{$cs} = $ValPerl[$tno];    # issue s305
+            }
          }else{
             $cut=1;
          }
@@ -3953,6 +3971,10 @@ my ($l,$m);
                $ValPy[$tno]='os.environ';
                my $cs = cur_sub();
                $SpecialVarsUsed{'%ENV'}{$cs} = 1;                # SNOOPYJC
+            }
+            if($tno != 0 && $ValClass[$tno-1] eq 'f' && $ValPerl[$tno-1] eq 'each') {        # issue s305
+                my $cs = cur_sub();                         # issue s305
+                $SpecialVarsUsed{'each'}{$cs} = $ValPerl[$tno];    # issue s305
             }
          } elsif(substr($source,1,2) eq '::') {           # issue s176: This is %:: which is a main symbol table reference
              $cut = 1;

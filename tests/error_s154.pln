@@ -1,6 +1,6 @@
 # Test error cases for tie
 
-tie($scalar, 'package');
+#tie($scalar, 'package');
 tie(*FH, 'package');
-tie(@arr, "not constant $scalar");
-tie(@arr, $scalar);
+#tie(@arr, "not constant $scalar");
+#tie(@arr, $scalar);

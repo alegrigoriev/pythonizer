@@ -38,7 +38,8 @@ assert($tm_year == $tm->year);
 # Test localtime() with a specified time value
 my $timestamp = time() - 86400; # 1 day in the past
 $tm2 = localtime($timestamp);
-assert($tm2->mday == (CORE::localtime())[3] - 1); # day should be 1 less than current day
+my $mday = (CORE::localtime())[3];
+assert($tm2->mday == $mday - 1 || ($mday == 1 && $tm2->mday >= 28)); # day should be 1 less than current day, or wrap around to last month
 
 
 print "$0 - test passed\n";
