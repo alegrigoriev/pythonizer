@@ -76,6 +76,10 @@ sub pass_0
         } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'sub') {
             $global_init_lines++;
             $CurSub = $ValPerl[1];
+            if(index($ValPy[1], '.') != -1) {   # issue s320
+                $use_implicit_my = 0;           # issue s320
+                say STDERR "Using -M due to sub with fully qualified name $CurSub" if($say_why);    # issue s320
+            }                                   # issue s320
         } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'require' && $#ValClass >= 1) {
             if($ValClass[1] eq 's' || $ValClass[1] eq '"') {
                 $use_implicit_my = 0;

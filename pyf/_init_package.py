@@ -54,6 +54,7 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
                                 new_parent_namespace = type(name, tuple(), dict())
                             new_parent_namespace.__class__ = perllibMeta
                             new_parent_namespace.__eq__ = lambda self, other: self is other
+                            new_parent_namespace.__bool__ = lambda self: True
                             for k, v in parent_namespace.__dict__.items():
                                 setattr(new_parent_namespace, k, v)
                             parent_package_name = parent_namespace.__PACKAGE__
@@ -89,6 +90,7 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
                 if is_class or any_parent_is_class:
                     namespace.__class__ = perllibMeta
                     namespace.__eq__ = lambda self, other: self is other
+                    namespace.__bool__ = lambda self: True
                 if prior_namespace is not None:
                     for k, v in prior_namespace.__dict__.items():
                         setattr(namespace, k, v)

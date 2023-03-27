@@ -45,4 +45,20 @@ my $qr_regex = qr/(\w+)\s+(\w+)\s+(\w+)/;
 my @qr_words = extract_groups($string, $qr_regex);
 assert(join(', ', @qr_words) eq 'The, quick, brown');
 
+# Try using the 'e' flag in an anonymous sub
+my $text = "Hello, world!";
+my $expected_result = "Hello, WORLD!";
+my $regex = qr/world/i;
+
+my $sub = sub {
+  my ($match) = @_;
+  $match =~ s/\w+/$& eq 'world' ? uc($&) : $&/ge;
+  return $match;
+};
+
+my $result = $text =~ s/$regex/$sub->($&)/e;
+
+assert($result == 1); # Make sure the substitution was successful
+assert($text eq $expected_result); # Make sure the text was modified as expected
+
 print "$0 - test passed!\n";

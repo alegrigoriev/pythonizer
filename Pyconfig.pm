@@ -203,30 +203,39 @@ our $SUBPROCESS_OPTIONS="-M -v0"; # Options to pythonizer for when we run on use
 
 our $PERL_VERSION=5.034;
 our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longmess', 
-                _format=>'_int,_num', _run=>'_carp,_cluck,_longmess,_shortmess,_need_sh',
+                _format=>'_int,_num,_warn,_die,_caller',    # issue s332
+                _run=>'_carp,_cluck,_longmess,_shortmess,_need_sh',
                 _lstat=>'_stat', _looks_like_binary=>'_looks_like_text,_carp,_longmess,_shortmess',
                 Array=>'ArrayHash', Hash=>'ArrayHash',
                 _bless=>'_carp,_init_package',
-                _add_element=>'_num', _subtract_element=>'_num', _open=>'_need_sh',
+                _add_element=>'_num,_warn,_die,_caller',    # issue s332
+                _subtract_element=>'_num,_warn,_die,_caller',   # issue s332
+                _open=>'_need_sh',
                 _close_=>'_carp,_longmess,_shortmess',
                 _close=>'_carp,_longmess,_shortmess', _run_s=>'_carp,_cluck,_longmess,_shortmess,_need_sh', _looks_like_text=>'_carp,_longmess,_shortmess',
                 _get_creation_age_days=>'_cluck,_longmess',
                 _get_access_age_days=>'_cluck,_longmess',
                 _get_mod_age_days=>'_cluck,_longmess',
-                _map_int=>'_int,_flatten', _map_num=>'_num,_flatten', _map_str=>'_flatten',
+                _map_int=>'_int,_flatten,_warn,_die,_caller',   # issue s332
+                _map_num=>'_num,_flatten,_warn,_die,_caller',   # issue s332
+                _map_str=>'_flatten',
                 _system=>'_carp,_cluck,_longmess,_shortmess,_need_sh',
                 _kill=>'_carp,_cluck',
-                _unpack=>'_pack', _assign_sparse=>'_int',
+                _unpack=>'_pack', 
+                _assign_sparse=>'_int,_warn,_die,_caller',  # issue s332
                 _can=>'_isa', _binmode=>'_autoflush',
                 _add_tie_methods=>'_raise',         # issue s216
                 _method_call=>'_cluck',             # issue s236
-                _smartmatch=>'_num',                # issue s251
+                _smartmatch=>'_num,_warn,_die,_caller',                # issue s251, issue s332
                 _exec=>'_execp,_cluck',             # issue s247
                 _execp=>'_cluck',                   # issue s247
                 _caller_s=>'_caller',               # issue s259
                 _import=>'_init_package',           # issue s269
                 _warn=>'_caller',                   # issue s288
                 _die=>'_caller',                    # issue s292
+                _num=>'_warn,_die,_caller',         # issue s332
+                _int=>'_warn,_die,_caller',         # issue s332
+                _flt=>'_warn,_die,_caller',         # issue s332
                 _assign_meta=>'_init_package,ArrayHash,Hash,_ArrayHash,_ArrayHashClass,_partialclass',           # issue s301
                 _store_perl_meta=>'_assign_meta,_init_package,ArrayHash,Hash,_ArrayHash,_ArrayHashClass,_partialclass',           # issue s301
                 _isa_op=>'_isa',                # issue s287
@@ -371,7 +380,7 @@ our %OVERLOAD_MAP =         (
         'sin'        => {normal=>'sin', unary=>1},
         'cos'        => {normal=>'cos', unary=>1},
         'atan2'        => {normal=>'__atan2__', reversed=>'__ratan2__'},
-        #'int'        => {normal=>'_int', unary=>1},        # not handled
+        'int'        => {normal=>'__int__', unary=>1},  # issue s330
         '""'    => {normal=>'__str__', unary=>1, converter=>$CONVERTER_MAP{S}},
         '${}'        => {normal=>'_scalar', unary=>1},
         '@{}'        => {normal=>'_array', unary=>1},

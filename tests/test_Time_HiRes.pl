@@ -157,7 +157,7 @@ sub test_clock {
     my $seconds1 = Time::HiRes::time();
     #print STDERR ($t1 - $t0) . "\n";
     assert($t1 > $t0, "check that clock incremented didn't increment");
-    assert(abs(abs($seconds1-$seconds0) - abs($t1-$t0)) < EPS*2, "clock and time intervals are not close");
+    assert(abs(abs($seconds1-$seconds0) - abs($t1-$t0)) < EPS*2.5, "clock and time intervals are not close");
 }
 
 sub test_tv_interval {

@@ -1,7 +1,7 @@
 # issue 66 - diamond operator with glob expression
-use Carp::Assert;
 # issue s87:
 # pragma pythonizer no pl_to_py, no replace usage
+use Carp::Assert;
 sub THISFILE () {"issue_66.pl"}
 $count = 0;
 while (<*.pl>) {
@@ -128,6 +128,8 @@ if($0 eq 'issue_66.py') {
                 assert(index($_, "(_d:=next(_dia, None)):") > 0 ||
                        index($_, "_d := next(_dia, None):") > 0) if($while==1);
                 assert(index($_, "(line:=next(_dia, None)):") > 0 ||
+                       index($_, "line_v := next(_dia, None):") > 0 ||
+                       index($_, 'perllib.assign_global("main", "line_v", next(_dia, None)):') > 0 ||
                        index($_, "line := next(_dia, None):") > 0) if($while>1);
             }
         }

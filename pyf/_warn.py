@@ -1,5 +1,5 @@
 
-def _warn(*args):
+def _warn(*args, skip=None):
     """Handle warn in perl"""
     global INPUT_LINE_NUMBER, _INPUT_FH_NAME
     def is_func_in_call_stack(func):    # Warn handlers are turned off inside themselves
@@ -25,7 +25,7 @@ def _warn(*args):
             pass
 
     if "\n" not in args[-1]:
-        (_, fn, lno) = _caller()
+        (_, fn, lno, *_) = _caller() if skip is None else _caller(skip)
         iln = None
         ifn = None
         try:
