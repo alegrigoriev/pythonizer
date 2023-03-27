@@ -24,7 +24,9 @@ def _flt(expr):
             expr = m.group(1);
         else:
             return expr
+    if WARNING == 2:
+        _die(f"Argument \"{expr}\" isn't numeric in numeric context", skip=1)
     if WARNING:
-        caller = inspect.getframeinfo(inspect.stack()[1][0])
-        warnings.warn(f"Argument \"{expr}\" isn't numeric in numeric context at {caller.filename}:{caller.lineno}")
+        #caller = inspect.getframeinfo(inspect.stack()[1][0])
+        _warn(f"Argument \"{expr}\" isn't numeric in numeric context", skip=1)
     return 0

@@ -556,7 +556,8 @@ eval {
         #say STDERR "expand_extras: package=$package, version=$version, export=@export, export_ok=@export_ok, export_tags=@{[%export_tags]}" if($debug);
 };
 if($@) {
-    chomp($@);
-        say '$errors=' . "\"Failed: $@\";";
-        exit(1);
+    $@ =~ s/[\r\n]/ /g;     # issue s325
+    $@ =~ s/"/'/g;          # issue s325
+    say '$errors=' . "\"Failed: $@\";";
+    exit(1);
 }

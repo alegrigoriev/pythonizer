@@ -80,6 +80,7 @@ our  ($IntactLine, $output_file, $NextNest,$CurNest, $line, $fname, @orig_ARGV);
    %anonymous_subs_used = ();   # issue s26
    $pass_0_ran = 0;     # issue s63: set to 1 if we ran pass_0
    $deferred_nesting_top = undef;       # issue s252
+   $StartingBeginLno = undef;           # issue s325
 
 #
 #::prolog --  Decode parameter for the pythonizer. all parameters are exported
@@ -425,9 +426,12 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
             logme('S', "First pass breakpoint was triggered at line $. in Pythonizer.pm");
             $DB::single = 1;
          }
-         if(defined $::saved_sub_tokens && $::nested_sub_at_level < 0) {  # SNOOPYJC
+         # issue s311 if(defined $::saved_sub_tokens && $::nested_sub_at_level < 0) {  # SNOOPYJC
+         if(defined $::saved_sub_tokens && $::nested_sub_at_level <= $::saved_sub_tokens_level[-1]) {  # SNOOPYJC, issue s311
              &::unpackage_tokens($::saved_sub_tokens);
-             $::saved_sub_tokens = undef;
+             # issue s311 $::saved_sub_tokens = undef;
+             $::saved_sub_tokens = pop @::saved_sub_tokens_stack;           # issue s311
+             pop @::saved_sub_tokens_level;                                 # issue s311
              if($ValClass[0] eq 'c' && $ValPerl[0] eq 'aliased_foreach') {  # issue s252
                  getline($line);                # issue s252
              } else {                           # issue s252
@@ -448,14 +452,21 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
       unless(defined($ValClass[0])){
          next;
       }
+      my $pragma_pythonizer_line = 0;       # issue s325
       if((!$pass_0_ran) && $#ValClass >= 3 && $ValClass[0] eq 'i' && $ValPerl[0] eq 'pragma' && $ValPerl[1] eq 'pythonizer') {  # issue s63
           if($got_first_line == 0 || ($ValPerl[2] eq 'no' && $ValPerl[3] eq 'convert')) {       # issue s64
              my $uim = &Pass0::handle_pragma_pythonizer();
              $::implicit_global_my = $uim if(defined $uim);
+             $pragma_pythonizer_line = 1;       # issue s325
           } else {
              logme('W',"# pragma pythonizer is only supported at start of source file if -m or -M are passed")
           }
       }
+      if($got_first_line == 0 && $ValClass[0] eq 'k' && 
+         $#ValClass == 1 && $ValClass[1] eq 'i' && $ValPerl[1] =~ /^__BEGIN__/) {       # issue s325
+          $StartingBeginLno = $.;                                                       # issue s325
+          say STDERR "StartingBeginLno = $." if $::debug;                               # issue s325
+      }                                                                                 # issue s325
 
       if(!defined $CurPackage && ($ValClass[0] ne 'c' || $ValPerl[0] ne 'package')) {     # SNOOPYJC: Set the default package unless
                                                                 			  # we start the file with a "package" stmt
@@ -511,9 +522,18 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
           push @::nested_sub_at_levels, $::nested_sub_at_level;     # issue s241
       }elsif(  $ValPerl[0] eq 'sub' && $#ValClass >= 1) {         # SNOOPYJC: handle sub xxx() (with parens)
          $CurSubName=$ValPy[1];
+         my $dx = rindex($CurSubName, '.');     # issue s320
+         if($dx != -1) {                        # issue s320
+             $LocalSub{$CurSubName}=1;          # issue s320
+             my $packname = &Perlscan::unescape_keywords(substr($CurSubName,0,$dx));       # issue s320
+             $CurSubName = substr($CurSubName, $dx+1);  # issue s320
+             if(!exists $UsePackage{$packname} && !exists $RequirePackage{$packname} && !exists $PYTHON_PACKAGES_SET{$packname} && !exists $Packages{$packname}) {   # issue s320
+                $Packages{$packname} = 2;           # issue s320: 2 means we reference it but don't define it here
+             }
+         }
 	     $initialized{$CurSubName}{$PERL_ARG_ARRAY} = 'a';	  # SNOOPYJC
          $LocalSub{$CurSubName}=1;
-         $LocalSub{"$CurPackage.$CurSubName"}=1;                # issue s3
+         $LocalSub{"$CurPackage.$CurSubName"}=1 if $ValPy[1] eq $CurSubName;   # issue s3, issue s320
          %DeclaredVarH=(); # this is the list of my varible for given sub; does not needed for any other sub
 	     $we_are_in_sub_body=1;			# issue 45
          if($::debug > 3) {
@@ -559,72 +579,6 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          for( $k=0; $k<@ValClass; $k++ ){
              if(  $ValClass[$k]=~/[sahG]/ ){        # issue s248: add 'G' to handle *db_connect::new = sub {...};
                 check_ref($CurSubName, $k);                  # SNOOPYJC
-# issue s262                if($ValClass[$k] eq 's' && $ValPerl[$k] eq '$_' && $ValPy[$k] =~ /^$PERL_ARG_ARRAY/ &&    # issue s184
-# issue s262                    (($k-1 >= 0 && $ValClass[$k-1] eq '^') ||  # issue s184: handle ++$_[N] / --$_[N]
-# issue s262                    ($ValPy[$k] !~ /\[\d+\]/ && $k+3 <= $#ValClass && $ValClass[$k+1] eq '(' && ($p = matching_br($k+1)) != -1 &&  # vararg
-# issue s262                     $p+1 <= $#ValClass && 
-# issue s262                     ($ValClass[$p+1] eq '=' || $ValClass[$p+1] eq '^' ||
-# issue s262		              ($ValClass[$p+1] eq 'p' && $ValClass[$p+2] eq 'f' && $ValPerl[$p+2] =~ /^(?:re|tr)$/)))	||
-# issue s262                    ($k+1 <= $#ValClass && 
-# issue s262		           ($ValClass[$k+1] eq '=' ||
-# issue s262                    $ValClass[$k+1] eq '^' ||               # issue s184: handle $_[N]++ / $_[N]--
-# issue s262                   # issue s151 ($ValClass[$k+1] eq '~' && $ValClass[$k+2] eq 'f' && $ValPerl[$k+2] =~ /^(?:re|tr)$/))	# issue ddts
-# issue s262		           ($ValClass[$k+1] eq 'p' && $ValClass[$k+2] eq 'f' && $ValPerl[$k+2] =~ /^(?:re|tr)$/))	# issue ddts, issue s151
-# issue s262	            ))) {
-# issue s262                    # issue s84 $SubAttributes{$CurSubName}{modifies_arglist} = 1;    # SNOOPYJC: This sub mods it's args
-# issue s262                    # issue s241 $SubAttributes{$cs}{modifies_arglist} = 1;    # SNOOPYJC: This sub mods it's args, issue s84
-# issue s262                    set_sub_attribute($cs, 'modifies_arglist', 1);    # SNOOPYJC: This sub mods it's args, issue s84, issue s241
-# issue s262                    if($ValPy[$k] =~ /\[(\d+)\]/) {                # issue s184
-# issue s262                         my $als = 0;                           # issue s184
-# issue s262                         # issue s241 $als = $SubAttributes{$cs}{arglist_shifts} if exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arglist_shifts};    # issue s184
-# issue s262                         $als = get_sub_attribute($cs, 'arglist_shifts',0,0);   # issue s241
-# issue s262                         set_out_parameter($cs, $1+$als);       # issue s184
-# issue s262                    } else {        # issue s184: vararg
-# issue s262                         set_out_parameter($cs, 'var');          # issue s184
-# issue s262                    }
-# issue s262                } elsif($ValClass[$k] eq 's' && $ValPerl[$k] eq '$' && $k+3 <= $#ValClass && $ValClass[$k+1] eq '(' &&
-# issue s262                        $ValClass[$k+3] eq ')' && $ValClass[$k+2] eq 's' &&
-# issue s262                        (($ValPerl[$k+2] eq '$_' && $ValPy[$k+2] =~ /\[\d+\]$/) ||
-# issue s262                            # issue s241 (exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arg_copies} &&
-# issue s262                            # issue s241 exists $SubAttributes{$cs}{arg_copies}{$ValPerl[$k+2]})) &&
-# issue s262                         (defined get_sub_attribute($cs, 'arg_copies') &&           # issue s241
-# issue s262                         exists ${get_sub_attribute($cs, 'arg_copies')}{$ValPerl[$k+2]})) &&   # issue s241
-# issue s262                        (($k-1 >= 0 && $ValClass[$k-1] eq '^') ||
-# issue s262                         ($k+4 <= $#ValClass &&
-# issue s262		                  ($ValClass[$k+4] eq '=' ||
-# issue s262                           $ValClass[$k+4] eq '^' ||               # issue s184: handle $_[N]++ / $_[N]--
-# issue s262	                       ($ValClass[$k+4] eq 'p' && $ValClass[$k+5] eq 'f' && $ValPerl[$k+5] =~ /^(?:re|tr)$/))
-# issue s262                          ))) {                                 # issue s185
-# issue s262                      my $arg;
-# issue s262                      if($ValPy[$k+2] =~ /\[(\d+)\]$/) {    # Arg specified
-# issue s262                          # issue s241 $SubAttributes{$cs}{modifies_arglist} = 1;     # We store the value here
-# issue s262                         set_sub_attribute($cs, 'modifies_arglist', 1);     # We store the value here, issue s241
-# issue s262                         my $als = 0;                           # issue s185
-# issue s262                         # issue s241 $als = $SubAttributes{$cs}{arglist_shifts} if exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arglist_shifts};    # issue s185
-# issue s262                         $als = get_sub_attribute($cs, 'arglist_shifts',0,0);   # issue s241
-# issue s262                         $arg = $1 + $als;
-# issue s262                      } else {
-# issue s262                          # issue s241 $arg = $SubAttributes{$cs}{arg_copies}{$ValPerl[$k+2]}
-# issue s262                          $arg = ${get_sub_attribute($cs, 'arg_copies')}{$ValPerl[$k+2]};   # issue s241
-# issue s262                      }
-# issue s262                      $arg .= 'r';            # Reference
-# issue s262                      set_out_parameter($cs, $arg);         # issue s185
-# issue s262                } elsif($ValClass[$k] eq 's' && defined $ValType[$k] && $ValType[$k] eq  'ss' &&
-# issue s262                    # issue s241 exists $SubAttributes{$cs} && exists $SubAttributes{$cs}{arg_copies} &&
-# issue s262                    # issue s241 exists $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]} &&
-# issue s262                     defined get_sub_attribute($cs, 'arg_copies') &&
-# issue s262                     exists ${get_sub_attribute($cs, 'arg_copies')}{$ValPerl[$k]} &&
-# issue s262                    (($k-1 >= 0 && $ValClass[$k-1] eq '^') ||
-# issue s262                     ($k+1 <= $#ValClass &&
-# issue s262                      ($ValClass[$k+1] eq '=' ||
-# issue s262                       $ValClass[$k+1] eq '^' ||               # issue s184: handle $_[N]++ / $_[N]--
-# issue s262                       ($k+2 <= $#ValClass && $ValClass[$k+1] eq 'p' && $ValClass[$k+2] eq 'f' && $ValPerl[$k+2] =~ /^(?:re|tr)$/))
-# issue s262                ))) {                                                   # issue s185
-# issue s262                    # issue s241 my $arg = $SubAttributes{$cs}{arg_copies}{$ValPerl[$k]};
-# issue s262                    my $arg = ${get_sub_attribute($cs, 'arg_copies')}{$ValPerl[$k]};    # issue s241
-# issue s262                    $arg .= 'r';            # Reference
-# issue s262                    set_out_parameter($cs, $arg);         # issue s185
-# issue s262                }
                 if($k != 0 && $ValClass[$k-1] eq 't' && $ValPerl[$k-1] eq 'my') {       # SNOOPYJC e.g. for(my $i=...)
                     $DeclaredVarH{$ValPy[$k]} = 1;
                 }
@@ -881,6 +835,23 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                 my $t = merge_types($DEFAULT_VAR, $CurSubName, 'm');     # issue s235 it's a string but it could also be undef at EOF
                 $VarType{$DEFAULT_VAR}{$CurSubName} = $t;      		# issue s235
 	            $initialized{$CurSubName}{$DEFAULT_VAR} = $t unless $NeedsInitializing{$CurSubName}{$DEFAULT_VAR};	# issue s103, issue s104
+              } elsif($ValClass[$k] eq 'f' && $ValPerl[$k] eq 'bless') {        # issue s317
+                  # If we bless an object into a named package, make sure that package is marked as a class
+                  # so we pass is_class=True to _init_package
+                  my $lst = $k+1;
+                  my $end = $#ValClass;
+                  if($ValPerl[$lst] eq '(') {
+                      $end = matching_br($lst);
+                      $lst++;
+                  }
+                  my $comma = next_same_level_token(',', $lst, $end);
+                  if($comma != -1 && $comma+1 <= $end && ($ValClass[$comma+1] eq '"' || $ValClass[$comma+1] eq 'i')) {
+                      $Perlscan::SpecialVarsUsed{'bless'}{$ValPerl[$comma+1]} = 1;
+                  }
+              }
+
+              if($ValClass[$k] eq 'q' && $ValPy[$k] =~ /\b$DEFAULT_MATCH:=/) {       # issue s323
+	             $VarSubMap{$DEFAULT_MATCH}{$CurSubName}='+';		# issue s323
               }
 
           } # for
@@ -1002,6 +973,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                   $ValPy[$i] =~ /,e'''(.*)'''/s;
                   my $expr = $1;
                   # issue s26 my $subname = "$ANONYMOUS_SUB$.";
+                  $VarSubMap{$DEFAULT_MATCH}{$CurSubName}='+';        # issue s323
+                  $VarSubMap{$DEFAULT_MATCH}{__main__}='+';           # issue s323
                   my $subname = new_anonymous_sub();     # issue s26
                   $::nested_subs{$subname} = "$DEFAULT_MATCH";
                   $::saved_eval_tokens = 1;
@@ -1034,6 +1007,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
          # issue s26 my $subname = "$ANONYMOUS_SUB$.";
          my $subname = new_anonymous_sub();     # issue s26
          $::nested_subs{$subname} = "\*$PERL_ARG_ARRAY";
+         push @::saved_sub_tokens_stack, $::saved_sub_tokens;            # issue s311
+         push @::saved_sub_tokens_level, $::nested_sub_at_level;         # issue s311
          $::saved_sub_tokens = &::package_tokens();
          $::nested_sub_at_level = $Perlscan::nesting_level;
          push @::nested_sub_at_levels, $::nested_sub_at_level;     # issue s241
@@ -1055,6 +1030,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
       if($#ValClass != 0 && $ValClass[$#ValClass] eq 'C' && $ValPerl[$#ValClass] eq 'do') {     # issue s74
          my $subname = new_anonymous_sub();
          $::nested_subs{$subname} = "";
+         push @::saved_sub_tokens_stack, $::saved_sub_tokens;            # issue s311
+         push @::saved_sub_tokens_level, $::nested_sub_at_level;         # issue s311
          $::saved_sub_tokens = &::package_tokens();
          $::nested_sub_at_level = $Perlscan::nesting_level;
          push @::nested_sub_at_levels, $::nested_sub_at_level;     # issue s241
@@ -1107,6 +1084,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
              $::nested_subs{$subname} = $loop_ctr_py;
              $::aliased_foreach_subs{$subname} = $loop_ctr_perl; 
              $DeclaredVarH{$loop_ctr_py} = 1;  # Make sure the sub arg is not declared 'global'
+             push @::saved_sub_tokens_stack, $::saved_sub_tokens;            # issue s311
+             push @::saved_sub_tokens_level, $::nested_sub_at_level;         # issue s311
              $::saved_sub_tokens = &::package_tokens();
              $::nested_sub_at_level = $Perlscan::nesting_level;
              push @::nested_sub_at_levels, $::nested_sub_at_level;     # issue s241
@@ -1151,7 +1130,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
           $::nested_sub_at_level = $nsal;                           # issue s241
           
       }
-      $got_first_line = 1;      # issue s63
+      $got_first_line = 1 unless $pragma_pythonizer_line;      # issue s63, issue s325
    } # while
 
    # issue s4 &Perlscan::compute_desired_use_require_options();    # issue name
@@ -1222,6 +1201,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        say STDERR Dumper(\%Perlscan::sub_lines_contain_potential_last_expression); # issue implicit conditional return
        print STDERR "StatementStartingLno = ";	# issue s275
        say STDERR Dumper(\%Perlscan::StatementStartingLno); # issue s275
+       if(defined $StartingBeginLno) {          # issue s325
+           say STDERR "StartingBeginLno = $StartingBeginLno";   # issue s325
+       }                                        # issue s325
 =pod    # issue s4 - we don't do this any more
        if(\%UseRequireVars) {
            print STDERR "UseRequireVars = ";
@@ -2222,6 +2204,10 @@ sub _expr_type           # Attempt to determine the type of the expression
             }
             return 'F';                 # Float
         } elsif($class eq 's') {        # Scalar
+            if(defined $ValType[$k]) {          # issue s316
+                return 'a' if $ValType[$k] eq '@s'; # issue s316
+                return 'h' if $ValType[$k] eq '%s'; # issue s316
+            }                                   # issue s316
             return $VarType{$ValPy[$k]}{$CurSub} if(exists $VarType{$ValPy[$k]} && exists $VarType{$ValPy[$k]}{$CurSub});
             my $v = substr($ValPerl[$k], 1);
             if(exists $Perlscan::SpecialVarType{$v}) {
@@ -2318,6 +2304,10 @@ sub _expr_type           # Attempt to determine the type of the expression
         return 'S';             # will be changed to a string
     } elsif($class eq '\\' && $k+1 <= $e && $ValClass[$k+1] eq 'i' && $LocalSub{$ValPy[$k+1]}) {    # issue s229: coderef
         return 'C';             # issue s229
+    } elsif($class eq '\\' && $k+1 == $e && $ValClass[$k+1] eq 'a') {    # issue s316
+        return 's';             # issue s316
+    } elsif($class eq '\\' && $k+1 == $e && $ValClass[$k+1] eq 'h') {    # issue s316
+        return 's';             # issue s316
     } elsif($class ne '(') {            # Non-parenthesized expression
         my $s = $k;                     # issue s151
         $s = end_of_function($k)+1 if $class eq 'f';    # issue s151
@@ -2333,6 +2323,10 @@ sub _expr_type           # Attempt to determine the type of the expression
             }
             $typ = common_type($typ, expr_type($p, $e, $CurSub)) if $p <= $e;
             return "a of $typ";
+        }
+        if($class eq 'f' && $s+1 <= $#ValClass && $ValClass[$s] eq 'p' &&        # Pattern match, issue s151, issue s315
+                $ValClass[$s+1] eq 'q' && (capturing_pattern($ValPerl[$k+1]) || g_flag_pattern($ValPy[$k+1]))) {    # issue s315
+            return 'a of S';
         }
         # issue s151 my $m = next_same_level_tokens('>+-*/%0o.?:r', $k, $#ValClass);
         $m = next_same_level_tokens('>+-*/%0o.?:r', $s, $#ValClass);     # issue s151
@@ -2363,16 +2357,26 @@ sub _expr_type           # Attempt to determine the type of the expression
             } elsif($ValClass[$m] eq '?') {     # expr ? true_val : false_val
                 my $colon = next_same_level_token(':', $m+1, $#ValClass);
                 if($colon > 0) {
-                    return common_type(expr_type($m+1, $colon-1, $CurSub),
-                                       expr_type($colon+1, $e, $CurSub));
+                    # issue s316 return common_type(expr_type($m+1, $colon-1, $CurSub),
+                    # issue s316                    expr_type($colon+1, $e, $CurSub));
+                    my $t1 = expr_type($m+1, $colon-1, $CurSub);        # issue s316
+                    my $t2 = expr_type($colon+1, $e, $CurSub);          # issue s316
+                    return 'h' if $t1 =~ /^h/ && $ValPerl[$colon+1] eq '(' && $colon+2 == $e && $ValPerl[$e] eq ')';  # issue s316: expr ? %h : ()
+                    return 'h' if $t2 =~ /^h/ && $ValPerl[$m+1] eq '(' && $m+2 == $colon-1 && $ValPerl[$colon-1] eq ')';  # issue s316: expr ? () : %h
+                    return common_type($t1, $t2);                       # issue s316
                 }
             } elsif($ValClass[$m] eq ':') {
                                                 #              expr  :  expr  :   expr
                 if($ValPy[$m] eq 'if') {        # Converted: trueval if expr else falseval
                     my $colon = next_same_level_token(':', $m+1, $#ValClass);
                     if($colon > 0) {
-                        return common_type(expr_type($k, $m-1, $CurSub),
-                                           expr_type($colon+1, $e, $CurSub));
+                        # issue s316 return common_type(expr_type($k, $m-1, $CurSub),
+                        # issue s316                    expr_type($colon+1, $e, $CurSub));
+                        my $t1 = expr_type($k, $m-1, $CurSub);          # issue s316
+                        my $t2 = expr_type($colon+1, $e, $CurSub);      # issue s316
+                        return 'h' if $t1 =~ /^h/ && $ValPerl[$colon+1] eq '(' && $colon+2 == $e && $ValPerl[$e] eq ')'; # issue s316: expr ? %h : ()
+                        return 'h' if $t2 =~ /^h/ && $ValPerl[$k] eq '(' && $k+1 == $m-1 && $ValPerl[$m-1] eq ')';  # issue s316: expr ? () : %h
+                        return common_type($t1, $t2);                   # issue s316
                     }
                 }
             } elsif($ValClass[$m] eq 'r') {
@@ -2394,8 +2398,8 @@ sub _expr_type           # Attempt to determine the type of the expression
                 return $typ if($typ);
             }
         # issue s151 } elsif($class eq 's' && $k+2 <= $#ValClass && $ValClass[$k+1] eq '~' &&        # Pattern match
-        } elsif($class eq 's' && $k+2 <= $#ValClass && $ValClass[$k+1] eq 'p' &&        # Pattern match, issue s151
-                $ValClass[$k+2] eq 'q' && capturing_pattern($ValPerl[$k+2])) {
+        } elsif(($class eq 's' || $class eq '"') && $k+2 <= $#ValClass && $ValClass[$k+1] eq 'p' &&        # Pattern match, issue s151, issue s315
+                $ValClass[$k+2] eq 'q' && (capturing_pattern($ValPerl[$k+2]) || g_flag_pattern($ValPy[$k+2]))) {    # issue s315
                 return 'a of S';
         } elsif($class eq '"' && $k+2 <= $#ValClass && $ValClass[$k+1] eq 'A') {
             return 'm';                 # key => value - user can change the value to anything
@@ -2410,9 +2414,40 @@ sub _expr_type           # Attempt to determine the type of the expression
             return 'm';
         }
         my $ma = $m;
+        if($m != $e) {          # issue s327: We don't have the whole thing in the parens
+            $m = next_same_level_tokens('?:', $m+1, $e);    # See if we have a conditional
+            if($m != -1) {
+                if($ValClass[$m] eq '?') {  # This is a non-converted ? : operation with the condition in parens
+                    my $colon = next_same_level_token(':', $m+1, $e);
+                    return 'm' if $colon < 0;
+                    my $t1 = expr_type($m+1, $colon-1, $CurSub);
+                    return 'h' if $t1 =~ /^h/ && $ValPerl[$colon+1] eq '(' && $colon+2 == $e && $ValPerl[$e] eq ')';  # issue s316: expr ? %h : ()
+                    my $t2 = expr_type($colon+1, $e, $CurSub);
+                    return 'h' if $t2 =~ /^h/ && $ValPerl[$m+1] eq '(' && $m+2 == $colon-1 && $ValPerl[$colon-1] eq ')';  # issue s316: expr ? () : %h
+                    return common_type($t1, $t2);
+                } elsif($ValPerl[$m] eq '?') {  # Converted ? : operation = expr1 if cond else expr2
+                    my $colon = next_same_level_token(':', $m+1, $e);
+                    return 'm' if $colon < 0;
+                    my $t1 = expr_type($k, $m-1, $CurSub);
+                    return 'h' if $t1 =~ /^h/ && $ValPerl[$colon+1] eq '(' && $colon+2 == $e && $ValPerl[$e] eq ')'; # issue s316: expr ? %h : ()
+                    my $t2 = expr_type($colon+1, $e, $CurSub);
+                    return 'h' if $t2 =~ /^h/ && $ValPerl[$k] eq '(' && $k+1 == $m-1 && $ValPerl[$m-1] eq ')';  # issue s316: expr ? () : %h
+                    return common_type($t1, $t2);
+                }
+            }
+            return 'm';
+        }
+
         # Check for list first
         $m = next_same_level_token(',', $k+1, $m-1);
-        if($m != -1) {
+        if($m == -1) {                  # issue s316: Only got 1 thing - check for a one-element hash
+            my $n = next_same_level_token('A', $k+1, $ma-1);       # Look for =>
+            if($n != -1 && $ValPerl[$n] eq '=>') {      # Like {key1=>val1}
+                my $t = expr_type($n+1, $ma-1, $CurSub);
+                return "h of $t";
+            }
+        } else {                        # issue s316
+        # issue s316 if($m != -1) {
             my $n = next_same_level_token('A', $k+1, $m-1);       # Look for =>
             my $t;
             if($n != -1 && $ValPerl[$n] eq '=>') {      # Like {key1=>val1, key2=>val2}
@@ -2440,7 +2475,9 @@ sub _expr_type           # Attempt to determine the type of the expression
                 }
             }
             return "a of $t";
-        } elsif($ValPerl[$k] eq '[' && next_same_level_token('y', $k+1, $ma-1) != -1) { # issue s154: get proper type of [... y ...] expression
+        }                   # issue s316
+        # issue s316 } elsif($ValPerl[$k] eq '[' && next_same_level_token('y', $k+1, $ma-1) != -1) { # issue s154: get proper type of [... y ...] expression
+        if($ValPerl[$k] eq '[' && next_same_level_token('y', $k+1, $ma-1) != -1) { # issue s154: get proper type of [... y ...] expression
             return 'a of m';
         } elsif($ValPerl[$k] eq '{' && next_same_level_token('y', $k+1, $ma-1) != -1) {
             return 'h of m';
@@ -2484,6 +2521,23 @@ sub expr_type
     return $result;
 }
 
+sub vartype                 # issue s316
+{
+    my $k = shift;
+    my $CurSub = shift;
+    return $VarType{$ValPy[$k]}{$CurSub} if(exists $VarType{$ValPy[$k]} && exists $VarType{$ValPy[$k]}{$CurSub});
+    return 'm';
+}
+
+sub g_flag_pattern              # issue s315: is this a pattern with a g flag?
+{
+    my $pat_py = shift;
+
+    return 1 if $pat_py =~ /\bre\.G\b/;
+    return 1 if $pat_py =~ /\bre\.finditer\b/;
+    return 1 if $pat_py =~ /\bre\.findall\b/;
+    return 0;
+}
 
 sub capturing_pattern           # Is this pattern capturing with (...)?
 {
@@ -2907,7 +2961,7 @@ sub fix_scalar_context                          # issue 37
         if(is_scalar_operator($i)) {        # Scalar operator, issue s246
             if($i == 0) {
                 ;
-            } elsif($last_special_function != -1 && $i == $last_special_function_end+1) {     # issue s3
+            } elsif($ValClass[$i] ne 'r' && $last_special_function != -1 && $i == $last_special_function_end+1) {     # issue s3, issue s307: only apply scalar to range operator on RHS of expression, else we mess up 'reverse 0..10'
                 $did_something |= apply_scalar_context($last_special_function);
                 $last_special_function = -1;
                 $last_special_function_end = -1;
@@ -2991,7 +3045,8 @@ sub _end_of_function                             # issue s3
         # issue s151 $end_pos = $limit;  # issue s48: the function may have a token '0o>' in it so point back to the end
     } else {            # issue s151
         # issue s207 $k = next_matching_tokens('0o>',$pos+1,$end_pos);  # stop at next and/or/comparison
-        $k = next_matching_tokens('o>',$pos+1,$end_pos);  # issue s207: stop at next and/or/comparison, but not || or &&
+        # issue s315 $k = next_matching_tokens('o>',$pos+1,$end_pos);  # issue s207: stop at next and/or/comparison, but not || or &&
+        $k = next_same_level_tokens('o>',$pos+1,$end_pos);  # issue s207: stop at next and/or/comparison, but not || or &&
         $end_pos = $k-1 if($k != -1);
         return $end_pos unless defined $f_type;     # this is a guess
     }
@@ -3546,6 +3601,7 @@ my $zone_size=($maxlinelen-length($prefix))/2; # length of prefix is 20
 my $start_of_comment_zone=$zone_size+length($prefix); #  the start of comment_zone is 20+80=100.
 #                                                   So the total line length=180
 my $orig_tail_len=length($tailcomment);
+$tailcomment .= ' # I_M_P_O_R_T' if &Perlscan::in_starting_BEGIN();     # issue s325: Put this BEGIN block's code first
 my $i;
 $tailcomment = $f_encodobj->encode($tailcomment, 0) if $tailcomment && defined $f_encodobj;   # issue s70
 my $orig_tail_comment = $tailcomment;
@@ -3773,6 +3829,12 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     no warnings 'utf8';
     chomp(my @lines = <SYSOUT>);
     close SYSOUT;
+    if($::debug >= 6) {
+        say STDERR "---------- Generated code before move_defs_before_refs ----------";
+        for(my $i = 0; $i < @lines; $i++) {
+            say STDERR "$i: $lines[$i]";
+        }
+    }
     my $preserve_output = 0;    # TEMP
     if($preserve_output) {
         open(TMPOUT, '>', $output_file . '.bak');
@@ -3797,7 +3859,9 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         # issue s126: if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ||
         # issue s126:    $line =~ /^(_[A-Za-z][A-Za-z0-9_]+) = _[A-Za-z][A-Za-z0-9_]/) {  # issue test coverage: handle _ArrayHashClass = _partialclass(_ArrayHash, ArrayHash) as a def
         # issue s126:                                                                    # but don't match _d = _d[0:-1]
-        if($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ||
+        if($line =~ /# I_M_P_O_R_T/) {         # issue s18, issue s325
+            push @import_lnos, $lno;                # issue s18
+        } elsif($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ||
            $line =~ /^(_(?:PACK_TO_STRUCT|TEMPLATE_LENGTH|decoding_map|encoding_map|fileinput_iter|finditer_pattern|finditer_string|finditer_iter)) =/ ||   # issue s270
            $line =~ /^(Data\.Dumper\.[A-Za-z0-9_]+) =.*# InIt/      # issue s270
           ) {  # issue s126: Don't match _ArrayHashClass = _partialclass(...) as a def so we don't move it
@@ -3825,8 +3889,6 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
             $defs{$func} = $lno;
         } elsif($line =~ /^_init_package\(/ || $line =~ /^$PERLLIB\.init_package\(/) {
             push @init_package_lnos, $lno unless exists $::deferred_init_package_lines{$line};      # issue s18
-        } elsif($line =~ /# I_M_P_O_R_T/) {         # issue s18
-            push @import_lnos, $lno;                # issue s18
         }
     }
     # Pass 2 - find all the refs
@@ -4249,6 +4311,8 @@ sub cleanup_imports
     my $_bn_referenced = 0;		# issue s117
     my $_pb_lno = 0;			# issue s124
     my $_pb_referenced = 0;		# issue s124
+    my $_sl_lno = 0;			# issue s308
+    my $_sl_referenced = 0;		# issue s308
     my $_str_lno = 0;
     my $_str_referenced = 0;
     my $die_referenced = 0;
@@ -4289,6 +4353,8 @@ sub cleanup_imports
             $_bn_lno = $lno;				# issue s117
         } elsif($line =~ /^_pb = lambda/) {		# issue s124
             $_pb_lno = $lno;				# issue s124
+        } elsif($line =~ /^_sl = lambda/) {		# issue s308
+            $_sl_lno = $lno;				# issue s308
         } elsif($line =~ /^_str = lambda/) {
             $_str_lno = $lno;
         } elsif((@gl = grep { $line =~ /^$_ = / } @globals)) {
@@ -4318,10 +4384,13 @@ sub cleanup_imports
             }
             if($line =~ /\b_bn\b/) {	# issue s117
                 $_bn_referenced = 1;	# issue s117
-            }				# issue s117
+            }				            # issue s117
             if($line =~ /\b_pb\b/) {	# issue s124
                 $_pb_referenced = 1;	# issue s124
-            }				# issue s117
+            }				            # issue s124
+            if($line =~ /\b_sl\b/) {	# issue s308
+                $_sl_referenced = 1;	# issue s308
+            }				            # issue s308
             if($line =~ /\b_str\b/) {
                 $_str_referenced = 1;
             }
@@ -4361,10 +4430,13 @@ sub cleanup_imports
         }
         if($_bn_lno && !$_bn_referenced) {		# issue s117
             $line_ref->[$_bn_lno-1] = '^';		# issue s117
-        }						# issue s117
+        }						                # issue s117
         if($_pb_lno && !$_pb_referenced) {		# issue s124
             $line_ref->[$_pb_lno-1] = '^';		# issue s124
-        }						# issue s117
+        }						                # issue s124
+        if($_sl_lno && !$_sl_referenced) {		# issue s308
+            $line_ref->[$_sl_lno-1] = '^';		# issue s308
+        }						                # issue s308
         if($_str_lno && !$_str_referenced) {
             $line_ref->[$_str_lno-1] = '^';
         }
@@ -4753,6 +4825,7 @@ sub track_potential_sub_parameter_copies       # issue s185
                 next if $ValClass[$p] eq ',';
                 my $next = next_same_level_tokens(',)', $q, $#ValClass);
                 $q = $next+1 unless $next < 0;
+                last if($q > $#ValClass);           # issue s308
             }
         }
     } elsif($eq == 2) {                 # my $var = ...
@@ -4932,7 +5005,10 @@ sub for_loop_uses_default_var       # issue s235
     return 0 unless is_foreach_loop($pos);
     return 1 if $ValClass[1] eq '(';    # for (...)
     return 0 if $ValClass[1] eq 't';    # for my ...
-    return 0 if $ValClass[1] eq 's' && $ValClass[2] eq '('; # for $s (
+    # issue s312 return 0 if $ValClass[1] eq 's' && $ValClass[2] eq '('; # for $s (
+    return 1 if $ValClass[1] =~ /[ahfG]/;       # issue s312: for @array, etc
+    return 1 if $ValClass[1] eq 's' && defined $ValType[1] && $ValType[1] =~ /[@%]s/;   # issue s312: for @$arrayref
+    return 0 if $ValClass[1] eq 's' && 2 <= $#ValClass && $ValClass[2] eq '('; # for $s (      # issue s312
     return 1;
 }
 
@@ -4941,7 +5017,8 @@ sub is_scalar_operator      # issue s246
 {
     my $pos = shift;
 
-    if(index("+-*/.>%&|",$ValClass[$pos]) >= 0) {
+    # issue s307 if(index("+-*/.>%&|",$ValClass[$pos]) >= 0) {
+    if(index("+-*/.>%&|r",$ValClass[$pos]) >= 0) {      # issue s307: add 'r'
         if($pos == 0) {
             return 1 if($ValClass[$pos] eq '-');    # Unary - is all that counts here
             return 0;
@@ -4966,16 +5043,16 @@ sub is_term                 # issue s246
         if($ValClass[$pos] eq 'f') {
             $arg_type = arg_type($ValPerl[$pos], $ValPy[$pos], 0, 0, 1);
             if($arg_type eq '' || length($arg_type) == 2) {  # Empty or ends with a '?'
-                say STDERR "is_term(f: $ValPerl[$pos] ($ValPy[$pos]) arg_type=$arg_type) = 1" if $::debug >= 5;
+                say STDERR "is_term(f: $ValPerl[$pos] ($ValPy[$pos]) arg_type=$arg_type) = 1" if $::debug >= 5 && $PassNo != PASS_0;
                 return 1;
             }
-            say STDERR "is_term(f: $ValPerl[$pos] ($ValPy[$pos]) arg_type=$arg_type) = 0" if $::debug >= 5;
+            say STDERR "is_term(f: $ValPerl[$pos] ($ValPy[$pos]) arg_type=$arg_type) = 0" if $::debug >= 5 && $PassNo != PASS_0;
             return 0;
         }
-        say STDERR "is_term($ValClass[$pos]: $ValPerl[$pos] ($ValPy[$pos])) = 1" if $::debug >= 5;
+        say STDERR "is_term($ValClass[$pos]: $ValPerl[$pos] ($ValPy[$pos])) = 1" if $::debug >= 5 && $PassNo != PASS_0;
         return 1;
     }
-    say STDERR "is_term($ValClass[$pos]: $ValPerl[$pos] ($ValPy[$pos])) = 0" if $::debug >= 5;
+    say STDERR "is_term($ValClass[$pos]: $ValPerl[$pos] ($ValPy[$pos])) = 0" if $::debug >= 5 && $PassNo != PASS_0;
     return 0;
 }
 1;

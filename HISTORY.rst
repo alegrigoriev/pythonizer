@@ -2,6 +2,11 @@
 History
 =======
 
+1.029 (2023-03-03)
+------------------
+
+* Issue s311: Update _init_package to add a __bool__ method to all classes that returns True, Issue s324: Update _method_call to allow the methodname to be a function object, Issue s332: Implement promoting warnings to FATAL if WARNING is set to 2 - updates in _warn, _die, _flt, _num, _int
+
 1.028 (2023-02-24)
 ------------------
 

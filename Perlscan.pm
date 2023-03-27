@@ -563,6 +563,7 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
                   '_num'=>'m:N', '_int'=>'m:I', '_str'=>'m:S',
                   '_bn'=>'m:s',                                         # issue s117
                   '_pb'=>'B:s',                                         # issue s124
+                  '_sl'=>'a:a',                                         # issue s308
                   '_flt'=>'m:F',                                        # issue s3
                   '_map_int'=>'a:a of I', '_map_num'=>'a:a of N', '_map_str'=>'a:a of S',
                   '_assign_global'=>'SSm:m', '_read'=>'HsII?:s',
@@ -698,6 +699,9 @@ our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
         $PyFuncType{_raise} = 'm:';
         $PyFuncType{lena} = 'a:I';                  # issue s254: We put in this version of 'scalar' if they use a goatse to make sure the arg is in list context
         $PyFuncType{_isa_op} = 'mS:B';              # issue s287
+        $PyFuncType{_reset_each} = 'h:';            # issue s309
+        $PyFuncType{_range_op} = 'II:a of I';            # issue s307
+        $PyFuncType{_list_to_hash} = 'a:h';         # issue s316
 
         for my $d (keys %DASH_X) {
             if($d =~ /[sMAC]/) {            # issue s124
@@ -917,6 +921,10 @@ sub add_package_name
         }
         $ValPy[$tno] = cur_package() . '.' . $id;         # Add the package name
     }
+    if(in_starting_BEGIN()) {                       # issue s325
+        say STDERR "Mapped reference to $ValPy[$tno] prevents starting BEGIN on line $Pythonizer::StartingBeginLno from qualifying" if $::debug;   # issue s325
+        $Pythonizer::StartingBeginLno = undef;      # issue s325: Doesn't qualify if it needs our package name
+    }                                               # issue s325
     say STDERR "Changed $py to $ValPy[$tno] for global" if($::debug >= 5);
 }
 
@@ -954,10 +962,17 @@ sub add_package_name_sub
         return if(exists $Pythonizer::LocalSub{$py} && ($Pythonizer::LocalSub{$py} & 3));
     }
     return if $py =~ /^$ANONYMOUS_SUB\d+[a-z]?$/;       # issue s284
-    $ValPy[$tno] = cur_package() . '.' . $ValPy[$tno];         # Add the package name
-    $Pythonizer::LocalSub{$ValPy[$tno]} = $Pythonizer::LocalSub{$py} if exists $Pythonizer::LocalSub{$py};                        # issue s3
-    # issue s241  $Pythonizer::SubAttributes{$ValPy[$tno]} = $Pythonizer::SubAttributes{$py} if exists $Pythonizer::SubAttributes{$py};         # issue s3
-    &Pythonizer::clone_sub_attributes($py, $ValPy[$tno]);         # issue s3, issue s241
+    if(substr($py,0,1) eq '*') {                        # issue s308: Sub has been splatted
+        $py = substr($py, 1);                           # issue s308: eat the splat
+        my $fullname = cur_package() . '.' . $py;       # Add the package name
+        $ValPy[$tno] = '*' . $fullname;                 # add the splat to the front
+        $Pythonizer::LocalSub{$fullname} = $Pythonizer::LocalSub{$py} if exists $Pythonizer::LocalSub{$py};
+        &Pythonizer::clone_sub_attributes($py, $fullname);
+    } else {                                            # issue s308
+        $ValPy[$tno] = cur_package() . '.' . $ValPy[$tno];         # Add the package name
+        $Pythonizer::LocalSub{$ValPy[$tno]} = $Pythonizer::LocalSub{$py} if exists $Pythonizer::LocalSub{$py};                        # issue s3
+        &Pythonizer::clone_sub_attributes($py, $ValPy[$tno]);         # issue s3, issue s241
+    }
     say STDERR "Changed $py to $ValPy[$tno] for non-local sub" if($::debug >= 5);
 }
 
@@ -2027,10 +2042,25 @@ sub in_eval
 
 sub in_BEGIN            # issue s12
 # Are we in a BEGIN/UNITCHECK/CHECK/INIT block?
+# NOTE: BEGIN etc are now implemented as subs so this will always return 0 now
 {
     return 0 if($nesting_level == 0);
     for $ndx (reverse 0 .. $#nesting_stack) {
         return 1 if $nesting_stack[$ndx]->{type} eq 'for _ in range(1)';
+    }
+    return 0;
+}
+
+sub in_starting_BEGIN            # issue s325
+# Are we in the starting BEGIN block?
+{
+    return 0 unless defined $Pythonizer::StartingBeginLno;
+    return 1 if $::processing_closing_bracket && $nesting_last->{type} eq 'def' && $nesting_last->{lno} == $Pythonizer::StartingBeginLno; 
+    return 0 if($nesting_level == 0);
+    for $ndx (reverse 0 .. $#nesting_stack) {
+        if($nesting_stack[$ndx]->{type} eq 'def') {
+            return 1 if $nesting_stack[$ndx]->{lno} == $Pythonizer::StartingBeginLno;
+        }
     }
     return 0;
 }
@@ -2662,13 +2692,13 @@ my ($l,$m);
        $statement_starting_lno = $.;                      # issue 116
        $StatementStartingLno{$.} = $. unless exists $StatementStartingLno{$.};   # issue s275
        @lines_of_statement = ();                          # issue s278
-       push @lines_of_statement, $line;                   # issue s278
+       push @lines_of_statement, $line if defined $line;  # issue s278
        capture_statement_starting_varclasses();           # issue s110
    } else {
        $tno = scalar(@ValClass);
        $TokenStr=join('', @ValClass);
        $StatementStartingLno{$.} = $statement_starting_lno unless exists $StatementStartingLno{$.};    # issue s275
-       push @lines_of_statement, $line;                   # issue s278
+       push @lines_of_statement, $line if defined $line;   # issue s278
    }
    $ExtractingTokensFromDoubleQuotedTokensEnd = -1;     # SNOOPYJC
    $ExtractingTokensFromDoubleQuotedStringEnd = 0;      # SNOOPYJC
@@ -3177,8 +3207,9 @@ my ($l,$m);
              $w = 'main::' . $w;    # issue s284
          }
          my $pq;
+         my $tt;        # issue s313: handle eq'string' (w/o a space)
          if(($pq = index($w, "'")) > 0 && exists $TokenType{substr($w,0,$pq)} &&
-             $TokenType{substr($w,0,$pq)} eq 'q') {     # SNOOPYJC: qq'...' or qw'...' or q'...' etc
+             (($tt = $TokenType{substr($w,0,$pq)}) eq 'q' || $tt eq '>')) {     # SNOOPYJC: qq'...' or qw'...' or q'...' etc, issue s313
              $w = substr($w,0,$pq);
              $cut=length($w);
          }
@@ -3368,7 +3399,7 @@ my ($l,$m);
                 my $condition_expr = $2;
                 my $condition = $1 . $condition_expr;
                 $condition = $1 . '(' . $condition_expr . ')' if(substr($condition_expr,-1,0) ne ')');
-                $do_lno = $nesting_last->{lno};
+                my $do_lno = $nesting_last->{lno};
                 $line_substitutions{$do_lno}{'\bdo\b'} = $condition;
                 $line_substitutions{$.}{'}\s*'.$w.'.*?;'} = '}';
             } elsif($class eq 'C' && $Pythonizer::PassNo == &Pythonizer::PASS_1 && $w eq 'continue') {        # SNOOPYJC
@@ -3766,6 +3797,10 @@ my ($l,$m);
                popup();                         # issue 50
                $tno--;              # issue 50 - no need to change hashref to hash or arrayref to array in python
                $ValType[$tno] = $was . 's';         # issue s185: Remember what this was in ValType, e.g. 'ss' means it was a $$
+               if($was ne '$' && $tno != 0 && $ValClass[$tno-1] eq 'f' && $ValPerl[$tno-1] eq 'each') {        # issue s309
+                   my $cs = cur_sub();                         # issue s309
+                   $SpecialVarsUsed{'each'}{$cs} = $ValPerl[$tno];    # issue s309
+               }                                               # issue s309
                $ate_dollar = $tno;              # issue 50: remember where we did this
 # issue s215               # issue s173: Set the type of the variable appropriately
 # issue s215               my $cs = cur_sub();          # issue s173
@@ -4425,19 +4460,21 @@ my ($l,$m);
           } elsif($Pythonizer::PassNo == &Pythonizer::PASS_1) {
               capture_varclass();                # SNOOPYJC
           }
-          # issue s173: Set the type of the variable appropriately
-          my $cs = cur_sub();          # issue s173
-          my $type;                    # issue s173
-          $type = 'a' if defined $ValType[$tno] && $ValType[$tno] eq '@s';  # issue s173
-          $type = 'h' if defined $ValType[$tno] && $ValType[$tno] eq '%s';  # issue s173
-          #say STDERR "type was $Pythonizer::VarType{$ValPy[$tno]}{$cs}";   # TEMP
-          $Pythonizer::VarType{$ValPy[$tno]}{$cs} = &Pythonizer::merge_types($ValPy[$tno], $cs, $type) if(defined $type);   # issue s173, issue s215
-          if($::autovivification && defined $type && $type eq 'h' && $Pythonizer::VarType{$ValPy[$tno]}{$cs} !~ /^h/ && 
-              (($tno-1 >= 0 && $ValClass[$tno-1] eq 'f') || ($tno-2 >= 0 && $ValClass[$tno-1] eq '(' && $ValClass[$tno-2] eq 'f'))) {  # issue s215
-              # Passing a %$var to a function like keys with autovivification makes it spring to life as a Hash
-              $::Pyf{Hash} = 1;                                                # issue s215
-              my $perllib = $::import_perllib ? "$PERLLIB." : '';              # issue s215
-              $ValPy[$tno] = "($ValPy[$tno] if $ValPy[$tno] is not None else ${perllib}Hash())";     # issue s215
+          if($Pythonizer::PassNo != &Pythonizer::PASS_0) {      # issue s316
+              # issue s173: Set the type of the variable appropriately
+              my $cs = cur_sub();          # issue s173
+              my $type;                    # issue s173
+              $type = 'a' if defined $ValType[$tno] && $ValType[$tno] eq '@s';  # issue s173
+              $type = 'h' if defined $ValType[$tno] && $ValType[$tno] eq '%s';  # issue s173
+              #say STDERR "type was $Pythonizer::VarType{$ValPy[$tno]}{$cs}";   # TEMP
+              $Pythonizer::VarType{$ValPy[$tno]}{$cs} = &Pythonizer::merge_types($ValPy[$tno], $cs, $type) if(defined $type);   # issue s173, issue s215
+              if($::autovivification && defined $type && $type eq 'h' && $Pythonizer::VarType{$ValPy[$tno]}{$cs} !~ /^h/ && 
+                  (($tno-1 >= 0 && $ValClass[$tno-1] eq 'f') || ($tno-2 >= 0 && $ValClass[$tno-1] eq '(' && $ValClass[$tno-2] eq 'f'))) {  # issue s215
+                  # Passing a %$var to a function like keys with autovivification makes it spring to life as a Hash
+                  $::Pyf{Hash} = 1;                                                # issue s215
+                  my $perllib = $::import_perllib ? "$PERLLIB." : '';              # issue s215
+                  $ValPy[$tno] = "($ValPy[$tno] if $ValPy[$tno] is not None else ${perllib}Hash())";     # issue s215
+              }
           }
       } elsif($ValClass[$tno] eq 'j') {     # SNOOPYJC
           if($Pythonizer::PassNo == &Pythonizer::PASS_2) {
@@ -4461,6 +4498,10 @@ my ($l,$m);
             $ValPy[$match] = ')' if($match != -1);
         } elsif($ValClass[0] eq 'k' && $ValPerl[0] =~ /^(?:no|use)$/ && $ValPerl[1] eq 'warnings') {
             my $orig_stmt = $ValPerl[0];
+            $value = '1';                                           # issue s332
+            if($#ValClass >= 2 && $ValPerl[2] eq 'FATAL') {         # issue s332
+                $value = '2';                                       # issue s332
+            }                                                       # issue s332
             replace(0, 't', 'local', '');
             my $w = $SPECIAL_VAR2{W};
             replace(1, 's', '$^W', $w);
@@ -4469,7 +4510,8 @@ my ($l,$m);
             if($orig_stmt eq 'no') {
                 append('d','0','0');
             } else {
-                append('d','1','1');
+                # issue s332 append('d','1','1');
+                append('d',$value,$value);              # issue s332
             }
             handle_local() if($Pythonizer::PassNo == &Pythonizer::PASS_1); 
         } elsif($ValClass[0] eq 'k' && $ValPerl[0] eq 'use' && $ValPerl[1] eq 'lib') {
@@ -4710,6 +4752,7 @@ sub bash_style_or_and_fix
 {
 my $split=$_[0];                # Position in source!!
    return 0 if($Pythonizer::PassNo!=&Pythonizer::PASS_2); # SNOOPYJC
+   return 0 if $::skip_bash_style_or_and_fix;           # issue s329
    my $cs = cur_sub();                                                      # issue s79
    #say STDERR "bash_style_or_and_fix $cs line $statement_starting_lno $sub_lines_contain_potential_last_expression{$cs}";
    if(exists $sub_lines_contain_potential_last_expression{$cs}) {     # issue s79: don't split return a || b
@@ -5167,9 +5210,9 @@ my (@temp,$sym,$prev_sym,$i,$modifier,$meta_no);
        } else {                                                                 # issue s140
            $modifier = "$modifier|re.M|re.S if $SPECIAL_VAR{'*'} else " . substr($modifier,1);  # issue s140
        }                                                                        # issue s140
-       if(!exists $Pythonizer::initialized{$cs}{$SPECIAL_VAR{'*'}}) {           # issue s140
+       # issue s328 if(!exists $Pythonizer::initialized{$cs}{$SPECIAL_VAR{'*'}}) {           # issue s140
            $Pythonizer::NeedsInitializing{$cs}{$SPECIAL_VAR{'*'}} = 'I';        # issue s140
-       }                                                                        # issue s140
+       # issue s328 }                                                                        # issue s140
    }                                                                            # issue s140
    @temp=split(//,$myregex);
    $prev_sym='';
@@ -5915,7 +5958,8 @@ my  $outer_delim;
              #$ind=$1;
           
           my $nx3 = substr($quote,0,3);
-          if($nx3 eq '->[' || $nx3 eq '->{') {   # Move past any '->' that ends in a '[' or '{'
+          # issue s314 if($nx3 eq '->[' || $nx3 eq '->{') {   # Move past any '->' that ends in a '[' or '{'
+          if($nx3 eq '->[' || $nx3 eq '->{' || $nx3 eq '->(') {   # Move past any '->' that ends in a '[' or '{' # issue s314: or '('
              $quote = substr($quote,2);
              $end_br -= 2;
              #say STDERR "Removing ->";  # TEMP
@@ -5951,7 +5995,13 @@ my  $outer_delim;
               my $nnc = substr($quote,1,1);
               $quote2 = '' if($nnc !~ m'[\d$]');  # Only allow a digit or a $ sigil
           }
-          while($ind = extract_bracketed($quote2, '{}[]', '')) {        # issue 53, issue 98
+          if($next_c eq '(' && $nx3 ne '->(') {         # issue s314: Only process as sub arg if they used '->('
+              $quote2 = '';                             # issue s314
+          }                                             # issue s314
+          my $brackets = '{}[]';                        # issue s314
+          $brackets = '{}[]()' if $nx3 eq '->(';        # issue s314
+          # issue s314 while($ind = extract_bracketed($quote2, '{}[]', '')) {        # issue 53, issue 98
+          while($ind = extract_bracketed($quote2, $brackets, '')) {        # issue 53, issue 98, issue s314
              # issue 109 $cut=length($ind);
              my $ind_cut=length($ind);
              # issue 109 $ind =~ tr/$//d;               # We need to decode_scalar on each one!
@@ -5994,6 +6044,11 @@ my  $outer_delim;
                      if(substr($ind,$i+1,1) eq "'") {               # issue s123: Array with string key
                         $ind = substr($ind,0,$i).'['.substr($ind,$i+2,$l-($i+3))."]".substr($ind,$l+1); # issue s123: Strip off the quotes
                      }                                          # issue s123
+                 } elsif($c eq '(' && $nx3 eq '->(') {              # issue s314
+                     $in_subscript = -1;                            # issue s314
+                     $l = matching_paren($ind, $i);                 # issue s314
+                     #say "found '(' in $ind at $i, l=$l";
+                     next if($l < 0);                               # issue s314
                  } elsif($c eq '$') {                       # issue 109: decode special vars in subscripts/hash keys
                      my $var = substr($ind,$i);
                      #say STDERR "var=$var";     # TEMP
@@ -6019,10 +6074,14 @@ my  $outer_delim;
                      my $cs = cur_sub();                    # issue s123
                      $index_type = $Pythonizer::VarType{$ValPy[$tno]}{$cs} if(exists $Pythonizer::VarType{$ValPy[$tno]} && exists $Pythonizer::VarType{$ValPy[$tno]}{$cs});
                      my $expected_type = 'S';               # issue s123
-                     $expected_type = 'I' if($in_subscript);    # issue s123
+                     $expected_type = 'I' if($in_subscript == 1);    # issue s123, issue s314
                      $converter = $CONVERTER_MAP{$expected_type};        # issue s123
                      $::Pyf{$converter} = 1 if($expected_type ne 'S');  # issue s123
                      $converter = "$PERLLIB.int_" if($expected_type eq 'I' && $::import_perllib);    # issue s123
+                     if($in_subscript == -1) {                # issue s314: Sub arg - don't convert
+                         $converter = '';                     # issue s314
+                         $index_type = $expected_type;        # issue s314
+                     }                                        # issue s314
                      my $next_ch = substr($var, $cut, 1);     # issue s123
                      my $j = $i + $cut;                       # issue s123
                      if($next_ch eq '-') {                    # issue s123: Assume it's a '->'
@@ -6050,13 +6109,17 @@ my  $outer_delim;
                         $i += length($converter) + 2;       # issue s123
                      }                                      # issue s123
                      $i += (length($ValPy[$tno])-$cut);     # issue 109
+                 } elsif($c eq '.' && substr($ind,$i+1,1) eq '.') {  # issue s307: range
+                     substr($ind, $i, 2) = ':1+';                    # issue s307
+                     $i++;                                           # issue s307
                  }
              }                      # issue 53
              $result.=$ind; # add string Variable part of the string
              # issue 109 $quote=substr($quote,$cut);
              $quote=substr($quote,$ind_cut);        # issue 109
              $nx3 = substr($quote,0,3);
-             if($nx3 eq '->[' || $nx3 eq '->{') {   # Move past any '->' that ends in a '[' or '{'
+             # issue s314 if($nx3 eq '->[' || $nx3 eq '->{') {   # Move past any '->' that ends in a '[' or '{'
+             if($nx3 eq '->[' || $nx3 eq '->{' || $nx3 eq '->(') {   # Move past any '->' that ends in a '[' or '{', issue s314: or '('
                 $quote = substr($quote,2);
                 $end_br -= 2;
                 #say STDERR "Removing ->";  # TEMP
@@ -6175,6 +6238,10 @@ sub handle_expr_in_string
         my $was_hash = 0;
         $was_hash = 1 if($ValClass[$t_start] eq '%');
         &::remove_dereferences();
+        if($ValClass[$t_start] eq '%') {            # issue s326: The code that does this above messes up because the '"' token is a term
+            $ValPy[$t_start] = '';                  # issue s326
+            $ValType[$t_start+1] = '%s' if $t_start+1 <= $#ValClass && $ValClass[$t_start+1] eq 's';    # issue s326
+        }                                           # issue s326
         $convert_to_arr = 0;                # issue s249
         if(!$was_hash && substr($string, 0, 1) eq '@') {        # issue s249
             $::force_list_context = 1;      # issue s249
@@ -7691,6 +7758,10 @@ sub remap_conflicting_names                  # issue 92
     my @ids = split/[.]/, $name;
     my $id = $ids[-1];
     my $s = $sigil;
+    if(scalar @ids != 1 && in_starting_BEGIN()) {       # issue s325
+        say STDERR "Reference to $name prevents starting BEGIN on line $Pythonizer::StartingBeginLno from qualifying" if $::debug;   # issue s325
+        $Pythonizer::StartingBeginLno = undef;          # issue s325
+    }                                                   # issue s325
     $sigil = actual_sigil($sigil, $trailer);
     # If the name is already mapped, then skip it:
     my $i;
@@ -7709,7 +7780,7 @@ sub remap_conflicting_names                  # issue 92
             if($sigil eq '$') {                         # issue s252: Handle for loop with fully qualified index
                 my $ctr_type;                           # issue s252
                 if(($ctr_type = for_loop_local_ctr($name, $trailer))) {         # issue s252
-                    $mapping = remap_loop_var($name, $ctr_type);       # issue s252
+                    $mapping = remap_loop_var($name, $ctr_type, $mapping);       # issue s252, issue s315
                 }                                       # issue s252
             }
             say STDERR "remap_conflicting_names($name,$s,$trailer) = $mapping (p0)" if($::debug >= 5);
@@ -7760,8 +7831,12 @@ sub remap_conflicting_names                  # issue 92
     if($sigil eq '$') {                         # issue s100
         my $ctr_type;                           # issue s100
         if(($ctr_type = for_loop_local_ctr($name, $trailer))) {         # issue s100, issue s235
-            $mid = remap_loop_var($name, $ctr_type);       # issue s100
-            $ids[-1] = $mid;                    # issue s100
+            my $orig_mid = $mid;                                 # issue s315
+            $mid = remap_loop_var($name, $ctr_type, $mid);       # issue s100, issue s315
+            say STDERR "remap_conflicting_names($name,$s,$trailer): using $mid for loop_var($name, $ctr_type)" if($::debug >= 5);
+            if($mid ne $orig_mid) {             # issue s315: Only force it in if it's different, like var_l instead of var_v
+                $ids[-1] = $mid;                # issue s100
+            }                                   # issue s315
         }                                       # issue s100
     }
     if(exists $NameMap{$id} && exists $NameMap{$id}{$sigil} && $NameMap{$id}{$sigil} ne $id) {
@@ -7804,6 +7879,7 @@ sub remap_conflicting_names                  # issue 92
         my $nam = $id;                      # issue s215
         my $mnp = join('.', @ids);          # issue s215
         if($was_mapped && $nam ne $mnp) {                  # issue s215
+            say STDERR "remap_conflicting_names($name,$s,$trailer): Remapping all variables from $nam to $mnp for actual_sigil $sigil" if($::debug >= 5);
             if(exists $Pythonizer::VarSubMap{$nam}) {
                 $Pythonizer::VarSubMap{$mnp} = $Pythonizer::VarSubMap{$nam};
                 delete $Pythonizer::VarSubMap{$nam};
@@ -7915,10 +7991,11 @@ sub for_loop_local_ctr      # issue s100
 
 sub remap_loop_var          # issue s100
 # If necessary, remap the loop var to be loop_var_l so it is distinct from scalars of the same name
-# Returns the new python name, if need be, else returns the original name
+# Returns the new python name, if need be, else returns the original mapping
 {
     my $name = shift;
     my $type = shift;           # 'local' or 'my'
+    my $mid = shift;            # issue s315: the mapping we would have used
 
     my $original_name = $name;
     my $sigil = '$';
@@ -7980,7 +8057,8 @@ sub remap_loop_var          # issue s100
     }
     my $esc = escape_keywords($original_name);                              # issue s252
     return $NameMap{$esc}{$sigil} if exists $NameMap{$esc}{$sigil};         # issue s252
-    return $original_name;
+    # issue s315  return $original_name;
+    return $mid;        # issue s315
 }
 
 sub unmap_loop_var          # issue s100
@@ -9472,7 +9550,8 @@ sub ampersand_is_sub_sigil      # issue s152
 {
     return 1 if $tno == 0;
     if(index('i)"ds', $ValClass[$tno-1]) != -1) {      # issue s152: distinguish & from &Sub
-        return 0 if $tno-2 < 0;
+        # issue s308 return 0 if $tno-2 < 0;
+        return 1 if $tno-2 < 0;         # issue s308: Handle "expect_array &list_sub;"
         return 1 if $ValClass[$tno-2] eq 'f' && $ValPy[$tno-2] eq 'print';          # print/say FH &Sub
         return 0;
     }
@@ -9667,6 +9746,7 @@ sub handle_block_scope_pragma       # use integer, use English
 }
 
 sub undo_block_scope_pragmas        # use integer, use English
+# Remove a block scope pragma at the end of the block
 {
     return if(!@nesting_stack);
     $top = $nesting_stack[-1];

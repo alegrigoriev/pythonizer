@@ -19,11 +19,11 @@ $py = ($0 =~ /\.py$/);
 if($py) {
     my @patterns = (qr/^### Comment 0$/,
                     qr/:\s+### Comment 1$/,
-                    qr/-= 1\s+### Comment 2$/,
+                    qr/(?:-=|-) 1\s+### Comment 2$/,
                     qr/^\s+### Comment 3$/,
                     qr/\(5\)\s+### Comment 4$/,
                     qr/\)\s+### Comment 5$/,
-                    qr/^\s+return line\s+### Comment 6$/,
+                    qr/^\s+return (?:main\.)?line(?:_v)?\s+### Comment 6$/,
                     qr/^### Comment 7$/,
                    );
 

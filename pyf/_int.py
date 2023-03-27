@@ -15,7 +15,9 @@ def _int(expr):
         return expr
     if (m:=re.match(r'^\s*([+-]?(?:\d+))', expr)):
         return int(m.group(1))
+    if WARNING == 2:
+        _die(f"Argument \"{expr}\" isn't numeric in integer context", skip=1)
     if WARNING:
-        caller = inspect.getframeinfo(inspect.stack()[1][0])
-        warnings.warn(f"Argument \"{expr}\" isn't numeric in integer context at {caller.filename}:{caller.lineno}")
+        #caller = inspect.getframeinfo(inspect.stack()[1][0])
+        _warn(f"Argument \"{expr}\" isn't numeric in integer context", skip=1)
     return 0

@@ -55,7 +55,7 @@ sub check {
 	} else {
 		$traceback_line = $1;
 	}
-	assert($lines[MN] =~ /^\s+main\('abc', 'def'\) called at $0 line (\d+)$/);
+	assert($lines[MN] =~ /^\s+main_?\('abc', 'def'\) called at $0 line (\d+)$/);
 	if(defined $main_line) {
 		assert($1 == $main_line);
 	} else {

@@ -72,10 +72,10 @@ foreach $j ( 0 .. 4 ) {
 aeqi(\@arr, [0,1,2,3,4]);
 
 @arr = ();
-foreach $j ( reverse 0 .. 4 ) {
+foreach $j ( reverse 0 .. 10 ) {
 	push @arr, $j;
 }
-aeqi(\@arr, [4,3,2,1,0]);
+aeqi(\@arr, [10,9,8,7,6,5,4,3,2,1,0]);
 
 @arr = ();
 foreach $j ( reverse (0 .. 4) ) {

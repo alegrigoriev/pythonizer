@@ -1,6 +1,6 @@
 
 
-def _die(*args):
+def _die(*args, skip=None):
     """Handle die in perl"""
     global INPUT_LINE_NUMBER, _INPUT_FH_NAME, EVAL_ERROR
     def is_func_in_call_stack(func):    # Die handlers are turned off inside themselves
@@ -34,7 +34,7 @@ def _die(*args):
             pass
 
     if "\n" not in args[-1]:
-        (_, fn, lno) = _caller()
+        (_, fn, lno, *_) = _caller() if skip is None else _caller(skip)
         iln = None
         ifn = None
         try:
