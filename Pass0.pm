@@ -158,6 +158,10 @@ sub pass_0
                         last;
                     }
 
+                } elsif($ValClass[$i] eq 'f' && $ValPy[$i] eq '_set_signal') {  # issue s336
+                    $use_implicit_my = 0;
+                    say STDERR "Using -M due to set %SIG" if($say_why);
+                    last;
                 }
             }
         }

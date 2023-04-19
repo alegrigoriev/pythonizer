@@ -49,4 +49,17 @@ $arr[0] = '$abbcc';
 $arr[$ndx] =~ s/./b/;
 assert($arr[0] eq 'babbcc');
 
+$key = 'key';
+%hash = (key=>'aabbcc');
+$hash{$key} =~ s/a/b/g;
+assert($hash{$key} eq 'bbbbcc');
+
+$hash{key} = 'aabbcc';
+$hash{$key} =~ s/a/b/;
+assert($hash{key} eq 'babbcc');
+
+$hash{key} = '$abbcc';
+$hash{key} =~ s/./b/;
+assert($hash{$key} eq 'babbcc');
+
 print "$0 - test passed!\n";

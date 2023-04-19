@@ -24,6 +24,7 @@ $called = 0;
 require v5.24 && CallSub();
 assert($called);
 require v5.24 or die "failed";
+use lib '.';
 require test or die "no test!";
 require "test.pm" or die "no test.pm!";
 

@@ -5,6 +5,16 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
        self.isHash = isHash   # Can be None (not determined yet), False (is an Array), or True (is a Hash)
        super().__init__(fcn)
 
+    def get(self, key, default=None):
+        if self.isHash:
+            return super().get(key, default)
+        elif self.isHash is False:
+            if key < 0:
+                key += len(self)
+            return self[key] if key >= 0 and key < len(self) else default
+        else:
+            return default
+
     def append(self, value):
         if self.isHash is None:
             self.isHash = False
@@ -180,14 +190,6 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
             return "ArrayHash(" + self.__str__() + ")"
         return "Array(" + self.__str__() + ")"
 
-#    def __getattribute__(self, name):
-#        if name in ('keys', 'values', 'items') and not self.isHash:
-#            #raise AttributeError
-#            def inner():
-#                return []
-#            return inner
-#        return super().__getattribute__(name)
-
     def __add__(self, other):
         result = ArrayHash(self)
         if self.isHash or (isinstance(other, dict) and not isinstance(other, _ArrayHash)) or (hasattr(other, 'isHash') and other.isHash):
@@ -219,6 +221,21 @@ class _ArrayHash(collections.defaultdict, collections.abc.Sequence):
             result.extend(self)
         return result
 
+    def __mul__(self, other):
+        if isinstance(other, int):
+            if self.isHash is False:  # Only perform multiplication for arrays
+                new_data = ArrayHash(isHash=False)
+                for _ in range(other):
+                    new_data.extend(self)
+                return new_data
+            else:
+                raise TypeError("Can only multiply Array instances by an integer")
+        else:
+            raise TypeError("Can only multiply Array by an integer")
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+    
     def __eq__(self, other):
         if self.isHash is None:
             if hasattr(other, 'isHash') and other.isHash is None:

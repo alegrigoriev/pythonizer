@@ -1,5 +1,6 @@
 # issue s287 - implement 'isa' operator
 use feature 'isa';
+no warnings 'experimental';
 
 # Define My::BaseClass
 package My::BaseClass;

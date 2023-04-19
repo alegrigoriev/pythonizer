@@ -11,7 +11,9 @@ def _each(h_a):
         setattr(_each, key, iter(h_a))
         return []
 
-    if hasattr(h_a, 'keys'):
+    if hasattr(h_a, 'TIEHASH') or \
+       ((hasattr(h_a, 'keys') and not hasattr(h_a, 'isHash')) or
+       (hasattr(h_a, 'isHash') and h_a.isHash)):
         return [v, h_a[v]]
     ndx_key = key + 'i'
     i = 0;

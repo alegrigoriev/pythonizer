@@ -2,14 +2,15 @@
 use Carp::Assert;
 use File::stat;
 
-my $st = stat('.');
-
-my $perm = $st->mode;
-
 my $root = '.';
 
+my $st = stat($root);
+
+my $perm = $st->mode & 0777;
+
+
 if( !chmod $perm | oct '700', $root) {
-	assert(0);
+	assert(0, "chmod $perm failed - $!");
 } else {
 	print "$0 - test passed!\n";
 }

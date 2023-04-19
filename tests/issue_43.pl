@@ -1,3 +1,4 @@
+# issue 43 - Variable references in interpolated strings with ${var} generate bad code
 use Carp::Assert;
 $year = '2021';
 $month = '11';

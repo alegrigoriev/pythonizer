@@ -156,4 +156,191 @@ assert($newhash{k1}{k5} == '');
 assert($newhash{k1}{k6} == $newarr[27]);
 $newhash{k1}{k7} = 'abc';
 
+# Now for some chatGPT-4 generated tests:
+
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Carp::Assert;
+
+# Test 1: Basic autovivification
+{
+    my %hash;
+    assert(!exists $hash{foo}{bar}, "foo and bar keys do not exist");
+
+    $hash{foo}{bar} = "value";
+    assert(exists $hash{foo}{bar}, "foo and bar keys exist after assignment");
+    assert($hash{foo}{bar} eq "value", "foo => bar value is 'value'");
+}
+
+# Test 2: Autovivification with multiple levels
+{
+    my %hash;
+    assert(!exists $hash{a}{b}{c}, "a, b and c keys do not exist");
+
+    $hash{a}{b}{c} = "nested";
+    assert(exists $hash{a}{b}{c}, "a, b and c keys exist after assignment");
+    assert($hash{a}{b}{c} eq "nested", "a => b => c value is 'nested'");
+}
+
+# Test 3: Autovivification with arrays
+{
+    my %hash;
+    assert(!exists $hash{array}[0], "array key with index 0 does not exist");
+
+    $hash{array}[0] = "first";
+    assert(exists $hash{array}[0], "array key with index 0 exists after assignment");
+    assert($hash{array}[0] eq "first", "array => [0] value is 'first'");
+}
+
+# Test 4: Autovivification with mixed structures
+{
+    my %hash;
+    assert(!exists $hash{mixed}[0]{key}, "mixed key with index 0 and key do not exist");
+
+    $hash{mixed}[0]{key} = "mixed_value";
+    assert(exists $hash{mixed}[0]{key}, "mixed key with index 0 and key exist after assignment");
+    assert($hash{mixed}[0]{key} eq "mixed_value", "mixed => [0] => key value is 'mixed_value'");
+}
+
+# Test 5: No autovivification when using 'no autovivification'
+{
+	#no autovivification;
+
+    my %hash;
+	#eval { $hash{noauto}{key} };
+	#assert(!exists $hash{noauto}{key}, "noauto and key do not exist (no autovivification)");
+
+	#use autovivification;
+    $hash{noauto}{key} = "noauto_value";
+    assert(exists $hash{noauto}{key}, "noauto and key exist after assignment");
+    assert($hash{noauto}{key} eq "noauto_value", "noauto => key value is 'noauto_value'");
+}
+
+# Test 6: Initialized hashref containing an arrayref
+{
+    my $hashref = {
+        key => [ 'zero', 'one', 'two' ],
+    };
+
+    assert($hashref->{key}->[0] eq 'zero', "hashref key => [0] value is 'zero'");
+    assert($hashref->{key}->[1] eq 'one', "hashref key => [1] value is 'one'");
+    assert($hashref->{key}->[2] eq 'two', "hashref key => [2] value is 'two'");
+}
+
+# Test 7: Adding elements to the arrayref by index
+{
+    my $hashref = {
+        key => [ 'zero', 'one', 'two' ],
+    };
+
+    $hashref->{key}->[3] = 'three';
+    $hashref->{key}->[4] = 'four';
+
+    assert($hashref->{key}->[3] eq 'three', "hashref key => [3] value is 'three'");
+    assert($hashref->{key}->[4] eq 'four', "hashref key => [4] value is 'four'");
+}
+
+# Test 8: Autovivification with nested arrayrefs
+{
+    my $hashref = {
+        key => [ 'zero', 'one', 'two' ],
+    };
+    assert(!exists $hashref->{nested}[0][0], "nested key with index 0 and nested index 0 do not exist");
+
+    $hashref->{nested}[0][0] = 'nested_zero';
+    assert(exists $hashref->{nested}[0][0], "nested key with index 0 and nested index 0 exist after assignment");
+    assert($hashref->{nested}[0][0] eq 'nested_zero', "nested => [0] => [0] value is 'nested_zero'");
+}
+
+# Test 9: Autovivification with arrayref and hashref mixed
+{
+    my $hashref = {
+        key => [ 'zero', 'one', 'two' ],
+    };
+    assert(!exists $hashref->{mixed_array}[0]{nested_key}, "mixed_array key with index 0 and nested_key do not exist");
+
+    $hashref->{mixed_array}[0]{nested_key} = 'mixed_nested';
+    assert(exists $hashref->{mixed_array}[0]{nested_key}, "mixed_array key with index 0 and nested_key exist after assignment");
+    assert($hashref->{mixed_array}[0]{nested_key} eq 'mixed_nested', "mixed_array => [0] => nested_key value is 'mixed_nested'");
+}
+
+# Test 10: No autovivification with arrayrefs using 'no autovivification'
+{
+	#no autovivification;
+
+    my $hashref = {
+        key => [ 'zero', 'one', 'two' ],
+    };
+	#eval { $hashref->{noauto_array}[0][0] };
+	#assert(!exists $hashref->{noauto_array}[0][0], "noauto_array key with index 0 and nested index 0 do not exist (no autovivification)");
+
+	#use autovivification;
+    $hashref->{noauto_array}[0][0] = 'noauto_nested_zero';
+    assert(exists $hashref->{noauto_array}[0][0], "noauto_array key with index 0 and nested index 0 exist after assignment");
+    assert($hashref->{noauto_array}[0][0] eq 'noauto_nested_zero', "noauto_array => [0] => [0] value is 'noauto_nested_zero'");
+}
+
+# Test 11: Arrayref containing an initialized hashref
+{
+    my $arrayref = [
+        { key1 => 'value1', key2 => 'value2' },
+    ];
+
+    assert($arrayref->[0]{key1} eq 'value1', "arrayref => [0] => key1 value is 'value1'");
+    assert($arrayref->[0]{key2} eq 'value2', "arrayref => [0] => key2 value is 'value2'");
+}
+
+# Test 12: Adding elements to the initialized hashref inside arrayref
+{
+    my $arrayref = [
+        { key1 => 'value1', key2 => 'value2' },
+    ];
+
+    $arrayref->[0]{key3} = 'value3';
+    assert($arrayref->[0]{key3} eq 'value3', "arrayref => [0] => key3 value is 'value3'");
+}
+
+# Test 13: Autovivification with nested hashrefs inside arrayref
+{
+    my $arrayref = [
+        { key1 => 'value1', key2 => 'value2' },
+    ];
+    assert(!exists $arrayref->[0]{nested}{key}, "arrayref index 0 and nested key do not exist");
+
+    $arrayref->[0]{nested}{key} = 'nested_value';
+    assert(exists $arrayref->[0]{nested}{key}, "arrayref index 0 and nested key exist after assignment");
+    assert($arrayref->[0]{nested}{key} eq 'nested_value', "arrayref => [0] => nested => key value is 'nested_value'");
+}
+
+# Test 14: Autovivification with arrayref inside hashref inside arrayref
+{
+    my $arrayref = [
+        { key1 => 'value1', key2 => 'value2' },
+    ];
+    assert(!exists $arrayref->[0]{nested_array}[0], "arrayref index 0, nested_array and index 0 do not exist");
+
+    $arrayref->[0]{nested_array}[0] = 'nested_array_value';
+    assert(exists $arrayref->[0]{nested_array}[0], "arrayref index 0, nested_array and index 0 exist after assignment");
+    assert($arrayref->[0]{nested_array}[0] eq 'nested_array_value', "arrayref => [0] => nested_array => [0] value is 'nested_array_value'");
+}
+
+# Test 15: No autovivification with hashrefs inside arrayref using 'no autovivification'
+{
+    #no autovivification;
+
+    my $arrayref = [
+        { key1 => 'value1', key2 => 'value2' },
+    ];
+    #eval { $arrayref->[0]{noauto_nested}{key} };
+    #assert(!exists $arrayref->[0]{noauto_nested}{key}, "arrayref index 0, noauto_nested and key do not exist (no autovivification)");
+
+    #use autovivification;
+    $arrayref->[0]{noauto_nested}{key} = 'noauto_nested_value';
+    assert(exists $arrayref->[0]{noauto_nested}{key}, "arrayref index 0, noauto_nested and key exist after assignment");
+    assert($arrayref->[0]{noauto_nested}{key} eq 'noauto_nested_value', "arrayref => [0] => noauto_nested => key value is 'noauto_nested_value'");
+}
+
 print "$0 - test passed!\n";

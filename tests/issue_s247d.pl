@@ -5,5 +5,5 @@ use strict;
 use warnings;
 my $script = $0; 
 my $program = 'echo';
-my @args = ("echo $0 - test passed!\n");
+my @args = ($program, "$0 - test passed!");
 exec @args or die "Couldn't exec $program: $!";

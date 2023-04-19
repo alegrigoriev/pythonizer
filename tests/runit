@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 export PYTHONPATH=/c/pythonizer/pythonizer
 status=0
 failed=0

@@ -12,8 +12,9 @@ if($0 =~ /\.py$/) {
     my $match = 0;
     my $h = 0;
     my $tb = 0;
+    my $main = 'main';
     while(<SOURCE>) {
-        $match = 1 if(/main\.global_var/);
+        $match = 1 if(/$main\.global_var/);
         $h = 1 if(/Hash[(]/);
         $tb = 1 if(/perllib[.]TRACEBACK/);
     }

@@ -65,6 +65,75 @@ def _add_tie_methods(obj):
 
         result.extend = lambda self, lst: [self.PUSH(l) for l in lst]
 
+        def __getitem__(self, index):
+            if isinstance(index, int):
+                if index < 0:
+                    index += len(self)
+                return self.FETCH(index)
+            elif isinstance(index, slice):
+                return Array([self[i] for i in range(*index.indices(len(self)))])
+            else:
+                return self.FETCH(index)
+
+        result.__getitem__ = __getitem__
+
+        def __setitem__(self, index, value):
+            if isinstance(index, int):
+                if index < 0:
+                    index += len(self)
+                return self.STORE(index, value)
+            elif isinstance(index, slice):
+                if index.start is not None:
+                    for i in range(len(self), index.start):
+                        self.STORE(i, None)
+                value = iter(value)
+                ndx = index.start if index.start is not None else 0
+                j = None
+                for i in range(*index.indices(len(self))):
+                    try:
+                        self.STORE(i, next(value))
+                    except StopIteration:
+                        if j is None:
+                            j = i
+                        self.pop(j)
+                    ndx += 1
+                rest = list(value)
+                lr = len(rest)
+                if lr:
+                    for i in range(len(self)-1,ndx-1,-1):  # Move everything else up
+                        self.STORE(i+lr, self.FETCH(i))
+                for i in range(lr):
+                    self.STORE(i+ndx, rest[i])
+            else:
+                return self.STORE(index, value)
+        result.__setitem__ = __setitem__
+
+        def __delitem__(self, index):
+            if isinstance(index, int):
+                ls = len(self)
+                if not ls:
+                    return
+                if index < 0:
+                    index += len(self)
+                self.DELETE(index)
+            elif isinstance(index, slice):
+                for i in range(*index.indices(len(self))):
+                    self.DELETE(i)
+            else:
+                try:
+                    self.DELETE(index)
+                except (TypeError, KeyError):
+                    self.DELETE(str(index))
+        result.__delitem__ = __delitem__
+
+        def get(self, index, default=None):
+            if index < 0:
+                index += len(self)
+            if index < 0 or index >= len(self):
+                return default
+            return self.FETCH(index)
+        result.get = get
+
         def __iter__(self):
             for i in range(self.SCALAR() if hasattr(self, 'SCALAR') else self.FETCHSIZE()):
                 yield self.FETCH(i)
@@ -131,6 +200,18 @@ def _add_tie_methods(obj):
                     return None # default default
                 return self.DELETE(key)
             result.pop = pop
+
+            def get(self, key, default=None):
+                if isinstance(key, int):    # Array style
+                    if key < 0:
+                        key += len(self)
+                    if key < 0 or key >= len(self):
+                        return default
+                else:                       # Hash style
+                    if not self.EXISTS(key):
+                        return default
+                return self.FETCH(key)
+            result.get = get
         else:
             def pop(self, key, default=None):
                 if not self.EXISTS(key):
@@ -138,11 +219,11 @@ def _add_tie_methods(obj):
                 return self.DELETE(key)
             result.pop = pop
 
-        def get(self, key, default=None):
-            if not self.EXISTS(key):
-                return default
-            return self.FETCH(key)
-        result.get = get
+            def get(self, key, default=None):
+                if not self.EXISTS(key):
+                    return default
+                return self.FETCH(key)
+            result.get = get
 
         result.keys = lambda self: [k for k in self]
         result.values = lambda self: [self[k] for k in self]

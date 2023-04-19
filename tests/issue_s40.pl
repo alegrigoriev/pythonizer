@@ -91,6 +91,16 @@ assert($foxes == 2);
 @arr=qw/0 1 2 3 4/;
 while(my ($ndx, $val) = each @arr) {
 	assert($ndx == $val);
+    $cnt++
 }
+assert($cnt == 5);
+
+%hash = (key=>'value');
+while(my ($key, $val) = each %hash) {
+	assert($key eq 'key');
+    assert($val eq 'value');
+    $cnt++
+}
+assert($cnt == 6);
 
 print "$0 - test passed!\n";

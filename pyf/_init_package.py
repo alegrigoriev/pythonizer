@@ -18,7 +18,7 @@ def _init_package(name, is_class=False, isa=(), autovivification=True):
     package_name = ''
     class perllibMeta(abc.ABCMeta):
         def __str__(self):      # so str(class_v) works
-            return self.__name__ if isinstance(self, type) else super().__str__()
+            return self.__name__.replace('.', '::') if isinstance(self, type) else super().__str__()
 
     for i, piece in enumerate(pieces):
         prior_namespace = namespace = None

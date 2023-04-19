@@ -2,6 +2,11 @@
 History
 =======
 
+1.030 (2023-03-27)
+------------------
+
+* Issue s335: Replace os.getgrouplist() call in _stat.py with os.getgroups(), Issue s337: Fix issues in Time::HiRes on unix.  Issue s347: Converting a class object to a string should change '.' to '::' - fixed in _init_package, Issue s350: Handle dynamic require statement in eval - fix _import to handle '::' as '/', Issue s359: define get() in _ArrayHash to work with negative index, define get() in _add_tie_methods for tied arrays and also define proper __getitem__, __setitem__, and __delitem__ methods, define get() for File_stat class in _stat, fix _each to work on Array objects, allow _list_of_n to work on an itertools.chain object
+
 1.029 (2023-03-03)
 ------------------
 

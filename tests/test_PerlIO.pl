@@ -13,9 +13,15 @@ sub compare_lists {
     return 1;
 }
 
+my $py = ($0 =~ /\.py/);
+
 # Test that perlio::get_layers returns an empty list for a plain file handle
 my $fh = IO::File->new('tmp.tmp', 'w') or die $!;
-assert(compare_lists([PerlIO::get_layers($fh)], ['unix', 'perlio']), "plain file handle with [@layers]");
+if($^O eq 'msys' || $^O eq 'MSWin32' || !$py) {
+    assert(compare_lists([PerlIO::get_layers($fh)], ['unix', 'perlio']), "plain file handle with [@layers]");
+} else {
+    assert(compare_lists([PerlIO::get_layers($fh)], [qw/unix perlio encoding(utf-8-strict) utf8/]), "plain file handle on unix with [@layers]");
+}
 $fh->close();
 
 # Test that perlio::get_layers returns the expected list of layers for a file handle

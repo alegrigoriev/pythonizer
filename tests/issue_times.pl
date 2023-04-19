@@ -7,9 +7,12 @@ BEGIN {
 }
 
 # In scalar context, localtime returns the ctime(3) value
-$tm = time;
-$ct = localtime;
-$ct0 = localtime $tm;
+for(my $i = 0; $i < 5; $i++) {
+    $tm = time;
+    $ct = localtime;
+    $ct0 = localtime $tm;
+    last if $ct eq $ct0;
+}
 $ct1 = localtime 44444;
 $rep_time = 44444;
 $slt = scalar(localtime($rep_time));
