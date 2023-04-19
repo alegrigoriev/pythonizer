@@ -74,6 +74,8 @@ Ready to contribute? Here's how to set up `pythonizer` for local development.
 
     o Carp::Assert
     o IPC::System::Simple
+    o Switch
+    o CGI
 
 5. When you're done making changes, check that your changes pass the
    tests::

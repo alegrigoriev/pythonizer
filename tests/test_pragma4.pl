@@ -10,8 +10,9 @@ if($0 =~ /\.py$/) {
     }
     my $match = 0;
     my $a = 0;
+    my $main = 'main';
     while(<SOURCE>) {
-        $match = 1 if(/main\.global_var/);
+        $match = 1 if(/$main\.global_var/);
         $a = 1 if(/perllib\.AUTODIE/ || /^AUTODIE/);
     }
     assert(!$match);

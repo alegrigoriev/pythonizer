@@ -23,7 +23,7 @@ our @EXPORT = qw( $TABSIZE $MAXNESTING $MAXLINELEN $DEFAULT_VAR $DEFAULT_MATCH $
 our $TABSIZE = 4;
 our $MAXNESTING = 32;
 our $MAXLINELEN = 188;
-our $MAX_CHUNKS = 2048;                # Limit on gen_chunk
+our $MAX_CHUNKS = 8192;                # Limit on gen_chunk
 our $MAX_DEPTH = 1024;                # Limit on expression recursion depth
 our $DEFAULT_VAR = "_d";
 our $DEFAULT_MATCH = "_m";
@@ -224,7 +224,7 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
                 _unpack=>'_pack', 
                 _assign_sparse=>'_int,_warn,_die,_caller',  # issue s332
                 _can=>'_isa', _binmode=>'_autoflush',
-                _add_tie_methods=>'_raise',         # issue s216
+                _add_tie_methods=>'_raise,Array,ArrayHash',         # issue s216, issue s359
                 _method_call=>'_cluck',             # issue s236
                 _smartmatch=>'_num,_warn,_die,_caller',                # issue s251, issue s332
                 _exec=>'_execp,_cluck',             # issue s247
@@ -240,6 +240,7 @@ our %PYF_CALLS=(_basename=>'_fileparse', _croak=>'_shortmess', _confess=>'_longm
                 _store_perl_meta=>'_assign_meta,_init_package,ArrayHash,Hash,_ArrayHash,_ArrayHashClass,_partialclass',           # issue s301
                 _isa_op=>'_isa',                # issue s287
                 _add_tie_call=>'_tie_call',     # issue s304
+                _set_signal=>'_num,_warn',       # issue s336
                 _carp=>'_shortmess', _cluck=>'_longmess');      # Who calls who
 our %PYF_OUT_PARAMETERS=();                        # Functions with out parameters - which parameter (counting from 1) is "out"?
 our %STATEMENT_FUNCTIONS=(getopts=>1, GetOptions=>1, chop=>1, chomp=>1);    # issue s150: These functions generate statements and must be pulled out of expressions/conditions, issue s167: Add chop/chomp

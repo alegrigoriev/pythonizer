@@ -353,7 +353,8 @@ sub prolog
       return;
 } # prolog
 
-%VarType = ('sys.argv'=>{__main__=>'a of S'},   # issue 41
+%VarType = ('sys.argv'=>{__main__=>'a of m'},   # issue 41, issue s359: with bad index it could be None
+            'sys.argv[1:]'=>{__main__=>'a of m'},       # issue s359: this is @ARGV
             'os.name'=>{__main__=>'S'},
             EVAL_ERROR=>{__main__=>'S'},
 	    "${PERL_SORT_}a"=>{__main__=>'s'},
@@ -362,7 +363,8 @@ sub prolog
             'os.environ'=>{__main__=>'h of m'}); # SNOOPYJC: {varname}{sub} = type (a, h, s, I, S, F, N, u, m), issue s90: with a bad key, it could be None
 %NeedsInitializing = ();        # SNOOPYJC: {sub}{varname} = type
 # SNOOPYJC: initialized means it is set before it's being used
-%initialized = (__main__=>{'sys.argv'=>'a of S',
+%initialized = (__main__=>{'sys.argv'=>'a of m',    # issue s359: bad index, it could be None
+                       'sys.argv[1:]'=>'a of m',    # issue s359
                        'os.name'=>'S',
                        EVAL_ERROR=>'S',
 		       '__dict__'=>'h',
@@ -566,7 +568,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
              }
              my $typ = 'm';
              $typ = $PriorExprType if(defined $PriorExprType);
-             $VarType{$CurSubName}{__main__} = merge_types($CurSubName, '__main__', $typ);
+             $VarType{$CurSubName}{__main__} = merge_types($CurSubName, '__main__', $typ, undef, 'a');  # issue s356
              my $pkg = 'sys.modules["__main__"]';
              $pkg = $CurPackage if(defined $CurPackage);
              $VarType{"$pkg.$CurSubName"}{__main__} = $VarType{$CurSubName}{__main__};
@@ -600,7 +602,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
               } elsif($ValClass[$k] eq 'k' && $ValPerl[$k] eq 'use' && $k+1 <= $#ValClass && $ValPerl[$k+1] eq 'parent') {      # issue s18
                   my $t = 'a of S';
                   my $pyISA = &Perlscan::escape_keywords($CurPackage,1) . '.' . &Perlscan::remap_conflicting_names('ISA', '@', '', 1);
-                  $t = merge_types($pyISA, '__main__', $t);
+                  $t = merge_types($pyISA, '__main__', $t, undef, 'a'); # issue s356
                   $VarType{$pyISA}{__main__} = $t;
       	          $VarSubMap{$pyISA}{__main__}='+';
                   $NeedsInitializing{__main__}{$pyISA} = $t if(!exists $initialized{__main__}{$pyISA});
@@ -626,7 +628,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                      set_sub_attribute($cs, 'arglist_shifts', get_sub_attribute($cs, 'arglist_shifts',0,0) - 1);   # issue s184, issue s241
                  }                                                  # issue s184
               } elsif((($ValClass[$k] eq 'q' && $ValPy[$k] =~ /\b$DEFAULT_VAR\b/)) ||                # issue s151
-                  ($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 're' && $ValPy[$k] =~ /\b$DEFAULT_VAR\b/) ||
+                  ($ValClass[$k] eq 'f' && ($ValPerl[$k] eq 're' && 
+                   ($ValPy[$k] =~ /\b$DEFAULT_VAR\b/ || $ValPy[$k] =~ /^\.replace/)) ||
                   # issue s151 ($ValPerl[$k] eq 'tr' && ($k == 0 || $ValClass[$k-1] ne '~'))) {      # issue s8: sets the $DEFAULT_VAR
                   ($ValPerl[$k] eq 'tr' && ($k == 0 || $ValClass[$k-1] ne 'p')))) {      # issue s8: sets the $DEFAULT_VAR, issue s151
                   
@@ -634,7 +637,9 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                 $VarType{$DEFAULT_VAR}{$CurSubName} = $t;      # issue s8, issue s104
       	        $VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
                 $NeedsInitializing{$CurSubName}{$DEFAULT_VAR} = $t if(!exists $initialized{$CurSubName}{$DEFAULT_VAR}); # issue s8, issue s104
-                if($ValPy[$k] =~ /^re\.sub/ && &Perlscan::is_loop_ctr('$_')) {      # issue s252
+                if(($ValPy[$k] =~ /^re\.sub/ ||
+                    $ValPy[$k] =~ /^\.replace/) &&      # issue s344
+                   &Perlscan::is_loop_ctr('$_')) {      # issue s252
                     &Perlscan::set_loop_ctr_mod('$_');  # issue s252
                 }                                       # issue s252
 
@@ -713,7 +718,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                   }                                                                     # issue s252
                   if(defined $p) {
                     my $typ = arg_type_from_pos($p);                              # issue s252
-                    my $t = merge_types($ValPy[$p], $CurSubName, $typ);           # issue s252
+                    my $t = merge_types($ValPy[$p], $CurSubName, $typ, $p);           # issue s252, issue s256
                     $VarType{$ValPy[$p]}{$CurSubName} = $t;                       # issue s252
                     if(exists $NeedsInitializing{$CurSubName}{$ValPy[$p]}) {      # issue s252
                         $NeedsInitializing{$CurSubName}{$ValPy[$p]} = $t;         # issue s252
@@ -863,7 +868,7 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
                   $end = $c-1 if(($c = next_same_level_token('c', 1, $end)) != -1);
                   $typ = expr_type(1, $end, $CurSubName);
               }
-              $VarType{$CurSubName}{__main__} = merge_types($CurSubName, '__main__', $typ);
+              $VarType{$CurSubName}{__main__} = merge_types($CurSubName, '__main__', $typ, undef, 'a'); # issue s356
           } elsif(($#ValClass >= 2 && ($ValPerl[0] eq 'while' || $ValPerl[0] eq 'until') && $ValClass[1] eq '(' && ($ValClass[2] eq 'j' || $ValClass[2] eq 'g')) ||
 		   ($#ValClass >= 2 && $ValPy[0] eq 'for' && for_loop_uses_default_var(0))) {	# issue s103, issue s235
 	          $VarSubMap{$DEFAULT_VAR}{$CurSubName}='+';		# issue s103
@@ -1150,6 +1155,8 @@ my %DeclaredVarH=(); # list of my varibles in the current subroute
        say STDERR Dumper(\%NeedsInitializing);
        print STDERR "NameMap = ";
        say STDERR Dumper(\%Perlscan::NameMap);
+       print STDERR "ReverseNameMap = ";
+       say STDERR Dumper(\%Perlscan::ReverseNameMap);
        print STDERR "sub_external_last_nexts = ";
        say STDERR Dumper(\%Perlscan::sub_external_last_nexts);
        print STDERR "line_needs_try_block = ";
@@ -1431,6 +1438,15 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
     # issue s262: Handle out parameters on my statements also
     # issue s262 my $cs = &Perlscan::cur_sub();
     my $cs = $CurSub;               # issue s262: If we are in one of our nested subs, we actually want to check the attributes of the parent sub
+
+    if($class eq 's' && $::autovivification && $ValPerl[$k] eq '$_') {      # issue s359: We use .get(...) on _args, so we have to copy them
+        set_sub_attribute($cs, 'modifies_arglist', 1);                      # issue s359
+        my $sub = &Perlscan::cur_sub();                                     # issue s359: Mark it on the nested sub too
+        if(exists $::nested_subs{$sub} && $::nested_subs{$sub} =~ /$PERL_ARG_ARRAY/) {  # issue s359
+            set_sub_attribute($sub, 'modifies_arglist', 1);                     # issue s359
+        }
+    }                                                                       # issue s359
+
     if($ValClass[$k] eq 's' && $ValPerl[$k] eq '$_' && $ValPy[$k] =~ /^$PERL_ARG_ARRAY/ &&    # issue s184
         (($k-1 >= 0 && $ValClass[$k-1] eq '^') ||  # issue s184: handle ++$_[N] / --$_[N]
         ($ValPy[$k] !~ /\[\d+\]/ && $k+3 <= $#ValClass && $ValClass[$k+1] eq '(' && ($p = matching_br($k+1)) != -1 &&  # vararg
@@ -1542,6 +1558,11 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
                 $type = "h of m";		# issue s98
             }
             #$type = 'm' if($type eq 'u');       # If we don't know the type, can no longer assume anything
+            if($ValClass[$k] eq 'a' && (!defined $type || $type !~ /^a/)) { # issue s356
+                $type = 'a';                                                # issue s356
+            }  elsif($ValClass[$k] eq 'h' && (!defined $type || $type !~ /^h/)) { # issue s356
+                $type = 'h';                                                # issue s356
+            }                                                               # issue s356
             my $op = $ValPerl[$k+1];
             if($op eq '=') {     # e.g. not +=
                 if($name =~ /^\(len\((.*)\)-1\)$/) {            # issue s93: $#myArray = ...
@@ -1630,7 +1651,10 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
     }
 
     if(defined $type) {
-        $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
+        #if($ValClass[$k] =~ /^[ah]/) {                  # issue s356
+        #$NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});        # issue s356
+        #}                                               # issue s356
+        $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type, $k);      # issue s356
         $NeedsInitializing{$CurSub}{$name} = $type if(!exists $initialized{$CurSub}{$name});
         if($name =~ /^\(len\((.*)\)-1\)$/) {            # issue s93: $#myArray
             $NeedsInitializing{$CurSub}{$1} = 'a' if(!exists $initialized{$CurSub}{$1});        # issue s93
@@ -1675,16 +1699,16 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
                 return;         # Just a reference to the array
             }
         } elsif($k-1 >= 0 && $ValClass[$k-1] eq 'f' && ($ValPerl[$k-1] eq 'chop' || $ValPerl[$k-1] eq 'chomp')) {   # issue s148
-            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of S");
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of S", undef, $class);    # issue s356
         } elsif($k-2 >= 0 && $ValClass[$k-1] eq '(' && $ValClass[$k-2] eq 'f' && ($ValPerl[$k-2] eq 'chop' || $ValPerl[$k-2] eq 'chomp')) { # issue s148
-            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of S");
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of S", undef, $class);    # issue s356
         } else {
             return;             # Just a reference to the array
         }
 	    # issue s98 if(defined $rhs_type) {
 	    # issue s98     $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of $rhs_type");
 	    # issue s98 } else {
-        $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of m");
+        $VarType{$name}{$CurSub} = merge_types($name, $CurSub, "$type of m", undef, $lcass);
         # issue s98 }
    } elsif($class eq 's' && $k-1 >= 0 && $ValClass[$k-1] eq 'f' && ($ValPerl[$k-1] eq 'chop' || $ValPerl[$k-1] eq 'chomp')) {       # issue s148
         $VarType{$name}{$CurSub} = merge_types($name, $CurSub, 'S');
@@ -1695,18 +1719,18 @@ sub check_ref           # SNOOPYJC: Check references to variables so we can type
        if($k-1 >= 0 && $ValClass[$k-1] eq 'f' && ($ValPerl[$k-1] eq 'push' || $ValPerl[$k-1] eq 'unshift') && $k+2 <= $#ValClass) {
             $type = expr_type($k+2, $#ValClass, $CurSub);
             $type = "$class of $type";
-            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type, undef, $class);   # issue s356
         } elsif($k-2 >= 0 && $ValClass[$k-1] eq '(' && $ValClass[$k-2] eq 'f' && ($ValPerl[$k-2] eq 'push' || $ValPerl[$k-2] eq 'unshift') && $k+2 <= $#ValClass) {
             my $match = matching_br($k-1);
             $type = expr_type($k+2, $match-1, $CurSub);
             $type = "$class of $type";
-            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type, undef, $class);   # issue s356
         } elsif($k-1 >= 0 && $ValClass[$k-1] eq 'f' && ($ValPerl[$k-1] eq 'chop' || $ValPerl[$k-1] eq 'chomp')) {       # issue s148
             $type = "$class of S";
-            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type, undef, $class);   # issue s356
         } elsif($k-2 >= 0 && $ValClass[$k-1] eq '(' && $ValClass[$k-2] eq 'f' && ($ValPerl[$k-2] eq 'chop' || $ValPerl[$k-2] eq 'chomp')) { # issue s148
             $type = "$class of S";
-            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type);
+            $VarType{$name}{$CurSub} = merge_types($name, $CurSub, $type, undef, $class);   # issue s356
         # issue s93 } elsif(substr($ValPy[$k],0,4) eq 'len(') {
         } elsif($name =~ /^\(len\((.*)\)-1\)$/) {            # issue s93: $#myArray
             $NeedsInitializing{$CurSub}{$1} = 'a' if(!exists $initialized{$CurSub}{$1});        # issue s93
@@ -2070,22 +2094,47 @@ sub merge_types         # SNOOPYJC: Merge type of object when we get new info
     my $name = shift;
     my $CurSub = shift;
     my $type = shift;
+    my $pos = (scalar(@_) ? $_[0] : undef);         # issue s356
+    my $class = (scalar(@_) > 1 ? $_[1] : undef);   # issue s356: Specify one or the other
 
     if($::debug >= 3) {
-        say STDERR "merge_types($name, $CurSub, $type)";
+        no warnings 'uninitialized';
+        say STDERR "merge_types($name, $CurSub, $type, $pos, $class)";
     }
 
     my $new_type = $type;		# issue s116
     if(!defined $type) {
         $type = 's';
     }
-    if(!exists $VarType{$name}) {
-        return $type;
+    my $otype;                      # issue s356
+    if($type ne 'H' && &Perlscan::in_conditional(0)) {          # issue s356, issue s357
+        if(!exists $VarType{$name} || !exists $VarType{$name}{$CurSub}) {   # issue s356
+            if(exists $NeedsInitializing{$CurSub}{$name} && 
+               $NeedsInitializing{$CurSub}{$name} =~ /^[ah]/) { # issue s356
+                $otype = $NeedsInitializing{$CurSub}{$name};    # issue s356
+            } elsif(exists $initialized{$CurSub}{$name}) {   # issue s356
+                $otype = $initialized{$CurSub}{$name};  # issue s356
+            } elsif(defined $pos && $ValClass[$pos] =~ /^[ah]/) {       # issue s356
+                return $type;                           # issue s356
+            } elsif(defined $class && $class =~ /^[ah]/) {              # issue s356
+                return $type;                           # issue s356
+            } elsif(declared_in_statement($name)) {     # issue s362
+                return $type;                           # issue s362
+            } else {                                    # issue s356
+                $otype = 'u';       # issue s356: undefined
+            }
+        } else {                      # issue s356
+            $otype = $VarType{$name}{$CurSub};      # issue s356
+        }
+    } else {                    # issue s356
+        if(!exists $VarType{$name}) {
+            return $type;
+        }
+        if(!exists $VarType{$name}{$CurSub}) {
+            return $type;
+        }
+        $otype = $VarType{$name}{$CurSub};
     }
-    if(!exists $VarType{$name}{$CurSub}) {
-        return $type;
-    }
-    $otype = $VarType{$name}{$CurSub};
     if($::debug >= 3) {
         say STDERR "merge_types: otype=$otype";
     }
@@ -2738,6 +2787,7 @@ my $balance=0;
     # issue 74 for( my $k=$scan_start; $k<$scan_end; $k++ ){      # issue 74
     for( my $k=$scan_start; $k<=$scan_end; $k++ ){      # issue 74
       my $s=substr($TokenStr,$k,1);
+      # die("next_same_level_tokens($toks, $scan_start, $scan_end) for =|$TokenStr|= - out of range!") if(!defined $s);
       if( $s eq '(' ){
          $balance++;
       }elsif( $s eq ')' ){
@@ -2776,6 +2826,7 @@ my $scan_end=$_[2];
 sub apply_scalar_context                        # issue 37
 {
     $pos = shift;
+    $is_last = scalar @_ ? $_[0] : 0;   # issue s341: pos is the end of the terminal, not the start
     return 0 if($pos < 0 || $pos > $#ValClass);
     # issue 30 if($ValClass[$pos] eq 'a' && substr($ValPy[$pos],0,4) ne 'len(') {
     if(($ValClass[$pos] =~ /[ah]/ ||
@@ -2803,6 +2854,13 @@ sub apply_scalar_context                        # issue 37
             destroy($pos+1, 1);
             return 1;
         }
+    } elsif($is_last && $ValClass[$pos] eq ')' && $ValPerl[$pos] eq '}') {  # issue s341
+        my $open = reverse_matching_br($pos);           # issue s341
+        return 0 if $open <= 0;                         # issue s341
+        return 0 if $ValClass[$open-1] ne '@';          # issue s341: Looking for @{...}
+        return 0 if $open-2 >= 0 && $ValClass[$open-2] eq 'f' && $ValPerl[$open-2] eq 'scalar'; # issue s341
+        return 0 if $open-3 >= 0 && $ValPerl[$open-2] eq '(' && $ValClass[$open-3] eq 'f' && $ValPerl[$open-3] eq 'scalar'; # issue s341
+        $ValPy[$open-1] = 'len('.$ValPy[$open-1].')';   # issue s341: This is just a flag for remove_dereferences
     }
     return 0;
 }
@@ -2966,7 +3024,7 @@ sub fix_scalar_context                          # issue 37
                 $last_special_function = -1;
                 $last_special_function_end = -1;
             } elsif($i-1 == 0 || ($ValClass[$i-2] ne 'f' && $ValClass[$i-2] ne "\\")) {   # function (like shift/pop) on an array - don't apply scalar context to the array, also skip if we're getting a reference to the object
-                $did_something |= apply_scalar_context($i-1);
+                $did_something |= apply_scalar_context($i-1, 1);        # issue s341
             }
             $did_something |= apply_scalar_context($i+1);
         } elsif($ValClass[$i] eq 'f' and $ValPerl[$i] eq 'scalar' && ($did_something & 2) != 2) {
@@ -3831,8 +3889,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     close SYSOUT;
     if($::debug >= 6) {
         say STDERR "---------- Generated code before move_defs_before_refs ----------";
-        for(my $i = 0; $i < @lines; $i++) {
-            say STDERR "$i: $lines[$i]";
+        for(my $i = 1; $i <= @lines; $i++) {
+            say STDERR "$i: " . $lines[$i-1];
         }
     }
     my $preserve_output = 0;    # TEMP
@@ -3861,6 +3919,10 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
         # issue s126:                                                                    # but don't match _d = _d[0:-1]
         if($line =~ /# I_M_P_O_R_T/) {         # issue s18, issue s325
             push @import_lnos, $lno;                # issue s18
+        } elsif($line =~ /^\s+def ((?:$ANONYMOUS_SUB)[A-Za-z0-9_]+)/) {            # issue s3, issue s340 (moved code up)
+            my $func = $1;
+            push @nested, $func;
+            $defs{$func} = $lno;
         } elsif($line =~ /^def ([A-Za-z0-9_]+)/ || $line =~ /^class ([A-Za-z0-9_]+)/ ||
            $line =~ /^(_(?:PACK_TO_STRUCT|TEMPLATE_LENGTH|decoding_map|encoding_map|fileinput_iter|finditer_pattern|finditer_string|finditer_iter)) =/ ||   # issue s270
            $line =~ /^(Data\.Dumper\.[A-Za-z0-9_]+) =.*# InIt/      # issue s270
@@ -3883,10 +3945,6 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                 $i = $lno;      # issue s270
             }                   # issue s270
             $defs{$func} = $i;
-        } elsif($line =~ /^\s+def ((?:$ANONYMOUS_SUB)[A-Za-z0-9_]+)/) {            # issue s3
-            my $func = $1;
-            push @nested, $func;
-            $defs{$func} = $lno;
         } elsif($line =~ /^_init_package\(/ || $line =~ /^$PERLLIB\.init_package\(/) {
             push @init_package_lnos, $lno unless exists $::deferred_init_package_lines{$line};      # issue s18
         }
@@ -3901,12 +3959,34 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     my $in_def2 = undef;                # issue s155: Allow defs to be nested up to 2 levels
     my %def_package = ();               # issue s18: What package is this def in?
     my %f_refs=();
+    my %if_tracker=();          # issue s340: Tracks 'if' lno
+    my $in_elif = 0;            # issue s340
+    my $track_lno;              # issue s340
     for my $Line (@lines) {
         $lno++;
         # issue 24 $insertion_point = $lno+1 if($Line =~ /^$PERL_ARG_ARRAY = sys.argv/ && !$insertion_point);              # SNOOPYJC
         $insertion_point = $lno+1 if($Line =~ /^pass # LAST_HEADER/ && !$insertion_point);          # issue 24
         #say STDERR "$lno: $line";	# TEMP
         $line = eat_strings($Line);     # we change variables so eat_strings doesn't modify @lines
+        if($in_elif) {                  # issue s340: elif may be several lines long e.g. if it contains a multi-line string
+            if($line =~ /:(?:\s+#.*)?$/) {  # issue s340
+                $in_elif = 0;               # issue s340
+            }                               # issue s340
+        } else {                            # issue s340
+            $track_lno = $lno;              # issue s340: Track a reference in an elif back to the if
+        }                                   # issue s340
+        if($line =~ /^(\s*if)\b/) {     # issue s340
+            $if_tracker{$1} = $lno;     # issue s340
+        } elsif($line =~ /^(\s*elif)\b/) {  # issue s340
+            my $my_if = $1;             # issue s340
+            $my_if =~ s/elif$/if/;      # issue s340
+            $track_lno = $if_tracker{$my_if} if exists $if_tracker{$my_if}; # issue s340
+            $in_elif = 1 unless $line =~ /:(?:\s+#.*)?$/;    # issue s340
+        } elsif($line =~ /^(\s*else)\b/) {  # issue s340
+            my $my_if = $1;             # issue s340
+            $my_if =~ s/else$/if/;      # issue s340
+            delete $if_tracker{$my_if}; # issue s340
+        }                               # issue s340
         if($in_def) {
             # issue s126 $in_def = undef if($line !~ /^def / && $line !~ /^class / && length($line) >= 1 && $line !~ /^\s*#/ && $line !~ /^\s/ && !$multiline_string_sep);
             if($line =~ /^([A-Za-z0-9.]+)[.]$in_def = types[.]MethodType\($in_def,/ ||
@@ -3956,7 +4036,8 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
             }
             if(!defined $refs{$f}) {    # Only put in the first one
                 #say STDERR "Adding refs{$f} = $lno: $line";			# TEMP
-                $refs{$f} = $lno;
+                # issue s340 $refs{$f} = $lno;
+                $refs{$f} = $track_lno;             # issue s340: Real lno or lno of 'if' if we are in 'elif'
                 #push @{$dependencies{main}}, $f;
                 #say STDERR "Adding __main__ to dependencies{$f} on $lno: $line";			# TEMP
                 push @{$dependencies{$f}}, '__main__';
@@ -4001,12 +4082,18 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
     say STDERR "ordered_to_move: @ordered_to_move" if($::debug >= 3);
 
     my %nested_issues = ();                     # issue s3: map from insertion point lno to the lno of the nested function
+    say STDERR "\@nested: " . Dumper(\@nested) if(scalar @nested && $::debug >= 3);
     for my $n (@nested) {                       # issue s3
         if(exists $refs{$n} && $refs{$n} < $defs{$n}) {
-            $nested_issues{$refs{$n}} = $defs{$n};
+            if(exists $nested_issues{$refs{$n}}) {      # issue s340
+                $nested_issues{$refs{$n}} .= ',' . $defs{$n};   # issue s340
+            } else {                                    # issue s340
+                $nested_issues{$refs{$n}} = $defs{$n};
+            }
         }
     }
-    say STDERR "nested_issues: @{[%nested_issues]}" if($::debug >= 3);  # issue s3
+    #say STDERR "nested_issues: @{[%nested_issues]}" if($::debug >= 3);  # issue s3
+    say STDERR "nested_issues: " . Dumper(\%nested_issues) if($::debug >= 3);  # issue s3
 
     if(%nested_issues) {                        # issue s3
         my $lno = 0;
@@ -4019,26 +4106,36 @@ sub move_defs_before_refs		# SNOOPYJC: move definitions up before references in 
                 # that function code here and adjust any nesting issues
                 $line =~ /^(\s*)/;
                 my $target_indent = length($1);
-                my $function_lno = $nested_issues{$lno};
-                say STDERR "Handling nested issue on line $function_lno with ref on line $lno" if($::debug >= 5);
-                $lines[$function_lno-1] =~ /^(\s*)/;
-                my $source_indent = length($1);
-                my $indent = ' ' x ($target_indent - $source_indent);
-                my $moved_def = 0;
-                for(my $i=$function_lno-1; $i<scalar(@lines); $i++) {
-                    $lines[$i] =~ /^(\s*)/;
-                    my $cur_indent = length($1);
-                    last if $cur_indent <= $source_indent && $moved_def;
-                    $moved_def = 1 if($lines[$i] =~ /^\s*def /);
-                    $moved_lines{$i+1} = 1;
-                    push @output_lines, ($indent . $lines[$i]);
-                }
+                my $function_lnos = $nested_issues{$lno};       # issue s340
+                my @function_lnos = split /,/, $function_lnos;  # issue s340
+                # issue s340 my $function_lno = $nested_issues{$lno};
+                foreach my $function_lno (@function_lnos) {     # issue s340
+                    say STDERR "Handling nested issue on line $function_lno with ref on line $lno" if($::debug >= 5);
+                    $lines[$function_lno-1] =~ /^(\s*)/;
+                    my $source_indent = length($1);
+                    my $indent = ' ' x ($target_indent - $source_indent);
+                    my $moved_def = 0;
+                    for(my $i=$function_lno-1; $i<scalar(@lines); $i++) {
+                        $lines[$i] =~ /^(\s*)/;
+                        my $cur_indent = length($1);
+                        last if $cur_indent <= $source_indent && $moved_def;
+                        $moved_def = 1 if($lines[$i] =~ /^\s*def /);
+                        $moved_lines{$i+1} = 1;
+                        push @output_lines, ($indent . $lines[$i]);
+                    }
+                }                                               # issue s340
                 push @output_lines, $line;
             } elsif(!exists $moved_lines{$lno}) {
                 push @output_lines, $line;
             }
         }
         @lines = @output_lines;
+        if($::debug >= 6) {
+            say STDERR "---------- Generated code after fixing nested_issues ----------";
+            for(my $i = 1; $i <= @lines; $i++) {
+                say STDERR "$i: " . $lines[$i-1];
+            }
+        }
     }
     
     # Pass 3 - regenerate the output file in the right order
@@ -4642,6 +4739,27 @@ sub new_anonymous_sub                   # issue s26
     return $result;
 }
 
+sub declared_in_statement                   # issue s362
+# Is this name being declared in this statement?
+{
+    my $name = shift;
+
+    for(my $i = 0; $i <= $#ValClass; $i++) {
+        if($ValClass[$i] eq 't' && ($ValPerl[$i] eq 'my' || $ValPerl[$i] eq 'local' || $ValPerl[$i] eq 'state')) {
+            return 1 if $i+1 <= $#ValClass && $ValPy[$i+1] eq $name;
+            if($ValClass[$i+1] eq '(') {
+                my $match = matching_br($i+1);
+                $match = scalar(@ValClass) if $match < 0;
+                for(my $j = $i+1; $j < $match; $j++) {
+                    return 1 if $ValPy[$j] eq $name;
+                }
+                $i = $match;
+            }
+        }
+    }
+    return 0;
+}
+
 sub being_declared_here                         # issue bootstrap
 # we have a "my" or similar statement, and a pointer to a variable - is this variable being declared here?
 # Returns 0 if it's being used in a subscript or on the RHS of an assignment
@@ -4867,6 +4985,9 @@ sub set_out_parameter                   # issue s184
            # issue s241 push @{$SubAttributes{$cs}{out_parameters}}, $arg;
            if(!grep {($_+0) == ($arg+0) || $_ eq 'var'} @{get_sub_attribute($cs, 'out_parameters')}) {   # issue s241
               push @{get_sub_attribute($cs, 'out_parameters')}, $arg;    # issue s241
+              if(exists $SubAttributes{'->'.$cs}) {                     # issue s353: It's a copy
+                  push @{get_sub_attribute($cs, 'out_parameters', 1)}, $arg;    # issue s353: Method call
+              }
            }                                                              # issue s184
        } else { 
            # issue s241 $SubAttributes{$cs}{out_parameters} = [$arg];

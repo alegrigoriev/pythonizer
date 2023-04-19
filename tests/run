@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Run this once plain, and once with '-m' flag, once with -P, and once with -mP
 V=`../pythonizer -V`
 echo "Testing $V"
@@ -9,7 +9,7 @@ export PYTHONPATH=/c/pythonizer/pythonizer
 cd ../tests
 
 echo "Cleaning .py files"
-rm -f *.py subdir/*.py subdir/subsubdir/*.py My/*.py testdie/*.py
+rm -f *.py subdir/*.py subdir/subsubdir/*.py My/*.py testdie/*.py A/*.py A/*/*.py
 rm -fr PyModules
 status=0
 failed=0
@@ -100,7 +100,7 @@ fi
 
 echo
 echo "Generating subdir files"
-for f in subdir/*.pl testdie/*.pl
+for f in subdir/*.pl testdie/*.pl My/*.pm
 do
 	if [ $ctrlc -eq 1 ]; then
 	   break
@@ -116,7 +116,10 @@ do
 	   rm -f run1.log
 	   continue
 	fi
-	pyf=${f%.pl}.py
+	case "$f" in
+	*.pl) pyf=${f%.pl}.py;;
+	*.pm) pyf=${f%.pm}.py;;
+        esac
 	python -m py_compile "$pyf" >>run1.log 2>&1
 	if [ $? -ne 0 ]; then
 	   echo "$pyf compile with python FAILED" >>run1.log

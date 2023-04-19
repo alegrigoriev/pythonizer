@@ -10,6 +10,7 @@ def _import(globals, path, module=None, fromlist=None, version=None, is_do=False
     else:
         caller_package = builtins.__PACKAGE__
     pathname = None
+    path = path.replace('::', '/')
     if module is not None:
         path = f'{path}/{module}'
         module = None

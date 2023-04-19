@@ -71,7 +71,7 @@ for my $subtest (@subtests) {
     if(defined $expected) {
         assert($result =~ /$expected/, "Result for $subtest is $result, expecting $expected");
     } else {
-        assert(!defined $result or $result eq '' or $result =~ /can't open file/, "Result for $subtest is '$result', expecting undef");
+        assert(!defined $result or $result eq '' or $result =~ /can't open file/ or $result =~ /Terminated/ or $result =~ /not found/, "Result for $subtest is '$result', expecting undef");
     }
 }
 

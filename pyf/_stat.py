@@ -7,8 +7,9 @@ def stat_cando(self, mode, eff):
         return ''       # False
     uid = os.geteuid() if eff else os.getuid()
     def _ingroup(gid, eff):
-        [egid, *supp] = os.getgrouplist(os.geteuid(), os.getegid())
         rgid = os.getgid()
+        egid = os.getegid()
+        supp = os.getgroups()
         if gid == (egid if eff else rgid):
             return 1    # True
         if gid in supp:
@@ -89,6 +90,11 @@ class File_stat(collections.abc.Sequence):
         return item in self._item_map
     def cando(self, mode, eff):
         return stat_cando(self, mode, eff)
+    def get(self, index, default=None):
+        try:
+            return self[index]
+        except IndexError:
+            return default
 
 def _stat(path):
     """Handle stat call with or without "use File::stat;" """

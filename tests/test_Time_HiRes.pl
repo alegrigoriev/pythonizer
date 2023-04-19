@@ -179,7 +179,13 @@ my $t2 = [gettimeofday];
 
 test_stat($file);
 test_lstat($file);
-test_utime($file, $atime, $mtime);
+# for WSL we need the file to not be in the current directory as
+# that's a windows directory that doesn't have good file time resolution
+#test_utime($file, $atime, $mtime);
+use File::Temp qw/tempfile/;
+my ($fh, $filename) = tempfile();
+test_utime($filename, $atime, $mtime);
+close($fh);
 test_gettimeofday();
 test_time();
 test_clock_gettime();
@@ -267,7 +273,8 @@ sub test_setitimer_getitimer {
     # wait for the signal to be delivered
     my $i = 0;
     while($count == 0 && $i++ < 20) {
-        sleep($time);
+        #sleep($time);
+        usleep(1000000 * $time);
     }
     assert($count == 1, "The signal should have been delivered exactly once, but count = $count.");
 }

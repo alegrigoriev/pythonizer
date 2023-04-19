@@ -2,7 +2,7 @@
 def _hires_alarm(floating_seconds, interval_floating_seconds=0):
     """Implementation of Time::HiRes::alarm"""
     if interval_floating_seconds == 0:
-        tm_py.alarm(floating_seconds)
+        signal.setitimer(signal.ITIMER_REAL, floating_seconds)
         return floating_seconds
     else:
         import threading

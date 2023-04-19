@@ -1,4 +1,4 @@
-# issue s333 - 
+# issue s333 - @$fbav = (undef) x $value; generates bad code
 use strict;
 use warnings;
 no warnings 'experimental';

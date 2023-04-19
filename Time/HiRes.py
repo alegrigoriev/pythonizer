@@ -12,7 +12,7 @@ __version__ = "1.026"
 #
 # NOTE: This file is manually edited - do NOT repythonize the source!
 #
-import builtins, perllib
+import builtins, perllib, signal
 import time as tm_py
 
 perllib.init_package("main")
@@ -83,14 +83,14 @@ Time.HiRes.d_nanosleep = d_nanosleep
 
 
 def d_setitimer(*_args):
-    pass
+    return 1
 
 
 Time.HiRes.d_setitimer = d_setitimer
 
 
 def d_getitimer(*_args):
-    pass
+    return 1
 
 
 Time.HiRes.d_getitimer = d_getitimer
@@ -104,7 +104,7 @@ Time.HiRes.d_gettimeofday = d_gettimeofday
 
 
 def d_ualarm(*_args):
-    pass
+    return 1
 
 
 Time.HiRes.d_ualarm = d_ualarm

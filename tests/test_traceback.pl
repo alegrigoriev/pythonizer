@@ -33,6 +33,9 @@ sub check {
 	my @lines = <LOG>;
 	$log_pos = tell LOG;
 
+    if(@lines == 5 && $lines[1] =~ /sh:/) { # happens on unix
+        @lines = @lines[0,2..4];
+    }
 	assert(@lines == 4);
 	$lines[SEP] =~ /- (.*?)2? -/;
 	$sep = $1;
