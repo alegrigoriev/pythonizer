@@ -1,0 +1,34 @@
+# http://editorconfig.org
+
+root = true
+
+[*]
+end_of_line = lf
+indent_style = space
+indent_size = 3
+trim_trailing_whitespace = true
+insert_final_newline = true
+charset = utf-8
+
+[tests/**]
+indent_size = 4
+end_of_line = lf
+
+[*.py]
+indent_size = 4
+end_of_line = unset
+
+[*.yaml]
+indent_size = 2
+end_of_line = unset
+
+[*.{shtml,html}]
+end_of_line = crlf
+
+[*.bat]
+indent_style = tab
+end_of_line = crlf
+
+[Makefile]
+indent_style = tab
+trim_trailing_whitespace = false
