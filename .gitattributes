@@ -1,0 +1,3 @@
+*.pm text eol=lf
+*.pl text eol=lf
+user_guide.shtml text eol=crlf
