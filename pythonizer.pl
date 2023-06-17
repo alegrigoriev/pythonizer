@@ -155,13 +155,12 @@ NOTRANS:
       }elsif( $ValPerl[0] =~ /say|print/ ){
          gen_chunk($ValPy[0]);
          $start=1;
-         if( $ValClass[1] eq 'k' ){
-            gen_chunk(' >>'.$ValPy[1]);
+         if( $ValClass[$start] eq 'i' ){
+            #printing to file handle
+            gen_chunk(' >>'.$ValPy[1]); # this is Python 2.7 for 3.x   print('hello world', file=file_object)
             $start++;
-            $rc=expression($start,$#ValClass,0);
-         }elsif($ValClass[1] eq '(') {
-            function(0,$#ValClass);
          }
+         $rc=expression($start,$#ValClass,0);
          if ($rc<0) { $FailedTrans=1; }
       }elsif( $ValClass[0] =~ /[shat]/ ){
           #scalar assignment or reg matching; Include my/own/state
