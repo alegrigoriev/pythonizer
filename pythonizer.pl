@@ -163,7 +163,7 @@ my $start;
             $start++;
          }
          $rc=expression($start,$#ValClass,0);
-         if ($rc<0 ) { $FailedTrans=1; }
+         if( $rc<0 ){ $FailedTrans=1; }
       }elsif( $ValClass[0] =~ /[shat]/ ){
           #scalar assignment or reg matching; Include my/own/state
           # expression is expected on the right side, but in Perl it can follow by condition a=2 if(b==0) => if (b==0  ){  a=2 }
