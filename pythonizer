@@ -99,7 +99,7 @@
 # options
 #
    $PyV=3; # version of Python for generation
-   $breakpoint=0; # line from which to debug code. See Pythonizer
+   $breakpoint=0; # line from which to debug code. See Pythonizer user guide
    $debug=0;  # 0 production mode 1 - development/testing mode. 2-9 debugging modes
               # 4 -stop at Perlscan.pm
    $HOME=$ENV{'HOME'}; # the directory used for backups if debug>0
