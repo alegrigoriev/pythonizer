@@ -79,7 +79,7 @@
 # 0.700  2020/09/17  BEZROUN   Basic global varibles detection added. Global statement generated for each local subroutine
 # 0.800  2020/10/02  BEZROUN   More correct translation of array assignments. Globals initialiazed after main sub.  Installer added
 # 0.810  2020/10/05  BEZROUN   Pre-pythonizer by default does not create main subroutine
-# 0.820  2020/10/06  BEZROUN   Function parcing rewrtten to accoundate some "bracketless" cases which now became a norm in Perl
+# 0.820  2020/10/06  BEZROUN   Function parsing rewritten to accomodate some "bracketless" cases which now became a norm in Perl
 #!start ===============================================================================================================================
 
    use v5.10;
