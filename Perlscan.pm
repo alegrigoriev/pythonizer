@@ -831,7 +831,7 @@ my $i;
 #
    for($i=0; $i<@_;$i++ ){
       if( scalar(@PythonCode) >256 ){
-         logme('S',"Number of generated chunks for the line exceeded 256");
+         Softpano::logme('S',"Number of generated chunks for the line exceeded 256");
          if( $::debug > 0 ){
             $DB::single = 1;
          }
